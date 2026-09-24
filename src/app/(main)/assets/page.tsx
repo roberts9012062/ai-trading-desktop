@@ -1,9 +1,15 @@
 "use client"
 
-import { useEffect } from "react"
+import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { cn, formatShanghaiTime } from "@/lib/utils"
 import { usePaperTradingStore } from "@/stores/paper-trading"
+import {
+  adjustDemoBalanceApi,
+  placePositionTpslApi,
+  transferFundsApi,
+} from "@/lib/live-api"
+import type { PaperPositionItem } from "@/lib/paper-api"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -50,6 +56,91 @@ function LiveAssetsView(): React.JSX.Element {
   const mode = usePaperTradingStore((s) => s.mode)
   const venue = usePaperTradingStore((s) => s.venue)
 
+  // 划转 / 模拟注资 / 持仓补挂止盈止损
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [transferDir, setTransferDir] = useState<"in" | "out">("in")
+  const [transferAmt, setTransferAmt] = useState("")
+  const [fundMsg, setFundMsg] = useState<string | null>(null)
+  const [fundBusy, setFundBusy] = useState(false)
+  const [tpslFor, setTpslFor] = useState<PaperPositionItem | null>(null)
+  const [tpPrice, setTpPrice] = useState("")
+  const [slPrice, setSlPrice] = useState("")
+
+  async function doTransfer(): Promise<void> {
+    const amt = Number(transferAmt)
+    if (!Number.isFinite(amt) || amt <= 0) {
+      setFundMsg("请输入有效金额")
+      return
+    }
+    setFundBusy(true)
+    setFundMsg(null)
+    try {
+      await transferFundsApi({
+        venue,
+        ccy: "USDT",
+        amt,
+        from_account: transferDir === "in" ? "funding" : "trading",
+        to_account: transferDir === "in" ? "trading" : "funding",
+      })
+      setFundMsg(
+        transferDir === "in"
+          ? "划转成功：资金账户 → 交易账户"
+          : "划转成功：交易账户 → 资金账户"
+      )
+      setTransferAmt("")
+      await refresh()
+    } catch (e) {
+      setFundMsg(e instanceof Error ? e.message : "划转失败")
+    } finally {
+      setFundBusy(false)
+    }
+  }
+
+  async function doDemoTopUp(): Promise<void> {
+    setFundBusy(true)
+    setFundMsg(null)
+    try {
+      await adjustDemoBalanceApi({
+        venue,
+        direction: "increase",
+        adjustments: [{ ccy: "USDT", amt: 3000 }],
+      })
+      setFundMsg("已注入 3000 USDT 模拟资金（每日最多 3 次）")
+      await refresh()
+    } catch (e) {
+      setFundMsg(e instanceof Error ? e.message : "注入失败")
+    } finally {
+      setFundBusy(false)
+    }
+  }
+
+  async function doTpsl(): Promise<void> {
+    if (!tpslFor) return
+    const tp = Number(tpPrice) || null
+    const sl = Number(slPrice) || null
+    if (!tp && !sl) {
+      setFundMsg("止盈价与止损价至少填一个")
+      return
+    }
+    setFundBusy(true)
+    setFundMsg(null)
+    try {
+      await placePositionTpslApi({
+        venue,
+        symbol: tpslFor.symbol,
+        pos_side: tpslFor.direction === "long" ? "long" : "short",
+        tp_price: tp && tp > 0 ? tp : null,
+        sl_price: sl && sl > 0 ? sl : null,
+      })
+      setFundMsg(`已为 ${tpslFor.symbol} 挂出止盈/止损条件单（触发后市价平仓）`)
+      setTpslFor(null)
+    } catch (e) {
+      setFundMsg(e instanceof Error ? e.message : "条件单失败")
+    } finally {
+      setFundBusy(false)
+    }
+  }
+
   useEffect(() => {
     void refresh()
   }, [refresh])
@@ -81,15 +172,80 @@ function LiveAssetsView(): React.JSX.Element {
             数据实时来自交易所 · 委托/持仓明细见「交易」「持仓」页
           </p>
         </div>
-        <Button variant="outline" size="sm" className="gap-1" disabled={loading} onClick={() => void refresh()}>
-          {loading && <Loader2 className="w-3 h-3 animate-spin" />}
-          刷新
-        </Button>
+        <div className="flex items-center gap-2">
+          {account?.demo && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={fundBusy}
+              onClick={() => void doDemoTopUp()}
+              title="OKX 模拟盘专用：注入模拟 USDT（单次上限 5000，每日 3 次）"
+            >
+              注入模拟资金
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={fundBusy}
+            onClick={() => {
+              setTransferOpen((v) => !v)
+              setFundMsg(null)
+            }}
+          >
+            资金划转
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1" disabled={loading} onClick={() => void refresh()}>
+            {loading && <Loader2 className="w-3 h-3 animate-spin" />}
+            刷新
+          </Button>
+        </div>
       </div>
 
       {error && (
         <div className="px-3 py-2 rounded-md bg-[var(--accent-danger)]/10 text-[var(--accent-danger)] text-xs">
           {error}
+        </div>
+      )}
+
+      {transferOpen && (
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-3">
+          <div className="flex items-center gap-2 flex-wrap text-xs">
+            <span className="text-[var(--text-secondary)] font-medium">资金划转（USDT）</span>
+            <div className="flex rounded-md border border-[var(--border)] overflow-hidden">
+              <button
+                type="button"
+                className={`px-2.5 py-1 text-[11px] ${transferDir === "in" ? "bg-[var(--primary)]/15 text-[var(--primary)]" : "text-[var(--text-muted)]"}`}
+                onClick={() => setTransferDir("in")}
+              >
+                资金账户 → 交易账户
+              </button>
+              <button
+                type="button"
+                className={`px-2.5 py-1 text-[11px] ${transferDir === "out" ? "bg-[var(--primary)]/15 text-[var(--primary)]" : "text-[var(--text-muted)]"}`}
+                onClick={() => setTransferDir("out")}
+              >
+                交易账户 → 资金账户
+              </button>
+            </div>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              placeholder="金额"
+              value={transferAmt}
+              onChange={(e) => setTransferAmt(e.target.value)}
+              className="w-28 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-xs font-num"
+            />
+            <Button size="sm" disabled={fundBusy} onClick={() => void doTransfer()}>
+              {fundBusy ? "划转中…" : "确认划转"}
+            </Button>
+          </div>
+        </div>
+      )}
+      {fundMsg && (
+        <div className="px-3 py-2 rounded-md bg-[var(--bg-tertiary)] text-xs text-[var(--text-secondary)]">
+          {fundMsg}
         </div>
       )}
 
@@ -135,18 +291,20 @@ function LiveAssetsView(): React.JSX.Element {
                 <TableHead className="text-xs font-num">开仓均价</TableHead>
                 <TableHead className="text-xs font-num">浮盈</TableHead>
                 <TableHead className="text-xs font-num">强平价</TableHead>
+                <TableHead className="text-xs">保护单</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {positions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-xs text-[var(--text-muted)] py-6">
+                  <TableCell colSpan={7} className="text-center text-xs text-[var(--text-muted)] py-6">
                     暂无持仓
                   </TableCell>
                 </TableRow>
               ) : (
                 positions.map((p) => (
-                  <TableRow key={p.id}>
+                  <React.Fragment key={p.id}>
+                  <TableRow>
                     <TableCell className="text-xs font-medium">{p.symbol}</TableCell>
                     <TableCell>
                       <Badge variant={p.direction === "long" ? "up" : "down"} className="text-[10px]">
@@ -167,7 +325,57 @@ function LiveAssetsView(): React.JSX.Element {
                     <TableCell className="font-num text-xs text-[var(--text-muted)]">
                       {(p as { liquidation_price?: number }).liquidation_price || "--"}
                     </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-[11px]"
+                        onClick={() => {
+                          setTpslFor(tpslFor?.id === p.id ? null : p)
+                          setTpPrice("")
+                          setSlPrice("")
+                        }}
+                      >
+                        {tpslFor?.id === p.id ? "收起" : "补挂"}
+                      </Button>
+                    </TableCell>
                   </TableRow>
+                  {tpslFor?.id === p.id && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="bg-[var(--bg-tertiary)]/40">
+                        <div className="flex items-center gap-2 py-1 flex-wrap">
+                          <span className="text-xs text-[var(--text-secondary)]">
+                            {p.symbol} {p.direction === "long" ? "多" : "空"} 补挂条件单（触发后市价平仓）
+                          </span>
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            placeholder="止盈价"
+                            value={tpPrice}
+                            onChange={(e) => setTpPrice(e.target.value)}
+                            className="w-28 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-xs font-num"
+                          />
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            placeholder="止损价"
+                            value={slPrice}
+                            onChange={(e) => setSlPrice(e.target.value)}
+                            className="w-28 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-xs font-num"
+                          />
+                          <Button size="sm" disabled={fundBusy} onClick={() => void doTpsl()}>
+                            {fundBusy ? "提交中…" : "挂出"}
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => setTpslFor(null)}>
+                            取消
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  </React.Fragment>
                 ))
               )}
             </TableBody>

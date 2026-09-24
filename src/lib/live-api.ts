@@ -269,3 +269,88 @@ export async function setLiveLeverageApi(
     body: JSON.stringify({ venue, symbol, leverage }),
   })
 }
+
+// ---------- 划转 / 模拟盘资金 / 条件单 / 改单（OKX 文档对齐批次） ----------
+
+export async function transferFundsApi(payload: {
+  venue: string
+  ccy: string
+  amt: number
+  from_account: string
+  to_account: string
+}): Promise<{ ok: boolean; transfer_id: string }> {
+  return liveRequest("/api/live/transfer", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function adjustDemoBalanceApi(payload: {
+  venue: string
+  direction: "increase" | "reduce"
+  adjustments: { ccy: string; amt: number }[]
+}): Promise<{ ok: boolean; raw?: Record<string, unknown> }> {
+  return liveRequest("/api/live/demo-balance", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function placePositionTpslApi(payload: {
+  venue: string
+  symbol: string
+  pos_side: "long" | "short" | null
+  tp_price: number | null
+  sl_price: number | null
+}): Promise<{ ok: boolean; algo_id: string }> {
+  return liveRequest("/api/live/positions/tpsl", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function amendLiveOrderApi(payload: {
+  venue: string
+  order_id: string
+  symbol: string
+  new_price: number | null
+  new_qty: number | null
+}): Promise<{ ok: boolean }> {
+  return liveRequest("/api/live/orders/amend", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export interface LiveBill {
+  ts_ms: number
+  symbol: string
+  type: string
+  sub_type: string
+  amount: number
+  fee: number
+  pnl: number
+  notes: string
+}
+
+export async function getLiveBillsApi(
+  venue: string,
+  limit = 50
+): Promise<LiveBill[]> {
+  const res = await liveRequest<{ bills: LiveBill[] }>(
+    `/api/live/bills?venue=${venue}&limit=${limit}`
+  )
+  return res.bills
+}
+
+export async function getLiveFeeRatesApi(
+  venue: string,
+  symbol?: string
+): Promise<{ symbol: string; maker: number; taker: number }[]> {
+  const qs = new URLSearchParams({ venue })
+  if (symbol) qs.set("symbol", symbol)
+  const res = await liveRequest<{
+    rates: { symbol: string; maker: number; taker: number }[]
+  }>(`/api/live/fee-rates?${qs.toString()}`)
+  return res.rates
+}

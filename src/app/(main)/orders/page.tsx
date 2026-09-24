@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
 import { usePaperTradingStore } from "@/stores/paper-trading"
 import { formatShanghaiTime } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -15,8 +14,10 @@ import {
   TableCell,
 } from "@/components/ui/table"
 import { Loader2 } from "lucide-react"
+import React, { useEffect, useMemo, useState } from "react"
 import type { PaperOrderItem } from "@/lib/paper-api"
 import { paperActionLabel } from "@/lib/trade-labels"
+import { amendLiveOrderApi, getStoredVenue } from "@/lib/live-api"
 
 function StatusBadge({ status }: { status: string }): React.JSX.Element {
   const map: Record<
@@ -225,6 +226,43 @@ function OrderTable(props: {
   emptyText: string
   onCancel?: (id: string) => void
 }): React.JSX.Element {
+  // 实盘改单：改价/改量不撤重挂（保留排队位置）
+  const mode = usePaperTradingStore((s) => s.mode)
+  const refresh = usePaperTradingStore((s) => s.refresh)
+  const [amendFor, setAmendFor] = useState<string | null>(null)
+  const [newPrice, setNewPrice] = useState("")
+  const [newQty, setNewQty] = useState("")
+  const [amendMsg, setAmendMsg] = useState<string | null>(null)
+  const [amendBusy, setAmendBusy] = useState(false)
+  const showAmend = props.showCancel && mode === "live"
+
+  async function doAmend(o: PaperOrderItem): Promise<void> {
+    const px = Number(newPrice) || null
+    const qty = Number(newQty) || null
+    if (!px && !qty) {
+      setAmendMsg("新价格与新数量至少填一个")
+      return
+    }
+    setAmendBusy(true)
+    setAmendMsg(null)
+    try {
+      await amendLiveOrderApi({
+        venue: getStoredVenue(),
+        order_id: o.exchange_order_id || o.id,
+        symbol: o.symbol,
+        new_price: px && px > 0 ? px : null,
+        new_qty: qty && qty > 0 ? qty : null,
+      })
+      setAmendMsg(`改单成功：${o.symbol}`)
+      setAmendFor(null)
+      await refresh()
+    } catch (e) {
+      setAmendMsg(e instanceof Error ? e.message : "改单失败")
+    } finally {
+      setAmendBusy(false)
+    }
+  }
+
   return (
     <Table>
       <TableHeader>
@@ -239,13 +277,14 @@ function OrderTable(props: {
           <TableHead>冻结保证金</TableHead>
           <TableHead>状态</TableHead>
           {props.showCancel && <TableHead>操作</TableHead>}
+          {showAmend && <TableHead>改单</TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
         {props.rows.length === 0 ? (
           <TableRow>
             <TableCell
-              colSpan={props.showCancel ? 10 : 9}
+              colSpan={props.showCancel ? (showAmend ? 11 : 10) : 9}
               className="text-center text-[var(--text-muted)] py-8"
             >
               {props.emptyText}
@@ -253,7 +292,8 @@ function OrderTable(props: {
           </TableRow>
         ) : (
           props.rows.map((o) => (
-            <TableRow key={o.id}>
+            <React.Fragment key={o.id}>
+            <TableRow>
               <TableCell className="font-num text-xs text-[var(--text-muted)]">
                 {formatShanghaiTime(o.created_at)}
               </TableCell>
@@ -291,7 +331,64 @@ function OrderTable(props: {
                   </Button>
                 </TableCell>
               )}
+              {showAmend && (
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-6"
+                    disabled={o.status !== "pending" && o.status !== "partially_filled"}
+                    onClick={() => {
+                      setAmendFor(amendFor === o.id ? null : o.id)
+                      setNewPrice(String(o.price || ""))
+                      setNewQty(String(o.quantity || ""))
+                      setAmendMsg(null)
+                    }}
+                  >
+                    {amendFor === o.id ? "收起" : "改单"}
+                  </Button>
+                </TableCell>
+              )}
             </TableRow>
+            {showAmend && amendFor === o.id && (
+              <TableRow>
+                <TableCell colSpan={11} className="bg-[var(--bg-tertiary)]/40">
+                  <div className="flex items-center gap-2 py-1 flex-wrap">
+                    <span className="text-xs text-[var(--text-secondary)]">
+                      {o.symbol} 改单（保留排队位置）
+                    </span>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      placeholder="新价格"
+                      value={newPrice}
+                      onChange={(e) => setNewPrice(e.target.value)}
+                      className="w-28 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-xs font-num"
+                    />
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      placeholder="新数量"
+                      value={newQty}
+                      onChange={(e) => setNewQty(e.target.value)}
+                      className="w-28 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-xs font-num"
+                    />
+                    <Button size="sm" disabled={amendBusy} onClick={() => void doAmend(o)}>
+                      {amendBusy ? "提交中…" : "确认改单"}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setAmendFor(null)}>
+                      取消
+                    </Button>
+                    {amendMsg && (
+                      <span className="text-[11px] text-[var(--text-secondary)]">{amendMsg}</span>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            )}
+            </React.Fragment>
           ))
         )}
       </TableBody>
