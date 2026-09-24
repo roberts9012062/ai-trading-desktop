@@ -54,6 +54,7 @@ export interface BacktestRunPayload {
     | "band_swing"
     | "swing_pivot"
     | "swing_pivot_v2"
+    | "swing_pro"
     | "strength_entry"
     | "strength_entry_v2"
     | "factor"
@@ -66,8 +67,11 @@ export interface BacktestRunPayload {
   timeframe: string
   start_date: string
   end_date: string
+  data_channel?: string
   side_mode?: string
   fixed_qty?: number
+  margin_per_trade?: number
+  leverage?: number
   initial_cash?: number
   /** aggressive/balanced/conservative */
   risk_style?: string
@@ -117,6 +121,14 @@ export interface BacktestTrade {
   fee?: number
   pnl?: number
   reason?: string
+  /** 本笔保证金（USDT） */
+  margin?: number
+  /** 杠杆倍数 */
+  leverage?: number
+  /** 收益率（保证金口径 = 杠杆放大后） */
+  pnl_pct_margin?: number
+  /** 收益率（名义口径 = 价格变动百分比，r20 同款） */
+  pnl_pct_notional?: number
 }
 
 /** 多段回测中单段的独立报告 */
@@ -242,6 +254,10 @@ export interface SyntheticAccountSnapshot {
   equity: number
   trades: BacktestTrade[]
   last_price: number
+  /** 专业波段信号K线止损锚（随快照无状态回传） */
+  position_sl?: number | null
+  /** 当前仓是否为止损反手仓（反手仓止损后不再反手） */
+  was_reverse?: boolean
 }
 
 export interface SyntheticStepRequest {
@@ -251,6 +267,8 @@ export interface SyntheticStepRequest {
   strategy_params?: Record<string, unknown> | null
   side_mode?: string
   fixed_qty?: number
+  margin_per_trade?: number
+  leverage?: number
   initial_cash?: number
   risk_style?: string
   custom_prompt_enabled?: boolean

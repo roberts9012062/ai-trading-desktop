@@ -219,13 +219,13 @@ export function SyntheticPanel({
       <StrategySection
         mode={mode}
         onMode={setMode}
+        timeframe={timeframe}
         quant={quant}
         onQuant={setQuant}
         models={models}
         modelRowId={genModelId}
         onModel={setGenModelId}
         symbol={symbol}
-        timeframe={timeframe}
         onApplyFactorMeta={(sym, tf) => {
           if (sym && sym.trim()) {
             setSymbol(sym.trim().toLowerCase())

@@ -213,6 +213,7 @@ export function useChartSeries(props: {
   ])
 
   // 按品种 tick 设置蜡烛 series 的价格精度（影响十字线价格轴标签）
+  const specsLoaded = useContractSpecStore((s) => s.loaded)
   useEffect(() => {
     let raf = 0
     const apply = () => {
@@ -223,11 +224,33 @@ export function useChartSeries(props: {
         return
       }
       const specStore = useContractSpecStore.getState()
-      const tick = specStore.getTickSize(activeContract)
-      const precision = specStore.getDecimalPlaces(activeContract)
+      const spec = specStore.getSpec(activeContract)
+      let precision: number
+      let minMove: number
+      if (spec) {
+        precision = spec.decimal_places
+        minMove = spec.tick_size
+      } else {
+        // 规格未加载/未命中：回退行情小数位或最新价量级；
+        // 二者皆缺时跳过 —— 绝不能落 spec 默认 0/1（rAF 晚于数据写入路径执行，
+        // 会把已设好的微价格精度覆盖成 precision=0/minMove=1，日线轴全变 0）
+        const q = useMarketStore.getState().quotes[activeContract]
+        const dec = q?.decimal_places
+        if (typeof dec === "number" && dec >= 0 && dec <= 10) {
+          precision = dec
+        } else {
+          const p = Number(q?.last_price) || 0
+          if (p <= 0) return
+          precision =
+            p >= 10000 ? 1 : p >= 100 ? 2 : p >= 1 ? 3 : p >= 0.1 ? 4
+            : p >= 0.01 ? 5 : p >= 0.001 ? 6 : p >= 0.0001 ? 7
+            : p >= 0.00001 ? 8 : 9
+        }
+        minMove = Number((10 ** -precision).toFixed(precision))
+      }
       try {
         series.applyOptions({
-          priceFormat: { type: "price", precision, minMove: tick },
+          priceFormat: { type: "price", precision, minMove },
         })
       } catch {
         /* ignore */
@@ -235,7 +258,7 @@ export function useChartSeries(props: {
     }
     raf = requestAnimationFrame(apply)
     return () => cancelAnimationFrame(raf)
-  }, [activeContract, chartReady])
+  }, [activeContract, chartReady, specsLoaded])
 
   useEffect(() => {
     const series = seriesRef.current
@@ -265,7 +288,30 @@ export function useChartSeries(props: {
       mergeBarsWithRealtime(currentBars, rtBar, period) ?? currentBars
     if (barsToRender.length === 0) return
 
+    // 价格精度自适应（写入路径同步应用，杜绝首载 ref 时机漏洞）：
+    // 规格小数位（行情 quote）优先，量级阶梯兜底（微价格币 9 位）
     try {
+      const q = useMarketStore.getState().quotes[activeContract]
+      const dec = q?.decimal_places
+      const lastClose = barsToRender[barsToRender.length - 1]?.close
+      let prec: number
+      if (typeof dec === "number" && dec >= 0 && dec <= 10) {
+        prec = dec
+      } else {
+        const p = Number(lastClose) || 0
+        prec =
+          p >= 10000 ? 1 : p >= 100 ? 2 : p >= 1 ? 3 : p >= 0.1 ? 4
+          : p >= 0.01 ? 5 : p >= 0.001 ? 6 : p >= 0.0001 ? 7
+          : p >= 0.00001 ? 8 : p > 0 ? 9 : 2
+      }
+      const minMove = Number((10 ** -prec).toFixed(prec))
+      series.applyOptions({ priceFormat: { type: "price", precision: prec, minMove } })
+      for (const s of maSeriesRef.current) {
+        s?.applyOptions({ priceFormat: { type: "price", precision: prec, minMove } })
+      }
+      for (const s of bollSeriesRef.current) {
+        s?.applyOptions({ priceFormat: { type: "price", precision: prec, minMove } })
+      }
       writeAll(barsToRender)
       applyPivotMarkersByVersion(series, pivotMarkersRef, barsToRender, period, config)
     } catch (err) {

@@ -18,7 +18,7 @@ export interface AiFundStyleState {
 }
 
 export const DEFAULT_AI_FUND_STYLE: AiFundStyleState = {
-  allocatedCapital: 100000,
+  allocatedCapital: 1000,
   riskStyle: "balanced",
   customPromptEnabled: false,
   customPrompt: "",
@@ -104,17 +104,17 @@ export function AiFundStyleFields({
 
       {showCap && (
         <div className="space-y-1">
-          <Label>{capitalLabel || "AI 资金仓（元）"}</Label>
+          <Label>{capitalLabel || "AI 资金仓（USDT）"}</Label>
           <Input
             type="number"
-            min={1000}
-            step={1000}
+            min={10}
+            step="any"
             value={value.allocatedCapital}
             onChange={(e) =>
               patch({
                 allocatedCapital: Math.max(
-                  1000,
-                  Number(e.target.value) || 1000,
+                  10,
+                  Number(e.target.value) || 10,
                 ),
               })
             }

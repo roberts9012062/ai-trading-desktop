@@ -97,6 +97,20 @@ export const MACD_DEF: SubIndicatorDef = {
       cfg.macd.signalPeriod,
     )
     if (macdData.length === 0) return
+    // 副图轴精度自适应：微价格币的 MACD 值在 1e-8 量级，
+    // 固定默认 2 位小数会把轴标签/尾值全显示成 0
+    const maxAbs = Math.max(
+      ...macdData.slice(-60).map((d) =>
+        Math.max(Math.abs(d.dif), Math.abs(d.dea), Math.abs(d.macd)),
+      ),
+    )
+    const macdPrec =
+      maxAbs >= 100 ? 2 : maxAbs >= 1 ? 3 : maxAbs >= 0.01 ? 5 : maxAbs >= 0.0001 ? 7 : 9
+    const macdMinMove = Number((10 ** -macdPrec).toFixed(macdPrec))
+    const macdFmt = { type: "price" as const, precision: macdPrec, minMove: macdMinMove }
+    for (const s of [difSeries, deaSeries, histSeries]) {
+      s.applyOptions({ priceFormat: macdFmt })
+    }
     difSeries.setData(
       macdData.map((d) => ({
         time: formatChartTime(period, d.time),

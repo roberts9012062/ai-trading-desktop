@@ -28,6 +28,8 @@ import {
 } from "@/components/ai-trading/form/ai-quant-ref-picker"
 import type { AIModel } from "@/types"
 import type { BacktestRunPayload } from "@/lib/backtest-api"
+import { DataChannelSelect } from "@/components/common/data-channel-select"
+import type { ChannelRange } from "@/lib/history-channels"
 import { validateBacktestForm } from "@/components/backtest/backtest-form-helpers"
 import { BacktestRangeSlider } from "@/components/backtest/backtest-range-slider"
 import {
@@ -62,11 +64,16 @@ export function BacktestForm({
   const [initRange] = useState(() => defaultRangeFor("1d", new Date()))
   const [startDate, setStartDate] = useState(initRange.start)
   const [endDate, setEndDate] = useState(initRange.end)
+  // 历史数据渠道：选渠道后按其可用范围 clamp 回测日期
+  const [dataChannel, setDataChannel] = useState("okx")
+  const [channelRange, setChannelRange] = useState<ChannelRange | null>(null)
   // 多段回测：日线（1d）不支持；段数 2~5
   const [multiSeg, setMultiSeg] = useState(false)
   const [segCount, setSegCount] = useState(SEGMENT_MIN_COUNT)
   const [sideMode, setSideMode] = useState("both")
-  const [fixedQty, setFixedQty] = useState(1)
+  // r20 模型：每笔保证金（USDT）×杠杆 自动算量；数量留空时按此口径
+  const [marginPerTrade, setMarginPerTrade] = useState(1000)
+  const [leverage, setLeverage] = useState(5)
   const [initialCash, setInitialCash] = useState(1_000_000)
   const [name, setName] = useState("")
   const [lossPct, setLossPct] = useState("3")
@@ -138,6 +145,25 @@ export function BacktestForm({
     }
   }
 
+  // 渠道范围回来后 clamp 日期：早于渠道最早/晚于渠道最新的日期不可选；
+  // 当前区间整体越界时重置为「渠道末端一个合法区间」
+  const railMinISO = channelRange?.min_date ?? null
+  const railMaxISO = channelRange?.max_date ?? null
+  useEffect(() => {
+    if (!railMinISO || !railMaxISO) return
+    const upper = railMaxISO < toISO(today) ? railMaxISO : toISO(today)
+    setStartDate((s) => (s < railMinISO ? railMinISO : s > upper ? upper : s))
+    setEndDate((e) => {
+      if (e > upper) return upper
+      if (e < railMinISO) {
+        const d = new Date(railMinISO)
+        d.setUTCDate(d.getUTCDate() + maxDaysFor(timeframe) - 1)
+        return toISO(d) <= upper ? toISO(d) : upper
+      }
+      return e
+    })
+  }, [railMinISO, railMaxISO, timeframe, today])
+
   function handleSubmit(): void {
     setError(null)
     const verr = validateBacktestForm({
@@ -173,10 +199,12 @@ export function BacktestForm({
       timeframe,
       start_date: startDate,
       end_date: endDate,
+      data_channel: dataChannel,
       multi_segment: multiSeg,
       segment_count: segCount,
       side_mode: sideMode,
-      fixed_qty: fixedQty,
+      margin_per_trade: marginPerTrade,
+      leverage,
       initial_cash: initialCash,
       risk_style: mode === "ai" ? fundStyle.riskStyle : "balanced",
       custom_prompt_enabled:
@@ -200,13 +228,13 @@ export function BacktestForm({
       <StrategySection
         mode={mode}
         onMode={setMode}
+        timeframe={timeframe}
         quant={quant}
         onQuant={setQuant}
         models={models}
         modelRowId={modelRowId}
         onModel={setModelRowId}
         symbol={symbol}
-        timeframe={timeframe}
         onApplyFactorMeta={(sym, tf) => {
           // 选中收藏因子时，回填其品种与周期到回测表单
           if (sym && sym.trim()) {
@@ -228,19 +256,32 @@ export function BacktestForm({
       />
 
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <Label>回测区间（拖动或点击日期手动输入）</Label>
-          {timeframe !== "1d" && (
-            <label className="flex items-center gap-1.5 text-xs cursor-pointer text-[var(--text-secondary)]">
-              <input
-                type="checkbox"
-                checked={multiSeg}
-                onChange={(e) => changeMultiSeg(e.target.checked)}
-                className="accent-[var(--primary)] cursor-pointer"
-              />
-              启用多段回测
-            </label>
-          )}
+          <div className="flex items-center gap-2">
+            <DataChannelSelect
+              value={dataChannel}
+              onChange={(c) => {
+                setDataChannel(c)
+                setChannelRange(null)
+              }}
+              symbol={symbol.trim().toLowerCase() || null}
+              timeframe={timeframe}
+              onRange={setChannelRange}
+              className="w-56"
+            />
+            {timeframe !== "1d" && (
+              <label className="flex items-center gap-1.5 text-xs cursor-pointer text-[var(--text-secondary)]">
+                <input
+                  type="checkbox"
+                  checked={multiSeg}
+                  onChange={(e) => changeMultiSeg(e.target.checked)}
+                  className="accent-[var(--primary)] cursor-pointer"
+                />
+                启用多段回测
+              </label>
+            )}
+          </div>
         </div>
         {multiSeg && (
           <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
@@ -270,6 +311,7 @@ export function BacktestForm({
           start={startDate}
           end={endDate}
           today={today}
+          railStartISO={railMinISO ?? undefined}
           maxDaysOverride={multiSeg ? railDaysFor(timeframe, today) : undefined}
           minDays={multiSeg ? multiSegmentMinDays(timeframe, segCount) : undefined}
           onChange={(s, e) => {
@@ -321,18 +363,29 @@ export function BacktestForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="space-y-2">
-          <Label>手数</Label>
+          <Label>每笔保证金（USDT）</Label>
           <Input
             type="number"
-            min={1}
-            value={fixedQty}
-            onChange={(e) => setFixedQty(Number(e.target.value || 1))}
+            min={10}
+            step={10}
+            value={marginPerTrade}
+            onChange={(e) => setMarginPerTrade(Number(e.target.value || 1000))}
           />
         </div>
         <div className="space-y-2">
-          <Label>初始资金（AI 资金仓）</Label>
+          <Label>杠杆</Label>
+          <Input
+            type="number"
+            min={1}
+            max={125}
+            value={leverage}
+            onChange={(e) => setLeverage(Math.max(1, Math.min(125, Number(e.target.value || 5))))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>初始资金（USDT）</Label>
           <Input
             type="number"
             min={10000}
@@ -342,6 +395,9 @@ export function BacktestForm({
           />
         </div>
       </div>
+      <p className="text-[10px] text-[var(--text-muted)]">
+        每笔名义 = 保证金 × 杠杆；数量自动按开仓价换算（USDT 永续口径）
+      </p>
 
       {mode === "ai" && (
         <AiQuantRefPicker

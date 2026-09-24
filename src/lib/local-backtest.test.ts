@@ -7,21 +7,22 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("@/lib/api", () => ({
-  getKlineApi: vi.fn(),
+vi.mock("@/lib/binance-kline", () => ({
+  getBinanceKlineApi: vi.fn(),
 }))
 
-import { getKlineApi, type KlineBarApi, type KlineResponse } from "@/lib/api"
+import { getBinanceKlineApi, type BinanceKlinePage } from "@/lib/binance-kline"
+import type { KlineBarApi } from "@/lib/api"
 import { fetchBacktestBars } from "@/lib/local-backtest"
 
-const mockedGet = vi.mocked(getKlineApi)
+const mockedGet = vi.mocked(getBinanceKlineApi)
 
 function bar(time: string, close = 100): KlineBarApi {
   return { time, open: close, high: close, low: close, close, volume: 10, settle: null, open_interest: null }
 }
 
-function reply(bars: KlineBarApi[], has_more: boolean): Promise<KlineResponse> {
-  return Promise.resolve({ symbol: "rb2610", period: "1d", bars, has_more })
+function reply(bars: KlineBarApi[], has_more: boolean): Promise<BinanceKlinePage> {
+  return Promise.resolve({ bars, has_more })
 }
 
 function times(bars: readonly { time: string }[]): string[] {

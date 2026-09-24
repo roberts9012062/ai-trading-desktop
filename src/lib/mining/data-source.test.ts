@@ -9,13 +9,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { IDBFactory } from "fake-indexeddb"
 
-vi.mock("@/lib/api", () => ({
-  getKlineApi: vi.fn(),
+vi.mock("@/lib/binance-kline", () => ({
+  getBinanceKlineApi: vi.fn(),
 }))
 
-import { getKlineApi, type KlineBarApi } from "@/lib/api"
+import { getBinanceKlineApi } from "@/lib/binance-kline"
+import type { KlineBarApi } from "@/lib/api"
 
-const mockedGet = vi.mocked(getKlineApi)
+const mockedGet = vi.mocked(getBinanceKlineApi)
 
 /** 每个用例全新的 data-source 模块 + 独立 IDB(模块内含可配置上限的单例状态) */
 async function loadDataSource() {
@@ -27,7 +28,7 @@ function bar(time: string, close = 100): KlineBarApi {
 }
 
 function reply(bars: KlineBarApi[], has_more: boolean) {
-  return Promise.resolve({ symbol: "rb2610", period: "1d", bars, has_more })
+  return Promise.resolve({ bars, has_more })
 }
 
 function daysOfMonth(year: number, month: number, closeBase = 100): KlineBarApi[] {

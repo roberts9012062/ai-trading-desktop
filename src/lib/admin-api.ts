@@ -69,24 +69,24 @@ export interface SystemSettings {
   paper_total_claim_cap: number
   system_name: string
   /** 实时行情渠道 */
-  market_data_channel:
+  market_data_channel?:
     | "sina"
     | "real_ctp"
     | "openctp_724"
     | "openctp_sim"
     | "vvtr"
   /** 备用渠道（主故障时切换，仅非 7×24 真实数据源） */
-  backup_channel: "sina" | "real_ctp" | "openctp_sim" | "vvtr"
+  backup_channel?: "sina" | "real_ctp" | "openctp_sim" | "vvtr"
   /** 是否启用主备自动切换（恢复后自动回切主） */
-  channel_auto_switch: boolean
+  channel_auto_switch?: boolean
   /** [已弃用] 旧版轮询开关，新代码用 kline_primary_source/backup */
   kline_source_mode: boolean
   /** [已弃用] 旧版启用列表（逗号分隔）：sina/tqsdk/eastmoney */
-  kline_source_order: string
+  kline_source_order?: string
   /** K 线历史源主渠道（单源）：sina/tqsdk/eastmoney/simnow/vvtr。K 线全部走主渠道 */
   kline_primary_source: "sina" | "tqsdk" | "eastmoney" | "simnow" | "vvtr"
   /** K 线历史源备用渠道列表（逗号分隔，主渠道故障时按序降级） */
-  kline_backup_sources: string
+  kline_backup_sources?: string
   /** K线定时修正开关：true=自动修正，false=关闭 */
   kline_sync_enabled: boolean
   /** 用量配额全局默认（0=不限；per-user 覆盖优先） */
@@ -99,23 +99,23 @@ export interface SystemSettings {
   market_refresh_intervals: Record<string, number>
   /** ----- VVTR 数据源 ----- */
   /** VVTR 总开关（false 时桥休眠，渠道回落 sina） */
-  vvtr_enabled: boolean
+  vvtr_enabled?: boolean
   /** apiKey 脱敏回显（前4后4；空=未配置） */
-  vvtr_api_key_masked: string
+  vvtr_api_key_masked?: string
   /** 是否已配置 apiKey */
-  vvtr_api_key_set: boolean
+  vvtr_api_key_set?: boolean
   /** VVTR 账号手机号（/my/permissions 权限查询用） */
-  vvtr_mobile: string
+  vvtr_mobile?: string
   /** VVTR REST 基础URL */
-  vvtr_base_url: string
+  vvtr_base_url?: string
   /** VVTR 深度行情 WS 地址 */
-  vvtr_ws_url: string
+  vvtr_ws_url?: string
   /** VVTR 实时行情开关（报价/盘口/成交） */
-  vvtr_quotes_enabled: boolean
+  vvtr_quotes_enabled?: boolean
   /** VVTR WSS 推送开关：开=尝试WS自动降级HTTP，关=仅HTTP快照轮询 */
-  vvtr_ws_enabled: boolean
+  vvtr_ws_enabled?: boolean
   /** VVTR 历史K线源开关 */
-  vvtr_kline_enabled: boolean
+  vvtr_kline_enabled?: boolean
   updated_at: string | null
 }
 
@@ -237,203 +237,38 @@ export async function updateAdminSettingsApi(
 // ---------- 渠道监控 ----------
 
 /** 单渠道健康状态 */
-export interface ChannelHealth {
-  status: "green" | "orange" | "red"
-  channel: string
-  age_sec: number | null
-  last_price: number | null
-  trade_date: string | null
-  reason?: string
-}
-
-/** GET /api/admin/channels/status 响应 */
-export interface ChannelStatusResponse {
-  active: string
-  primary: string
-  backup: string
-  auto_switch: boolean
-  channels: Record<string, ChannelHealth>
-}
-
-/** 重启渠道 bridge 结果 */
-export interface ChannelRestartResult {
+/** 交易所行情源（三所对等） */
+export interface VenueHealth {
+  venue: string
+  name: string
   ok: boolean
-  channel: string
-  container: string | null
-  detail: string
+  fail: number
+  last_ok: number | null
+  last_error: string
+  active: boolean
 }
 
-/** 备用渠道候选（非 7×24 真实数据源，主渠道故障时切换） */
-export const REALTIME_CHANNEL_OPTIONS: { value: string; label: string }[] = [
-  { value: "sina", label: "新浪 sina（HTTP，最稳）" },
-  { value: "vvtr", label: "VVTR（WS 深度行情，5 档）" },
-  { value: "real_ctp", label: "真实 CTP（期货公司）" },
-  { value: "openctp_sim", label: "openctp 仿真" },
-]
-
-/** 主渠道候选（全部渠道；SimNow 已下线） */
-export const ALL_CHANNEL_OPTIONS: { value: string; label: string }[] = [
-  { value: "sina", label: "sina（新浪 HTTP）" },
-  { value: "vvtr", label: "vvtr（VVTR WS 深度行情）" },
-  { value: "real_ctp", label: "real_ctp（期货公司 CTP）" },
-  { value: "openctp_724", label: "openctp_724（7×24）" },
-  { value: "openctp_sim", label: "openctp_sim（仿真）" },
-]
-
-export async function getChannelStatusApi(): Promise<ChannelStatusResponse> {
-  return adminRequest<ChannelStatusResponse>("/api/admin/channels/status")
+export interface VenuesStatusResponse {
+  active: string
+  venues: VenueHealth[]
 }
 
-export async function restartChannelApi(
-  channel: string,
-): Promise<ChannelRestartResult> {
-  return adminRequest<ChannelRestartResult>(
-    `/api/admin/channels/${channel}/restart`,
-    { method: "POST" },
-  )
+/** 三所行情源健康 + 当前主所 */
+export async function getVenuesApi(): Promise<VenuesStatusResponse> {
+  return adminRequest<VenuesStatusResponse>("/api/admin/venues")
 }
 
-// ---------- K 线历史数据源状态 ----------
-
-/** 单个 K 线源健康状态 */
-export interface KlineSourceHealth {
-  status: "green" | "orange" | "red"
-  source: string
-  /** 探测响应耗时（毫秒） */
-  latency_ms: number | null
-  /** 是否返回了有效 bar */
-  has_data: boolean
-  /** 最近 bar 日期 */
-  last_bar_date: string | null
-  /** 运行时连续失败次数 */
-  fails: number
-  /** 是否处于冷却中 */
-  in_cooldown: boolean
-  /** red 时的原因 */
-  reason?: string | null
+/** 切换行情主交易所（其余两所自动容灾） */
+export async function updateActiveVenueApi(venue: string): Promise<{ ok: boolean; active: string }> {
+  return adminRequest<{ ok: boolean; active: string }>("/api/admin/venues", {
+    method: "PUT",
+    body: JSON.stringify({ venue }),
+  })
 }
-
-/** GET /api/admin/kline-sources/status 响应 */
-export interface KlineSourceStatusResponse {
-  primary: string
-  backups: string[]
-  sources: Record<string, KlineSourceHealth>
-}
-
-export async function getKlineSourceStatusApi(): Promise<KlineSourceStatusResponse> {
-  return adminRequest<KlineSourceStatusResponse>(
-    "/api/admin/kline-sources/status",
-  )
-}
-
-// ---------- K 线修正任务状态 ----------
-
-/** 单个品种的修正日志 */
-export interface KlineSyncLogEntry {
-  ts: string
-  code: string
-  symbol: string
-  elapsed_sec: number
-  status: "ok" | "error"
-  periods: Record<string, {
-    written: number
-    verified: number
-    single: number
-    conflict: number
-    skipped: number
-    error?: boolean
-  }>
-  errors?: string[]
-}
-
-/** 修正任务汇总状态 */
-export interface KlineSyncStatus {
-  status: "running" | "completed" | "completed_with_errors" | "failed"
-  trigger: string
-  started_at: string | null
-  finished_at: string | null
-  duration_sec: number | null
-  total_codes: number
-  processed: number
-  stats: Record<string, number>
-  errors: string[]
-  last_run: string | null
-}
-
-export interface KlineSyncStatusResponse {
-  status: KlineSyncStatus
-  logs: KlineSyncLogEntry[]
-}
-
-export async function getKlineSyncStatusApi(): Promise<KlineSyncStatusResponse> {
-  return adminRequest<KlineSyncStatusResponse>(
-    "/api/admin/kline-sync/status",
-  )
-}
-
-// ---------- K 线修正任务组 ----------
-
-/** K 线修正组任务(后端 KLINE_TASKS 注册表聚合) */
-export interface KlineTask {
-  name: string
-  label: string
-  interval_desc: string
-  pausable: boolean
-  runnable: boolean
-  paused: boolean
-  status: {
-    running?: boolean
-    paused?: boolean
-    disabled?: boolean
-    last_start?: string | null
-    last_done?: string | null
-    last_error?: string | null
-    last_corrected?: number
-    last_written?: number
-    last_stats?: Record<string, unknown>
-    trigger?: string
-  }
-}
-
-export interface KlineTasksResponse {
-  tasks: KlineTask[]
-}
-
-export interface KlineTaskLogsResponse {
-  name: string
-  logs: Array<Record<string, unknown> & { ts?: string; level?: string; msg?: string }>
-}
-
-export async function getKlineTasksApi(): Promise<KlineTasksResponse> {
-  return adminRequest<KlineTasksResponse>("/api/admin/kline-tasks")
-}
-
-export async function pauseKlineTaskApi(name: string): Promise<void> {
-  await adminRequest(`/api/admin/kline-tasks/${name}/pause`, { method: "POST" })
-}
-
-export async function resumeKlineTaskApi(name: string): Promise<void> {
-  await adminRequest(`/api/admin/kline-tasks/${name}/resume`, { method: "POST" })
-}
-
-export async function runKlineTaskApi(name: string): Promise<void> {
-  await adminRequest(`/api/admin/kline-tasks/${name}/run`, { method: "POST" })
-}
-
-export async function getKlineTaskLogsApi(
-  name: string,
-  limit = 100,
-): Promise<KlineTaskLogsResponse> {
-  return adminRequest<KlineTaskLogsResponse>(
-    `/api/admin/kline-tasks/${name}/logs?limit=${limit}`,
-  )
-}
-
-// ---------- 仪表盘聚合 ----------
 
 export interface OverviewChannels {
   active: string
-  channels: Record<string, ChannelHealth>
+  channels: Record<string, { name?: string; ok?: boolean; fail?: number; last_error?: string }>
 }
 export interface OverviewSystem {
   containers: Record<string, string>

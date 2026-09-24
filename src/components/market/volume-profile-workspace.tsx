@@ -1,29 +1,31 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/stores/app"
 import { useAuthStore } from "@/stores/auth"
 import { useMarketStore } from "@/stores/market"
 import { broadcastContractChange } from "@/hooks/sync"
-import { type VolumeProfileDTO, type VolumeProfileRowDTO } from "@/lib/api"
+import {
+  getVolumeProfileApi,
+  type VolumeProfileDTO,
+  type VolumeProfileRowDTO,
+} from "@/lib/api"
 import { contractName } from "@/lib/contract-names"
-import { profileRows } from "@/lib/volume-profile-core"
-import { useVolumeProfileStore } from "@/stores/volume-profile"
+import type { TradeRecord } from "@/types"
 
 /**
  * 成交量分布 —— 当前交易日（前夜 21:00 夜盘起）按价格聚合的多空力量
  *
- * 【桌面端本地化分叉（同步 web 版此文件时勿覆盖数据源层）】数据源为
- * 本地引擎实时聚合（volume-profile-engine：1s 心跳采集 WS orderbook/
- * quote 快照，口径同源移植自 web 服务端 trade_tick_svc），IndexedDB 按
- * 交易日持久化，重启/刷新不丢。web 端的 REST 基线 + 30s 校准 + WS ring
- * 增量三段逻辑在桌面端由 store 订阅替代，渲染层保持同构。
- *
+ * 数据源：后端 trade_tick 按 price GROUP BY 聚合（每晚 20:30 清空，只看当日）。
  * 四路开平（开多/平空/开空/平多）为估算口径：单秒主动买卖量 + 持仓变化比例分摊。
  * 多单 = 开多 + 平空（主动买方）；空单 = 开空 + 平多（主动卖方）。
  * 多空比悬殊（≥阈值）的价格标色：多头大 → 红，空头大 → 绿（涨红跌绿惯例）。
- * virtual 盘 trades 为模拟撮合，与真实分布口径不符，引擎不采集。
+ *
+ * 更新机制：REST 全量聚合为权威基线；live 盘叠加 WS trades 帧（秒级）增量累积，
+ * 按秒级 ts 去重、以 REST asof 对齐防重复，每 30s REST 校准防漂移。
+ * virtual 盘 trades 为模拟撮合，与真实分布口径不符，不参与增量。
  */
 
 type EnrichedRow = VolumeProfileRowDTO & {
@@ -39,6 +41,21 @@ function _formatRatio(ratio: number): string {
   return `${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)}:1`
 }
 
+/** ts（"20260917 21:00:05" 或 "2026-09-17 21:00:05"）→ 可比较的 "YYYY-MM-DD HH:MM:SS" */
+function _tsKey(ts: string): string {
+  const spaceAt = ts.indexOf(" ")
+  if (spaceAt < 0) return ts
+  const d = ts.slice(0, spaceAt)
+  const t = ts.slice(spaceAt + 1, spaceAt + 9)
+  if (d.length === 8 && /^\d+$/.test(d)) {
+    return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)} ${t}`
+  }
+  return `${d} ${t}`
+}
+
+/** 已消费的秒级 ts（去重），按插入顺序修剪防止无限增长 */
+const _SEEN_LIMIT = 240
+
 export function VolumeProfileWorkspace(): React.JSX.Element {
   const { activeContract, setActiveContract } = useAppStore()
   const tradingMode = useAuthStore((s) => s.user?.trading_mode ?? "live")
@@ -46,26 +63,35 @@ export function VolumeProfileWorkspace(): React.JSX.Element {
   const codeTree = useMarketStore((s) => s.codeTree)
   const fetchCodeTree = useMarketStore((s) => s.fetchCodeTree)
 
+  const [data, setData] = useState<VolumeProfileDTO | null>(null)
+  const [loading, setLoading] = useState(false)
   const [minVolume, setMinVolume] = useState(0)
   const [ratioThreshold, setRatioThreshold] = useState(2)
   const [onlySkew, setOnlySkew] = useState(false)
   const [sortBy, setSortBy] = useState<"latest" | "volume" | "price">("latest")
 
-  // 本地引擎聚合态（当日，symbol 小写键）；输出与 web 端 VolumeProfileDTO 同构
-  const acc = useVolumeProfileStore((s) =>
-    activeContract ? (s.bySymbol[activeContract.toLowerCase()] ?? null) : null,
-  )
-  const vpDay = useVolumeProfileStore((s) => s.day)
-  const data = useMemo<VolumeProfileDTO | null>(() => {
-    if (!acc || acc.asof == null) return null
-    return {
-      symbol: activeContract.toLowerCase(),
-      trading_day: vpDay,
-      asof: acc.asof,
-      last_price: acc.last_price,
-      rows: profileRows(acc),
+  // live 盘逐秒成交环形（WS 全市场广播，store 整表替换）；兼容大小写 symbol 键
+  const liveTrades = useMarketStore((s) => {
+    if (!activeContract) return undefined
+    return (
+      s.trades[activeContract] ??
+      s.trades[activeContract.toLowerCase()] ??
+      s.trades[activeContract.toUpperCase()]
+    )
+  })
+
+  const seenRef = useRef<Set<string>>(new Set())
+  const seenOrderRef = useRef<string[]>([])
+
+  const _markSeen = (key: string) => {
+    if (seenRef.current.has(key)) return
+    seenRef.current.add(key)
+    seenOrderRef.current.push(key)
+    if (seenOrderRef.current.length > _SEEN_LIMIT) {
+      const drop = seenOrderRef.current.splice(0, seenOrderRef.current.length - _SEEN_LIMIT)
+      for (const k of drop) seenRef.current.delete(k)
     }
-  }, [acc, vpDay, activeContract])
+  }
 
   // 品种下拉数据（主力合约列表）
   useEffect(() => {
@@ -81,6 +107,106 @@ export function VolumeProfileWorkspace(): React.JSX.Element {
         label: `${t.name}（${t.master}）`,
       }))
   }, [codeTree])
+
+  const refresh = useCallback(async () => {
+    if (!activeContract) {
+      setData(null)
+      return
+    }
+    setLoading(true)
+    try {
+      const fresh = await getVolumeProfileApi(activeContract)
+      // 以 REST asof 对齐环形：≤ asof 的秒已含在快照里，标记已见防 WS 重复累积；
+      // > asof 的留给 WS 增量（快照未含，避免丢失）
+      const asofKey = fresh.asof ? fresh.asof.slice(0, 19).replace("T", " ") : ""
+      const ring = useMarketStore.getState().trades[activeContract.toLowerCase()]
+      seenRef.current = new Set()
+      seenOrderRef.current = []
+      if (ring) {
+        for (const t of ring) {
+          if (!t.ts) continue
+          if (!asofKey || _tsKey(t.ts) <= asofKey) _markSeen(t.ts)
+        }
+      }
+      setData(fresh)
+    } catch {
+      setData(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [activeContract])
+
+  // 合约变化时刷新
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  // 每 30s REST 校准一次（权威快照兜底 WS 断连/漂移/20:30 清空）
+  useEffect(() => {
+    const timer = setInterval(() => void refresh(), 30_000)
+    return () => clearInterval(timer)
+  }, [refresh])
+
+  // WS 秒级增量：环形里未见的秒 → 合并进当前分布（data 有基线后才启用）
+  useEffect(() => {
+    if (!isLive || !data) return
+    const list = liveTrades ?? []
+    const freshItems: Array<TradeRecord & { ts: string }> = []
+    for (const t of list) {
+      if (!t.ts) continue
+      if (seenRef.current.has(t.ts)) continue
+      _markSeen(t.ts)
+      freshItems.push({ ...t, ts: t.ts })
+    }
+    if (freshItems.length === 0) return
+    setData((prev) => {
+      if (!prev) return prev
+      const byPrice = new Map(prev.rows.map((r) => [r.price, { ...r }]))
+      let lastKey = prev.asof ? prev.asof.slice(0, 19).replace("T", " ") : ""
+      let lastPrice = prev.last_price
+      for (const t of freshItems) {
+        const row =
+          byPrice.get(t.price) ??
+          ({
+            price: t.price,
+            open_long: 0,
+            close_long: 0,
+            open_short: 0,
+            close_short: 0,
+            buy_total: 0,
+            sell_total: 0,
+            total: 0,
+          } satisfies VolumeProfileRowDTO)
+        row.total += t.volume
+        const { open_long, close_long, open_short, close_short } = t
+        if (
+          open_long != null &&
+          close_long != null &&
+          open_short != null &&
+          close_short != null
+        ) {
+          row.open_long += open_long
+          row.close_long += close_long
+          row.open_short += open_short
+          row.close_short += close_short
+          row.buy_total += open_long + close_short
+          row.sell_total += open_short + close_long
+        }
+        byPrice.set(t.price, row)
+        const key = _tsKey(t.ts)
+        if (key > lastKey) {
+          lastKey = key
+          lastPrice = t.price
+        }
+      }
+      return {
+        ...prev,
+        rows: [...byPrice.values()],
+        asof: lastKey || prev.asof,
+        last_price: lastPrice,
+      }
+    })
+  }, [isLive, data, liveTrades])
 
   // 派生：多空比 + 过滤 + 排序
   const rows = useMemo<EnrichedRow[]>(() => {
@@ -247,8 +373,19 @@ export function VolumeProfileWorkspace(): React.JSX.Element {
           重置
         </button>
 
+        <button
+          type="button"
+          onClick={() => void refresh()}
+          disabled={loading}
+          className="p-1 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] transition-colors cursor-pointer disabled:opacity-50"
+          aria-label="刷新"
+          title="刷新"
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+        </button>
+
         <span className="ml-auto text-[10px] text-[var(--text-muted)]">
-          {isLive ? "本地实时聚合 · 重启不丢" : "虚盘不采集（切回实盘后展示）"} · 开平为估算 · 按交易日清空
+          {isLive ? "WS 实时 + 30s 校准" : "30s 轮询（虚盘）"} · 开平为估算 · 每晚 20:30 清空
           {data?.asof ? ` · 至 ${data.asof.slice(11, 19)}` : ""}
         </span>
       </div>
@@ -305,9 +442,9 @@ export function VolumeProfileWorkspace(): React.JSX.Element {
           </div>
         ) : visibleRows.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[240px] text-[var(--text-muted)] gap-1 text-center">
-            <span>{data?.rows.length ? "没有满足筛选条件的价格" : "暂无成交（应用启动起本地采集）"}</span>
+            <span>{loading ? "加载中…" : data?.rows.length ? "没有满足筛选条件的价格" : "暂无成交"}</span>
             <span className="text-[10px]">
-              夜盘 21:00 起逐秒累积，按交易日清空{filterActive ? "，可放宽筛选条件" : ""}
+              夜盘 21:00 起逐秒累积，每晚 20:30 清空{filterActive ? "，可放宽筛选条件" : ""}
             </span>
           </div>
         ) : (

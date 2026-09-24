@@ -20,7 +20,6 @@ import { TaskList } from "@/components/ai-trading/task-list"
 import type { AITradingTask } from "@/lib/ai-trading-api"
 import { useAITradingStore } from "@/stores/ai-trading"
 import { useMarketStore } from "@/stores/market"
-import { startLocalEngine } from "@/lib/ai-trading-local/engine"
 
 /** AI 交易主页面 */
 export default function AITradingPage(): React.JSX.Element {
@@ -76,9 +75,6 @@ export default function AITradingPage(): React.JSX.Element {
       void loadProfitBars()
     })
   }, [loadTasks, loadEquity, loadProfitBars])
-
-  // 本地 AI 交易引擎:调度+信号在本机,下单走服务端(应用关闭即停止)
-  useEffect(() => startLocalEngine(), [])
 
   // 运行中/有仓：1s 刷任务与总收益柱（含浮盈），5s 刷曲线
   useEffect(() => {
@@ -189,7 +185,6 @@ export default function AITradingPage(): React.JSX.Element {
           }}
           onEdit={(t) => setEditTask(t)}
           onEditRules={(t) => setEditRulesTask(t)}
-          onRefresh={() => void loadTasks({ silent: true })}
           favoritedIds={
             new Set(taskFavs.map((f) => f.task_id).filter(Boolean) as string[])
           }

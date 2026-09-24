@@ -9,7 +9,9 @@ import {
   type KlineSplitMode,
 } from "@/components/market/kline-workspace"
 import { TradeDetails } from "@/components/market/trade-details"
-import { BigOrderHistory } from "@/components/market/big-order-history"
+import { OrderPanel } from "@/components/trading/order-form"
+import { OrderList } from "@/components/trading/order-list"
+import { PositionDetailTable } from "@/components/trading/position-list"
 import { NewsTicker } from "@/components/market/news-ticker"
 import { ContractNews } from "@/components/market/contract-news"
 import { NewsViewerDialog } from "@/components/market/news-viewer-dialog"
@@ -27,15 +29,15 @@ function isSplitMode(v: unknown): v is KlineSplitMode {
   return v === 1 || v === 2 || v === 3 || v === 4
 }
 
-function isRightTab(v: unknown): v is "market" | "anchor" {
-  return v === "market" || v === "anchor"
+function isRightTab(v: unknown): v is "market" | "trade" | "anchor" {
+  return v === "market" || v === "trade" || v === "anchor"
 }
 
 /** 读取布局偏好（SSR 安全：仅客户端调用，异常/缺失回退默认） */
 function loadLayoutPref(): {
   split: KlineSplitMode
   rightCollapsed: boolean
-  rightTab: "market" | "anchor"
+  rightTab: "market" | "trade" | "anchor"
 } {
   if (typeof window === "undefined")
     return { split: 1, rightCollapsed: false, rightTab: "market" }
@@ -71,7 +73,7 @@ function SymbolFromQuery(): null {
   return null
 }
 
-/** 行情中心 —— 左合约 / 中 K线工作区（分屏+全屏）与底部大单历史/新闻；右盘口+成交 */
+/** 行情中心 —— 左合约 / 中 K线工作区（分屏+全屏）与底部持仓委托/新闻；右盘口+成交+交易下单 */
 export default function MarketPage(): React.JSX.Element {
   const activeContract = useAppStore((s) => s.activeContract)
   // 行情页自己的合约记忆：本页挂载期间的合约变化（本页点击/URL 深链）
@@ -90,12 +92,12 @@ export default function MarketPage(): React.JSX.Element {
   const [splitMode, setSplitMode] = useState<KlineSplitMode>(1)
   const [fullscreen, setFullscreen] = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
-  const [rightTab, setRightTab] = useState<"market" | "anchor">("market")
+  const [rightTab, setRightTab] = useState<"market" | "trade" | "anchor">("market")
   // 最新布局镜像 + 回调内保存：避免挂载恢复首帧用默认值回写偏好
   const layoutRef = useRef<{
     split: KlineSplitMode
     rightCollapsed: boolean
-    rightTab: "market" | "anchor"
+    rightTab: "market" | "trade" | "anchor"
   }>({
     split: 1,
     rightCollapsed: false,
@@ -103,7 +105,7 @@ export default function MarketPage(): React.JSX.Element {
   })
 
   const persistLayout = useCallback(
-    (patch: Partial<{ split: KlineSplitMode; rightCollapsed: boolean; rightTab: "market" | "anchor" }>) => {
+    (patch: Partial<{ split: KlineSplitMode; rightCollapsed: boolean; rightTab: "market" | "trade" | "anchor" }>) => {
       const next = { ...layoutRef.current, ...patch }
       layoutRef.current = next
       try {
@@ -154,7 +156,7 @@ export default function MarketPage(): React.JSX.Element {
     })
   }, [persistLayout])
   const changeRightTab = useCallback(
-    (tab: "market" | "anchor") => {
+    (tab: "market" | "trade" | "anchor") => {
       setRightTab(tab)
       persistLayout({ rightTab: tab })
     },
@@ -194,17 +196,32 @@ export default function MarketPage(): React.JSX.Element {
         </div>
 
         <div className="h-[240px] shrink-0 border-t border-[var(--border)]">
-          <Tabs defaultValue="bigorder" className="flex h-full flex-col">
+          <Tabs defaultValue="trade" className="flex h-full flex-col">
             <TabsList className="mx-2 mt-1 shrink-0">
-              <TabsTrigger value="bigorder" className="text-xs">
-                大单历史
+              <TabsTrigger value="trade" className="text-xs">
+                持仓/委托
               </TabsTrigger>
               <TabsTrigger value="news" className="text-xs">
                 新闻
               </TabsTrigger>
             </TabsList>
-            <TabsContent value="bigorder" className="mt-0 min-h-0 flex-1 overflow-hidden">
-              <BigOrderHistory />
+            <TabsContent value="trade" className="mt-0 min-h-0 flex-1 overflow-hidden">
+              <Tabs defaultValue="orders" className="flex h-full flex-col">
+                <TabsList className="mx-2 mt-0.5 shrink-0">
+                  <TabsTrigger value="orders" className="text-xs">
+                    委托
+                  </TabsTrigger>
+                  <TabsTrigger value="positions" className="text-xs">
+                    持仓
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="orders" className="mt-0 min-h-0 overflow-auto max-h-[176px]">
+                  <OrderList />
+                </TabsContent>
+                <TabsContent value="positions" className="mt-0 min-h-0 overflow-auto max-h-[176px]">
+                  <PositionDetailTable />
+                </TabsContent>
+              </Tabs>
             </TabsContent>
             <TabsContent value="news" className="mt-0 min-h-0 flex-1 overflow-hidden">
               <ContractNews />
@@ -229,6 +246,9 @@ export default function MarketPage(): React.JSX.Element {
             <TabsTrigger value="market" className="text-xs">
               行情
             </TabsTrigger>
+            <TabsTrigger value="trade" className="text-xs">
+              交易
+            </TabsTrigger>
             <TabsTrigger value="anchor" className="text-xs">
               AI主播
             </TabsTrigger>
@@ -243,6 +263,12 @@ export default function MarketPage(): React.JSX.Element {
             <div className="min-h-0 flex-1">
               <TradeDetails listClassName="max-h-none h-full" />
             </div>
+          </TabsContent>
+          <TabsContent
+            value="trade"
+            className="mt-0 min-h-0 flex-1 overflow-y-auto"
+          >
+            <OrderPanel />
           </TabsContent>
           <TabsContent
             value="anchor"

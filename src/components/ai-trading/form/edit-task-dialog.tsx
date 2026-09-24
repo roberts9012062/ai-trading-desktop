@@ -2,6 +2,12 @@
 
 import { useEffect, useState } from "react"
 import {
+  FundingSourceBadge,
+  MarginLeverageFields,
+  useFundingSource,
+} from "@/components/ai-trading/form/margin-leverage-fields"
+import { useMarketStore } from "@/stores/market"
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -34,12 +40,21 @@ import {
   AiQuantRefPicker,
   type QuantRefStrategy,
 } from "@/components/ai-trading/form/ai-quant-ref-picker"
-import { QUANT_KIND_OPTIONS } from "@/lib/quant-strategy"
 import {
-  quantIntervalLabel,
-  quantIntervalMinuteOptions,
-  timeframeMinutes,
+  DEFAULT_QUANT_PARAMS,
+  QUANT_KIND_OPTIONS,
+  buildStrategyParams,
+  paramsToQuantState,
+  type QuantKind,
+  type QuantParamsState,
 } from "@/lib/quant-strategy"
+import { KindParams } from "@/components/ai-trading/form/create-quant-params"
+
+/** K 线周期 → 分钟（分析间隔上限） */
+const TF_MINUTES: Record<string, number> = {
+  "1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60, "1d": 1440,
+}
+const INTERVAL_CHIPS = [1, 2, 3, 5, 10, 15, 30, 60, 120, 240, 480, 720, 1440]
 
 /** 全部量化策略类型集合（与 quant-strategy.ts 同源，避免重复维护漏判） */
 const QUANT_STRATEGY_SET = new Set<string>(QUANT_KIND_OPTIONS.map((o) => o.value))
@@ -83,7 +98,18 @@ export function EditTaskDialog({
   const [barsLimit, setBarsLimit] = useState<string>("40")
   const [maxHoldDays, setMaxHoldDays] = useState<string>("")
   const [sideMode, setSideMode] = useState("both")
-  const [positionMode, setPositionMode] = useState("fixed_qty")
+  const [positionMode, setPositionMode] = useState("fixed_margin")
+  // r20：每笔保证金 USDT + 杠杆
+  const [marginModel, setMarginModel] = useState({ marginPerTrade: 100, leverage: 10 })
+  // 量化策略参数（停止后可改再继续）：strategy_params ↔ 表单
+  const [quantParams, setQuantParams] = useState<QuantParamsState>(DEFAULT_QUANT_PARAMS)
+  // 量化分析间隔（分钟）：1 ~ K 线周期；默认=周期（每根收盘分析一次）
+  const [evalIntervalMin, setEvalIntervalMin] = useState(15)
+  const tfMinutes = TF_MINUTES[timeframe] ?? 15
+  const funding = useFundingSource(open)
+  const lastPrice = useMarketStore(
+    (s) => Number(s.quotes[symbol]?.last_price) || 0,
+  )
   const [fixedQty, setFixedQty] = useState(1)
   const [qtyMin, setQtyMin] = useState(1)
   const [qtyMax, setQtyMax] = useState(1)
@@ -115,8 +141,6 @@ export function EditTaskDialog({
   const [decisionModels, setDecisionModels] = useState<AIModel[]>([])
   const [decisionModelRowId, setDecisionModelRowId] = useState("")
   const [decisionIntervalSec, setDecisionIntervalSec] = useState(60)
-  // 量化任务分析间隔（秒）：0=按K线收盘；60~K线周期秒数
-  const [quantIntervalSec, setQuantIntervalSec] = useState(0)
 
   useEffect(() => {
     if (!open || !task) return
@@ -137,6 +161,11 @@ export function EditTaskDialog({
     setSymbol(task.symbol)
     setSymbolName(task.symbol_name || "")
     setTimeframe(task.timeframe || "5m")
+    const tfMin0 = TF_MINUTES[task.timeframe || "5m"] ?? 15
+    const ivSec = Number(task.eval_interval_sec || 0)
+    setEvalIntervalMin(
+      ivSec >= 60 ? Math.max(1, Math.min(tfMin0, Math.round(ivSec / 60))) : tfMin0,
+    )
     setExtraTfs(
       Array.isArray(task.extra_timeframes)
         ? task.extra_timeframes.filter((x) => x && x !== (task.timeframe || "5m"))
@@ -145,13 +174,38 @@ export function EditTaskDialog({
     setBarsLimit(String(task.ai_bars_limit ?? 40))
     setMaxHoldDays(String(task.max_hold_days ?? maxHoldDaysForTimeframe(task.timeframe || "5m")))
     setSideMode(task.side_mode || "both")
-    const rawMode = task.position_mode || "fixed_qty"
+    const rawMode = task.position_mode || "fixed_margin"
     const useMin0 = Number(task.capital_usage_min_pct ?? 0)
     const useMax0 = Number(task.capital_usage_max_pct ?? 100)
     // 资金使用范围模式：full + 非默认使用比例
     const isCapitalMode =
       rawMode === "full" && (useMin0 > 0 || useMax0 < 100)
-    setPositionMode(isCapitalMode ? "capital_pct" : rawMode)
+    setPositionMode(
+      isCapitalMode
+        ? "capital_pct"
+        : rawMode === "fixed_qty"
+          ? "fixed_margin"
+          : rawMode,
+    )
+    setMarginModel({
+      marginPerTrade: Number(task.margin_per_trade) > 0 ? Number(task.margin_per_trade) : 100,
+      leverage: Math.max(1, Math.min(100, Number(task.leverage) || 10)),
+    })
+    // 量化策略参数回填：decision 任务取 decision_strategy 内层，factor 走独立因子挂载
+    const _rawSp = (task.strategy_params ?? {}) as Record<string, unknown>
+    const _kindSrc = String(task.strategy_type || "")
+    const _inner =
+      _kindSrc === "decision"
+        ? ((_rawSp.decision_strategy as { kind?: string; params?: Record<string, unknown> })?.params ?? {})
+        : _rawSp
+    const _kind = (
+      _kindSrc === "decision"
+        ? (_rawSp.decision_strategy as { kind?: string })?.kind
+        : _kindSrc
+    ) as QuantKind | undefined
+    if (_kind && QUANT_KIND_OPTIONS.some((o) => o.value === _kind) && _kind !== "factor") {
+      setQuantParams(paramsToQuantState(_kind, _inner))
+    }
     setFixedQty(task.fixed_qty || 1)
     const qLo = Math.max(1, Number(task.qty_min ?? task.fixed_qty ?? 1))
     const qHi = Math.max(qLo, Number(task.qty_max ?? qLo))
@@ -160,13 +214,12 @@ export function EditTaskDialog({
     setCapitalUsageMin(useMin0)
     setCapitalUsageMax(useMax0)
     setFundStyle({
-      allocatedCapital: Number(task.allocated_capital || 100000),
+      allocatedCapital: Number(task.allocated_capital || 1000),
       riskStyle: (task.risk_style as RiskStyle) || "balanced",
       customPromptEnabled: Boolean(task.custom_prompt_enabled),
       customPrompt: task.custom_prompt || "",
     })
     setRules(rulesFromTask(task))
-    setQuantIntervalSec(Math.max(0, Math.floor(Number(task.quant_interval_sec ?? 0))))
     if (String(task.strategy_type ?? "").toLowerCase() === "decision") {
       setDecisionModelRowId(task.model_row_id || "")
       setDecisionIntervalSec(Number(task.decision_interval_sec ?? 60))
@@ -203,8 +256,12 @@ export function EditTaskDialog({
       setError("请选择合约品种")
       return
     }
-    if (!quant && fundStyle.allocatedCapital < 1000) {
-      setError("AI 资金仓至少 ¥1000")
+    if (fundStyle.allocatedCapital < 10) {
+      setError("任务资金仓至少 10 USDT")
+      return
+    }
+    if (positionMode !== "capital_pct" && marginModel.marginPerTrade < 1) {
+      setError("每笔保证金至少 1 USDT")
       return
     }
     if (
@@ -216,7 +273,7 @@ export function EditTaskDialog({
       return
     }
     const isQtyMode =
-      positionMode === "fixed_qty" || positionMode === "scale_in"
+      positionMode === "fixed_margin" || positionMode === "scale_in"
     const isCapitalMode = positionMode === "capital_pct"
     let qLo = 1
     let qHi = 1
@@ -224,8 +281,8 @@ export function EditTaskDialog({
     let useMax = 100
     let apiPositionMode = positionMode
     if (isQtyMode) {
-      qLo = Math.max(1, Math.min(qtyMin, qtyMax))
-      qHi = Math.max(1, Math.max(qtyMin, qtyMax))
+      qLo = 1
+      qHi = 1
     } else if (isCapitalMode) {
       apiPositionMode = "full"
       qLo = 1
@@ -244,17 +301,25 @@ export function EditTaskDialog({
     const payload: UpdateTaskPayload = {
       name: name.trim(),
       icon,
-      strategy_params:
-        (factorMode && factorTokens && factorTokens.length) ||
-        refStrategies.length
+      strategy_params: quantMode
+        ? factorMode
           ? {
-              ...(factorMode && factorTokens && factorTokens.length
+              ...(factorTokens && factorTokens.length
                 ? { factor_tokens: factorTokens }
                 : {}),
-              ...(refStrategies.length
-                ? { ref_strategies: refStrategies }
-                : {}),
+              ...(refStrategies.length ? { ref_strategies: refStrategies } : {}),
             }
+          : isDecision
+            ? {
+                decision_strategy: {
+                  kind: quantParams.quantKind,
+                  params: buildStrategyParams(quantParams),
+                },
+                ...(refStrategies.length ? { ref_strategies: refStrategies } : {}),
+              }
+            : buildStrategyParams(quantParams)
+        : refStrategies.length
+          ? { ref_strategies: refStrategies }
           : undefined,
       model_row_id: isDecision
         ? decisionModelRowId
@@ -262,7 +327,10 @@ export function EditTaskDialog({
           ? null
           : modelRowId,
       decision_interval_sec: isDecision ? decisionIntervalSec : undefined,
-      quant_interval_sec: quant ? quantIntervalSec : undefined,
+      eval_interval_sec:
+        quant && !isDecision && evalIntervalMin < tfMinutes
+          ? evalIntervalMin * 60
+          : null,
       symbol: symbol.trim().toLowerCase(),
       symbol_name: symbolName,
       timeframe,
@@ -278,6 +346,13 @@ export function EditTaskDialog({
       fixed_qty: qLo,
       qty_min: qLo,
       qty_max: qHi,
+      // 所有模式统一保证金 sizing（旧手数路径会把小数数量截成 0）
+      margin_per_trade: marginModel.marginPerTrade,
+      leverage: marginModel.leverage,
+      funding_source:
+        funding.info && funding.info.source === "live" && funding.info.balance_usdt != null
+          ? "live"
+          : "site",
       allocated_capital: fundStyle.allocatedCapital,
       capital_usage_min_pct: useMin,
       capital_usage_max_pct: useMax,
@@ -439,6 +514,20 @@ export function EditTaskDialog({
             }}
           />
 
+          {quantMode && !factorMode && (
+            <div className="rounded-md border border-[var(--border)] p-2.5 space-y-2">
+              <div className="text-xs font-medium text-[var(--text-secondary)]">
+                策略参数（{QUANT_KIND_OPTIONS.find((o) => o.value === quantParams.quantKind)?.label ?? quantParams.quantKind}）
+              </div>
+              <KindParams
+                quant={quantParams}
+                onQuant={setQuantParams}
+                symbol={symbol}
+                timeframe={timeframe}
+              />
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>K 线周期</Label>
@@ -451,10 +540,6 @@ export function EditTaskDialog({
                   setMaxHoldDays(String(maxHoldDaysForTimeframe(tf)))
                   // 主周期切换：附加周期中与新主周期相同的自动剔除
                   setExtraTfs((prev) => prev.filter((x) => x !== tf))
-                  // 周期改小后当前分析间隔可能越界，回退默认（跟随收盘）
-                  if (quantIntervalSec > timeframeMinutes(tf) * 60) {
-                    setQuantIntervalSec(0)
-                  }
                 }}
               >
                 {TIMEFRAMES.map((t) => (
@@ -477,31 +562,6 @@ export function EditTaskDialog({
               </select>
             </div>
           </div>
-
-          {/* 全部量化策略可设分析间隔；决策模型任务按其响应频率，不显示 */}
-          {quantMode && !decisionMode && (
-            <div className="space-y-1">
-              <Label>分析间隔</Label>
-              <select
-                className="w-full h-9 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-sm"
-                value={quantIntervalSec}
-                onChange={(e) => setQuantIntervalSec(Number(e.target.value))}
-              >
-                <option value={0}>跟随K线收盘（默认）</option>
-                {quantIntervalMinuteOptions(timeframe).map((m) => (
-                  <option key={m} value={m * 60}>
-                    {quantIntervalLabel(m)}
-                    {m === timeframeMinutes(timeframe) ? "（K线周期）" : ""}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[10px] text-[var(--text-muted)]">
-                每次分析记录的间隔：最快 1 分钟，最慢不超过 K
-                线周期。间隔小于周期时，盘中按含未收盘 K
-                线计算信号，反应更早但与回测口径有差异。
-              </p>
-            </div>
-          )}
 
           {!quantMode && (
             <>
@@ -557,6 +617,52 @@ export function EditTaskDialog({
             </>
           )}
 
+          {quantMode && !decisionMode && (
+            <div className="space-y-1.5 rounded-md border border-[var(--border)] p-2.5">
+              <div className="flex items-center justify-between">
+                <Label>分析间隔（分钟）</Label>
+                <span className="font-num text-xs text-[var(--primary)] font-semibold">
+                  {evalIntervalMin >= tfMinutes
+                    ? `每根K线收盘（${tfMinutes >= 1440 ? "1天" : tfMinutes + "分钟"}）`
+                    : `每 ${evalIntervalMin} 分钟`}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Input
+                  type="number"
+                  min={1}
+                  max={tfMinutes}
+                  value={evalIntervalMin}
+                  onChange={(e) =>
+                    setEvalIntervalMin(
+                      Math.max(1, Math.min(tfMinutes, Math.floor(Number(e.target.value) || 1))),
+                    )
+                  }
+                  className="font-num h-8 text-sm w-24"
+                />
+                {INTERVAL_CHIPS.filter((v) => v <= tfMinutes && v > 1).slice(-4).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setEvalIntervalMin(v)}
+                    className={
+                      "px-1.5 h-7 text-[10px] rounded border transition-colors shrink-0 " +
+                      (evalIntervalMin === v
+                        ? "border-[var(--primary)] text-[var(--primary)] bg-[var(--primary)]/10"
+                        : "border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)]")
+                    }
+                  >
+                    {v >= 1440 ? "1天" : v + "分"}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-[var(--text-muted)]">
+                最小 1 分钟，最大为 K 线周期（{tfMinutes >= 1440 ? "1 天" : tfMinutes + " 分钟"}）。
+                默认每根 K 线收盘分析一次；决策模型任务由其响应频率控制。
+              </p>
+            </div>
+          )}
+
           <div className="space-y-1">
             <Label>交易周期 / 持仓天数（1-365，到期自动平仓）</Label>
             <Input
@@ -586,70 +692,42 @@ export function EditTaskDialog({
               onChange={(e) => {
                 const mode = e.target.value
                 setPositionMode(mode)
-                if (mode === "fixed_qty" || mode === "scale_in") {
+                if (mode === "fixed_margin" || mode === "scale_in") {
                   setCapitalUsageMin(0)
                   setCapitalUsageMax(100)
                 } else if (mode === "capital_pct") {
-                  setQtyMin(1)
-                  setQtyMax(100)
-                  setFixedQty(1)
                   setCapitalUsageMin(10)
                   setCapitalUsageMax(50)
                 } else {
-                  setQtyMin(1)
-                  setQtyMax(1)
-                  setFixedQty(1)
                   setCapitalUsageMin(0)
                   setCapitalUsageMax(100)
                 }
               }}
             >
-              <option value="fixed_qty">指定手数范围</option>
+              <option value="fixed_margin">指定每笔保证金</option>
               <option value="capital_pct">资金使用范围</option>
-              <option value="half">半仓</option>
-              <option value="full">全仓</option>
-              <option value="scale_in">滚仓（盈利加仓）</option>
+              <option value="half">半仓（预算一半）</option>
+              <option value="full">全仓（全部预算）</option>
+              <option value="scale_in">滚仓（盈利加层）</option>
             </select>
             <p className="text-[11px] text-[var(--text-muted)]">
-              手数范围与资金使用范围二选一；交易从 AI 资金仓走流水。
+              数量 = 每笔保证金 × 杠杆 ÷ 价格（USDT 口径，小数）；交易从任务资金仓走流水。
             </p>
           </div>
-          {(positionMode === "fixed_qty" || positionMode === "scale_in") && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>最少手数</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={qtyMin}
-                  onChange={(e) => {
-                    const v = Math.max(1, Number(e.target.value) || 1)
-                    setQtyMin(v)
-                    setFixedQty(v)
-                    if (qtyMax < v) setQtyMax(v)
-                  }}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>
-                  {positionMode === "scale_in" ? "每层最多手数" : "最多手数"}
-                </Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={qtyMax}
-                  onChange={(e) => {
-                    const v = Math.max(1, Number(e.target.value) || 1)
-                    setQtyMax(v)
-                    if (qtyMin > v) {
-                      setQtyMin(v)
-                      setFixedQty(v)
-                    }
-                  }}
-                />
-              </div>
-            </div>
-          )}
+          <FundingSourceBadge info={funding.info} onReload={funding.reload} />
+          <div className="rounded-md border border-[var(--border)] p-2.5">
+            <MarginLeverageFields
+              value={marginModel}
+              onChange={setMarginModel}
+              lastPrice={lastPrice}
+              scaleIn={positionMode === "scale_in"}
+              budgetOnly={
+                positionMode === "half" ||
+                positionMode === "full" ||
+                positionMode === "capital_pct"
+              }
+            />
+          </div>
           {positionMode === "capital_pct" && (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -684,7 +762,7 @@ export function EditTaskDialog({
           )}
           {positionMode === "scale_in" && (
             <p className="text-[11px] text-[var(--text-muted)] -mt-1">
-              滚仓：首仓按手数范围开仓；浮盈时可同向再加一层，最多 3
+              滚仓：首仓按每层保证金开仓；浮盈时可同向再加一层，最多 3
               层；浮亏不加仓；反向须先平仓。
             </p>
           )}

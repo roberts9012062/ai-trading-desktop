@@ -9,11 +9,21 @@
 import { useEffect, type MutableRefObject } from "react"
 import type { IPriceLine, ISeriesApi } from "lightweight-charts"
 import type { PaperOrderItem } from "@/lib/paper-api"
-import { paperActionLabel } from "@/lib/trade-labels"
 
 function lineTitle(order: PaperOrderItem): string {
-  const side = paperActionLabel(order.direction, order.offset)
-  return `挂 ${side} ${order.quantity}手 @${order.price}`
+  // 方向语义：开买=多 / 开卖=空 / 平仓
+  const dir =
+    order.offset === "close"
+      ? "平仓"
+      : order.direction === "buy"
+        ? "挂多"
+        : "挂空"
+  const lev =
+    order.leverage && order.leverage > 0 ? ` ×${order.leverage}倍` : ""
+  const qty = Number(order.quantity)
+  const qtyLabel =
+    qty >= 1 ? qty.toFixed(2).replace(/\.?0+$/, "") : String(qty)
+  return `${dir}${lev} ${qtyLabel} @${order.price}`
 }
 
 /** 国内期货习惯：买红 / 卖绿 / 平仓紫（细虚线挂单） */

@@ -3,7 +3,6 @@
  */
 
 import type { AITradingTask } from "@/lib/ai-trading-api"
-import { QUANT_KIND_OPTIONS } from "@/lib/quant-strategy"
 
 export const STATUS_STYLE: Record<string, string> = {
   running: "bg-emerald-500/15 text-emerald-400",
@@ -118,26 +117,6 @@ export function livePnl(
 }
 
 export function strategyLabel(task: AITradingTask): string {
-  const base = baseStrategyLabel(task)
-  // 量化任务启用快频间隔时标注节奏（分钟/小时）；0=跟随K线收盘不标
-  const sec = Number(task.quant_interval_sec ?? 0)
-  if (sec > 0 && isQuantType(task.strategy_type)) {
-    const min = Math.round(sec / 60)
-    const pace = min >= 60 ? `${(min / 60).toFixed(min % 60 ? 1 : 0)}小时` : `${min}分钟`
-    return `${base}·${pace}`
-  }
-  return base
-}
-
-/** 是否量化策略任务（与 quant-strategy 的 QUANT_KIND_OPTIONS 同源） */
-function isQuantType(strategyType: string | null | undefined): boolean {
-  if (!strategyType) return false
-  return QUANT_KIND_OPTIONS.some(
-    (o) => o.value === String(strategyType).toLowerCase(),
-  )
-}
-
-function baseStrategyLabel(task: AITradingTask): string {
   if (task.strategy_type === "decision") {
     const sec = Number(task.decision_interval_sec ?? 60)
     return `决策·${Math.round(sec / 60)}分钟`
@@ -173,6 +152,14 @@ function baseStrategyLabel(task: AITradingTask): string {
     // V2 量价拒绝：W 段 = 上攻失败深度（×ATR）
     return `量化·枢轴V2·L${p.left ?? 3}/R${p.right ?? 3}/W${p.wick_atr_mult ?? 0.8}`
   }
+  if (task.strategy_type === "swing_pro") {
+    const p = (task.strategy_params || {}) as {
+      htf_tf?: string
+      confirm_mode?: string
+    }
+    const res = p.confirm_mode === "resonance" ? "共振" : "单频"
+    return `量化·专业波段${res}${p.htf_tf ? `·${p.htf_tf}` : ""}`
+  }
   if (task.strategy_type === "strength_entry") {
     const p = (task.strategy_params || {}) as {
       period?: number
@@ -192,6 +179,18 @@ function baseStrategyLabel(task: AITradingTask): string {
 }
 
 export function qtyLabel(task: AITradingTask): string {
+  // r20 保证金/杠杆模式：显示每笔保证金 × 杠杆（数量系统自动换算）
+  if (task.margin_per_trade != null && Number(task.margin_per_trade) > 0) {
+    const margin = Number(task.margin_per_trade)
+    const lev = Number(task.leverage || 10)
+    const base = `${margin.toLocaleString("zh-CN", { maximumFractionDigits: 2 })} USDT × ${lev}x`
+    if (task.position_mode === "fixed_margin") return base
+    if (task.position_mode === "half") return `半仓·杠杆${lev}x`
+    if (task.position_mode === "full") return `全仓·杠杆${lev}x`
+    if (task.position_mode === "scale_in") return `滚仓·每层 ${base}`
+    return base
+  }
+  // 旧手数模式（历史任务）
   const lo = Number(task.qty_min ?? task.fixed_qty ?? 1)
   const hi = Number(task.qty_max ?? lo)
   const range = lo === hi ? `${lo}手` : `${lo}-${hi}手`

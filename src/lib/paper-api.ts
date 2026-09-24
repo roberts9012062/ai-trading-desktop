@@ -21,6 +21,9 @@ export interface PaperAccountSummary {
   can_claim: boolean
   claim_amount: number
   updated_at: string | null
+  /** 实盘扩展：交易所与模拟盘标记（virtual 模式无） */
+  venue_name?: string
+  demo?: boolean
 }
 
 /** 资金流水项 */
@@ -55,6 +58,12 @@ export interface PaperOrderItem {
   created_at: string
   updated_at: string
   filled_at: string | null
+  /** 实盘扩展：杠杆 / 开平 / 止盈止损（virtual 无） */
+  leverage?: number | null
+  tp_price?: number | null
+  sl_price?: number | null
+  /** 实盘扩展：交易所订单号（挂单/历史合并去重用；virtual 无） */
+  exchange_order_id?: string
 }
 
 /** 模拟持仓 */
@@ -71,7 +80,13 @@ export interface PaperPositionItem {
   realized_pnl: number
   multiplier: number
   margin_rate: number
+  tp_price?: number | null
+  sl_price?: number | null
   updated_at: string
+  /** 实盘扩展：浮动盈亏 / 强平价 / 杠杆（virtual 模式无） */
+  unrealized_pnl?: number
+  liquidation_price?: number
+  leverage?: number
 }
 
 /** 下单请求 */
@@ -86,6 +101,10 @@ export interface PlacePaperOrderRequest {
   symbol_name: string
   multiplier: number | null
   margin_rate: number | null
+  margin_usdt?: number | null
+  leverage?: number | null
+  tp_price?: number | null
+  sl_price?: number | null
 }
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")

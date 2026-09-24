@@ -62,6 +62,11 @@ export function useOrderPanel() {
   const [priceMode, setPriceMode] = useState<PriceMode>("opponent")
   const [manualPrice, setManualPrice] = useState("")
   const [quantity, setQuantity] = useState("1")
+  /** ===== r20 受保护下单模型 ===== */
+  const [marginInput, setMarginInput] = useState("100")
+  const [leverage, setLeverage] = useState(10)
+  const [tpPrice, setTpPrice] = useState("")
+  const [slPrice, setSlPrice] = useState("")
   /** 持仓点选指定要平的方向（多/空） */
   const [closePosDir, setClosePosDir] = useState<"long" | "short" | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -107,7 +112,18 @@ export function useOrderPanel() {
       : priceMode === "opponent"
         ? opponentPrice
         : Math.max(0, parseFloat(manualPrice) || 0)
-  const qtyNum = Math.max(0, parseInt(quantity, 10) || 0)
+  // 加密货币数量支持小数（基础币，如 0.001 BTC）
+  const qtyNum = Math.max(0, parseFloat(quantity) || 0)
+  // r20 模型：保证金×杠杆 → 自动数量与名义价值
+  const marginNum = Math.max(0, parseFloat(marginInput) || 0)
+  const autoQty = priceNum > 0 && marginNum > 0 ? marginNum * leverage / priceNum : 0
+  const notional = marginNum * leverage
+  const tpNum = Math.max(0, parseFloat(tpPrice) || 0)
+  const slNum = Math.max(0, parseFloat(slPrice) || 0)
+  // 盈亏比（r20 R:R 风格）：多头 = (TP-入场)/(入场-SL)
+  const riskLen = effectiveDir === "buy" ? priceNum - slNum : slNum - priceNum
+  const rewardLen = effectiveDir === "buy" ? tpNum - priceNum : priceNum - tpNum
+  const rr = riskLen > 0 && rewardLen > 0 ? rewardLen / riskLen : null
   const available = account?.available_margin ?? 0
   const band = priceBand(lastPrice)
   const inBand = band.inBand(priceNum)
@@ -122,9 +138,10 @@ export function useOrderPanel() {
       : direction === "sell"
         ? "卖空"
         : "平仓"
+  const effQty = autoQty > 0 ? autoQty : qtyNum
   const canSubmit =
     !submitting &&
-    qtyNum > 0 &&
+    effQty > 0 &&
     priceNum > 0 &&
     inBand &&
     !(!isOpen && orderType === "market")
@@ -150,6 +167,21 @@ export function useOrderPanel() {
     setManualPrice("")
     setPriceMode("opponent")
   }, [activeContract])
+
+  // 指定价虚线预览：限价+手动模式时同步到 K 线（上下拨动价格即时移动）
+  useEffect(() => {
+    const setPreview = useAppStore.getState().setOrderPricePreview
+    if (orderType === "limit" && priceMode === "manual" && priceNum > 0) {
+      setPreview({
+        seq: Date.now(),
+        symbol: activeContract,
+        price: priceNum,
+        direction: effectiveDir === "buy" ? "buy" : "sell",
+      })
+    } else {
+      setPreview(null)
+    }
+  }, [orderType, priceMode, priceNum, activeContract, effectiveDir])
 
   // 持仓/委托点击：联动下单区
   useEffect(() => {
@@ -218,9 +250,13 @@ export function useOrderPanel() {
       closeable: targets,
       activeContract,
       contractName,
-      qtyNum,
+      qtyNum: effQty,
       place,
       clearMessage,
+      marginUsdt: autoQty > 0 ? marginNum : null,
+      leverage: autoQty > 0 ? leverage : null,
+      tpPrice: direction !== "close" && tpNum > 0 ? tpNum : null,
+      slPrice: direction !== "close" && slNum > 0 ? slNum : null,
     })
   }, [
     activeContract,
@@ -274,6 +310,17 @@ export function useOrderPanel() {
     setManualPrice,
     quantity,
     setQuantity,
+    marginInput,
+    setMarginInput,
+    leverage,
+    setLeverage,
+    tpPrice,
+    setTpPrice,
+    slPrice,
+    setSlPrice,
+    autoQty,
+    notional,
+    rr,
     confirmOpen,
     setConfirmOpen,
     estimate,

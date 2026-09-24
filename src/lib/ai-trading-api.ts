@@ -1,7 +1,7 @@
 /** AI 交易 API 客户端 */
 export type Timeframe = "1m" | "5m" | "15m" | "30m" | "60m" | "1d"
 export type SideMode = "long_only" | "short_only" | "both"
-export type PositionMode = "full" | "half" | "fixed_qty" | "scale_in"
+export type PositionMode = "full" | "half" | "fixed_qty" | "scale_in" | "fixed_margin"
 export type TaskStatus = "running" | "paused" | "stopped"
 export type StrategyType = "ai" | "ma_cross" | "n_breakout"
 /** 激进 / 稳健 / 保守 */
@@ -61,19 +61,21 @@ export interface AITradingTask {
   ai_bars_limit?: number
   /** 决策模型评估间隔秒（60-300，仅 decision 策略） */
   decision_interval_sec?: number
-  /** 量化任务分析间隔秒（0=按K线收盘，60~K线周期秒数，全部量化策略） */
-  quant_interval_sec?: number
-  /** 波段任务信号K线止损锚价（开仓时定，平仓清空；空=未启用） */
-  signal_stop_price?: number | null
-  /** 波段任务止损反手仓锚价（与signal_stop_price互换；空=百分比模式或未启用） */
-  signal_stop_reverse_price?: number | null
+  /** 量化分析间隔秒（60~K线周期；null=按K线收盘） */
+  eval_interval_sec?: number | null
   side_mode: SideMode | string
   position_mode: PositionMode | string
   fixed_qty: number
-  /** 开仓最少/最多手数 */
+  /** r20 模型：每笔保证金 USDT（null=旧手数模式） */
+  margin_per_trade?: number | null
+  /** 杠杆倍数 1-100 */
+  leverage?: number
+  /** 资金源 live=实盘资金库 / site=站内账户 */
+  funding_source?: "live" | "site" | string
+  /** 开仓最少/最多手数（旧模式） */
   qty_min?: number
   qty_max?: number
-  /** AI 资金仓额度（元） */
+  /** 任务资金仓额度（USDT，可小数） */
   allocated_capital?: number
   /** 资金仓使用比例 0-100 */
   capital_usage_min_pct?: number
@@ -130,6 +132,8 @@ export interface AITradingTask {
   trade_count?: number
   /** 胜率百分比（0-100） */
   win_rate?: number
+  /** 累计已实现盈亏（USDT，平仓单合计；无平仓为 null） */
+  total_realized_pnl?: number | null
 }
 export interface AITradingDecision {
   id: string
@@ -202,11 +206,13 @@ export interface CreateTaskPayload {
   ai_bars_limit?: number
   /** 决策模型评估间隔秒（60-300，仅 decision 策略） */
   decision_interval_sec?: number
-  /** 量化任务分析间隔秒（0=按K线收盘，60~K线周期秒数，全部量化策略） */
-  quant_interval_sec?: number
   side_mode: string
   position_mode: string
-  fixed_qty: number
+  fixed_qty?: number
+  margin_per_trade?: number | null
+  leverage?: number
+  funding_source?: "live" | "site"
+  eval_interval_sec?: number | null
   qty_min?: number
   qty_max?: number
   allocated_capital?: number
@@ -236,11 +242,13 @@ export interface UpdateTaskPayload {
   ai_bars_limit?: number
   /** 决策模型评估间隔秒（60-300，仅 decision 策略） */
   decision_interval_sec?: number
-  /** 量化任务分析间隔秒（0=恢复按K线收盘，全部量化策略） */
-  quant_interval_sec?: number
   side_mode?: string
   position_mode?: string
   fixed_qty?: number
+  margin_per_trade?: number | null
+  leverage?: number
+  funding_source?: "live" | "site"
+  eval_interval_sec?: number | null
   qty_min?: number
   qty_max?: number
   allocated_capital?: number
@@ -286,6 +294,24 @@ export async function listAITradingTasks(): Promise<{
 }> {
   return request("/api/ai-trading/tasks")
 }
+export interface FundingSourceInfo {
+  source: "live" | "site"
+  bound: boolean
+  venue: string | null
+  venue_name: string | null
+  demo: boolean | null
+  /** 实盘 USDT 可用（null=读取失败，看 error） */
+  balance_usdt: number | null
+  error: string | null
+  site_balance_usdt: number
+  trading_mode: string
+}
+
+/** 任务资金源：绑定实盘 API → 交易所 USDT 可用；否则站内账户 */
+export async function fetchFundingSource(): Promise<FundingSourceInfo> {
+  return request<FundingSourceInfo>("/api/ai-trading/funding-source")
+}
+
 export async function createAITradingTask(
   payload: CreateTaskPayload,
 ): Promise<AITradingTask> {
@@ -475,6 +501,8 @@ export async function switchTaskModel(
   })
 }
 
+
+/** 把任务切换为客户端本地引擎执行(桌面端本地因子任务用;服务端不支持时静默 404) */
 export async function switchTaskSite(
   taskId: string,
   executionSite: "server" | "client",
@@ -484,24 +512,3 @@ export async function switchTaskSite(
     body: JSON.stringify({ execution_site: executionSite }),
   })
 }
-
-export interface ClientDecisionPayload {
-  action: string
-  quantity: number
-  reason?: string
-  confidence?: number
-  raw?: string | null
-  bar_time?: string | null
-  trigger_type?: string
-}
-
-export async function submitClientDecision(
-  taskId: string,
-  payload: ClientDecisionPayload,
-): Promise<Record<string, unknown>> {
-  return request(`/api/ai-trading/tasks/${taskId}/client-decision`, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  })
-}
-

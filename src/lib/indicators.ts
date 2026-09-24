@@ -26,6 +26,16 @@ export interface BOLLDataPoint {
  * 计算简单移动平均线（SMA）
  * 数据不足周期长度时跳过该点
  */
+/**
+ * 保有效数字取整：加密货币价格跨度大（BTC 1e4 / PEPE 1e-6），
+ * 固定 toFixed(2) 会把微价格币的均线/布林带舍成 0（事故）。
+ * 按数量级保留有效数字而非固定小数位。
+ */
+export function sigKeep(v: number, digits = 8): number {
+  if (!Number.isFinite(v) || v === 0) return v
+  return Number(v.toPrecision(digits))
+}
+
 export function calcSMA(klines: KlineBar[], period: number): MADataPoint[] {
   const result: MADataPoint[] = []
   for (let i = period - 1; i < klines.length; i++) {
@@ -33,7 +43,7 @@ export function calcSMA(klines: KlineBar[], period: number): MADataPoint[] {
     for (let j = i - period + 1; j <= i; j++) {
       sum += klines[j].close
     }
-    result.push({ time: klines[i].time, value: +(sum / period).toFixed(2) })
+    result.push({ time: klines[i].time, value: sigKeep(sum / period) })
   }
   return result
 }
@@ -93,9 +103,9 @@ export function calcMACD(
     const macd = 2 * (dif - dea)
     result.push({
       time: klines[i].time,
-      dif: +dif.toFixed(4),
-      dea: +dea.toFixed(4),
-      macd: +macd.toFixed(4),
+      dif: sigKeep(dif, 10),
+      dea: sigKeep(dea, 10),
+      macd: sigKeep(macd, 10),
     })
   }
   return result
@@ -226,8 +236,8 @@ export function calcBOLL(
     const std = Math.sqrt(variance / period)
     result.push({
       time: klines[i].time,
-      upper: +(middle + stdMult * std).toFixed(2),
-      middle: +middle.toFixed(2),
+      upper: sigKeep(middle + stdMult * std),
+      middle: sigKeep(middle),
       lower: +(middle - stdMult * std).toFixed(2),
     })
   }

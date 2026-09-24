@@ -21,11 +21,6 @@ import { useTaskAlertToastStore } from "@/stores/task-alert-toast"
 import { useAiMarketStore } from "@/stores/ai-market"
 import { useAiAnchorStore } from "@/stores/ai-anchor"
 import { speakTaskOrder } from "@/lib/speech"
-import { bjNowMs, klineEngine, type EngineKlineUpdate } from "@/lib/kline-engine"
-import { scheduleKlineCacheWrite } from "@/lib/kline-cache"
-
-/** 本地累积的每 symbol×period 历史上限(防内存无限增长) */
-const MAX_LOCAL_KLINE_BARS = 2000
 
 /**
  * HTTP 拉取行情快照写入 store（侧栏/品种树首屏兜底）
@@ -337,6 +332,12 @@ interface MarketState {
   initWebSocket: () => void
   /** 更新连接状态 */
   setConnectionState: (state: ConnectionState) => void
+  /** 设置 K 线 WS 订阅（服务端只推订阅合约的 forming bar；空数组恢复全量） */
+  setWsKlineSubscription: (symbols: string[]) => void
+  /** 图表挂载：登记关注的合约（引用计数；多分屏取并集） */
+  watchKlineSymbol: (symbol: string) => void
+  /** 图表卸载：解除关注（计数归零才真正取消订阅） */
+  unwatchKlineSymbol: (symbol: string) => void
   /** 批量更新行情数据 */
   updateQuotes: (data: QuoteData[]) => void
   /** 批量更新盘口数据 */
@@ -347,14 +348,6 @@ interface MarketState {
   setKlineBars: (symbol: string, period: KlinePeriod, bars: KlineBar[]) => void
   /** 更新 K 线实时 bar */
   updateKlineRealtime: (data: KlineRealtimeBar[]) => void
-  /** 本地引擎收盘 bar 追加进历史(本地优先:不依赖服务端历史库累积) */
-  appendClosedKlineBars: (items: EngineKlineUpdate[]) => void
-  /** 设置 K 线 WS 订阅（服务端只推订阅合约的 forming bar；空数组恢复全量） */
-  setWsKlineSubscription: (symbols: string[]) => void
-  /** 图表挂载：登记关注的合约（引用计数；多分屏取并集） */
-  watchKlineSymbol: (symbol: string) => void
-  /** 图表卸载：解除关注（计数归零才真正取消订阅） */
-  unwatchKlineSymbol: (symbol: string) => void
   /** 在现有 K 线数据前面拼接更早的历史 bar（去重） */
   prependKlineBars: (symbol: string, period: KlinePeriod, olderBars: KlineBar[]) => void
   /** 更新 K 线实时 bar */
@@ -386,7 +379,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   trades: {},
   klineBars: {},
   klineRealtime: {},
-    klineWatchSymbols: {},
+  klineWatchSymbols: {},
   klineLoading: {},
   klineHasMore: {},
   contractsLoading: false,
@@ -424,13 +417,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       } else if (message.type === "trades" && message.data && typeof message.data === "object") {
         get().updateTrades(message.data as Record<string, TradeRecord[]>)
       } else if (message.type === "kline" && Array.isArray(message.data)) {
-        // 服务端合成的 forming bar 仅作种子/追赶(重连快照/交易轴修正):
-        // 本地引擎(quote 流驱动)为主,同桶时忽略服务端,落后也忽略
-        const adopted = klineEngine.ingestServerBars(
-          message.data as KlineRealtimeBar[],
-          bjNowMs(),
-        )
-        if (adopted.length > 0) get().updateKlineRealtime(adopted)
+        get().updateKlineRealtime(message.data as KlineRealtimeBar[])
       } else if (message.type === "notification" && message.data && typeof message.data === "object") {
         // 新消息推送：后端字段为 snake_case（created_at），前端 Message 用 createdAt
         const raw = message.data as Record<string, unknown>
@@ -467,11 +454,9 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       }
     })
 
-    // 重连成功:服务端会重推 Redis 缓存的 quote/orderbook/kline realtime;
+    // 重连成功：服务端会重推 Redis 缓存的 quote/orderbook/kline realtime；
     // 历史 K 线缺口由 kline-chart 监听 connectionState 回补
     ws.onOpen(({ isReconnect }) => {
-      // 本地合成状态全部作废,由服务端快照重新播种
-      klineEngine.reset()
       if (isReconnect) {
         set({ connectionState: "connected" })
       }
@@ -512,7 +497,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     set({ klineWatchSymbols: { ...prev, [sym]: count - 1 } })
   },
 
-  updateQuotes: (data) => {
+  updateQuotes: (data) =>
     set((state) => {
       const updated = { ...state.quotes }
       const flash = { ...state.flashMap }
@@ -525,13 +510,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
         }
       }
       return { quotes: updated, flashMap: flash }
-    })
-    // 本地 K 线合成:quote 流驱动全部周期 forming bar(变化才写,避免无效 re-render);
-    // 换桶时已收盘 bar 直接落入本地历史(本地优先,服务端历史库出问题不影响桌面端)
-    const result = klineEngine.ingestQuotes(data, bjNowMs())
-    if (result.closed.length > 0) get().appendClosedKlineBars(result.closed)
-    if (result.updates.length > 0) get().updateKlineRealtime(result.updates as KlineRealtimeBar[])
-  },
+    }),
 
   updateOrderbooks: (data) =>
     set((state) => {
@@ -580,37 +559,20 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       for (const item of data) {
         const period = item.period as KlinePeriod
         const symbolMap = { ...(realtime[item.symbol] ?? {}) }
+        // 版本号幂等守卫：同 (symbol, period) 只接受不低于本地版本的 bar，
+        // 乱序/重放/旧快照不回退（version 缺失视为 0，兼容无版本推送）
+        const prev = symbolMap[period]
+        if (
+          prev &&
+          prev.time === item.bar.time &&
+          (prev.version ?? 0) > (item.bar.version ?? 0)
+        ) {
+          continue
+        }
         symbolMap[period] = item.bar
         realtime[item.symbol] = symbolMap
       }
       return { klineRealtime: realtime }
-    }),
-
-  appendClosedKlineBars: (items) =>
-    set((state) => {
-      let changed = false
-      const next = { ...state.klineBars }
-      for (const item of items) {
-        const period = item.period as KlinePeriod
-        const symbolMap = next[item.symbol]
-        const existing = symbolMap?.[period]
-        // 只维护已查看/已缓存的合约,避免全市场 × 全周期的内存膨胀
-        if (!symbolMap || !existing || existing.length === 0) continue
-        const last = existing[existing.length - 1]
-        let merged: KlineBar[]
-        if (item.bar.time > last.time) {
-          merged = [...existing, item.bar].slice(-MAX_LOCAL_KLINE_BARS)
-        } else if (item.bar.time === last.time) {
-          // 同时间:收盘最终态覆盖(forming → final)
-          merged = [...existing.slice(0, -1), item.bar]
-        } else {
-          continue
-        }
-        next[item.symbol] = { ...symbolMap, [period]: merged }
-        changed = true
-        scheduleKlineCacheWrite(item.symbol, period)
-      }
-      return changed ? { klineBars: next } : state
     }),
 
   setKlineLoading: (key, loading) =>

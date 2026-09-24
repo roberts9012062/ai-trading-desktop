@@ -1,23 +1,62 @@
 "use client"
 
 /**
- * 交易页顶栏 —— 当前合约信息 + 切换入口（不展示自选/品种树）
+ * 交易页顶栏 —— 当前合约信息 + 交易所切换（实盘）+ 切换入口
+ *
+ * 实盘模式：OKX / Binance(币安) / Gate(芝麻开门) 三所对等切换；
+ * 虚拟盘模式：模拟撮合，不显示交易所选择。
  */
 
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/stores/app"
 import { useMarketStore } from "@/stores/market"
 import { useSessionStatus } from "@/hooks/use-session-status"
+import { usePaperTradingStore } from "@/stores/paper-trading"
+import { VENUES } from "@/lib/live-api"
 import { Button } from "@/components/ui/button"
 import { Search } from "lucide-react"
+
+/** 交易所切换器（仅实盘模式显示） */
+function VenueSwitcher(): React.JSX.Element | null {
+  const mode = usePaperTradingStore((s) => s.mode)
+  const venue = usePaperTradingStore((s) => s.venue)
+  const setVenue = usePaperTradingStore((s) => s.setVenue)
+  if (mode !== "live") return null
+  return (
+    <div
+      className="flex items-center rounded-md border border-[var(--border)] overflow-hidden shrink-0"
+      role="group"
+      aria-label="交易所切换"
+    >
+      {VENUES.map((v) => (
+        <button
+          key={v.venue}
+          type="button"
+          onClick={() => setVenue(v.venue)}
+          className={cn(
+            "px-2 h-6 text-[11px] font-medium transition-colors",
+            venue === v.venue
+              ? "bg-[var(--primary)] text-white"
+              : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]"
+          )}
+          title={v.name}
+        >
+          {v.short}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 /** 交易页合约条 */
 export function TradingHeader(): React.JSX.Element {
   const activeContract = useAppStore((s) => s.activeContract)
   const setSearchOpen = useAppStore((s) => s.setSearchOpen)
   const quote = useMarketStore((s) => s.quotes[activeContract])
+  const tradingMode = usePaperTradingStore((s) => s.mode)
+  const venue = usePaperTradingStore((s) => s.venue)
   const { isOpen, status, hasVirtualQuote } = useSessionStatus(activeContract)
-  const isVirtual = status?.trading_mode === "virtual"
+  const isVirtual = tradingMode === "virtual" || status?.trading_mode === "virtual"
 
   const name = quote?.name ?? activeContract
   const last = quote?.last_price
@@ -26,20 +65,24 @@ export function TradingHeader(): React.JSX.Element {
   const decimals = quote?.decimal_places ?? 2
   const up = change >= 0
 
-  /** 状态徽章：virtual 永不显示国内「休市/停盘」 */
-  let badgeText = isOpen ? "交易中" : "休市"
+  /** 状态徽章：加密货币 7×24；virtual 为模拟撮合 */
+  let badgeText = isOpen ? "实盘·7×24" : "休市"
   let badgeWarn = !isOpen
   if (isVirtual) {
     if (hasVirtualQuote === false && last == null) {
       badgeText = "暂无行情"
       badgeWarn = true
     } else if (hasVirtualQuote === false) {
-      badgeText = "7×24·待源"
+      badgeText = "虚拟·待源"
       badgeWarn = true
     } else {
       badgeText = "虚拟盘·7×24"
       badgeWarn = false
     }
+  } else {
+    const short = VENUES.find((v) => v.venue === venue)?.short ?? ""
+    badgeText = `实盘·${short}·7×24`
+    badgeWarn = false
   }
 
   return (
@@ -82,6 +125,8 @@ export function TradingHeader(): React.JSX.Element {
       </span>
 
       <div className="flex-1" />
+
+      <VenueSwitcher />
 
       <Button
         variant="outline"

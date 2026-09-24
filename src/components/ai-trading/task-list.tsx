@@ -3,21 +3,16 @@
 import { Star } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { AITradingTask } from "@/lib/ai-trading-api"
-import { switchTaskSite } from "@/lib/ai-trading-api"
 import { TaskIcon } from "@/components/ai-trading/task-icon"
 import { TaskActions } from "@/components/ai-trading/task-actions"
 import { useMarketStore } from "@/stores/market"
 import {
-  holdDaysLabel,
   livePnl,
-  qtyLabel,
   runtimeLabel,
-  SIDE_LABEL,
   STATUS_LABEL,
   STATUS_STYLE,
   statusKey,
   strategyLabel,
-  winRateLabel,
 } from "./task-list-helpers"
 
 interface TaskListProps {
@@ -31,8 +26,12 @@ interface TaskListProps {
   favoritedIds?: Set<string>
   /** 点星标收藏（弹出选文件夹） */
   onFavorite?: (task: AITradingTask) => void
-  /** 执行位置切换成功后刷新列表 */
-  onRefresh?: () => void
+}
+
+/** 价格自适应精度：≥1000→1 位；≥1→2 位；<1→4 位（微价格币不丢精度） */
+function fmtPx(p: number): string {
+  if (!Number.isFinite(p) || p <= 0) return "--"
+  return p >= 1000 ? p.toFixed(1) : p >= 1 ? p.toFixed(2) : p.toFixed(4)
 }
 
 /** 任务列表 —— 九宫格卡片 */
@@ -44,7 +43,6 @@ export function TaskList({
   onEditRules,
   favoritedIds,
   onFavorite,
-  onRefresh,
 }: TaskListProps): React.JSX.Element {
   const quotes = useMarketStore((s) => s.quotes)
 
@@ -76,6 +74,12 @@ export function TaskList({
               ? "空"
               : null
 
+        const total = Number(task.total_realized_pnl ?? 0)
+        const hasTotal = task.total_realized_pnl != null && total !== 0
+        const totalColor = total > 0 ? "text-up" : total < 0 ? "text-down" : "text-[var(--text-muted)]"
+        const pnlColor = pnl > 0 ? "text-up" : pnl < 0 ? "text-down" : "text-[var(--text-muted)]"
+        const totalTrades = Number(task.trade_count ?? 0)
+
         return (
           <div
             key={task.id}
@@ -86,12 +90,13 @@ export function TaskList({
               if (e.key === "Enter") onSelect(task.id)
             }}
             className={cn(
-              "rounded-xl border p-3 transition-colors cursor-pointer h-full flex flex-col min-h-[168px]",
+              "rounded-xl border p-3 transition-colors cursor-pointer h-full flex flex-col min-h-[172px]",
               selectedId === task.id
                 ? "border-[var(--primary)] bg-[var(--primary)]/10"
                 : "border-[var(--border)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)]",
             )}
           >
+            {/* 头部：图标 + 名称 + 状态徽章 + 星标 */}
             <div className="flex items-start gap-2.5">
               <TaskIcon
                 icon={task.icon}
@@ -102,9 +107,17 @@ export function TaskList({
                 size={32}
               />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-medium text-sm text-[var(--text-primary)] truncate max-w-full">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium text-sm text-[var(--text-primary)] truncate">
                     {task.name}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[10px] px-1.5 py-0.5 rounded shrink-0",
+                      STATUS_STYLE[sk] ?? STATUS_STYLE.stopped,
+                    )}
+                  >
+                    {STATUS_LABEL[sk] ?? task.status}
                   </span>
                   {onFavorite && (
                     <button
@@ -130,146 +143,108 @@ export function TaskList({
                       />
                     </button>
                   )}
-                  <span
-                    className={cn(
-                      "text-[10px] px-1.5 py-0.5 rounded shrink-0",
-                      STATUS_STYLE[sk] ?? STATUS_STYLE.stopped,
-                    )}
-                  >
-                    {STATUS_LABEL[sk] ?? task.status}
-                  </span>
+                </div>
+                <div className="mt-0.5 text-[11px] text-[var(--text-muted)] truncate">
+                  {task.symbol_name || task.symbol} · {task.timeframe} ·{" "}
+                  {strategyLabel(task)}
+                </div>
+              </div>
+            </div>
+
+            {/* 统计条：累计盈亏 / 浮动盈亏 / 胜率 */}
+            <div className="mt-2.5 grid grid-cols-3 gap-1 rounded-lg bg-[var(--bg-tertiary)]/50 px-2 py-1.5">
+              <div
+                className="min-w-0"
+                title="累计盈亏：已平仓交易盈亏合计（含手续费）"
+              >
+                <div className="text-[10px] text-[var(--text-muted)]">累计盈亏</div>
+                <div
+                  className={cn(
+                    "font-num text-sm font-semibold truncate",
+                    totalColor,
+                  )}
+                >
+                  {hasTotal ? (total > 0 ? "+" : "") + total.toFixed(2) : "0.00"}
+                </div>
+              </div>
+              <div
+                className="min-w-0 border-l border-[var(--border)]/60 pl-2"
+                title="当前持仓浮动盈亏（未平仓）"
+              >
+                <div className="text-[10px] text-[var(--text-muted)]">浮动盈亏</div>
+                <div
+                  className={cn(
+                    "font-num text-sm font-semibold truncate",
+                    pnlColor,
+                  )}
+                >
+                  {pos.hasPosition
+                    ? (pnl > 0 ? "+" : "") + pnl.toFixed(2)
+                    : "0.00"}
+                </div>
+              </div>
+              <div
+                className="min-w-0 border-l border-[var(--border)]/60 pl-2"
+                title="胜率（盈利平仓 / 总平仓）"
+              >
+                <div className="text-[10px] text-[var(--text-muted)]">胜率</div>
+                <div className="font-num text-sm font-semibold text-[var(--text-secondary)] truncate">
+                  {totalTrades > 0
+                    ? Number(task.win_rate ?? 0).toFixed(1) + "%"
+                    : "--"}
+                  {totalTrades > 0 && (
+                    <span className="ml-1.5 text-[10px] font-normal text-[var(--text-muted)] whitespace-nowrap">
+                      ({task.win_count}/{totalTrades})
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {task.note && (
+              <p className="mt-1.5 text-[11px] text-amber-400/90 truncate">
+                {task.note}
+              </p>
+            )}
+
+            {/* 底部：持仓明细（方向+数量 开→现价）+ 运行时长/操作 */}
+            <div className="mt-auto pt-2 border-t border-white/5 flex items-center justify-between gap-2">
+              {pos.hasPosition && pos.avg != null ? (
+                <div className="flex items-center gap-1.5 text-[11px] font-num min-w-0">
                   {dirLabel && (
                     <span
                       className={cn(
-                        "text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0",
+                        "px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0",
                         dirLabel === "多"
                           ? "bg-red-500/15 text-up"
                           : "bg-emerald-500/15 text-down",
                       )}
                     >
-                      {dirLabel} {pos.qty}手
+                      {dirLabel}{" "}
+                      {Number(pos.qty).toLocaleString("zh-CN", {
+                        maximumFractionDigits: 4,
+                      })}
                     </span>
                   )}
-                  <button
-                    type="button"
-                    onClick={async (e) => {
-                      e.stopPropagation()
-                      const site = (task as { execution_site?: string }).execution_site === "client" ? "server" : "client"
-                      try {
-                        await switchTaskSite(task.id, site)
-                        onRefresh?.()
-                      } catch (err) {
-                        alert(
-                          err instanceof Error && err.message.includes("404")
-                            ? "服务端尚未部署本地引擎支持(分支 feat/ai-trading-client-engine)"
-                            : `切换失败: ${err instanceof Error ? err.message : String(err)}`,
-                        )
-                      }
-                    }}
-                    title="切换执行位置:本地引擎在本机调度决策(应用需保持运行),服务端引擎 7x24"
-                    className={cn(
-                      "text-[10px] px-1.5 py-0.5 rounded shrink-0 border",
-                      (task as { execution_site?: string }).execution_site === "client"
-                        ? "border-emerald-600 text-emerald-400"
-                        : "border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-                    )}
-                  >
-                    {(task as { execution_site?: string }).execution_site === "client" ? "本地" : "服务端"}
-                  </button>
-                </div>
-                <div className="mt-1 text-[11px] text-[var(--text-muted)] line-clamp-2 leading-relaxed">
-                  <span>
-                    {task.symbol_name || task.symbol} · {task.timeframe}
-                  </span>
-                  <span className="mx-1.5 opacity-40">·</span>
-                  <span>{SIDE_LABEL[task.side_mode] ?? task.side_mode}</span>
-                  <span className="mx-1.5 opacity-40">·</span>
-                  <span>{qtyLabel(task)}</span>
-                  <span className="mx-1.5 opacity-40">·</span>
-                  <span>{strategyLabel(task)}</span>
-                  {holdDaysLabel(task) && (
-                    <>
-                      <span className="mx-1.5 opacity-40">·</span>
-                      <span>{holdDaysLabel(task)}</span>
-                    </>
-                  )}
-                  {runtimeLabel(task) && (
-                    <>
-                      <span className="mx-1.5 opacity-40">·</span>
-                      <span>{runtimeLabel(task)}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-2.5 flex-1">
-              {pos.hasPosition && pos.avg != null && pos.last != null ? (
-                <div className="text-[11px] text-[var(--text-secondary)] flex flex-wrap gap-x-3 gap-y-0.5 font-num">
-                  <span>
-                    开{" "}
-                    <span className="text-[var(--text-primary)]">
-                      {Number(pos.avg).toFixed(Number(pos.avg) >= 1000 ? 1 : 2)}
+                  <span className="text-[var(--text-muted)] truncate">
+                    {fmtPx(Number(pos.avg))}
+                    <span className="mx-0.5 opacity-50">→</span>
+                    <span className="text-[var(--text-secondary)]">
+                      {pos.last != null ? fmtPx(Number(pos.last)) : "--"}
                     </span>
-                  </span>
-                  <span>
-                    新{" "}
-                    <span className="text-[var(--text-primary)]">
-                      {Number(pos.last).toFixed(
-                        Number(pos.last) >= 1000 ? 1 : 2,
-                      )}
-                    </span>
-                  </span>
-                  <span
-                    className={cn(
-                      "font-medium",
-                      pnl >= 0 ? "text-up" : "text-down",
-                    )}
-                  >
-                    浮盈 {pnl >= 0 ? "+" : ""}
-                    {pnl.toFixed(2)}
                   </span>
                 </div>
               ) : (
-                <div className="text-[11px] text-[var(--text-muted)]">
-                  未持仓 · 浮盈 0.00
-                </div>
-              )}
-              {task.note && (
-                <p className="mt-1 text-[11px] text-amber-400/90 truncate">
-                  {task.note}
-                </p>
-              )}
-            </div>
-
-            <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                {pos.hasPosition ? (
-                  <span
-                    className={cn(
-                      "text-sm font-num font-semibold",
-                      pnl >= 0 ? "text-up" : "text-down",
-                    )}
-                  >
-                    {pnl >= 0 ? "+" : ""}
-                    {pnl.toFixed(2)}
-                    {base > 0 && (
-                      <span className="text-[11px] ml-1 opacity-80 font-normal">
-                        ({pct >= 0 ? "+" : ""}
-                        {pct.toFixed(2)}%)
-                      </span>
-                    )}
-                  </span>
-                ) : (
-                  <span className="text-sm font-num text-[var(--text-muted)]">
-                    +0.00
-                  </span>
-                )}
-                <span className="text-[11px] text-[var(--text-muted)] font-num truncate">
-                  {winRateLabel(task)}
+                <span className="text-[11px] text-[var(--text-muted)] truncate">
+                  未持仓{runtimeLabel(task) ? " · " + runtimeLabel(task) : ""}
                 </span>
-              </div>
-              <TaskActions task={task} compact onEdit={onEdit} onEditRules={onEditRules} />
+              )}
+              <TaskActions
+                task={task}
+                compact
+                onEdit={onEdit}
+                onEditRules={onEditRules}
+              />
             </div>
           </div>
         )

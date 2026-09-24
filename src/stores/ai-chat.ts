@@ -6,7 +6,6 @@ import { create } from "zustand"
 import type { AIModel, AIConversationItem, ChatBubble } from "@/types"
 import { createConversation, getConversations, deleteConversation, getConversationMessages } from "@/lib/api"
 import { streamChat, type MultimodalMessage } from "@/lib/ai-stream"
-import { getActiveLocalAi, localStreamChat } from "@/lib/local-ai"
 import { useIndicatorStore } from "@/stores/indicator"
 
 /** localStorage key */
@@ -205,15 +204,12 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
 
   sendMessage: async (content: string) => {
     const { selectedModel, conversationId, messages, isStreaming, pendingImages } = get()
-    if (isStreaming) return
-    // 本地直连模式:用户自己的 key 直连 provider,不要求后端模型/会话
-    const local = getActiveLocalAi()
-    if (!local && !selectedModel) return
+    if (!selectedModel || isStreaming) return
 
-    // 确保有对话(本地直连不建服务端会话)
+    // 确保有对话
     let convId = conversationId
-    if (!local && !convId) {
-      const conv = await createConversation(selectedModel!.model_id)
+    if (!convId) {
+      const conv = await createConversation(selectedModel.model_id)
       convId = conv.id
       set((s) => ({
         conversationId: convId,
@@ -274,56 +270,8 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
     const assistantId = assistantBubble.id
 
     const indicatorConfig = useIndicatorStore.getState().config
-
-    // 本地直连:纯聊天(增量拼接/thinking/错误),完成后不刷新服务端会话列表
-    if (local) {
-      await localStreamChat(
-        contextMessages,
-        {
-          onMessage: (chunk) => {
-            if (!chunk) return
-            set((s) => ({
-              messages: s.messages.map((m) =>
-                m.id === assistantId ? { ...m, content: m.content + chunk } : m
-              ),
-            }))
-          },
-          onThinking: (chunk) => {
-            if (!chunk) return
-            set((s) => ({
-              messages: s.messages.map((m) =>
-                m.id === assistantId ? { ...m, thinking: m.thinking + chunk } : m
-              ),
-            }))
-          },
-          onError: (msg) => {
-            set((s) => ({
-              messages: s.messages.map((m) =>
-                m.id === assistantId
-                  ? { ...m, content: m.content || `❌ ${msg}`, isStreaming: false }
-                  : m
-              ),
-              isStreaming: false,
-              abortController: null,
-            }))
-          },
-          onDone: () => {
-            set((s) => ({
-              messages: s.messages.map((m) =>
-                m.id === assistantId ? { ...m, isStreaming: false } : m
-              ),
-              isStreaming: false,
-              abortController: null,
-            }))
-          },
-        },
-        controller.signal,
-      )
-      return
-    }
-
     await streamChat(
-      selectedModel!.model_id,
+      selectedModel.model_id,
       contextMessages,
       {
         onMessage: (chunk) => {
@@ -513,7 +461,7 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
         },
       },
       {
-        conversationId: convId ?? undefined,
+        conversationId: convId,
         signal: controller.signal,
         indicatorConfig,
       },

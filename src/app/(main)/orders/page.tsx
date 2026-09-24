@@ -24,9 +24,11 @@ function StatusBadge({ status }: { status: string }): React.JSX.Element {
     { label: string; variant: "default" | "outline" | "up" | "destructive" }
   > = {
     pending: { label: "挂单中", variant: "default" },
+    partially_filled: { label: "部分成交", variant: "default" },
     filled: { label: "全部成交", variant: "up" },
     cancelled: { label: "已撤单", variant: "destructive" },
     rejected: { label: "已拒绝", variant: "outline" },
+    error: { label: "下单异常", variant: "outline" },
   }
   const cfg = map[status] ?? { label: status, variant: "outline" as const }
   return <Badge variant={cfg.variant}>{cfg.label}</Badge>
@@ -56,12 +58,16 @@ export default function OrdersPage(): React.JSX.Element {
     return () => clearInterval(timer)
   }, [refresh])
 
+  /** 仍在挂单中（含部分成交，剩余量还在挂） */
+  const isOpenStatus = (o: PaperOrderItem): boolean =>
+    o.status === "pending" || o.status === "partially_filled"
+
   const pending = useMemo(
-    () => orders.filter((o) => o.status === "pending"),
+    () => orders.filter((o) => isOpenStatus(o)),
     [orders]
   )
   const history = useMemo(
-    () => orders.filter((o) => o.status !== "pending"),
+    () => orders.filter((o) => !isOpenStatus(o)),
     [orders]
   )
   const fills = useMemo(
@@ -77,7 +83,7 @@ export default function OrdersPage(): React.JSX.Element {
             订单
           </p>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            盘前限价挂单 · 开盘到价自动成交 · 可随时撤单
+            当前挂单 · 历史委托 · 成交记录（7×24 实时刷新）
           </p>
         </div>
         <Button
@@ -138,7 +144,7 @@ export default function OrdersPage(): React.JSX.Element {
             rows={pending}
             showCancel
             submitting={submitting}
-            emptyText="暂无挂单。休市时可在交易页用限价挂单。"
+            emptyText="暂无挂单。可在交易页用限价/市价下单。"
             onCancel={(id) => void cancel(id)}
           />
         </TabsContent>
@@ -275,7 +281,10 @@ function OrderTable(props: {
                     variant="ghost"
                     size="sm"
                     className="text-xs h-6 text-[var(--accent-danger)]"
-                    disabled={props.submitting || o.status !== "pending"}
+                    disabled={
+                      props.submitting ||
+                      (o.status !== "pending" && o.status !== "partially_filled")
+                    }
                     onClick={() => props.onCancel?.(o.id)}
                   >
                     撤单

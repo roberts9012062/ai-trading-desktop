@@ -83,7 +83,7 @@ export function TopNavbar(): React.JSX.Element {
             Q
           </div>
           <span className="text-[var(--text-primary)] font-semibold text-base hidden sm:inline">
-            期货交易系统
+            加密货币交易系统
           </span>
         </div>
         <div

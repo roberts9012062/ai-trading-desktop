@@ -7,6 +7,7 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from "react"
 import {
   createChart,
+  LineStyle,
   type IChartApi,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
@@ -22,7 +23,6 @@ import { useMarketStore } from "@/stores/market"
 import { useContractSpecStore } from "@/stores/contract-spec"
 import type { KlineBar, KlinePeriod } from "@/types"
 import { IndicatorSettingsDialog } from "../indicator-settings-dialog"
-import { KlineHoverInfoPanel } from "../kline-hover-info-panel"
 import { PERIODS, formatChartTime, makeChartOpts, resolveHoveredBar } from "./utils"
 import { NextBarCountdown } from "./next-bar-countdown"
 import { useHoverPanel } from "./use-hover-panel"
@@ -36,6 +36,7 @@ import type {
 import { useTradeLines } from "./lines/use-trade-lines"
 import { setCurrentKlinePeriod } from "./current-period"
 import { prefetchKlineHistory } from "./use-kline-history"
+import { KlineHoverBookPanel } from "./hover-book-panel"
 import { useDrawingOverlay } from "./drawing/use-drawing-overlay"
 import { DrawingToolbar } from "./drawing/DrawingToolbar"
 import type { IndicatorStoreHook } from "@/types/indicator"
@@ -52,6 +53,25 @@ import {
 
 /** 分时模式下分时数据逐秒增长（ref 变更不触发渲染），标记定时重对齐 */
 const TICK_MARKS_REALIGN_MS = 2000
+
+/**
+ * 图表价格精度：行情携带的规格小数位优先（交易所 tick 权威），
+ * 缺省按最新价量级自适应（r20 symbolPrecision 阶梯扩展至微价格币）。
+ * 加密货币单位差异大（BTC 1 位 / PEPE 9 位），不能统一标准。
+ */
+function chartPrecision(decimals: number | undefined, lastClose: number | undefined): number {
+  if (decimals != null && decimals >= 0 && decimals <= 10) return decimals
+  const p = Number(lastClose) || 0
+  if (p >= 10000) return 1
+  if (p >= 100) return 2
+  if (p >= 1) return 3
+  if (p >= 0.1) return 4
+  if (p >= 0.01) return 5
+  if (p >= 0.001) return 6
+  if (p >= 0.0001) return 7
+  if (p >= 0.00001) return 8
+  return p > 0 ? 9 : 2
+}
 
 export interface KlineChartProps {
   /** 任务 K 线交易标记（AI 看盘页传入；不传则无标记，行为同行情页） */
@@ -104,6 +124,10 @@ export function KlineChart({
   const tickDataRef = useRef<{ time: number; value: number }[]>([])
 
   const { activeContract } = useAppStore()
+  const orderPricePreview = useAppStore((s) => s.orderPricePreview)
+  const activeOrderbook = useMarketStore((s) => s.orderbooks[activeContract])
+  const activeQuote = useMarketStore((s) => s.quotes[activeContract])
+  const quoteDecimals = activeQuote?.decimal_places
   const { config } = (indicatorStore as typeof useIndicatorStore)()
   const klineRealtime = useMarketStore((s) => s.klineRealtime)
   const [period, setPeriod] = useState<KlinePeriod>("1d")
@@ -112,6 +136,8 @@ export function KlineChart({
   const [chartReady, setChartReady] = useState(0)
   /** 蜡烛 series 重建计数，驱动挂单/持仓线重绘 */
   const [seriesReady, setSeriesReady] = useState(0)
+  /** 十字线悬浮盘口面板位置（null=隐藏：鼠标离开图表/未接触 K 线） */
+  const [hoverPanel, setHoverPanel] = useState<{ x: number; y: number } | null>(null)
   const macdEnabled = config.macd.enabled
   const rsiEnabled = config.rsi.enabled
   const bollEnabled = config.boll.enabled
@@ -189,6 +215,14 @@ export function KlineChart({
     const chart = createChart(mainRef.current, makeChartOpts())
     mainApiRef.current = chart
     setChartReady((n) => n + 1)
+    // 悬浮盘口：十字线在 K 线上移动时跟随光标；离开/未命中蜡烛即隐藏
+    chart.subscribeCrosshairMove((param) => {
+      if (param.point && (param.time !== undefined || param.seriesData.size > 0)) {
+        setHoverPanel({ x: param.point.x, y: param.point.y })
+      } else {
+        setHoverPanel(null)
+      }
+    })
     const ro = new ResizeObserver(([e]) => {
       chart.applyOptions({ width: e.contentRect.width, height: e.contentRect.height })
     })
@@ -328,6 +362,53 @@ export function KlineChart({
     return () => clearTradeMarks(tradeMarksCtlRef)
   }, [])
 
+  // 指定价虚线预览：限价手动模式时在下单目标合约的图上画虚线（上下拨动即时移动）
+  const preview = orderPricePreview
+  const previewValid =
+    preview !== null &&
+    preview.symbol === activeContract &&
+    preview.price > 0
+  useEffect(() => {
+    const series = seriesRef.current
+    if (!series || !previewValid || !preview) return
+    const line = series.createPriceLine({
+      price: preview.price,
+      color: preview.direction === "buy" ? "#ef4444" : "#22c55e",
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: `委托${preview.direction === "buy" ? "买" : "卖"}`,
+    })
+    return () => {
+      try {
+        series.removePriceLine(line)
+      } catch {
+        // series 已销毁
+      }
+    }
+  }, [preview, previewValid, seriesReady, activeContract])
+
+  // 价格精度自适应：规格小数位（或量级兜底）应用到蜡烛/均线/BOLL/成交量轴
+  const lastCloseForPrec = currentBarsRef.current[currentBarsRef.current.length - 1]?.close
+  const prec = chartPrecision(quoteDecimals, lastCloseForPrec)
+  useEffect(() => {
+    const series = seriesRef.current
+    if (!series) return
+    const minMove = Number((10 ** -prec).toFixed(prec))
+    series.applyOptions({
+      priceFormat: { type: "price", precision: prec, minMove },
+    })
+    for (const s of maSeriesRef.current) {
+      s?.applyOptions({ priceFormat: { type: "price", precision: prec, minMove } })
+    }
+    for (const s of bollSeriesRef.current) {
+      s?.applyOptions({ priceFormat: { type: "price", precision: prec, minMove } })
+    }
+    volumeRef.current?.applyOptions({
+      priceFormat: { type: "volume", precision: 2, minMove: 0.01 },
+    })
+  }, [prec, seriesReady, activeContract])
+
   // K 线画图层（双击切出工具栏；不影响 K 线渲染与走势）
   useDrawingOverlay({
     chartRef: mainApiRef,
@@ -429,15 +510,19 @@ export function KlineChart({
             ))}
           </div>
         )}
-        <KlineHoverInfoPanel
-          bar={hoveredBar}
-          position={hoverState.position}
-          visible={hoverState.visible && period !== "tick"}
-          period={period}
-          decimalPlaces={decimalPlaces}
-          trades={hoveredTradeRows}
+        <div
+          ref={mainRef}
+          className="w-full h-full"
+          onMouseLeave={() => setHoverPanel(null)}
         />
-        <div ref={mainRef} className="w-full h-full" />
+        {hoverPanel && activeOrderbook && (
+          <KlineHoverBookPanel
+            x={hoverPanel.x}
+            y={hoverPanel.y}
+            book={activeOrderbook}
+            quote={activeQuote}
+          />
+        )}
       </div>
 
       <IndicatorSettingsDialog

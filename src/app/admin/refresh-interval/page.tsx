@@ -7,24 +7,19 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import {
   getAdminSettingsApi,
-  getChannelStatusApi,
+  getVenuesApi,
   updateAdminSettingsApi,
 } from "@/lib/admin-api"
 
-const DEFAULT_INTERVAL = 1
+const DEFAULT_INTERVAL = 2
 const MIN_INTERVAL = 1
 const MAX_INTERVAL = 10
 
-// live 盘可配置的渠道（对应后端 market_channel.py REALTIME_CHANNELS）
+// 可配置的行情交易所（对应三所适配器；主所生效，备所容灾同频）
 const CHANNELS = [
-  {
-    key: "sina",
-    label: "sina（新浪 HTTP）",
-    hint: "HTTP 拉取，易被限流，建议设大（如 3 秒）",
-  },
-  { key: "vvtr", label: "vvtr（VVTR WS）", hint: "WS 推送，1 秒即可" },
-  { key: "real_ctp", label: "real_ctp（真实 CTP）", hint: "交易所直连推送" },
-  { key: "openctp_sim", label: "openctp_sim", hint: "openctp 仿真推送" },
+  { key: "okx", label: "OKX", hint: "官方限频宽松，默认 2 秒" },
+  { key: "binance", label: "Binance 币安", hint: "受限网络下自动容灾，间隔同样生效" },
+  { key: "gate", label: "Gate 芝麻开门", hint: "官方限频宽松，默认 2 秒" },
 ] as const
 
 /** 刷新节奏 —— 按当前生效行情渠道自动应用对应间隔 */
@@ -42,9 +37,9 @@ export default function AdminRefreshIntervalPage(): React.JSX.Element {
     let cancelled = false
     async function load(): Promise<void> {
       try {
-        const [s, cs] = await Promise.all([
+        const [s, vs] = await Promise.all([
           getAdminSettingsApi(),
-          getChannelStatusApi(),
+          getVenuesApi().catch(() => null),
         ])
         if (cancelled) return
         setDefaultSec(
@@ -56,7 +51,7 @@ export default function AdminRefreshIntervalPage(): React.JSX.Element {
           map[ch.key] = v != null ? String(v) : ""
         }
         setChannelSec(map)
-        setActiveChannel(cs.active || "")
+        setActiveChannel(vs?.active || "okx")
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "加载失败")

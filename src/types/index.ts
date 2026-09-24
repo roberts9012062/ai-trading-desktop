@@ -130,6 +130,9 @@ export interface NewsItem {
   url: string
   time: string
   symbols: string[]
+  /** r20 模型：重要度分级与摘要 */
+  importance?: "high" | "mid" | "low"
+  summary?: string
 }
 
 /** 文章正文内容 */

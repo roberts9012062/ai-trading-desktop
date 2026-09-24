@@ -115,7 +115,7 @@ export default function AdminDashboardPage(): React.JSX.Element {
         {/* 行情渠道 */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle>行情渠道</CardTitle>
+            <CardTitle>交易所行情源</CardTitle>
             <Link
               href="/admin/channels"
               className="text-xs text-[var(--primary)] hover:underline"
@@ -131,28 +131,33 @@ export default function AdminDashboardPage(): React.JSX.Element {
             {channels.length === 0 ? (
               <p className="text-xs text-[var(--text-muted)]">暂无探测数据</p>
             ) : (
-              channels.map(([ch, h]) => (
-                <div
-                  key={ch}
-                  className="flex items-center justify-between text-sm"
-                >
-                  <span className="flex items-center gap-2">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full"
-                      style={{ backgroundColor: STATUS_COLOR[h.status] }}
-                    />
-                    {ch}
-                    {ov?.channels.active === ch && (
-                      <span className="text-[10px] text-[var(--primary)]">
-                        生效
-                      </span>
-                    )}
-                  </span>
-                  <span style={{ color: STATUS_COLOR[h.status] }}>
-                    {STATUS_LABEL[h.status] ?? h.status}
-                  </span>
-                </div>
-              ))
+              channels.map(([ch, h]) => {
+                const ok = Boolean((h as { ok?: boolean }).ok)
+                const fail = Number((h as { fail?: number }).fail ?? 0)
+                const color = ok ? "var(--accent-up)" : fail > 0 ? "var(--accent-danger)" : "var(--text-muted)"
+                return (
+                  <div
+                    key={ch}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: color }}
+                      />
+                      {String((h as { name?: string }).name ?? ch)}
+                      {ov?.channels.active === ch && (
+                        <span className="text-[10px] text-[var(--primary)]">
+                          主所
+                        </span>
+                      )}
+                    </span>
+                    <span style={{ color }}>
+                      {ok ? "正常" : fail > 0 ? `失败 ${fail} 次` : "暂无数据"}
+                    </span>
+                  </div>
+                )
+              })
             )}
           </CardContent>
         </Card>

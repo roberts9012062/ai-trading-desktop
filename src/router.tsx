@@ -17,8 +17,6 @@ import AiMarketPage from "./app/(main)/ai-market/page"
 import VolumeProfilePage from "./app/(main)/ai-market/volume-profile/page"
 import AiSettingsPage from "./app/(main)/ai-settings/page"
 import AiTradingPage from "./app/(main)/ai-trading/page"
-import AiSkillsPage from "./app/(main)/ai/skills/page"
-import AiSkillsInstalledPage from "./app/(main)/ai/skills/installed/page"
 import AssetsPage from "./app/(main)/assets/page"
 import BacktestPage from "./app/(main)/backtest/page"
 import DashboardPage from "./app/(main)/dashboard/page"
@@ -37,18 +35,14 @@ import AdminLayout from "./app/admin/layout"
 import AdminAiPage from "./app/admin/ai/page"
 import AdminApiKeysPage from "./app/admin/api-keys/page"
 import AdminChannelsPage from "./app/admin/channels/page"
-import AdminContractsPage from "./app/admin/contracts/page"
 import AdminDashboardPage from "./app/admin/dashboard/page"
 import AdminFinancePage from "./app/admin/finance/page"
-import AdminLogsPage from "./app/admin/logs/page"
 import AdminRefreshIntervalPage from "./app/admin/refresh-interval/page"
 import AdminRiskControlPage from "./app/admin/risk-control/page"
 import AdminSettingsPage from "./app/admin/settings/page"
 import AdminTradingConfigPage from "./app/admin/trading-config/page"
 import AdminUsersPage from "./app/admin/users/page"
 import AdminUserDetailPage from "./app/admin/users/[id]/page"
-import AdminVvtrPage from "./app/admin/vvtr/page"
-import AdminKlineTasksPage from "./app/admin/kline-tasks/page"
 
 export function AppRoutes() {
   return (
@@ -62,8 +56,6 @@ export function AppRoutes() {
         <Route path="/ai-market/volume-profile" element={<VolumeProfilePage />} />
         <Route path="/ai-settings" element={<AiSettingsPage />} />
         <Route path="/ai-trading" element={<AiTradingPage />} />
-        <Route path="/ai/skills" element={<AiSkillsPage />} />
-        <Route path="/ai/skills/installed" element={<AiSkillsInstalledPage />} />
         <Route path="/assets" element={<AssetsPage />} />
         <Route path="/backtest" element={<BacktestPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
@@ -84,18 +76,14 @@ export function AppRoutes() {
         <Route path="ai" element={<AdminAiPage />} />
         <Route path="api-keys" element={<AdminApiKeysPage />} />
         <Route path="channels" element={<AdminChannelsPage />} />
-        <Route path="contracts" element={<AdminContractsPage />} />
         <Route path="dashboard" element={<AdminDashboardPage />} />
         <Route path="finance" element={<AdminFinancePage />} />
-        <Route path="logs" element={<AdminLogsPage />} />
         <Route path="refresh-interval" element={<AdminRefreshIntervalPage />} />
         <Route path="risk-control" element={<AdminRiskControlPage />} />
         <Route path="settings" element={<AdminSettingsPage />} />
         <Route path="trading-config" element={<AdminTradingConfigPage />} />
         <Route path="users" element={<AdminUsersPage />} />
         <Route path="users/:id" element={<AdminUserDetailPage />} />
-        <Route path="vvtr" element={<AdminVvtrPage />} />
-        <Route path="kline-tasks" element={<AdminKlineTasksPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/login" replace />} />

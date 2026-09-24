@@ -10,7 +10,6 @@ import {
   maxDaysFor,
   parseISO,
   railDaysFor,
-  railStartFor,
   RAIL_START_ISO,
   toISO,
 } from "@/components/backtest/timeframe-limits"
@@ -28,6 +27,9 @@ interface BacktestRangeSliderProps {
   /** 最小区间（含首尾自然天，默认 1）。多段回测传 段数×周期上限，
    * 拖柄/键盘/手动输入三处统一强制不低于该跨度 */
   minDays?: number
+  /** 时间尺起点 ISO（默认 RAIL_START_ISO）。选了历史数据渠道后由该渠道
+   * 实际可用最早日期 clamp（如 Binance 现货 2017-08-17） */
+  railStartISO?: string
 }
 
 const DAY_MS = 86_400_000
@@ -55,12 +57,13 @@ export function BacktestRangeSlider(
   const rangeAnchorPct = useRef(0)
   const rangeAnchorLeft = useRef(0)
 
-  // 时间尺起点固定为 2024-01-01，跨度随 today 动态增长。
-  // 所有周期统一长尺，用户在尺上拖选区选回测段。
-  const railStart = useMemo(() => railStartFor(), [])
+  // 时间尺起点：默认固定起点；选了数据渠道后用渠道实际最早日期，
+  // 用户在尺上能拖到的范围即渠道真实历史范围。
+  const railStartISO = props.railStartISO ?? RAIL_START_ISO
+  const railStart = useMemo(() => parseISO(railStartISO), [railStartISO])
   const railDays = useMemo(
-    () => railDaysFor(timeframe, today),
-    [timeframe, today],
+    () => railDaysFor(timeframe, today, railStart),
+    [timeframe, today, railStart],
   )
   const maxDays = maxDaysOverride ?? maxDaysFor(timeframe)
 
@@ -107,14 +110,14 @@ export function BacktestRangeSlider(
         onRangeError?.(`已超出回测时间范围：${timeframe} 周期最多 ${maxDays} 天`)
         return
       }
-      if (ns < RAIL_START_ISO || ns > todayISO || ne < RAIL_START_ISO || ne > todayISO) {
-        onRangeError?.(`日期超出可选范围（${RAIL_START_ISO} ~ ${todayISO}）`)
+      if (ns < railStartISO || ns > todayISO || ne < railStartISO || ne > todayISO) {
+        onRangeError?.(`日期超出可选范围（${railStartISO} ~ ${todayISO}）`)
         return
       }
       onRangeError?.(null)
       onChange(ns, ne)
     },
-    [start, end, maxDays, minDays, timeframe, todayISO, onChange, onRangeError],
+    [start, end, maxDays, minDays, timeframe, todayISO, railStartISO, onChange, onRangeError],
   )
 
   const clientToPct = useCallback((clientX: number): number => {
@@ -286,7 +289,7 @@ export function BacktestRangeSlider(
           <input
             type="date"
             value={start}
-            min={RAIL_START_ISO}
+            min={railStartISO}
             max={todayISO}
             onChange={(e) => applyManualDate("start", e.target.value)}
             className="bg-transparent border-b border-[var(--border)] text-[var(--primary)] focus:outline-none focus:border-[var(--primary)] cursor-text px-0.5 py-0.5"
@@ -300,7 +303,7 @@ export function BacktestRangeSlider(
           <input
             type="date"
             value={end}
-            min={RAIL_START_ISO}
+            min={railStartISO}
             max={todayISO}
             onChange={(e) => applyManualDate("end", e.target.value)}
             className="bg-transparent border-b border-[var(--border)] text-[var(--primary)] focus:outline-none focus:border-[var(--primary)] cursor-text px-0.5 py-0.5"

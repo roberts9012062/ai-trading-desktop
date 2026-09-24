@@ -112,9 +112,11 @@ const ContractItemRow = memo(function ContractItemRow({
       >
         {item.symbol}
       </span>
-      <span className="text-[10px] text-[var(--text-muted)]">
-        {formatMonthLabel(item.year, item.month, now)}
-      </span>
+      {item.month > 0 && (
+        <span className="text-[10px] text-[var(--text-muted)]">
+          {formatMonthLabel(item.year, item.month, now)}
+        </span>
+      )}
       <span className="text-[10px] text-[var(--text-muted)]">
         {formatVolume(item.volume)}
       </span>

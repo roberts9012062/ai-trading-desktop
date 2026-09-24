@@ -8,6 +8,7 @@ export type QuantKind =
   | "band_swing"
   | "swing_pivot"
   | "swing_pivot_v2"
+  | "swing_pro"
   | "strength_entry"
   | "strength_entry_v2"
   | "factor"
@@ -39,22 +40,6 @@ export interface QuantParamsState {
   swingMinAmplitude: number
   swingMinAtrMult: number
   swingAtrPeriod: number
-  /** 信号新鲜度窗口（根）：信号须出现在最近 N 根内才开仓/反向平仓，默认 3 */
-  swingMaxAge: number
-  /** 第二周期（如 15m；空 = 单周期不共振） */
-  swingResonanceTf: string
-  /** 开仓模式 single=主周期信号即下单 / resonance=双周期同向新鲜信号 */
-  swingEntryMode: string
-  /** 反向信号平仓模式 single / resonance */
-  swingExitMode: string
-  /** 信号K线止损 off=关 / single=主周期信号K线极值 / resonance=第二周期极值 */
-  swingStopMode: string
-  /** 止损线在信号K线极值外追加的点数（0-5） */
-  swingStopBuffer: number
-  /** 信号K线止损后自动反手（平仓同时开反向仓） */
-  swingReverseOnStop: boolean
-  /** 反手仓止损百分比（以反手成交价为基准，0.1-10；0=用信号K线另一侧极值） */
-  swingReverseStopPct: number
   // 枢轴波段 V2 专属：前期高低点 + 量价拒绝形态（left/right/atr 与 V1 共用）
   swingProximity: number
   swingWickMult: number
@@ -75,8 +60,23 @@ export interface QuantParamsState {
   sv2ZoneDrop: number; sv2BufMult: number; sv2AtrPeriod: number; sv2Cooldown: number
   // 因子公式（逗号分隔的 token 序列，来自因子实验室）
   factorTokensText: string
-  /** 因子开仓线（|因子仓位| 越线才开仓，默认 0.3，0.05-0.5） */
-  factorEntry: string
+  // 专业波段（swing_pro）：双周期共振 / 单频 + 信号K线极值止损
+  /** 第二周期（标准K线周期档 "1m"~"1d"；空=无第二周期；可大于或小于主周期） */
+  proHtfTf: string
+  /** 下单模式：single=单频 / resonance=多频共振（短等长） */
+  proConfirmMode: "single" | "resonance"
+  /** 反向信号平仓模式 */
+  proExitMode: "single" | "resonance"
+  /** 止损锚模式（single=主周期信号K线 / resonance=长周期信号K线） */
+  proStopMode: "single" | "resonance"
+  /** 止损追加点数 %（0-5，锚定信号K线极值外扩） */
+  proStopExtraPct: number
+  /** 信号新鲜窗口（根）：信号须出现在最近 N 根 K 线内才可下单/平仓 */
+  proSignalWindow: number
+  /** 止损后自动反手：信号仓被止损 → 立即开反向仓（反手仓不再反手） */
+  proStopReverse: boolean
+  /** 反手仓止损百分比（0.1-20；反手仓不用信号锚，用更紧的百分比止损） */
+  proReverseStopPct: number
 }
 
 export const DEFAULT_QUANT_PARAMS: QuantParamsState = {
@@ -99,14 +99,6 @@ export const DEFAULT_QUANT_PARAMS: QuantParamsState = {
   swingMinAmplitude: 1.5,
   swingMinAtrMult: 1.5,
   swingAtrPeriod: 14,
-  swingMaxAge: 3,
-  swingResonanceTf: "",
-  swingEntryMode: "single",
-  swingExitMode: "single",
-  swingStopMode: "off",
-  swingStopBuffer: 0,
-  swingReverseOnStop: false,
-  swingReverseStopPct: 0,
   swingProximity: 1.0, swingWickMult: 0.8, swingAttackWindow: 3,
   swingVolExpand: 1.5, swingVolShrink: 0.7, swingVolMaPeriod: 20, swingCooldown: 5,
   strengthPeriod: 14, strengthSmooth: 3, strengthSmooth2: 1, strengthTrendMa: 10,
@@ -117,7 +109,14 @@ export const DEFAULT_QUANT_PARAMS: QuantParamsState = {
   sv2ShrinkRatio: 0.45, sv2FlatEps: 1.2, sv2ZoneDrop: 10, sv2BufMult: 0.3,
   sv2AtrPeriod: 14, sv2Cooldown: 8,
   factorTokensText: "",
-  factorEntry: "",
+  proHtfTf: "",
+  proConfirmMode: "single",
+  proExitMode: "single",
+  proStopMode: "single",
+  proStopExtraPct: 1,
+  proSignalWindow: 3,
+  proStopReverse: false,
+  proReverseStopPct: 2,
 }
 
 export const QUANT_KIND_OPTIONS: Array<{
@@ -134,6 +133,7 @@ export const QUANT_KIND_OPTIONS: Array<{
   { value: "swing_pivot", label: "枢轴波段" },
   // 2026-08-31 暂停：V2 量价拒绝经实盘复盘判定信号不达标，入口灰显不可选
   { value: "swing_pivot_v2", label: "枢轴波段 V2（暂停使用）", disabled: true },
+  { value: "swing_pro", label: "专业波段（双周期共振）" },
   { value: "strength_entry", label: "强弱进场" },
   { value: "strength_entry_v2", label: "强弱形态 V2（双向）" },
   { value: "factor", label: "因子公式" },
@@ -187,17 +187,6 @@ export function paramsToQuantState(
         kdjD: n("d_period", 3),
         kdjUseZone: p.use_zone === true,
       }
-    case "factor":
-      return {
-        ...base,
-        factorTokensText: Array.isArray(p.factor_tokens)
-          ? (p.factor_tokens as unknown[]).join(",")
-          : "",
-        factorEntry:
-          typeof p.entry_threshold === "number" && p.entry_threshold !== 0.3
-            ? String(p.entry_threshold)
-            : "",
-      }
     case "band_swing":
       return { ...base, bandPeriod: n("period", 20), bandStd: n("std_mult", 2) }
     case "swing_pivot":
@@ -209,19 +198,6 @@ export function paramsToQuantState(
         swingMinAmplitude: n("min_amplitude_pct", 1.5),
         swingMinAtrMult: n("min_atr_mult", 1.5),
         swingAtrPeriod: n("atr_period", 14),
-        swingMaxAge: n("signal_max_age", 3),
-        swingResonanceTf:
-          typeof p.resonance_tf === "string" ? p.resonance_tf : "",
-        swingEntryMode:
-          p.entry_mode === "resonance" ? "resonance" : "single",
-        swingExitMode: p.exit_mode === "resonance" ? "resonance" : "single",
-        swingStopMode:
-          p.stop_mode === "single" || p.stop_mode === "resonance"
-            ? p.stop_mode
-            : "off",
-        swingStopBuffer: n("stop_buffer_points", 0),
-        swingReverseOnStop: p.reverse_on_stop === true,
-        swingReverseStopPct: n("reverse_stop_pct", 0),
       }
     case "swing_pivot_v2":
       return {
@@ -237,6 +213,27 @@ export function paramsToQuantState(
         swingCooldown: n("cooldown", 5),
         swingAtrPeriod: n("atr_period", 14),
       }
+    case "swing_pro": {
+      const mode = (key: string): "single" | "resonance" =>
+        p[key] === "resonance" ? "resonance" : "single"
+      return {
+        ...base,
+        swingLeft: n("left", 3),
+        swingRight: n("right", 3),
+        swingMinRightLive: n("min_right_live", 1),
+        swingMinAmplitude: n("min_amplitude_pct", 1.5),
+        swingMinAtrMult: n("min_atr_mult", 1.5),
+        swingAtrPeriod: n("atr_period", 14),
+        proHtfTf: typeof p["htf_tf"] === "string" ? p["htf_tf"] : "",
+        proConfirmMode: mode("confirm_mode"),
+        proExitMode: mode("exit_mode"),
+        proStopMode: mode("stop_mode"),
+        proStopExtraPct: n("stop_extra_pct", 1),
+        proSignalWindow: Math.max(1, Math.min(10, Math.round(n("signal_window", 3)))),
+        proStopReverse: p["stop_reverse"] === true,
+        proReverseStopPct: n("reverse_stop_pct", 2),
+      }
+    }
     case "strength_entry":
       return { ...base, ...parseStrengthParams(n) }
     case "strength_entry_v2":
@@ -282,16 +279,6 @@ export function buildStrategyParams(
         min_amplitude_pct: q.swingMinAmplitude,
         min_atr_mult: q.swingMinAtrMult,
         atr_period: q.swingAtrPeriod,
-        signal_max_age: q.swingMaxAge,
-        ...(q.swingResonanceTf
-          ? { resonance_tf: q.swingResonanceTf }
-          : {}),
-        entry_mode: q.swingEntryMode,
-        exit_mode: q.swingExitMode,
-        stop_mode: q.swingStopMode,
-        stop_buffer_points: q.swingStopBuffer,
-        reverse_on_stop: q.swingReverseOnStop,
-        reverse_stop_pct: q.swingReverseStopPct,
       }
     case "swing_pivot_v2":
       return {
@@ -306,19 +293,29 @@ export function buildStrategyParams(
         cooldown: q.swingCooldown,
         atr_period: q.swingAtrPeriod,
       }
+    case "swing_pro":
+      return {
+        left: q.swingLeft,
+        right: q.swingRight,
+        min_right_live: q.swingMinRightLive,
+        min_amplitude_pct: q.swingMinAmplitude,
+        min_atr_mult: q.swingMinAtrMult,
+        atr_period: q.swingAtrPeriod,
+        htf_tf: q.proHtfTf || null,
+        confirm_mode: q.proConfirmMode,
+        exit_mode: q.proExitMode,
+        stop_mode: q.proStopMode,
+        stop_extra_pct: q.proStopExtraPct,
+        signal_window: q.proSignalWindow,
+        stop_reverse: q.proStopReverse,
+        reverse_stop_pct: q.proReverseStopPct,
+      }
     case "strength_entry":
       return buildStrengthParams(q)
     case "strength_entry_v2":
       return buildStrengthV2Params(q)
-    case "factor": {
-      const et = Number(q.factorEntry)
-      return {
-        factor_tokens: parseFactorTokens(q.factorTokensText),
-        ...(q.factorEntry.trim() !== "" && Number.isFinite(et) && et > 0
-          ? { entry_threshold: et }
-          : {}),
-      }
-    }
+    case "factor":
+      return { factor_tokens: parseFactorTokens(q.factorTokensText) }
     default:
       return {}
   }
@@ -339,20 +336,11 @@ export function validateQuantParams(q: QuantParamsState): string | null {
     return "波段周期至少为 5"
   }
   const isSwing =
-    q.quantKind === "swing_pivot" || q.quantKind === "swing_pivot_v2"
+    q.quantKind === "swing_pivot" ||
+    q.quantKind === "swing_pivot_v2" ||
+    q.quantKind === "swing_pro"
   if (isSwing && q.swingLeft < 1) {
     return "枢轴左侧分型根数至少为 1"
-  }
-  if (q.quantKind === "swing_pivot") {
-    if (q.swingMaxAge < 1 || q.swingMaxAge > 20) {
-      return "信号新鲜度窗口须在 1-20 根之间"
-    }
-    if (q.swingStopBuffer < 0 || q.swingStopBuffer > 5) {
-      return "止损追加点数须在 0-5 之间"
-    }
-    if (q.swingReverseStopPct < 0 || q.swingReverseStopPct > 10) {
-      return "反手止损百分比须在 0-10 之间"
-    }
   }
   if (isSwing && q.swingRight < 2) {
     return "右侧确认根数至少为 2（对齐图表波段信号）"
@@ -371,36 +359,26 @@ export function validateQuantParams(q: QuantParamsState): string | null {
   if (q.quantKind === "factor" && parseFactorTokens(q.factorTokensText).length === 0) {
     return "因子公式 tokens 不能为空（从因子实验室复制）"
   }
-  return null
-}
-
-/** K 线周期 → 分钟数（1d=1440；未知返回 0） */
-export function timeframeMinutes(tf: string): number {
-  const t = (tf || "").trim().toLowerCase()
-  if (t === "1d") return 1440
-  const m = /^(\d+)m$/.exec(t)
-  return m ? Number(m[1]) : 0
-}
-
-/**
- * 量化任务分析间隔可选项（分钟）
- * 范围：1 分钟 ~ K 线周期（如 5m 因子最快 1 分钟、最慢 5 分钟）。
- * 60 分钟内逐分钟列出；之上（仅日线会超）补常用档位；末位恒为周期本身。
- */
-export function quantIntervalMinuteOptions(tf: string): number[] {
-  const tfMin = timeframeMinutes(tf)
-  if (tfMin <= 0) return []
-  const opts = new Set<number>()
-  for (let m = 1; m <= Math.min(tfMin, 60); m++) opts.add(m)
-  for (const m of [90, 120, 180, 240, 360, 480, 720, 1440]) {
-    if (m <= tfMin) opts.add(m)
+  const VALID_TFS = ["1m", "5m", "15m", "30m", "60m", "1d"]
+  if (q.quantKind === "swing_pro") {
+    if (q.proHtfTf && !VALID_TFS.includes(q.proHtfTf)) {
+      return "第二周期无效（须为标准K线周期档）"
+    }
+    if (
+      (q.proConfirmMode === "resonance" || q.proExitMode === "resonance" || q.proStopMode === "resonance") &&
+      !q.proHtfTf
+    ) {
+      return "共振模式需选择第二周期"
+    }
+    if (q.proStopExtraPct < 0 || q.proStopExtraPct > 5) {
+      return "止损追加点数须在 0~5% 之间"
+    }
+    if (q.proSignalWindow < 1 || q.proSignalWindow > 10) {
+      return "信号新鲜窗口须在 1~10 根之间"
+    }
+    if (q.proStopReverse && (q.proReverseStopPct < 0.1 || q.proReverseStopPct > 20)) {
+      return "反手止损百分比须在 0.1~20% 之间"
+    }
   }
-  opts.add(tfMin)
-  return [...opts].sort((a, b) => a - b)
-}
-
-/** 间隔分钟 → 展示文案（与决策模型「响应频率」同风格） */
-export function quantIntervalLabel(min: number): string {
-  if (min >= 1440) return "1440 分钟（每日K线收盘节奏）"
-  return `${min} 分钟`
+  return null
 }

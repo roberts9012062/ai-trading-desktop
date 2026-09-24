@@ -19,9 +19,10 @@ import { join } from "node:path"
 
 import { calcPivotSignalsV2 } from "./pivot-signals-v2.ts"
 
-// src/lib → 上溯 2 层到仓库根(fixture 镜像在 desktop/backend/)
+// src/lib → 上溯 3 层到仓库根
 const FIXTURE = join(
   import.meta.dirname,
+  "..",
   "..",
   "..",
   "backend",

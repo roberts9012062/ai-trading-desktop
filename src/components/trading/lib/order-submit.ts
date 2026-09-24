@@ -24,6 +24,11 @@ export type SubmitParams = {
   qtyNum: number
   place: (input: PlaceInput) => Promise<unknown>
   clearMessage: () => void
+  /** r20 模型：保证金+杠杆自动算量 + 止盈止损 */
+  marginUsdt?: number | null
+  leverage?: number | null
+  tpPrice?: number | null
+  slPrice?: number | null
 }
 
 /** 执行下单；错误写入 paper store */
@@ -76,5 +81,9 @@ export async function submitPaperOrder(p: SubmitParams): Promise<void> {
     price: p.priceNum,
     quantity: p.qtyNum,
     positionDirection: null,
+    marginUsdt: p.marginUsdt ?? null,
+    leverage: p.leverage ?? null,
+    tpPrice: p.tpPrice ?? null,
+    slPrice: p.slPrice ?? null,
   })
 }

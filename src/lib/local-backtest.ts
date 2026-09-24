@@ -1,13 +1,14 @@
 /**
  * 本地回测(Pyodide)门面 —— K 线拉取 + Worker RPC
  *
- * 数据:分页回溯拉取 K 线直到覆盖 start_date 或无更多(与后端 load_backtest_bars
- * 同源:同一 REST API),在客户端注入本地内核计算,后端零 CPU 占用。
+ * 数据:分页回溯拉取 K 线直到覆盖 start_date 或无更多,直连 Binance 公开数据域
+ * data-api.binance.vision(getBinanceKlineApi 与原服务端 getKlineApi 同契约:
+ * {bars, has_more} + endTime 闭区间回溯),在客户端注入本地内核计算。
  * 内核:public/pykernel(worker 从 CDN 加载 Pyodide 后按清单写入虚拟 FS);
  * worker 单例由 py-worker.ts 管理(回测/因子共用)。
  */
 
-import { getKlineApi } from "@/lib/api"
+import { getBinanceKlineApi } from "@/lib/binance-kline"
 import { ensurePyWorker } from "@/lib/py-worker"
 import type { KlineBar, KlinePeriod } from "@/types"
 
@@ -52,7 +53,7 @@ export async function fetchBacktestBars(
   let endTime: string | undefined = undefined
   let stoppedEarly = false
   for (let page = 0; page < maxPages; page++) {
-    const resp = await getKlineApi(symbol, timeframe, { limit: 500, endTime })
+    const resp = await getBinanceKlineApi(symbol, timeframe, { limit: 500, endTime })
     const bars = (resp.bars ?? []) as KlineBar[]
     if (bars.length === 0) {
       stoppedEarly = true

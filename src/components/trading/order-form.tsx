@@ -61,15 +61,91 @@ export function OrderPanel(): React.JSX.Element {
           onManual={p.setManualPrice}
         />
         <div className="space-y-1">
-          <Label className="text-xs">数量（手）</Label>
+          <Label className="text-xs">保证金（USDT）</Label>
           <Input
             type="number"
-            value={p.quantity}
-            onChange={(e) => p.setQuantity(e.target.value)}
+            value={p.marginInput}
+            onChange={(e) => p.setMarginInput(e.target.value)}
             className="font-num h-8 text-sm"
-            min={1}
+            min={0}
+            step="any"
+            placeholder="如 100"
           />
         </div>
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">杠杆</Label>
+            <span className="font-num text-xs text-[var(--primary)] font-semibold">{p.leverage}x</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Input
+              type="range"
+              min={1}
+              max={100}
+              step={1}
+              value={p.leverage}
+              onChange={(e) => p.setLeverage(Number(e.target.value))}
+              className="h-1.5 flex-1 accent-[var(--primary)]"
+            />
+            {[5, 10, 20, 50, 100].map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => p.setLeverage(v)}
+                className={cn(
+                  "px-1.5 h-6 text-[10px] rounded border transition-colors",
+                  p.leverage === v
+                    ? "border-[var(--primary)] text-[var(--primary)] bg-[var(--primary)]/10"
+                    : "border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
+                )}
+              >
+                {v}x
+              </button>
+            ))}
+          </div>
+        </div>
+        <InfoRow
+          label={`自动数量（保证金×杠杆 ÷ 价格）`}
+          value={p.autoQty > 0 ? `${p.autoQty.toFixed(6).replace(/0+$/, "").replace("\.$/", "")}` : "--"}
+        />
+        <InfoRow label="名义价值" value={p.notional > 0 ? `${p.notional.toLocaleString("zh-CN", { maximumFractionDigits: 2 })} USDT` : "--"} />
+        {p.direction !== "close" && (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs text-[var(--accent-up)]">止盈价（可选）</Label>
+              <Input
+                type="number"
+                value={p.tpPrice}
+                onChange={(e) => p.setTpPrice(e.target.value)}
+                className="font-num h-8 text-sm"
+                min={0}
+                step="any"
+                placeholder="留空不设"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-[var(--accent-danger)]">止损价（可选）</Label>
+              <Input
+                type="number"
+                value={p.slPrice}
+                onChange={(e) => p.setSlPrice(e.target.value)}
+                className="font-num h-8 text-sm"
+                min={0}
+                step="any"
+                placeholder="留空不设"
+              />
+            </div>
+          </div>
+        )}
+        {p.direction !== "close" && p.tpPrice && p.slPrice && (
+          <p className="text-[10px] text-[var(--text-muted)]">
+            盈亏比 R:R{" "}
+            <span className={cn("font-num font-semibold", (p.rr ?? 0) >= 2 ? "text-[var(--accent-up)]" : "text-[var(--accent-warn)]")}>
+              {p.rr ? p.rr.toFixed(2) : "--"}
+            </span>
+            （r20 风控建议 ≥ 2.0）
+          </p>
+        )}
         <InfoRow
           label="可用保证金"
           value={p.available.toLocaleString("zh-CN", {
@@ -84,7 +160,7 @@ export function OrderPanel(): React.JSX.Element {
             />
             <InfoRow
               label="约可开"
-              value={`${p.maxLots > 0 ? p.maxLots : "--"} 手`}
+              value={`${p.maxLots > 0 ? p.maxLots : "--"}`}
             />
           </>
         ) : (
@@ -95,7 +171,7 @@ export function OrderPanel(): React.JSX.Element {
               : p.closeable
                   .map(
                     (x) =>
-                      `${x.direction === "long" ? "多" : "空"}${x.available_quantity}手`
+                      `${x.direction === "long" ? "多" : "空"}${x.available_quantity}`
                   )
                   .join(" / ")}
           </p>
@@ -107,7 +183,7 @@ export function OrderPanel(): React.JSX.Element {
           {p.closeable
             .map(
               (x) =>
-                `${x.direction === "long" ? "多" : "空"}${x.available_quantity}手`
+                `${x.direction === "long" ? "多" : "空"}${x.available_quantity}`
             )
             .join(" / ")}
           {p.isOpen ? " · 点下方按钮按最新价平仓" : " · 休市限价挂平"}
@@ -140,10 +216,10 @@ export function OrderPanel(): React.JSX.Element {
         >
           {p.submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
           {p.direction === "close" && p.isOpen
-            ? `最新价${p.submitLabel} ${p.quantity}手`
+            ? `最新价${p.submitLabel} ${p.autoQty > 0 ? p.autoQty.toFixed(4) : p.quantity}`
             : p.isOpen
-              ? `${p.submitLabel} ${p.quantity}手`
-              : `挂单 ${p.submitLabel} ${p.quantity}手`}
+              ? `${p.submitLabel} ${p.autoQty > 0 ? p.autoQty.toFixed(4) : p.quantity}`
+              : `挂单 ${p.submitLabel} ${p.autoQty > 0 ? p.autoQty.toFixed(4) : p.quantity}`}
           {p.priceNum > 0 && (
             <span className="font-num opacity-90">
               @{p.priceNum.toFixed(p.decimals)}
@@ -170,7 +246,11 @@ export function OrderPanel(): React.JSX.Element {
               ? `市价(~${p.priceNum})`
               : String(p.priceNum)
           }
-          quantity={p.quantity}
+          quantity={p.autoQty > 0 ? p.autoQty.toFixed(6).replace(/0+$/, "").replace(/\.$/, "") : p.quantity}
+          leverage={p.autoQty > 0 ? p.leverage : null}
+          notional={p.autoQty > 0 ? p.notional : null}
+          tpPrice={p.direction !== "close" ? Number(p.tpPrice) || null : null}
+          slPrice={p.direction !== "close" ? Number(p.slPrice) || null : null}
           estimate={p.direction === "close" ? null : p.estimate}
           submitting={p.submitting}
           onConfirm={() => {

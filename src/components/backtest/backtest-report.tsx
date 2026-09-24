@@ -89,7 +89,7 @@ function SegmentDetail({
         />
         <Metric label="胜率" value={`${metrics.win_rate.toFixed(1)}%`} />
         <Metric label="期末权益" value={metrics.final_equity.toLocaleString()} />
-        <Metric label="手续费" value={metrics.fees_paid.toFixed(2)} tone="muted" />
+        <Metric label="手续费(USDT)" value={metrics.fees_paid.toFixed(2)} tone="muted" />
         <Metric label="成交笔数" value={String(metrics.trade_count)} />
         <Metric label="盈亏比" value={String(metrics.profit_factor)} />
       </div>
@@ -114,13 +114,16 @@ function SegmentDetail({
                 <th className="text-right p-2 font-normal">价</th>
                 <th className="text-right p-2 font-normal">量</th>
                 <th className="text-right p-2 font-normal">盈亏</th>
+                <th className="text-right p-2 font-normal" title="相对本笔保证金（杠杆放大后）；悬浮看名义口径">
+                  收益率
+                </th>
               </tr>
             </thead>
             <tbody>
               {trades.length === 0 && (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="p-4 text-center text-[var(--text-muted)]"
                   >
                     期间无成交
@@ -152,6 +155,22 @@ function SegmentDetail({
                     )}
                   >
                     {Number(t.pnl || 0).toFixed(2)}
+                  </td>
+                  <td
+                    className={cn(
+                      "p-2 text-right font-num",
+                      Number(t.pnl_pct_margin || 0) > 0 && "text-up",
+                      Number(t.pnl_pct_margin || 0) < 0 && "text-down",
+                    )}
+                    title={
+                      Number(t.pnl_pct_notional || 0) !== 0
+                        ? `保证金口径（杠杆后）${Number(t.pnl_pct_margin).toFixed(2)}%｜名义口径 ${Number(t.pnl_pct_notional).toFixed(2)}%｜保证金 ${t.margin} USDT × ${t.leverage || 1}x`
+                        : undefined
+                    }
+                  >
+                    {t.action === "close" && Number(t.pnl_pct_notional || 0) !== 0
+                      ? `${Number(t.pnl_pct_margin || 0) > 0 ? "+" : ""}${Number(t.pnl_pct_margin || 0).toFixed(2)}%`
+                      : "--"}
                   </td>
                 </tr>
               ))}
@@ -226,7 +245,7 @@ function MultiSegmentReportView({
         />
         <Metric label="汇总胜率" value={`${m.win_rate.toFixed(1)}%`} />
         <Metric label="汇总成交笔数" value={String(m.trade_count)} />
-        <Metric label="手续费合计" value={m.fees_paid.toFixed(2)} tone="muted" />
+        <Metric label="手续费合计(USDT)" value={m.fees_paid.toFixed(2)} tone="muted" />
         <Metric label="汇总盈亏比" value={String(m.profit_factor)} />
       </div>
 

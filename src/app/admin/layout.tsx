@@ -13,8 +13,6 @@ import {
   Activity,
   Timer,
   Key,
-  Cable,
-  LineChart,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/stores/auth"
@@ -26,9 +24,7 @@ const ADMIN_MENU = [
   { icon: Users, label: "用户管理", path: "/admin/users" },
   { icon: Bot, label: "AI 监管", path: "/admin/ai" },
   { icon: Settings, label: "系统设置", path: "/admin/settings" },
-  { icon: Activity, label: "渠道监控", path: "/admin/channels" },
-  { icon: LineChart, label: "K线任务", path: "/admin/kline-tasks" },
-  { icon: Cable, label: "VVTR 数据源", path: "/admin/vvtr" },
+  { icon: Activity, label: "交易所行情源", path: "/admin/channels" },
   { icon: Timer, label: "刷新节奏", path: "/admin/refresh-interval" },
   { icon: Key, label: "API Keys", path: "/admin/api-keys" },
 ]

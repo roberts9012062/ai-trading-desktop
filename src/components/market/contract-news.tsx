@@ -13,6 +13,16 @@ function NewsRow({ news, onClick }: { news: NewsItem; onClick: () => void }): Re
       onClick={onClick}
       className="flex items-center gap-2 px-3 py-2 hover:bg-[var(--bg-tertiary)] transition-colors border-b border-[var(--border)] last:border-b-0 cursor-pointer"
     >
+      {news.importance === "high" && (
+        <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-[var(--accent-danger)]/15 text-[var(--accent-danger)] font-semibold">
+          重要
+        </span>
+      )}
+      {news.importance === "mid" && (
+        <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-[var(--accent-warn)]/15 text-[var(--accent-warn)]">
+          关注
+        </span>
+      )}
       <span className="flex-1 text-xs text-[var(--text-primary)] truncate">
         {news.title}
       </span>

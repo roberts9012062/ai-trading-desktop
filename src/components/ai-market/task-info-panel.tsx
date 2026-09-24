@@ -175,7 +175,7 @@ export function TaskInfoPanel(): React.JSX.Element {
               <Row label="品种·周期">
                 {task.symbol} · {task.timeframe}
               </Row>
-              <Row label="手数规则">{qtyLabel(task)}</Row>
+              <Row label="仓位规则">{qtyLabel(task)}</Row>
 
               {/* 持仓 */}
               <div className="mt-1 border-t border-[var(--border)]/60 pt-1">
@@ -188,7 +188,7 @@ export function TaskInfoPanel(): React.JSX.Element {
                           pnl.direction === "long" ? "text-up" : "text-down",
                         )}
                       >
-                        {pnl.direction === "long" ? "多" : "空"} {pnl.qty}手
+                        {pnl.direction === "long" ? "多" : "空"} {pnl.qty} 币
                       </span>
                     </Row>
                     <Row label="开仓均价">{pnl.avg?.toFixed(decimals) ?? "--"}</Row>

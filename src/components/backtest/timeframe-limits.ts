@@ -82,18 +82,19 @@ export function parseISO(s: string): Date {
   return new Date(Date.UTC(y, (m || 1) - 1, d || 1))
 }
 
-/** 时间尺起点 Date（固定 2024-01-01） */
-export function railStartFor(): Date {
-  return parseISO(RAIL_START_ISO)
+/** 时间尺起点 Date（默认固定起点；数据渠道模式下由调用方传渠道最早日期） */
+export function railStartFor(startISO: string = RAIL_START_ISO): Date {
+  return parseISO(startISO)
 }
 
-/** 时间尺总跨度（自然天）：从固定起点 2024-01-01 到 today，随今天动态增长。
- * 取代旧的「按周期固定 railDays」——现在所有周期时间尺起点都是 2024-01-01，
- * 用户在长尺上拖动选区选择回测段即可。 */
-export function railDaysFor(timeframe: string, today: Date): number {
-  const start = railStartFor()
-  const days = Math.round((today.getTime() - start.getTime()) / 86_400_000)
-  // 至少保证有 maxDays 的滑动空间，避免 today 逼近 2024-01-01 时尺过短
+/** 时间尺总跨度（自然天）：从起点到 today 随今天动态增长；
+ * 至少保证有 maxDays 的滑动空间，避免起点逼近 today 时尺过短。 */
+export function railDaysFor(
+  timeframe: string,
+  today: Date,
+  railStart: Date = railStartFor(),
+): number {
+  const days = Math.round((today.getTime() - railStart.getTime()) / 86_400_000)
   return Math.max(days, maxDaysFor(timeframe) * 2)
 }
 

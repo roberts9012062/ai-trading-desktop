@@ -79,6 +79,17 @@ function persistActiveContract(code: string): void {
 }
 
 /** 交易面板意图：从持仓行点进时自动切到平仓 */
+export interface OrderPricePreview {
+  /** 递增以触发重画 */
+  seq: number
+  /** 下单目标合约 */
+  symbol: string
+  /** 指定委托价 */
+  price: number
+  /** buy/sell（决定虚线颜色） */
+  direction: "buy" | "sell"
+}
+
 export interface TradePanelIntent {
   /** 递增以重复触发同一意图 */
   seq: number
@@ -109,6 +120,9 @@ interface AppState {
 
   /** 交易面板意图（持仓点击平仓联动） */
   tradePanelIntent: TradePanelIntent | null
+  /** 指定价虚线预览（下单面板手动限价时同步到 K 线；null=隐藏） */
+  orderPricePreview: OrderPricePreview | null
+  setOrderPricePreview: (p: OrderPricePreview | null) => void
   /** 仅切换合约（委托/持仓点选），并持久化 */
   selectTradeSymbol: (symbol: string) => void
   /** 切换合约并让下单区进入平仓，并持久化 */
@@ -154,6 +168,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   tradePanelIntent: null,
+  orderPricePreview: null,
+  setOrderPricePreview: (p) => set({ orderPricePreview: p }),
   selectTradeSymbol: (symbol) => {
     const code = normalizeSymbol(symbol)
     persistActiveContract(code)

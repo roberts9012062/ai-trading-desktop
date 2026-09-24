@@ -96,22 +96,6 @@ export function FactorKindParams({
           className="font-num"
         />
       </div>
-      <div className="space-y-1">
-        <Label className="text-[11px]">开仓线（0.05-0.5，默认 0.3）</Label>
-        <Input
-          type="number"
-          min={0.05}
-          max={0.5}
-          step={0.05}
-          value={quant.factorEntry}
-          onChange={(e) => onQuant({ ...quant, factorEntry: e.target.value })}
-          placeholder="0.3"
-          className="font-num"
-        />
-        <p className="text-[10px] text-[var(--text-muted)]">
-          因子仓位意图 |值| 越过该线才给开仓建议；调低（如 0.2）信号更频繁。留空=默认 0.3。
-        </p>
-      </div>
     </div>
   )
 }

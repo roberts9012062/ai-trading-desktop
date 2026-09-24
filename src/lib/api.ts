@@ -359,7 +359,6 @@ export interface KlineResponse {
   has_more: boolean
 }
 
-/** 获取 K 线历史数据（支持懒加载切片） */
 /** K 线 bundle 响应中单个周期的数据段 */
 export interface KlineBundlePeriod {
   period: string
@@ -383,6 +382,7 @@ export async function getKlineBundleApi(
   return request<KlineBundleResponse>(`/api/market/kline/bundle?${params}`)
 }
 
+/** 获取 K 线历史数据（支持懒加载切片） */
 export async function getKlineApi(
   symbol: string,
   period: string,
@@ -969,25 +969,6 @@ export async function getTradeTicksApi(params: {
   )
 }
 
-
-/** 启动对账修正结果（POST /api/market/kline/verify-repair） */
-export interface KlineVerifyRepairResult {
-  symbols: number
-  checked: number
-  repaired_keys: number
-  repaired_bars: number
-  errors: number
-  message?: string
-  elapsed_ms?: number
-}
-
-/** 启动对账修正：近 3 天主力 × 全周期，主 PG 权威 vs Redis 缓存 */
-export async function verifyRepairKlineApi(): Promise<KlineVerifyRepairResult> {
-  return request<KlineVerifyRepairResult>("/api/market/kline/verify-repair", {
-    method: "POST",
-  })
-}
-
 /** 成交量分布单价格档（四路开平为估算：持仓差分比例分摊） */
 export interface VolumeProfileRowDTO {
   price: number
@@ -1001,6 +982,7 @@ export interface VolumeProfileRowDTO {
   sell_total: number
   total: number
 }
+
 /** 成交量分布响应：当前交易日（前夜 21:00 夜盘起）按价格聚合 */
 export interface VolumeProfileDTO {
   symbol: string
@@ -1011,6 +993,7 @@ export interface VolumeProfileDTO {
   last_price: number | null
   rows: VolumeProfileRowDTO[]
 }
+
 /** 成交量分布：当前交易日按价格聚合的多空力量（价格档全量返回，阈值筛选由前端做） */
 export async function getVolumeProfileApi(
   symbol: string,
@@ -1020,3 +1003,4 @@ export async function getVolumeProfileApi(
     `/api/users/me/big-orders/volume-profile?${qs.toString()}`,
   )
 }
+

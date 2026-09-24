@@ -74,7 +74,7 @@ export function VirtualFundsPanel(): React.JSX.Element {
     try {
       const acc = await claimPaperFunds()
       setAccount(acc)
-      setMessage(`已领取 ¥${formatMoney(acc.claim_amount)} 虚拟练习金`)
+      setMessage(`已领取 ${formatMoney(acc.claim_amount)} USDT 虚拟练习金`)
       const flow = await getPaperLedgers(10, 0)
       setLedgers(flow.items)
     } catch (err) {
@@ -135,7 +135,7 @@ export function VirtualFundsPanel(): React.JSX.Element {
             <div>
               <p className="text-xs text-[var(--text-muted)]">总权益</p>
               <p className="text-2xl font-num font-semibold text-[var(--text-primary)] mt-1">
-                ¥{formatMoney(account?.total_equity ?? 0)}
+                {formatMoney(account?.total_equity ?? 0)} USDT
               </p>
             </div>
             <Badge variant={account?.can_claim ? "up" : "outline"}>
@@ -153,7 +153,7 @@ export function VirtualFundsPanel(): React.JSX.Element {
           </div>
           <div className="flex items-center justify-between pt-1">
             <p className="text-xs text-[var(--text-muted)]">
-              本月额度 ¥{formatMoney(account?.claim_amount ?? 1_000_000)} · 风险率{" "}
+              本月额度 {formatMoney(account?.claim_amount ?? 1_000_000)} USDT · 风险率{" "}
               {(account?.risk_rate ?? 0).toFixed(2)}%
             </p>
             <Button
@@ -233,7 +233,7 @@ function Metric(props: {
     <div className="rounded-md bg-[var(--bg-tertiary)]/50 px-3 py-2">
       <p className="text-[10px] text-[var(--text-muted)]">{props.label}</p>
       <p className={`text-sm font-num mt-0.5 ${color}`}>
-        {props.signed && props.value > 0 ? "+" : ""}¥{formatMoney(props.value)}
+        {props.signed && props.value > 0 ? "+" : ""}{formatMoney(props.value)} USDT
       </p>
     </div>
   )

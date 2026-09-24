@@ -10,6 +10,7 @@ import {
   type QuantParamsState,
 } from "@/lib/quant-strategy"
 import { FactorKindParams } from "@/components/ai-trading/form/factor-kind-params"
+import { ProSwingParams } from "@/components/ai-trading/form/create-quant-params"
 import { SwingV2Params } from "./quant-params-swing-v2"
 import { StrengthEntryParams } from "./quant-params-strength"
 import { StrengthEntryV2Params } from "./quant-params-strength-v2"
@@ -18,6 +19,8 @@ import type { AIModel } from "@/types"
 export type { QuantParamsState }
 
 interface StrategySectionProps {
+  /** 主周期（专业波段第二周期标签换算用） */
+  timeframe?: string
   mode: "quant" | "ai"
   onMode: (m: "quant" | "ai") => void
   quant: QuantParamsState
@@ -26,13 +29,9 @@ interface StrategySectionProps {
   modelRowId: string
   onModel: (id: string) => void
   symbol: string
-  /** 主 K 线周期：过滤波段第二周期选项 */
-  timeframe?: string
   /** 选中收藏因子时回填品种/周期 */
   onApplyFactorMeta: (symbol: string | null, timeframe: string | null) => void
 }
-
-const SWING_RES_TFS = ["1m", "5m", "15m", "30m", "60m", "1d"] as const
 
 /** 策略类型切换 + 参数 */
 export function StrategySection({
@@ -44,8 +43,8 @@ export function StrategySection({
   modelRowId,
   onModel,
   symbol,
-  timeframe,
   onApplyFactorMeta,
+  timeframe,
 }: StrategySectionProps): React.JSX.Element {
   return (
     <div className="space-y-3">
@@ -95,8 +94,8 @@ export function StrategySection({
             quant={quant}
             onQuant={onQuant}
             symbol={symbol}
-            timeframe={timeframe}
             onApplyFactorMeta={onApplyFactorMeta}
+            timeframe={timeframe}
           />
         </>
       )}
@@ -129,15 +128,14 @@ function QuantParamFields({
   quant,
   onQuant,
   symbol,
-  timeframe,
   onApplyFactorMeta,
+  timeframe,
 }: {
   quant: QuantParamsState
   onQuant: (q: QuantParamsState) => void
   symbol: string
-  /** 主 K 线周期：过滤波段第二周期选项 */
-  timeframe?: string
   onApplyFactorMeta: (symbol: string | null, timeframe: string | null) => void
+  timeframe?: string
 }): React.JSX.Element {
   if (quant.quantKind === "factor") {
     return (
@@ -242,6 +240,9 @@ function QuantParamFields({
       </div>
     )
   }
+  if (quant.quantKind === "swing_pro") {
+    return <ProSwingParams quant={quant} onQuant={onQuant} timeframe={timeframe} />
+  }
   if (quant.quantKind === "swing_pivot_v2") {
     return <SwingV2Params quant={quant} onQuant={onQuant} />
   }
@@ -299,131 +300,8 @@ function QuantParamFields({
             onChange={(v) => onQuant({ ...quant, swingAtrPeriod: v })}
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <NumField
-            label="信号新鲜度（根）"
-            value={quant.swingMaxAge}
-            min={1}
-            onChange={(v) =>
-              onQuant({
-                ...quant,
-                swingMaxAge: Math.max(1, Math.min(20, v)),
-              })
-            }
-          />
-          <div className="space-y-2">
-            <Label>第二周期（共振）</Label>
-            <select
-              className="w-full h-9 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-sm"
-              value={quant.swingResonanceTf}
-              onChange={(e) =>
-                onQuant({ ...quant, swingResonanceTf: e.target.value })
-              }
-            >
-              <option value="">不启用（单周期）</option>
-              {SWING_RES_TFS.filter((t) => t !== timeframe).map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        {quant.swingResonanceTf && (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label>进场模式</Label>
-              <select
-                className="w-full h-9 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-sm"
-                value={quant.swingEntryMode}
-                onChange={(e) =>
-                  onQuant({ ...quant, swingEntryMode: e.target.value })
-                }
-              >
-                <option value="single">单频（主周期信号即下单）</option>
-                <option value="resonance">
-                  多频共振（短周期先现，等长周期确认）
-                </option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label>平仓模式</Label>
-              <select
-                className="w-full h-9 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-sm"
-                value={quant.swingExitMode}
-                onChange={(e) =>
-                  onQuant({ ...quant, swingExitMode: e.target.value })
-                }
-              >
-                <option value="single">单频（主周期反向信号即平）</option>
-                <option value="resonance">多频共振（双周期反向确认）</option>
-              </select>
-            </div>
-          </div>
-        )}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <Label>信号K线止损</Label>
-            <select
-              className="w-full h-9 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-sm"
-              value={quant.swingStopMode}
-              onChange={(e) =>
-                onQuant({ ...quant, swingStopMode: e.target.value })
-              }
-            >
-              <option value="off">关闭</option>
-              <option value="single">主周期信号K线极值</option>
-              {quant.swingResonanceTf && (
-                <option value="resonance">第二周期信号K线极值</option>
-              )}
-            </select>
-          </div>
-          {quant.swingStopMode !== "off" && (
-            <NumField
-              label="止损追加点数（0-5）"
-              value={quant.swingStopBuffer}
-              min={0}
-              onChange={(v) =>
-                onQuant({
-                  ...quant,
-                  swingStopBuffer: Math.max(0, Math.min(5, v)),
-                })
-              }
-            />
-          )}
-        </div>
-        {quant.swingStopMode !== "off" && (
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)]">
-              <input
-                type="checkbox"
-                checked={quant.swingReverseOnStop}
-                onChange={(e) =>
-                  onQuant({ ...quant, swingReverseOnStop: e.target.checked })
-                }
-              />
-              止损后自动反手（做空失败马上转多，切换波段节奏）
-            </label>
-            {quant.swingReverseOnStop && (
-              <NumField
-                label="反手止损百分比（0.1-10，0=信号K线另一侧极值）"
-                value={quant.swingReverseStopPct}
-                min={0}
-                onChange={(v) =>
-                  onQuant({
-                    ...quant,
-                    swingReverseStopPct: Math.max(0, Math.min(10, v)),
-                  })
-                }
-              />
-            )}
-          </div>
-        )}
         <p className="text-[11px] text-[var(--text-muted)]">
-          波谷反转 → 买多；波峰反转 → 卖空。信号新鲜度（默认 3 根）：仅最近 N
-          根内出现的信号才开仓/反向平仓。盘中预确认最少右侧根数（默认 1）与图表波段信号同口径：右侧
-          1 根已收盘即出预确认信号并触发交易；设为与右侧确认根数相同则只出正式确认。
-          第二周期共振与信号K线止损与实盘任务同口径（回测第二周期由主周期K线重采样）。
+          波谷反转 → 买多；波峰反转 → 卖空。盘中预确认最少右侧根数（默认 1）与图表波段信号同口径：右侧 1 根已收盘即出预确认信号并触发交易；设为与右侧确认根数相同则只出正式确认。预确认信号会随行情破坏而消失。
         </p>
       </div>
     )

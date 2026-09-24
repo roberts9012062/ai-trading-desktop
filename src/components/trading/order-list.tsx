@@ -28,6 +28,12 @@ function statusLabel(status: string): string {
     filled: "已成交",
     cancelled: "已撤",
     rejected: "拒绝",
+    live: "已报",
+    NEW: "已报",
+    new: "已报",
+    open: "已报",
+    partially_filled: "部成",
+    PARTIALLY_FILLED: "部成",
   }
   return map[status] ?? status
 }
@@ -51,8 +57,9 @@ export function OrderList(): React.JSX.Element {
     return () => clearInterval(timer)
   }, [refresh])
 
-  const pending = orders.filter((o) => o.status === "pending")
-  const recent = orders.filter((o) => o.status !== "pending").slice(0, 20)
+  const ACTIVE = new Set(["pending", "live", "NEW", "new", "open"])
+  const pending = orders.filter((o) => ACTIVE.has(o.status))
+  const recent = orders.filter((o) => !ACTIVE.has(o.status)).slice(0, 20)
   const display: PaperOrderItem[] = [...pending, ...recent]
 
   return (
@@ -146,7 +153,7 @@ export function OrderList(): React.JSX.Element {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {order.status === "pending" ? (
+                    {["pending", "live", "NEW", "new", "open"].includes(order.status) ? (
                       <Button
                         variant="ghost"
                         size="sm"

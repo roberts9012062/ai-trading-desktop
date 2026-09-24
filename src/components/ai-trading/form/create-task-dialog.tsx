@@ -37,7 +37,25 @@ import {
   AiQuantRefPicker,
   type QuantRefStrategy,
 } from "@/components/ai-trading/form/ai-quant-ref-picker"
-import { EstimateCapitalHint } from "@/components/ai-trading/form/estimate-capital-hint"
+import {
+  FundingSourceBadge,
+  MarginLeverageFields,
+  useFundingSource,
+} from "@/components/ai-trading/form/margin-leverage-fields"
+import { useMarketStore } from "@/stores/market"
+import { useAuthStore } from "@/stores/auth"
+
+/** 实盘模式创建任务：官方接口真实下单提示横幅 */
+function LiveExecBanner(): React.JSX.Element | null {
+  const mode = useAuthStore((s) => s.user?.trading_mode)
+  if (mode !== "live") return null
+  return (
+    <div className="rounded-md border border-[var(--accent-danger)]/50 bg-[var(--accent-danger)]/10 px-2.5 py-1.5 text-[11px] text-[var(--accent-danger)] text-left">
+      实盘执行模式：任务开平仓将通过官方交易所接口（OKX/币安/芝麻开门）真实下单，
+      盈亏与手续费真实结算。止损单直接挂到交易所。
+    </div>
+  )
+}
 
 interface CreateTaskDialogProps {
   open: boolean
@@ -73,7 +91,13 @@ export function CreateTaskDialog({
   const [barsLimit, setBarsLimit] = useState<string>("40")
   const [maxHoldDays, setMaxHoldDays] = useState<string>(String(maxHoldDaysForTimeframe("5m")))
   const [sideMode, setSideMode] = useState("both")
-  const [positionMode, setPositionMode] = useState("fixed_qty")
+  const [positionMode, setPositionMode] = useState("fixed_margin")
+  // r20：每笔保证金 USDT + 杠杆（数量自动换算，不再按手数）
+  const [marginModel, setMarginModel] = useState({ marginPerTrade: 100, leverage: 10 })
+  const funding = useFundingSource(open)
+  const lastPrice = useMarketStore(
+    (s) => Number(s.quotes[symbol]?.last_price) || 0,
+  )
   const [fixedQty, setFixedQty] = useState(1)
   const [qtyMin, setQtyMin] = useState(1)
   const [qtyMax, setQtyMax] = useState(1)
@@ -128,12 +152,18 @@ export function CreateTaskDialog({
       String(t.max_hold_days ?? maxHoldDaysForTimeframe(t.timeframe || "5m")),
     )
     setSideMode(t.side_mode || "both")
-    const rawMode = t.position_mode || "fixed_qty"
+    const rawMode = t.position_mode || "fixed_margin"
     const useMin0 = Number(t.capital_usage_min_pct ?? 0)
     const useMax0 = Number(t.capital_usage_max_pct ?? 100)
     const isCapitalMode =
       rawMode === "full" && (useMin0 > 0 || useMax0 < 100)
-    setPositionMode(isCapitalMode ? "capital_pct" : rawMode)
+    setPositionMode(
+      isCapitalMode
+        ? "capital_pct"
+        : rawMode === "fixed_qty"
+          ? "fixed_margin"
+          : rawMode,
+    )
     setFixedQty(t.fixed_qty || 1)
     const qLo = Math.max(1, Number(t.qty_min ?? t.fixed_qty ?? 1))
     const qHi = Math.max(qLo, Number(t.qty_max ?? qLo))
@@ -141,8 +171,12 @@ export function CreateTaskDialog({
     setQtyMax(qHi)
     setCapitalUsageMin(useMin0)
     setCapitalUsageMax(useMax0)
+    setMarginModel({
+      marginPerTrade: Number(t.margin_per_trade) > 0 ? Number(t.margin_per_trade) : 100,
+      leverage: Math.max(1, Math.min(100, Number(t.leverage) || 10)),
+    })
     setFundStyle({
-      allocatedCapital: Number(t.allocated_capital || 100000),
+      allocatedCapital: Number(t.allocated_capital || 1000),
       riskStyle: (t.risk_style as RiskStyle) || "balanced",
       customPromptEnabled: Boolean(t.custom_prompt_enabled),
       customPrompt: t.custom_prompt || "",
@@ -162,8 +196,23 @@ export function CreateTaskDialog({
       setError("请选择合约品种")
       return
     }
-    if (fundStyle.allocatedCapital < 1000) {
-      setError("AI 资金仓至少 ¥1000")
+    if (fundStyle.allocatedCapital < 10) {
+      setError("AI 资金仓至少 10 USDT")
+      return
+    }
+    if (positionMode !== "capital_pct" && marginModel.marginPerTrade < 1) {
+      setError("每笔保证金至少 1 USDT")
+      return
+    }
+    if (
+      funding.info &&
+      funding.info.source === "live" &&
+      funding.info.balance_usdt != null &&
+      fundStyle.allocatedCapital > funding.info.balance_usdt
+    ) {
+      setError(
+        `实盘资金库可用 ${funding.info.balance_usdt.toLocaleString("zh-CN", { maximumFractionDigits: 2 })} USDT，资金仓不能超过`,
+      )
       return
     }
     if (
@@ -173,9 +222,9 @@ export function CreateTaskDialog({
       setError("已启用用户提示词，请填写内容")
       return
     }
-    // 仓位模式互斥：手数模式 vs 资金比例模式
+    // 仓位模式互斥：保证金模式 vs 资金比例模式
     const isQtyMode =
-      positionMode === "fixed_qty" || positionMode === "scale_in"
+      positionMode === "fixed_margin" || positionMode === "scale_in"
     const isCapitalMode = positionMode === "capital_pct"
     let qLo = 1
     let qHi = 1
@@ -183,8 +232,8 @@ export function CreateTaskDialog({
     let useMax = 100
     let apiPositionMode = positionMode
     if (isQtyMode) {
-      qLo = Math.max(1, Math.min(qtyMin, qtyMax))
-      qHi = Math.max(1, Math.max(qtyMin, qtyMax))
+      qLo = 1
+      qHi = 1
       useMin = 0
       useMax = 100
     } else if (isCapitalMode) {
@@ -235,6 +284,14 @@ export function CreateTaskDialog({
       fixed_qty: qLo,
       qty_min: qLo,
       qty_max: qHi,
+      // 所有模式统一保证金 sizing：half/full/capital_pct 忽略每笔保证金值、按预算比例，
+      // 但必须传正值让引擎走 margin 模式（旧手数路径会把小数数量截成 0）
+      margin_per_trade: marginModel.marginPerTrade,
+      leverage: marginModel.leverage,
+      funding_source:
+        funding.info && funding.info.source === "live" && funding.info.balance_usdt != null
+          ? "live"
+          : "site",
       allocated_capital: fundStyle.allocatedCapital,
       capital_usage_min_pct: useMin,
       capital_usage_max_pct: useMax,
@@ -268,8 +325,8 @@ export function CreateTaskDialog({
 
   function onPositionModeChange(mode: string): void {
     setPositionMode(mode)
-    // 手数模式 / 资金模式互斥：切换时重置另一侧为默认
-    if (mode === "fixed_qty" || mode === "scale_in") {
+    // 保证金模式 / 资金模式互斥：切换时重置另一侧为默认
+    if (mode === "fixed_margin" || mode === "scale_in") {
       setCapitalUsageMin(0)
       setCapitalUsageMax(100)
     } else if (mode === "capital_pct") {
@@ -303,9 +360,9 @@ export function CreateTaskDialog({
         <DialogHeader className="shrink-0 space-y-1 pr-6">
           <DialogTitle>创建 AI 交易任务</DialogTitle>
           <p className="text-[11px] text-amber-400/90 text-left font-normal">
-            仅模拟盘。主账户资金划入 AI 资金仓后，在额度内按 K
-            线周期自主交易。
+            模型按 K 线周期自主交易；资金仓额度控制风险上限。
           </p>
+          <LiveExecBanner />
         </DialogHeader>
 
         <div className="min-h-0 flex-1 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm overflow-hidden">
@@ -483,63 +540,30 @@ export function CreateTaskDialog({
                 value={positionMode}
                 onChange={(e) => onPositionModeChange(e.target.value)}
               >
-                <option value="fixed_qty">指定手数范围</option>
+                <option value="fixed_margin">指定每笔保证金</option>
                 <option value="capital_pct">资金使用范围</option>
-                <option value="half">半仓</option>
-                <option value="full">全仓</option>
-                <option value="scale_in">滚仓（盈利加仓）</option>
+                <option value="half">半仓（预算一半）</option>
+                <option value="full">全仓（全部预算）</option>
+                <option value="scale_in">滚仓（盈利加层）</option>
               </select>
               <p className="text-[11px] text-[var(--text-muted)]">
-                手数范围与资金使用范围二选一；交易从 AI 资金仓走流水。
+                数量 = 每笔保证金 × 杠杆 ÷ 价格（USDT 口径，小数）；交易从 AI 资金仓走流水。
               </p>
             </div>
 
-            {(positionMode === "fixed_qty" || positionMode === "scale_in") && (
-              <>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label>最少手数</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={qtyMin}
-                    onChange={(e) => {
-                      const v = Math.max(1, Number(e.target.value) || 1)
-                      setQtyMin(v)
-                      setFixedQty(v)
-                      if (qtyMax < v) setQtyMax(v)
-                    }}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>
-                    {positionMode === "scale_in" ? "每层最多手数" : "最多手数"}
-                  </Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={qtyMax}
-                    onChange={(e) => {
-                      const v = Math.max(1, Number(e.target.value) || 1)
-                      setQtyMax(v)
-                      if (qtyMin > v) {
-                        setQtyMin(v)
-                        setFixedQty(v)
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-              <EstimateCapitalHint
-                symbol={symbol}
-                qty={qtyMax}
-                allocatedCapital={fundStyle.allocatedCapital}
-                onAdjustCapital={(v) =>
-                  setFundStyle({ ...fundStyle, allocatedCapital: v })
+            <div className="rounded-md border border-[var(--border)] p-2.5">
+              <MarginLeverageFields
+                value={marginModel}
+                onChange={setMarginModel}
+                lastPrice={lastPrice}
+                scaleIn={positionMode === "scale_in"}
+                budgetOnly={
+                  positionMode === "half" ||
+                  positionMode === "full" ||
+                  positionMode === "capital_pct"
                 }
               />
-              </>
-            )}
+            </div>
 
             {positionMode === "capital_pct" && (
               <div className="grid grid-cols-2 gap-2">
@@ -576,7 +600,7 @@ export function CreateTaskDialog({
 
             {positionMode === "scale_in" && (
               <p className="text-[11px] text-[var(--text-muted)]">
-                滚仓：首仓按手数范围；浮盈可加层（最多 3 层）；浮亏不加；反向先平。
+                滚仓：首仓按每层保证金；浮盈可加层（最多 3 层）；浮亏不加；反向先平。
               </p>
             )}
 
@@ -589,8 +613,9 @@ export function CreateTaskDialog({
             />
           </div>
 
-          {/* 右栏：资金仓 / 风格 / 用户提示词 */}
-          <div className="min-h-0 overflow-y-auto pr-1">
+          {/* 右栏：资金源 / 资金仓 / 风格 / 用户提示词 */}
+          <div className="min-h-0 overflow-y-auto pr-1 space-y-2">
+            <FundingSourceBadge info={funding.info} onReload={funding.reload} />
             <AiFundStyleFields
               value={fundStyle}
               onChange={setFundStyle}

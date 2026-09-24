@@ -49,7 +49,8 @@ export function useTradeLines(props: {
       enabled
         ? orders.filter(
             (o) =>
-              o.status === "pending" &&
+              // 实盘挂单状态为交易所原生（live/NEW/open），虚拟盘为 pending
+              ["pending", "live", "NEW", "new", "open"].includes(o.status) &&
               o.order_type === "limit" &&
               (source === "all" || o.source === "manual"),
           )

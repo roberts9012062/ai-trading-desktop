@@ -10,7 +10,6 @@ import type {
   EquityPoint,
   ProfitCloseBar,
 } from "@/lib/ai-trading-api"
-import { useAuthStore } from "@/stores/auth"
 import { EquityEndBadges } from "./equity-end-badges"
 import { EquityLegend } from "./equity-legend"
 import { taskHasOpenPosition, taskLivePnl } from "./equity-data"
@@ -42,9 +41,8 @@ export function EquityChart({
   const containerRef = useRef<HTMLDivElement>(null)
   const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null)
   const [session, setSession] = useState<TradeSessionRange | null>(null)
-  const tradingMode = useAuthStore((s) => s.user?.trading_mode ?? "live")
-  const axisMode: EquityAxisMode =
-    tradingMode === "virtual" ? "virtual" : "live"
+  // 加密货币 7×24：横轴统一标准自然日 00:00→24:00（原 live 沿用期货夜盘 21:00→15:00 已废弃）
+  const axisMode: EquityAxisMode = "virtual"
 
   const chartTasks = useMemo(
     () => tasks.filter(taskHasOpenPosition),
@@ -87,16 +85,11 @@ export function EquityChart({
     axisMode,
   })
 
-  const axisBadge =
-    axisMode === "virtual" ? "横轴:00:00→24:00" : "横轴:夜21:00→次日15:00"
+  const axisBadge = "横轴:00:00→24:00"
   const hint =
     !session
       ? " · 正在同步交易时段"
-      : axisMode === "virtual"
-      ? " · 自然日墙钟，过 24 点切下一日并从 0 点重跑；悬停模型卡片可高亮走势"
-      : session.notStarted
-        ? " · X 轴已切到 21:00，Y 按当前收益高低排列，开盘后继续走"
-        : " · 悬停下方模型卡片可高亮对应走势"
+      : " · 标准时间自然日（UTC+8），过 24 点切下一日并从 0 点重跑；悬停模型卡片可高亮走势"
 
   return (
     <div className="relative rounded-2xl border border-[var(--border)] overflow-hidden">

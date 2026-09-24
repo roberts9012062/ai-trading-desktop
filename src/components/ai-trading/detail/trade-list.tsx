@@ -15,7 +15,23 @@ interface TradeListProps {
   showStatus?: boolean
 }
 
-/** 交易记录列表（paper 委托） */
+/** 委托状态 → 中文（虚拟盘 paper 与实盘镜像统一枚举） */
+const TRADE_STATUS_LABEL: Record<string, string> = {
+  pending: "挂单中",
+  live: "挂单中",
+  open: "挂单中",
+  partially_filled: "部分成交",
+  filled: "已成交",
+  cancelled: "已撤单",
+  rejected: "已拒绝",
+  error: "下单异常",
+}
+
+function statusLabel(status: string): string {
+  return TRADE_STATUS_LABEL[status.trim().toLowerCase()] ?? status
+}
+
+/** 交易记录列表（paper / live 委托统一展示） */
 export function TradeList({
   items,
   loading,
@@ -44,6 +60,7 @@ export function TradeList({
             <th className="text-right py-2 font-normal">成交价</th>
             <th className="text-right py-2 font-normal">手数</th>
             {showFee && <th className="text-right py-2 font-normal">手续费</th>}
+            <th className="text-right py-2 font-normal">平仓盈亏</th>
             {showStatus && <th className="text-right py-2 font-normal">状态</th>}
           </tr>
         </thead>
@@ -52,11 +69,14 @@ export function TradeList({
             const id = String(row.id ?? "")
             const dir = String(row.direction ?? "")
             const offset = String(row.offset ?? "")
-            const price = Number(row.price ?? 0)
+            const price = Number(row.price ?? row.avg_price ?? 0)
             const qty = Number(row.filled_qty ?? row.quantity ?? 0)
             const fee = Number(row.fee ?? 0)
             const status = String(row.status ?? "")
             const time = String(row.filled_at || row.created_at || "")
+            const realized = Number(row.realized_pnl ?? 0)
+            // 平仓盈亏只在平仓腿显示（开仓腿未实现盈亏）
+            const showPnl = offset === "close" && realized !== 0
             const label = paperActionLabel(dir, offset)
             return (
               <tr key={id} className="border-b border-[var(--border)]/50">
@@ -78,9 +98,19 @@ export function TradeList({
                     {fee > 0 ? fee.toFixed(2) : "—"}
                   </td>
                 )}
+                <td
+                  className={cn(
+                    "py-2 text-right font-num",
+                    showPnl ? (realized > 0 ? "text-up" : "text-down") : "",
+                  )}
+                >
+                  {showPnl
+                    ? `${realized > 0 ? "+" : ""}${realized.toFixed(2)}`
+                    : "—"}
+                </td>
                 {showStatus && (
                   <td className="py-2 text-right text-[var(--text-secondary)]">
-                    {status}
+                    {statusLabel(status)}
                   </td>
                 )}
               </tr>

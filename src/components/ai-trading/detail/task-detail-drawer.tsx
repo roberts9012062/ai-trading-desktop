@@ -12,6 +12,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { DecisionList } from "@/components/ai-trading/detail/decision-list"
 import { TradeList } from "@/components/ai-trading/detail/trade-list"
+import {
+  STATUS_LABEL,
+  statusKey,
+} from "@/components/ai-trading/task-list-helpers"
 import { RunLogList } from "@/components/ai-trading/detail/run-log-list"
 import { TaskProfitView } from "@/components/ai-trading/detail/task-profit-view"
 import { TaskIcon } from "@/components/ai-trading/task-icon"
@@ -214,9 +218,19 @@ export function TaskDetailDrawer({
                 {task.symbol_name || task.symbol} · {task.timeframe}
               </span>
               <span>{task.model_display_name}</span>
-              <span>状态 {task.status}</span>
+              <span>状态 {STATUS_LABEL[statusKey(task)] ?? task.status}</span>
               {task.max_hold_days ? (
                 <span>周期 {task.max_hold_days} 天</span>
+              ) : null}
+              {task.total_realized_pnl != null && task.total_realized_pnl !== 0 ? (
+                <span
+                  className={
+                    Number(task.total_realized_pnl) >= 0 ? "text-up" : "text-down"
+                  }
+                >
+                  累计盈亏 {Number(task.total_realized_pnl) > 0 ? "+" : ""}
+                  {Number(task.total_realized_pnl).toFixed(2)} USDT
+                </span>
               ) : null}
               {Number(task.trade_count ?? 0) > 0 ? (
                 <span>

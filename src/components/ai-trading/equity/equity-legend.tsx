@@ -54,6 +54,18 @@ interface LegendRow {
  * 排行式图例：浮盈榜 / 总收益榜 Tab 切换；
  * hover 卡片联动上方收益曲线高亮。
  */
+/** 数量自适应精度（0.30000000000000004 → 0.3；2000 → 2,000） */
+function fmtQty(q: number): string {
+  if (!Number.isFinite(q)) return "0"
+  return q.toLocaleString("zh-CN", { maximumFractionDigits: 4 })
+}
+
+/** 价格自适应精度：≥1000→1 位；≥1→2 位；<1→4 位（微价格币不丢精度） */
+function fmtPx(p: number): string {
+  if (!Number.isFinite(p) || p <= 0) return "--"
+  return p >= 1000 ? p.toFixed(1) : p >= 1 ? p.toFixed(2) : p.toFixed(4)
+}
+
 export function EquityLegend({
   tasks,
   series,
@@ -83,10 +95,10 @@ export function EquityLegend({
         let tagText = "空仓"
         let tagClass = "bg-white/5 text-[var(--text-muted)]"
         if (task.position_direction === "long") {
-          tagText = `多 ${task.position_qty ?? 0}手`
+          tagText = `多 ${fmtQty(Number(task.position_qty ?? 0))} 币`
           tagClass = "bg-red-500/15 text-up"
         } else if (task.position_direction === "short") {
-          tagText = `空 ${task.position_qty ?? 0}手`
+          tagText = `空 ${fmtQty(Number(task.position_qty ?? 0))} 币`
           tagClass = "bg-emerald-500/15 text-down"
         }
         return {
@@ -103,7 +115,7 @@ export function EquityLegend({
           symbol: task.symbol,
           footnote: `${task.symbol_name || task.symbol} · ${task.timeframe}${
             task.position_avg_price != null
-              ? ` · 开 ${Number(task.position_avg_price).toFixed(1)}`
+              ? ` · 开 ${fmtPx(Number(task.position_avg_price))}`
               : ""
           }`,
           value: last,

@@ -7,10 +7,9 @@ import { ContractSearchDialog } from "@/components/market/contract-search-dialog
 import { FloatingAssistant } from "@/components/ai/floating-assistant"
 import { MessagePopup } from "@/components/notifications/message-popup"
 import { BigOrderToastPopup } from "@/components/notifications/big-order-toast"
+import { startVoiceBroadcastEngine } from "@/lib/voice-broadcast-engine"
 import { TaskAlertToastPopup } from "@/components/notifications/task-alert-toast"
 import { GlobalDialog } from "@/components/global-dialog"
-import { startVoiceBroadcastEngine } from "@/lib/voice-broadcast-engine"
-import { startVolumeProfileEngine } from "@/lib/volume-profile-engine"
 import { useKeyboardShortcuts } from "@/hooks/keyboard"
 import { useTabSync } from "@/hooks/sync"
 import { useAuthGuard } from "@/hooks/auth"
@@ -25,8 +24,6 @@ import { useAuthStore } from "@/stores/auth"
 import { useMarketStore } from "@/stores/market"
 import { useAppStore, migrateStaleContract, readActiveContract } from "@/stores/app"
 import { broadcastContractChange } from "@/hooks/sync"
-import { StartupVerify } from "@/components/common/startup-verify"
-import { useCallback, useRef } from "react"
 
 /** 用户端布局 Shell（顶部导航 + 侧边栏 + 主内容区） */
 export default function MainLayout({
@@ -39,20 +36,6 @@ export default function MainLayout({
   useEffect(() => {
     setMounted(true)
   }, [])
-
-  // 启动数据校验：登录态就绪后先对账修正 K 线缓存（近 3 天主力 ×
-  // 全周期，主 PG 权威 vs Redis 缓存），完成展示摘要后放行进入系统。
-  // 每次会话只跑一次；失败/超时由遮罩内部降级放行，不阻塞使用。
-  const [verifying, setVerifying] = useState(true)
-  const [verifyArmed, setVerifyArmed] = useState(false)
-  const verifyStartedRef = useRef(false)
-  const verifyToken = useAuthStore((s) => s.accessToken)
-  useEffect(() => {
-    if (!verifyToken || verifyStartedRef.current) return
-    verifyStartedRef.current = true
-    setVerifyArmed(true)
-  }, [verifyToken])
-  const handleVerifyFinished = useCallback(() => setVerifying(false), [])
 
   // 拉取通知设置 → 初始化提示音开关；同时拉未读数；加载大单预警/任务预警设置
   useEffect(() => {
@@ -87,18 +70,14 @@ export default function MainLayout({
     setSpeechSettings({ voice_enabled: voiceEnabled })
   }, [voiceEnabled])
 
-  useKeyboardShortcuts()
-  useTabSync()
-  useAuthGuard()
-
   // 语音播报引擎：全局常驻（整分对齐调度 + 排队播报），设置见个人中心
   useEffect(() => {
     startVoiceBroadcastEngine()
   }, [])
 
-  // 成交量分布本地采集引擎：全局常驻（逐秒采集聚合 + IndexedDB 按交易日
-  // 持久化），页面打开前就开始累积，重启/刷新不丢当日数据
-  useEffect(() => startVolumeProfileEngine(), [])
+  useKeyboardShortcuts()
+  useTabSync()
+  useAuthGuard()
 
   // 全局行情连接：登录拿到 token 后接入 /ws/market，让持仓、历史、订单等
   // 所有子页都能拿到实时现价（浮动盈亏由前端用 last_price 客户端计算）。
@@ -136,12 +115,6 @@ export default function MainLayout({
         </div>
       </div>
     )
-  }
-
-  // 校验期间不挂载主内容：页面/图表的数据拉取必须发生在缓存修正
-  // 完成之后，否则会先拿到修正前的数据并进入前端会话缓存
-  if (verifyArmed && verifying) {
-    return <StartupVerify onFinished={handleVerifyFinished} />
   }
 
   return (

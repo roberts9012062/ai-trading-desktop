@@ -13,9 +13,13 @@ import type { PaperPositionItem } from "@/lib/paper-api"
 
 function fmtPrice(price: number): string {
   if (!Number.isFinite(price)) return "--"
-  if (Math.abs(price) >= 1000) return price.toFixed(0)
-  if (Math.abs(price) >= 10) return price.toFixed(1)
-  return price.toFixed(2)
+  const abs = Math.abs(price)
+  if (abs >= 1000) return price.toFixed(0)
+  if (abs >= 10) return price.toFixed(1)
+  if (abs >= 1) return price.toFixed(2)
+  if (abs >= 0.01) return price.toFixed(4)
+  if (abs >= 0.0001) return price.toFixed(6)
+  return price.toFixed(8)
 }
 
 function fmtPnl(pnl: number): string {

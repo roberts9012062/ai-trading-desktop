@@ -12,6 +12,10 @@ export function OrderConfirmDialog(props: {
   price: string
   quantity: string
   estimate: { margin: number; fee: number; total: number } | null
+  leverage?: number | null
+  notional?: number | null
+  tpPrice?: number | null
+  slPrice?: number | null
   submitting: boolean
   onConfirm: () => void
   onCancel: () => void
@@ -45,17 +49,27 @@ export function OrderConfirmDialog(props: {
             <span className={cn("font-semibold", dirColor)}>{dirLabel}</span>
           </div>
           <Row label="价格" value={props.price} mono />
-          <Row label="数量" value={`${props.quantity}手`} mono />
+          <Row label="数量" value={String(props.quantity)} mono />
+          {props.leverage ? <Row label="杠杆" value={`${props.leverage}x`} mono /> : null}
+          {props.notional ? (
+            <Row
+              label="名义价值"
+              value={`${props.notional.toLocaleString("zh-CN", { maximumFractionDigits: 2 })} USDT`}
+              mono
+            />
+          ) : null}
+          {props.tpPrice ? <Row label="止盈" value={String(props.tpPrice)} mono /> : null}
+          {props.slPrice ? <Row label="止损" value={String(props.slPrice)} mono /> : null}
           {props.estimate && (
             <>
               <Row
                 label="保证金"
-                value={`¥${props.estimate.margin.toLocaleString()}`}
+                value={`${props.estimate.margin.toLocaleString()} USDT`}
                 mono
               />
               <Row
                 label="手续费"
-                value={`¥${props.estimate.fee.toLocaleString()}`}
+                value={`${props.estimate.fee.toLocaleString()} USDT`}
                 mono
               />
             </>

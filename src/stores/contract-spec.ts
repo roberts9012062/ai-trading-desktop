@@ -17,9 +17,15 @@ import { useAuthStore } from "@/stores/auth"
 export const DEFAULT_TICK_SIZE = 1
 export const DEFAULT_DECIMAL_PLACES = 0
 
-/** 从合约代码提取品种字母：rb2610 → RB，cu2607 → CU，IF2512 → IF */
+/** 从合约代码提取品种代码：加密 pepeusdt → PEPE；期货 rb2610 → RB */
 function extractProductCode(symbol: string): string {
-  const letters = symbol.match(/^[A-Za-z]+/)?.[0] ?? ""
+  const s = symbol.trim()
+  // 加密 USDT 永续：去 usdt 后缀取基础币代码（与后端 product-specs 的 code 口径一致；
+  // 否则全字母符号会取成 "PEPEUSDT" 永不命中，tick/精度全部落 1/0 默认值）
+  if (s.length > 4 && s.toLowerCase().endsWith("usdt") && /^[A-Za-z0-9]+$/.test(s)) {
+    return s.slice(0, -4).toUpperCase()
+  }
+  const letters = s.match(/^[A-Za-z]+/)?.[0] ?? ""
   return letters.toUpperCase()
 }
 
@@ -33,6 +39,8 @@ interface ContractSpecState {
   getTickSize: (symbol: string) => number
   /** 按合约代码查价格小数位（未命中回退 0） */
   getDecimalPlaces: (symbol: string) => number
+  /** 按合约代码查规格（未命中返回 null，调用方可据此跳过应用，避免默认 0/1 打坏微价格轴） */
+  getSpec: (symbol: string) => ProductSpecItem | null
 }
 
 export const useContractSpecStore = create<ContractSpecState>((set, get) => ({
@@ -64,5 +72,10 @@ export const useContractSpecStore = create<ContractSpecState>((set, get) => ({
     const code = extractProductCode(symbol)
     const spec = get().specs.find((s) => s.code.toUpperCase() === code)
     return spec?.decimal_places ?? DEFAULT_DECIMAL_PLACES
+  },
+
+  getSpec: (symbol) => {
+    const code = extractProductCode(symbol)
+    return get().specs.find((s) => s.code.toUpperCase() === code) ?? null
   },
 }))

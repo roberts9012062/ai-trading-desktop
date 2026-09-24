@@ -6,7 +6,6 @@ import { useAIChatStore } from "@/stores/ai-chat"
 import { useAISettingsStore } from "@/stores/ai-settings"
 import { uploadKnowledgeDocument } from "@/lib/api"
 import { ModelSelector } from "@/components/ai/model-selector"
-import { LocalAiSwitch } from "@/components/ai/local-ai-switch"
 import { MessageBubble } from "@/components/ai/message-renderer"
 import { ChatHistory } from "@/components/ai/chat-history"
 
@@ -178,7 +177,6 @@ export function AiChatPanel({ onClose }: AiChatPanelProps): React.JSX.Element {
         {/* 顶部栏：模型选择 + 操作按钮 */}
         <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[var(--border)]">
           <ModelSelector />
-          <LocalAiSwitch />
           <div className="flex-1" />
           <input
             ref={knowledgeInputRef}

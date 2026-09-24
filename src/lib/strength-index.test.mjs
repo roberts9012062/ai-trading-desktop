@@ -21,7 +21,7 @@ import {
 
 const FIXTURE = JSON.parse(
   readFileSync(
-    join(import.meta.dirname, "..", "..", "backend", "tests", "fixtures", "strength_cases.json"),
+    join(import.meta.dirname, "..", "..", "..", "backend", "tests", "fixtures", "strength_cases.json"),
     "utf8",
   ),
 )
