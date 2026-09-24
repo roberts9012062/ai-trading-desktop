@@ -6,4 +6,4 @@
  * 该类记录直接挂载实盘。内核升版时必须同步改这里(内核侧有
  * verify-kernel-tests 守卫,此处靠走查)。
  */
-export const CURRENT_KERNEL_VERSION = "pykernel-factor-2026-09-01.3"
+export const CURRENT_KERNEL_VERSION = "pykernel-factor-2026-09-25.1"

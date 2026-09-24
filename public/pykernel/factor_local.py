@@ -21,6 +21,7 @@ import numpy as np
 from factor_lab import execute
 from factor_lab.features import FEATURE_NAMES, feature_matrix
 from factor_lab.scoring.cost import DEFAULT_SLIPPAGE_TICKS, turnover_cost_rate
+from data.product_specs import normalize_crypto_symbol, CRYPTO_TICKS
 from factor_lab.scoring.evaluate import (
     evaluate_factor,
     evaluate_factor_live,
@@ -89,10 +90,10 @@ def run(payload_json: str, bars_json: str) -> str:
 
 def run_search(payload: dict, bars: list) -> str:
     cfg_kwargs = {k: payload[k] for k in _CFG_FIELDS if k in payload}
-    # cost=None(前端"自动推导")需按服务端 search_api 同规则解析成真实成本率:
+    # cost 省略与 cost=None 同路径(自动推导,对齐服务端 search_api 语义):
     # 原样透传 None 会让 evaluate_factor 对全体候选抛异常,被 eval 防护静默
     # 吞掉后 best_seen 为空,最终 0 冠军且无任何报错
-    if "cost" in cfg_kwargs and cfg_kwargs["cost"] is None:
+    if cfg_kwargs.get("cost") is None:
         cfg_kwargs["cost"] = resolve_cost(
             str(payload.get("symbol") or ""), bars, None
         )
@@ -117,16 +118,25 @@ def run_search(payload: dict, bars: list) -> str:
 
 
 def resolve_cost(symbol: str, bars: list, cost: float | None) -> float:
-    """解析单位 turnover 成本率(服务端 api/factor_lab/common.py 同名函数移植)"""
+    """解析单位 turnover 成本率(服务端 api/factor_lab/common.py 同名函数移植)。
+
+    加密符号先归一(各所原生写法统一),未知加密币种(不在 CRYPTO_TICKS)
+    显式报错——静默回落期货默认规格会把 multiplier/tick 全算错。
+    """
     if cost is not None:
         return cost
+    norm = normalize_crypto_symbol(symbol)
+    if norm and norm[: -len("usdt")].upper() not in CRYPTO_TICKS:
+        raise ValueError(
+            f"未知加密币种 {symbol}:缺少交易规格(tick/费率),请在表单显式填写成本率"
+        )
     valid = [float(b.get("close") or 0) for b in bars]
     valid = [c for c in valid if c > 0]
     if not valid:
         return 0.0
     recent = valid[-max(60, len(valid) // 4):]
     price = sorted(recent)[len(recent) // 2]
-    return turnover_cost_rate(symbol, price, DEFAULT_SLIPPAGE_TICKS)
+    return turnover_cost_rate(norm or symbol, price, DEFAULT_SLIPPAGE_TICKS)
 
 
 def _round_value(v):
@@ -340,10 +350,12 @@ def run_cross_peer_symbols(payload: dict, bars: list) -> str:
 
 
 def kernel_version() -> str:
-    # 批次三口径变更(P0-2 因果归一化——改变仓位序列本身;P1-7 warmup 切片
-    # 与 MIN_TEST_BARS=120)。批次二为 .2(P0-3/P1-4/P1-6/P1-8/P2-19):
-    # 同因子在新旧内核下指标不同,历史/收藏按此戳区分口径
-    return "pykernel-factor-2026-09-01.3"
+    # 加密币口径(2026-09-25.1):加密 specs(multiplier=1/taker 万5/按币 tick)、
+    # 符号别名归一(各所原生写法)、未知加密币显式报错、cost 省略与 null
+    # 同路径自动推导(run_search/mine_start/shard/precise 四处)。
+    # 更早:批次三口径变更(P0-2 因果归一化;P1-7 warmup 切片与
+    # MIN_TEST_BARS=120);同因子在新旧内核下指标不同,历史/收藏按此戳区分
+    return "pykernel-factor-2026-09-25.1"
 
 
 # ── 分代步进挖掘会话(本地长程任务 M3) ─────────────────────────
@@ -380,9 +392,9 @@ def mine_start(payload_json: str, bars_json: str) -> str:
     payload = json.loads(payload_json)
     bars = json.loads(bars_json)
     cfg_kwargs = {k: payload[k] for k in _CFG_FIELDS if k in payload}
-    # cost=null(前端"自动推导")与 run_search 同规则解析,防止 None 透传导致
-    # 全体候选评估异常被静默吞掉、0 冠军无报错
-    if "cost" in cfg_kwargs and cfg_kwargs["cost"] is None:
+    # cost 省略与 cost=null 同规则解析(与 run_search 一致),防止 None 透传
+    # 导致全体候选评估异常被静默吞掉、0 冠军无报错
+    if cfg_kwargs.get("cost") is None:
         cfg_kwargs["cost"] = resolve_cost(
             str(payload.get("symbol") or ""), bars, None
         )
@@ -530,7 +542,7 @@ def run_mine_shard(payload: dict, bars: list) -> str:
     shard_bars = _SHARD.get("bars") or []
     timeframe = str(base.get("timeframe") or "1d")
     cfg_kwargs = {k: base[k] for k in _CFG_FIELDS if k in base}
-    if "cost" in cfg_kwargs and cfg_kwargs["cost"] is None:
+    if cfg_kwargs.get("cost") is None:
         cfg_kwargs["cost"] = resolve_cost(
             str(base.get("symbol") or ""), shard_bars, None
         )
@@ -572,7 +584,7 @@ def run_mine_precise(payload: dict, bars: list) -> str:
         bars = prepared["bars"]
     timeframe = str(payload.get("timeframe") or "1d")
     cfg_kwargs = {k: payload[k] for k in _CFG_FIELDS if k in payload}
-    if "cost" in cfg_kwargs and cfg_kwargs["cost"] is None:
+    if cfg_kwargs.get("cost") is None:
         cfg_kwargs["cost"] = resolve_cost(
             str(payload.get("symbol") or ""), bars, None
         )
