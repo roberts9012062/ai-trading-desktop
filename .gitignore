@@ -1,13 +1,13 @@
 node_modules/
-dist/
+/dist/
 .env.local
 .env.*.local
 *.tsbuildinfo
 src-tauri/target/
 src-tauri/gen/schemas/
-update-dist/
+/update-dist/
 证书/
-logs/
+/logs/
 .zcode/
 __pycache__/
 
