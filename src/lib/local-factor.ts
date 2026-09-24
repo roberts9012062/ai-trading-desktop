@@ -9,6 +9,7 @@
  */
 
 import { fetchBacktestBars, KLINE_MAX_PAGES } from "@/lib/local-backtest"
+import { normalizeChannel } from "@/lib/kline-channels"
 import type { Champion, FactorBacktestResult, SearchResult } from "@/lib/factor-lab-api"
 import type { KlineBar } from "@/types"
 
@@ -28,6 +29,8 @@ export interface LocalFactorPayload {
   train_ratio?: number
   test_recent_bars?: number
   walk_forward_folds?: number
+  /** 数据渠道(okx/binance_spot/gate_spot;缺省 binance_spot) */
+  data_channel?: string
   /** 本地增强(内核 SearchConfig 同名字段,默认关;见 MiningConfig 注释) */
   selection_v2?: boolean
   evolve_v2?: boolean
@@ -221,6 +224,7 @@ export async function searchFactorsLocal(
     KLINE_MAX_PAGES,
     undefined,
     onProgress,
+    normalizeChannel(payload.data_channel),
   )
   if (bars.length < 60) throw new Error("该区间 K 线数据不足(至少 60 根)")
   if (engine === "gpu") {
@@ -247,6 +251,7 @@ export async function backtestFactorLocal(
     walk_forward_folds?: number
     start_date?: string
     end_date?: string
+    data_channel?: string
   },
   onProgress?: (msg: string) => void,
 ): Promise<FactorBacktestResult> {
@@ -259,6 +264,7 @@ export async function backtestFactorLocal(
     KLINE_MAX_PAGES,
     undefined,
     onProgress,
+    normalizeChannel(payload.data_channel),
   )
   if (bars.length < 30) throw new Error("该区间 K 线数据不足")
   onProgress?.("本地单因子回测…")

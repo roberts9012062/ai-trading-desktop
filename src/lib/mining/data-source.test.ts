@@ -9,14 +9,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { IDBFactory } from "fake-indexeddb"
 
-vi.mock("@/lib/binance-kline", () => ({
-  getBinanceKlineApi: vi.fn(),
+vi.mock("@/lib/kline-channels", () => ({
+  getChannelKlineApi: vi.fn(),
+  DEFAULT_KLINE_CHANNEL: "binance_spot",
+  normalizeChannel: (v: unknown) =>
+    v === "okx" || v === "gate_spot" ? (v as string) : "binance_spot",
 }))
 
-import { getBinanceKlineApi } from "@/lib/binance-kline"
+import { getChannelKlineApi } from "@/lib/kline-channels"
 import type { KlineBarApi } from "@/lib/api"
 
-const mockedGet = vi.mocked(getBinanceKlineApi)
+const mockedGet = vi.mocked(getChannelKlineApi)
 
 /** 每个用例全新的 data-source 模块 + 独立 IDB(模块内含可配置上限的单例状态) */
 async function loadDataSource() {

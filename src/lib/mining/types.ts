@@ -16,6 +16,8 @@ export type DeviceKind = "auto" | "cpu" | "gpu"
 export interface MiningConfig {
   symbol: string
   timeframe: string
+  /** 数据渠道(okx/binance_spot/gate_spot;缺省 binance_spot)——bars 快照与取数分流 */
+  data_channel?: string
   population: number
   generations: number
   max_depth: number

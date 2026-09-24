@@ -1,5 +1,7 @@
 /** 历史数据渠道 API 客户端 —— 回测 / 因子实验室 / 超级因子挖掘共用 */
 
+import { LOCAL_HISTORY_CHANNELS } from "@/lib/kline-channels"
+
 export interface HistoryChannel {
   id: string
   name: string
@@ -40,13 +42,18 @@ async function historyRequest<T>(path: string): Promise<T> {
   return response.json() as Promise<T>
 }
 
-/** 可选历史数据渠道列表 */
+/** 可选历史数据渠道列表(后端不可达时回退内置三渠道,UI 不空) */
 export async function getHistoryChannels(): Promise<HistoryChannel[]> {
-  const res = await historyRequest<{ channels: HistoryChannel[] }>(
-    "/api/history/channels"
-  )
-  return res.channels
+  try {
+    const res = await historyRequest<{ channels: HistoryChannel[] }>(
+      "/api/history/channels"
+    )
+    return res.channels
+  } catch {
+    return LOCAL_HISTORY_CHANNELS
+  }
 }
+
 
 /** 探测渠道对某品种某周期的可用历史范围（后端缓存 6h） */
 export async function getChannelRange(

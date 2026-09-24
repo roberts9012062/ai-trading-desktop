@@ -18,6 +18,8 @@ import {
   factorMaxDaysFor,
 } from "./factor-range-limits"
 import { SymbolCombobox } from "./symbol-combobox"
+import { DataChannelSelect } from "@/components/common/data-channel-select"
+import { DEFAULT_KLINE_CHANNEL } from "@/lib/kline-channels"
 import { FACTOR_HELP, HelpTip, LabelWithHelp } from "./help-tip"
 import { CoachControls } from "./llm/coach-controls"
 import { antiOverfitPayload } from "./hooks/factor-helpers"
@@ -53,6 +55,8 @@ export interface SearchFormPayload {
   /** 长历史区间（YYYY-MM-DD，需与 end_date 成对；不传走近期数据） */
   start_date?: string
   end_date?: string
+  /** 数据渠道(okx/binance_spot/gate_spot;本地引擎按渠道直连取数) */
+  data_channel?: string
 }
 
 interface FactorSearchFormProps {
@@ -71,6 +75,7 @@ export function FactorSearchForm({
 }: FactorSearchFormProps): React.JSX.Element {
   const [symbol, setSymbol] = useState(defaultSymbol)
   const [timeframe, setTimeframe] = useState("1d")
+  const [dataChannel, setDataChannel] = useState<string>(DEFAULT_KLINE_CHANNEL)
   const [population, setPopulation] = useState(30)
   const [generations, setGenerations] = useState(15)
   const [contracts, setContracts] = useState<ContractItem[]>([])
@@ -178,6 +183,7 @@ export function FactorSearchForm({
       ...antiOverfitPayload(antiOverfitOn, trainRatio, testRecentBars, walkForwardFolds),
       enhanced,
       ...(useLongHistory ? { start_date: rangeStart, end_date: rangeEnd } : {}),
+      data_channel: dataChannel,
     })
   }
 
@@ -220,6 +226,16 @@ export function FactorSearchForm({
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>数据渠道</Label>
+          <DataChannelSelect
+            value={dataChannel}
+            onChange={(v) => setDataChannel(v)}
+            symbol={symbol.trim().toLowerCase() || null}
+            timeframe={timeframe}
+          />
         </div>
 
         <div className="space-y-1.5">

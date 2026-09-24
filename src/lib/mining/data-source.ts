@@ -18,13 +18,16 @@
 
 import type { KlineBar } from "@/types"
 import { fetchBacktestBars, KLINE_MAX_PAGES } from "@/lib/local-backtest"
+import { normalizeChannel } from "@/lib/kline-channels"
 import { factorMaxDaysFor } from "@/components/factor-lab/factor-range-limits"
 import { openDb, idbGet, idbPut, idbGetAll, idbDelete, MINING_BARS_STORE } from "@/lib/idb"
 
 export interface BarsSnapshot {
-  /** `${symbol}:${timeframe}:${from}:${to}:${sourceHash}` */
+  /** `${symbol}:${channel}:${timeframe}:${from}:${to}:${sourceHash}` */
   id: string
   symbol: string
+  /** 数据渠道(快照按渠道隔离,不同渠道数据不混用) */
+  channel: string
   timeframe: string
   /** 实际首根 bar 时间(日期) */
   from: string
@@ -41,6 +44,8 @@ export interface BarsSnapshot {
 export interface AcquireBarsRequest {
   symbol: string
   timeframe: string
+  /** 数据渠道(okx/binance_spot/gate_spot;缺省 binance_spot)——进快照 id,不同渠道数据不混用 */
+  channel?: string
   startDate: string
   endDate: string
   maxPages?: number
@@ -132,6 +137,7 @@ export async function acquireBarsSnapshot(req: AcquireBarsRequest): Promise<Bars
     )
   }
 
+  const channel = normalizeChannel(req.channel)
   const stopInfo = { truncated: false }
   const raw = await fetchBacktestBars(
     symbol,
@@ -140,6 +146,8 @@ export async function acquireBarsSnapshot(req: AcquireBarsRequest): Promise<Bars
     end,
     req.maxPages ?? MAX_PAGES_DEFAULT,
     stopInfo,
+    undefined,
+    channel,
   )
   if (stopInfo.truncated) {
     throw new Error(
@@ -154,7 +162,7 @@ export async function acquireBarsSnapshot(req: AcquireBarsRequest): Promise<Bars
   const from = bars[0].time.slice(0, 10)
   const to = bars[bars.length - 1].time.slice(0, 10)
   const sourceHash = fnv1a32(bars.map((b) => `${b.time}:${b.close}`).join())
-  const id = `${symbol}:${timeframe}:${from}:${to}:${sourceHash}`
+  const id = `${symbol}:${channel}:${timeframe}:${from}:${to}:${sourceHash}`
 
   const db = await openDb()
   if (!db) throw new Error("IndexedDB 不可用,无法冻结本地挖掘数据快照")
@@ -169,6 +177,7 @@ export async function acquireBarsSnapshot(req: AcquireBarsRequest): Promise<Bars
   const fresh: SnapshotRecord = {
     id,
     symbol,
+    channel,
     timeframe,
     from,
     to,

@@ -23,6 +23,8 @@ import {
 } from "@/lib/super-factor-api"
 import type { DeviceKind, MiningTask, RunnerKind } from "@/lib/mining/types"
 import { MiningSymbolCombobox } from "./mining-symbol-combobox"
+import { DataChannelSelect } from "@/components/common/data-channel-select"
+import { DEFAULT_KLINE_CHANNEL } from "@/lib/kline-channels"
 import { PresetPicker, type MiningPreset } from "./mining-presets"
 import { useMiningTasks, useTaskChampions } from "./use-mining-tasks"
 
@@ -173,6 +175,7 @@ export function SuperFactorPage(): React.JSX.Element {
                       ? { selection_v2: true, evolve_v2: true }
                       : {}),
                     ...(p.origin === "local" && p.liveGate ? { live_entry_gate: LIVE_GATE_ENTRY } : {}),
+                    data_channel: p.data_channel,
                   },
                   { device: p.device, name: p.name },
                   p.origin,
@@ -240,6 +243,8 @@ interface ConfigFormProps {
     enhanced: boolean
     /** 实盘开仓口径验证(live_entry_gate,仅本地) */
     liveGate: boolean
+    /** 数据渠道(okx/binance_spot/gate_spot;bars 快照与跨币种伙伴同渠道) */
+    data_channel: string
   }) => Promise<void>
 }
 
@@ -249,6 +254,7 @@ const LIVE_GATE_ENTRY = 0.3
 function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
   const { supported, disabled, onSubmit } = props
   const [symbol, setSymbol] = useState("")
+  const [dataChannel, setDataChannel] = useState<string>(DEFAULT_KLINE_CHANNEL)
   const [timeframe, setTimeframe] = useState("1d")
   // 执行位置:服务器计算机 / 本地计算机;本地再选算力(自动/CPU/GPU)
   const [origin, setOrigin] = useState<RunnerKind>("remote")
@@ -375,6 +381,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
             symbol: symbol.trim().toLowerCase(),
             timeframe,
             count: crossCount,
+            channel: dataChannel,
             onProgress: (msg) => setCrossStatus(msg),
           })
           crossPeers = bundle.peers
@@ -401,6 +408,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
         ...(crossPeers?.length ? { crossPeers } : {}),
         enhanced,
         liveGate,
+        data_channel: dataChannel,
       })
     } finally {
       setSubmitting(false)
@@ -426,6 +434,16 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
           }}
         />
         {symbolError && <p className="text-[11px] text-down">{symbolError}</p>}
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>数据渠道</Label>
+        <DataChannelSelect
+          value={dataChannel}
+          onChange={(v) => setDataChannel(v)}
+          symbol={symbol.trim().toLowerCase() || null}
+          timeframe={timeframe}
+        />
       </div>
 
       <div className="space-y-1">

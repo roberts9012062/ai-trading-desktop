@@ -8,7 +8,7 @@
  * worker 单例由 py-worker.ts 管理(回测/因子共用)。
  */
 
-import { getBinanceKlineApi } from "@/lib/binance-kline"
+import { getChannelKlineApi, normalizeChannel, DEFAULT_KLINE_CHANNEL, type KlineChannelId } from "@/lib/kline-channels"
 import { ensurePyWorker } from "@/lib/py-worker"
 import type { KlineBar, KlinePeriod } from "@/types"
 
@@ -26,6 +26,8 @@ export interface LocalBacktestPayload {
   stop_rules?: Record<string, unknown>
   multi_segment?: boolean
   segment_count?: number
+  /** 数据渠道(okx/binance_spot/gate_spot;缺省 binance_spot) */
+  data_channel?: string
   [key: string]: unknown
 }
 
@@ -48,12 +50,13 @@ export async function fetchBacktestBars(
   maxPages = KLINE_MAX_PAGES,
   stopInfo?: { truncated: boolean },
   onProgress?: (msg: string) => void,
+  channel: KlineChannelId = DEFAULT_KLINE_CHANNEL,
 ): Promise<KlineBar[]> {
   const all: KlineBar[] = []
   let endTime: string | undefined = undefined
   let stoppedEarly = false
   for (let page = 0; page < maxPages; page++) {
-    const resp = await getBinanceKlineApi(symbol, timeframe, { limit: 500, endTime })
+    const resp = await getChannelKlineApi(symbol, timeframe, { limit: 500, endTime }, channel)
     const bars = (resp.bars ?? []) as KlineBar[]
     if (bars.length === 0) {
       stoppedEarly = true
@@ -106,6 +109,7 @@ export async function runBacktestLocal(
     KLINE_MAX_PAGES,
     stopInfo,
     onProgress,
+    normalizeChannel(payload.data_channel),
   )
   if (stopInfo.truncated) {
     throw new Error(

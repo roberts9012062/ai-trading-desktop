@@ -12,6 +12,7 @@
  */
 
 import { fetchBacktestBars, KLINE_MAX_PAGES } from "@/lib/local-backtest"
+import { normalizeChannel } from "@/lib/kline-channels"
 import { defaultFactorRangeFor } from "@/components/factor-lab/factor-range-limits"
 import { CRYPTO_ASSETS } from "@/data/crypto-universe"
 
@@ -53,6 +54,8 @@ export async function loadCrossPeers(opts: {
   symbol: string
   timeframe: string
   count: number
+  /** 数据渠道:伙伴 K 线与主任务同渠道 */
+  channel?: string
   onProgress?: (msg: string) => void
 }): Promise<CrossPeerBundle> {
   const count = Math.max(1, Math.min(4, Math.floor(opts.count)))
@@ -92,6 +95,7 @@ export async function loadCrossPeers(opts: {
         KLINE_MAX_PAGES,
         undefined,
         undefined,
+        normalizeChannel(opts.channel),
       )
       if (bars.length >= MIN_PEER_BARS) {
         peers.push([code, bars as unknown as Array<Record<string, unknown>>])

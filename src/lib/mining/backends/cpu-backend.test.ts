@@ -65,6 +65,7 @@ async function loadBackend() {
 
 const CONFIG = {
   symbol: "rb2610",
+  channel: "binance_spot",
   timeframe: "1d",
   population: 20,
   generations: 3,
@@ -79,6 +80,7 @@ beforeEach(() => {
   mockedGetSnapshot.mockResolvedValue({
     id: "snap-1",
     symbol: "rb2610",
+  channel: "binance_spot",
     timeframe: "1d",
     from: "2026-01-01",
     to: "2026-01-31",

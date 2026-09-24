@@ -7,15 +7,18 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("@/lib/binance-kline", () => ({
-  getBinanceKlineApi: vi.fn(),
+vi.mock("@/lib/kline-channels", () => ({
+  getChannelKlineApi: vi.fn(),
+  DEFAULT_KLINE_CHANNEL: "binance_spot",
+  normalizeChannel: (v: unknown) =>
+    v === "okx" || v === "gate_spot" ? (v as string) : "binance_spot",
 }))
 
-import { getBinanceKlineApi, type BinanceKlinePage } from "@/lib/binance-kline"
+import { getChannelKlineApi, type BinanceKlinePage } from "@/lib/kline-channels"
 import type { KlineBarApi } from "@/lib/api"
 import { fetchBacktestBars } from "@/lib/local-backtest"
 
-const mockedGet = vi.mocked(getBinanceKlineApi)
+const mockedGet = vi.mocked(getChannelKlineApi)
 
 function bar(time: string, close = 100): KlineBarApi {
   return { time, open: close, high: close, low: close, close, volume: 10, settle: null, open_interest: null }

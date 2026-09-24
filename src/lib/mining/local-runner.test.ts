@@ -97,6 +97,7 @@ class GatedBackend implements ComputeBackend {
 
 const CONFIG = {
   symbol: "rb2610",
+  channel: "binance_spot",
   timeframe: "1d",
   population: 10,
   generations: 2,
@@ -108,6 +109,7 @@ const CONFIG = {
 const SNAPSHOT = {
   id: "snap-1",
   symbol: "rb2610",
+  channel: "binance_spot",
   timeframe: "1d",
   from: "2026-01-01",
   to: "2026-01-31",

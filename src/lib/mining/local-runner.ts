@@ -123,6 +123,7 @@ export class LocalMiningRunner implements MiningRunner {
     const snapshot = await acquireBarsSnapshot({
       symbol: config.symbol,
       timeframe: config.timeframe,
+      channel: config.data_channel,
       startDate: config.start_date ?? range.start,
       endDate: config.end_date ?? range.end,
     })
