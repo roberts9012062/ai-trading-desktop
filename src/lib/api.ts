@@ -1,5 +1,7 @@
 import type { AuthResponse, LoginRequest, RegisterRequest, User, NewsItem, ArticleContent, AIProvider, AIModel, PresetProvider, ProviderTestResult, AIConversationItem, AIMessagePage, MarketplaceSkillItem, MarketplaceSkillDetail, InstalledSkillItem, SkillConfig, CodeTreeMap, Message, MessageCategory, PriceAlert, NotifySetting } from "@/types"
 import type { IndicatorConfig } from "@/types/indicator"
+import type { KlineBar } from "@/types"
+import { getBinanceKlineApi } from "@/lib/binance-kline"
 
 // 空字符串 = 同域（Next rewrites /api → BACKEND_URL），避免 localhost↔127.0.0.1 CORS
 // 生产可设 NEXT_PUBLIC_API_URL 为完整后端地址
@@ -366,28 +368,64 @@ export interface KlineBundlePeriod {
   has_more: boolean
 }
 
+/** Binance bar(可选字段) → API bar(settle/open_interest 必有,加密数据源恒 null) */
+function toKlineBarApi(b: KlineBar): KlineBarApi {
+  return {
+    time: b.time,
+    open: b.open,
+    high: b.high,
+    low: b.low,
+    close: b.close,
+    volume: b.volume,
+    settle: b.settle ?? null,
+    open_interest: b.open_interest ?? null,
+  }
+}
+
 /** K 线多周期打包响应（一次返回同合约全部分钟周期最新视图） */
 export interface KlineBundleResponse {
   symbol: string
   periods: KlineBundlePeriod[]
 }
 
-/** 一次拉取同合约全部分钟周期（1m/5m/15m/30m/60m）最新视图 */
+/** 一次拉取同合约全部分钟周期（1m/5m/15m/30m/60m）最新视图。
+ *  直连 Binance 公开行情域并发拉各周期,不经服务器转发。 */
 export async function getKlineBundleApi(
   symbol: string,
   limit?: number,
 ): Promise<KlineBundleResponse> {
-  const params = new URLSearchParams({ symbol })
-  if (limit) params.set("limit", String(limit))
-  return request<KlineBundleResponse>(`/api/market/kline/bundle?${params}`)
+  const periods = ["1m", "5m", "15m", "30m", "60m"]
+  const segs = await Promise.all(
+    periods.map(async (p): Promise<KlineBundlePeriod> => {
+      try {
+        const page = await getBinanceKlineApi(symbol, p, { limit })
+        return { period: p, bars: page.bars.map(toKlineBarApi), has_more: page.has_more }
+      } catch {
+        // 单周期失败归一为空(与后端 bundle 部分周期异常的语义一致,保留旧缓存)
+        return { period: p, bars: [] as KlineBarApi[], has_more: false }
+      }
+    }),
+  )
+  return { symbol, periods: segs }
 }
 
-/** 获取 K 线历史数据（支持懒加载切片） */
+/** 获取 K 线历史数据（支持懒加载切片）。
+ *  K 线周期(1m~1d)直连 Binance 公开行情域(data-api.binance.vision),不经服务器
+ *  转发;tick 分时是逐笔序列,仍走后端接口。 */
 export async function getKlineApi(
   symbol: string,
   period: string,
   options?: { limit?: number; endTime?: string },
 ): Promise<KlineResponse> {
+  if (period !== "tick") {
+    const page = await getBinanceKlineApi(symbol, period, options)
+    return {
+      symbol,
+      period,
+      bars: page.bars.map(toKlineBarApi),
+      has_more: page.has_more,
+    }
+  }
   const params = new URLSearchParams({
     symbol,
     period,

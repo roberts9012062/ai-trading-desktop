@@ -14,6 +14,11 @@ export function resolveWsBase(
   location: WsLocation | undefined,
   envWs = process.env.NEXT_PUBLIC_WS_URL,
 ): string {
+  // 桌面端(Tauri):hostname 是 tauri.localhost,浏览器 hostname 判定不适用,
+  // 改用 desktop-boot.ts 注入的基址直连服务器(优先级:用户 localStorage 覆盖 > 构建默认)
+  if (typeof window !== "undefined" && window.__QH_WS_BASE__) {
+    return window.__QH_WS_BASE__
+  }
   // hostname 判定优先：测试环境(内网IP)连本地 backend:8002、生产公网(uusb.eu.org)连 3051 反代。
   // 不依赖构建时 NEXT_PUBLIC_WS_URL —— 曾因构建环境注入残留(uusb)导致测试环境误连公网入口，
   // 故浏览器侧一律按访问 hostname 判定；envWs 仅作 SSR/构建期无 location 时的兜底。

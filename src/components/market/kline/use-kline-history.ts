@@ -18,6 +18,8 @@ import {
 } from "react"
 import type { IChartApi } from "lightweight-charts"
 import { getKlineApi, getKlineBundleApi } from "@/lib/api"
+// K 线实时喂料:直连 Binance 轮询 forming bar(不经服务器转发),启动即生效
+import "@/lib/binance-forming"
 import { useMarketStore } from "@/stores/market"
 import type { KlineBar, KlinePeriod } from "@/types"
 

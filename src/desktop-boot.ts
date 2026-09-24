@@ -10,15 +10,24 @@
  * - Tauri(tauri dev / 打包后):注入 API/WS/SSE 三个基址,直连服务器。
  *
  * 服务器地址优先级:localStorage["atd_desktop_server"](用户覆盖)
- *   > VITE_DEFAULT_SERVER_BASE(构建注入) > 内置兜底(加密货币服务器 143.47.108.63:3001)
+ *   > VITE_DEFAULT_SERVER_BASE(构建注入) > 内置兜底(加密货币服务器后端直连 143.47.108.63:8002)
  */
 
-const DEFAULT_SERVER_BASE = "http://143.47.108.63:3001"
+const DEFAULT_SERVER_BASE = "http://143.47.108.63:8002"
+
+/** v0.2.1 历史值迁移:3001 是 Next 前端(WS 不可靠),曾作为默认/手动保存过 → 迁到后端直连 8002 */
+const LEGACY_SERVER_MIGRATIONS: Record<string, string> = {
+  "http://143.47.108.63:3001": "http://143.47.108.63:8002",
+}
 
 export function resolveDesktopServerBase(): string {
   let override = ""
   try {
     override = localStorage.getItem("atd_desktop_server") ?? ""
+    if (override && LEGACY_SERVER_MIGRATIONS[override]) {
+      override = LEGACY_SERVER_MIGRATIONS[override]
+      localStorage.setItem("atd_desktop_server", override)
+    }
   } catch {
     // localStorage 不可用时静默回落默认值
   }

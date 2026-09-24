@@ -106,10 +106,16 @@ export function offerRtFrames(
  * 读取历史尾部之后的累积 bar（含与历史最后一根同时间的 forming 帧）：
  * 先剪掉已被历史覆盖的旧键（< lastT），返回键 ≥ lastT 的时间升序列表。
  * 剪枝在读取时做——累积器不感知历史，历史重拉尾前移后自动淘汰。
+ * entry 不存在时创建空 entry 并触碰——「读取即注册活跃」,Binance 轮询
+ * 喂料器(lib/binance-forming)据此感知哪些 symbol×period 正在被图表消费。
  */
 export function readRtTail(key: string, lastT: string): KlineBar[] {
-  const entry = _store.get(key)
-  if (!entry) return []
+  let entry = _store.get(key)
+  if (!entry) {
+    if (_store.size >= MAX_KEYS) evictOldestKey()
+    entry = { bars: new Map(), touchedAt: Date.now() }
+    _store.set(key, entry)
+  }
   entry.touchedAt = Date.now()
   if (lastT) {
     for (const t of entry.bars.keys()) {
@@ -120,6 +126,21 @@ export function readRtTail(key: string, lastT: string): KlineBar[] {
     .sort((a, b) => (a < b ? -1 : 1))
     .map((t) => entry.bars.get(t)!)
     .filter(Boolean)
+}
+
+/** 最近 maxAgeMs 内被读取/写入的活跃组合(供 Binance 轮询喂料器感知消费方) */
+export function listActiveRtKeys(
+  maxAgeMs: number,
+): Array<{ symbol: string; period: string }> {
+  const now = Date.now()
+  const out: Array<{ symbol: string; period: string }> = []
+  for (const [k, e] of _store) {
+    if (now - e.touchedAt > maxAgeMs) continue
+    const idx = k.lastIndexOf(":")
+    if (idx <= 0) continue
+    out.push({ symbol: k.slice(0, idx), period: k.slice(idx + 1) })
+  }
+  return out
 }
 
 /** 清空累积器（测试用；不带 key 清全部） */
