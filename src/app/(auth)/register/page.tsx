@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuthStore } from "@/stores/auth"
 import { registerApi, getMeApi } from "@/lib/api"
+import { BrandLogo } from "@/components/common/brand-logo"
 import {
   getRegistrationStatusApi,
   type RegistrationStatus,
@@ -105,8 +106,8 @@ export default function RegisterPage(): React.JSX.Element {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[var(--bg-primary)] via-[var(--bg-secondary)] to-[var(--bg-primary)]">
       <div className="w-full max-w-md px-8 py-10 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] shadow-2xl">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-xl bg-[var(--primary)] flex items-center justify-center text-white font-bold text-2xl mb-4">
-            Q
+          <div className="mb-4">
+            <BrandLogo size={56} />
           </div>
           <h1 className="text-xl font-semibold text-[var(--text-primary)]">
             注册账号

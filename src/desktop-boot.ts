@@ -10,10 +10,10 @@
  * - Tauri(tauri dev / 打包后):注入 API/WS/SSE 三个基址,直连服务器。
  *
  * 服务器地址优先级:localStorage["atd_desktop_server"](用户覆盖)
- *   > VITE_DEFAULT_SERVER_BASE(构建注入) > 内置兜底(当前为空:K线走 Binance 直连,业务后端地址待定)
+ *   > VITE_DEFAULT_SERVER_BASE(构建注入) > 内置兜底(加密货币服务器 143.47.108.63:3001)
  */
 
-const DEFAULT_SERVER_BASE = ""
+const DEFAULT_SERVER_BASE = "http://143.47.108.63:3001"
 
 export function resolveDesktopServerBase(): string {
   let override = ""

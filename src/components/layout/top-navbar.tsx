@@ -8,6 +8,7 @@ import { useAppStore } from "@/stores/app"
 import { useAuthStore } from "@/stores/auth"
 import { useNotificationsStore } from "@/stores/notifications"
 import { useSessionStatus } from "@/hooks/use-session-status"
+import { BrandLogo } from "@/components/common/brand-logo"
 import { cn } from "@/lib/utils"
 
 /** 市场状态配置 */
@@ -79,9 +80,7 @@ export function TopNavbar(): React.JSX.Element {
       {/* 左侧：Logo + 状态灯 */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded bg-[var(--primary)] flex items-center justify-center text-white font-bold text-sm">
-            Q
-          </div>
+          <BrandLogo size={32} />
           <span className="text-[var(--text-primary)] font-semibold text-base hidden sm:inline">
             加密货币交易系统
           </span>
