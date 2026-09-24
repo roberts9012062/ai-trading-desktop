@@ -10,14 +10,15 @@
  * - Tauri(tauri dev / 打包后):注入 API/WS/SSE 三个基址,直连服务器。
  *
  * 服务器地址优先级:localStorage["atd_desktop_server"](用户覆盖)
- *   > VITE_DEFAULT_SERVER_BASE(构建注入) > 内置兜底(加密货币服务器后端直连 143.47.108.63:8002)
+ *   > VITE_DEFAULT_SERVER_BASE(构建注入) > 内置兜底(公网入口 b.00n.top)
  */
 
-const DEFAULT_SERVER_BASE = "http://143.47.108.63:8002"
+const DEFAULT_SERVER_BASE = "https://b.00n.top"
 
-/** v0.2.1 历史值迁移:3001 是 Next 前端(WS 不可靠),曾作为默认/手动保存过 → 迁到后端直连 8002 */
+/** 历史默认值迁移:统一迁到公网入口 https://b.00n.top(WS 升级已实测可用) */
 const LEGACY_SERVER_MIGRATIONS: Record<string, string> = {
-  "http://143.47.108.63:3001": "http://143.47.108.63:8002",
+  "http://143.47.108.63:3001": "https://b.00n.top",
+  "http://143.47.108.63:8002": "https://b.00n.top",
 }
 
 export function resolveDesktopServerBase(): string {

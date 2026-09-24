@@ -18,7 +18,8 @@ const SERVER_OVERRIDE_KEY = "atd_desktop_server"
 
 /** 预置服务器入口(DT 后端部署就绪后在此登记;当前留空,用户用自定义入口填写) */
 const PRESET_SERVERS: Array<{ label: string; base: string }> = [
-  { label: "加密货币服务器(直连)", base: "http://143.47.108.63:8002" },
+  { label: "公网入口", base: "https://b.00n.top" },
+  { label: "直连备用", base: "http://143.47.108.63:8002" },
 ]
 
 /** 后端系统身份(依据 FastAPI openapi info.title 判定,防连错期货系统后端) */
