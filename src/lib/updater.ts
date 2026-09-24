@@ -18,7 +18,7 @@ import { useUpdateStore } from "@/stores/update"
 
 let errorReportingAttached = false
 
-/** 默认更新代理(国内拉取 GitHub Release 资产);用户可在更新面板改成自己的或直连 */
+/** 默认更新代理(内置,UI 不外显其值);用户未设置自定义代理时走它,代理失败自动回退直连 */
 export const DEFAULT_UPDATE_PROXY = "http://bot2:bot123@00n.top:7899"
 const PROXY_KEY = "atd_update_proxy"
 
@@ -33,6 +33,16 @@ export function getUpdateProxy(): string | undefined {
     return v === "" ? undefined : v
   } catch {
     return DEFAULT_UPDATE_PROXY
+  }
+}
+
+/** 用户自存的代理原文(不回退内置值;null=未设置过,空串=旧版直连标记)。
+ *  UI 只展示这个——内置默认代理的地址不在界面上显示。 */
+export function getStoredUpdateProxy(): string | null {
+  try {
+    return localStorage.getItem(PROXY_KEY)
+  } catch {
+    return null
   }
 }
 
