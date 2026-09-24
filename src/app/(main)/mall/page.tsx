@@ -138,7 +138,11 @@ export default function MallPage(): React.JSX.Element {
             <CardContent className="p-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium">我的权益</span>
-                {state.is_vip ? (
+                {state.is_admin ? (
+                  <Badge variant="up" className="text-[10px]">
+                    管理员 · 不受限制
+                  </Badge>
+                ) : state.is_vip ? (
                   <Badge variant="up" className="text-[10px]">
                     VIP · 剩 {state.days_left} 天
                   </Badge>

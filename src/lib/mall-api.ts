@@ -47,6 +47,7 @@ export interface VipPlan {
 
 export interface VipMembershipState {
   is_vip: boolean
+  is_admin?: boolean
   expires_at: string | null
   days_left: number
   features: string[]
