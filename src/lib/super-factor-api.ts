@@ -1,22 +1,25 @@
 /** 超级因子挖掘 API 客户端 —— 长程任务 CRUD + 进度轮询 */
 
 import type { Champion } from "@/lib/factor-lab-api"
+import { CRYPTO_ASSETS } from "@/data/crypto-universe"
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
 const POLL_INTERVAL_MS = 5_000
 
 export interface MiningSymbol {
-  /** 品种代码（如 rb） */
+  /** 规范符号(小写,如 btcusdt)——与合约树/因子实验室统一口径 */
   code: string
-  /** 品种中文名（如 螺纹钢） */
+  /** 币种中文名（如 比特币） */
   name: string
-  /** 主力合约符号（如 rb2701），与因子实验室品种选项同口径；无映射时为 null */
+  /** 具体交易对符号;桌面端内置宇宙与 code 同值(无主力合约概念),保留字段兼容 */
   symbol: string | null
-  /** 主力合约名称（如 螺纹钢2701）；无映射时为 null */
+  /** 交易对名称;桌面端置 null 回退 name */
   symbol_name: string | null
   bars: number
   date_from: string | null
   date_to: string | null
+  /** 板块(跨币种验证伙伴分组;后端元数据源无此字段) */
+  sector?: string
 }
 
 export interface SupportedTimeframe {
@@ -112,10 +115,19 @@ export async function fetchSupported(): Promise<SupportedInfo> {
 }
 
 export async function fetchMiningSymbols(): Promise<MiningSymbol[]> {
-  const r = await request<{ total: number; items: MiningSymbol[] }>(
-    "/api/factor-mining/symbols",
-  )
-  return r.items
+  // 桌面端本地化:可挖掘币种 = 内置加密宇宙(Binance 现货 USDT 直连可拉),
+  // 不再调后端 /api/factor-mining/symbols(那是 qihuo 期货 PG 元数据口径,
+  // DT 服务器上为空导致下拉无内容);bars/日期元数据按需由 Binance 拉取时体现
+  return CRYPTO_ASSETS.map((a) => ({
+    code: a.code,
+    name: a.name,
+    symbol: a.code,
+    symbol_name: a.name,
+    bars: 0,
+    date_from: null,
+    date_to: null,
+    sector: a.sector,
+  }))
 }
 
 export async function createTask(

@@ -234,7 +234,7 @@ interface ConfigFormProps {
     name: string
     /** LLM 生成的种子候选(表单提交前已生成并校验) */
     llmSeedTokens?: number[][]
-    /** 跨品种验证伙伴(表单提交前已预加载):[[品种代码, bars], ...] */
+    /** 跨币种验证伙伴(表单提交前已预加载):[[币种代码, bars], ...] */
     crossPeers?: Array<[string, Array<Record<string, unknown>>]>
     /** 增强挖掘(selection_v2 + evolve_v2,仅本地) */
     enhanced: boolean
@@ -283,7 +283,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
   const [llmHint, setLlmHint] = useState("")
   const [llmError, setLlmError] = useState<string | null>(null)
   const [llmReady, setLlmReady] = useState<boolean | null>(null)
-  // 跨品种验证(深挖强化):同板块 1-4 个伙伴品种联合验证冠军
+  // 跨币种验证(深挖强化):同板块 1-4 个伙伴币种联合验证冠军
   const [useCrossValidate, setUseCrossValidate] = useState(false)
   const [crossCount, setCrossCount] = useState(4)
   const [crossError, setCrossError] = useState<string | null>(null)
@@ -338,7 +338,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!symbol.trim()) {
-      setSymbolError("请先选择品种（不再默认螺纹钢）")
+      setSymbolError("请先选择币种")
       return
     }
     setSymbolError(null)
@@ -364,11 +364,11 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
           return
         }
       }
-      // 跨品种验证:提交前预加载同板块伙伴 K 线(失败中止,用户明确开启了开关)
+      // 跨币种验证:提交前预加载同板块伙伴 K 线(失败中止,用户明确开启了开关)
       let crossPeers: Array<[string, Array<Record<string, unknown>>]> | undefined
       if (origin === "local" && useCrossValidate) {
         setCrossError(null)
-        setCrossStatus("正在准备跨品种验证…")
+        setCrossStatus("正在准备跨币种验证…")
         try {
           const { loadCrossPeers } = await import("./cross-validate")
           const bundle = await loadCrossPeers({
@@ -417,7 +417,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
       </div>
 
       <div className="space-y-1.5">
-        <Label>品种</Label>
+        <Label>币种</Label>
         <MiningSymbolCombobox
           value={symbol}
           onChange={(v) => {
@@ -693,11 +693,11 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
         </div>
       )}
 
-      {/* 跨品种验证(深挖强化):开启后冠军须通过同板块 1-4 个伙伴品种的
-          样本外联合验证(≥⌈K/2⌉ 个 sortino>0),过拟合因子在兄弟品种上现形 */}
+      {/* 跨币种验证(深挖强化):开启后冠军须通过同板块 1-4 个伙伴币种的
+          样本外联合验证(≥⌈K/2⌉ 个 sortino>0),过拟合因子在兄弟币种上现形 */}
       {origin === "local" && (
         <div className="space-y-1">
-          <Label>跨品种验证（可选）</Label>
+          <Label>跨币种验证（可选）</Label>
           <label className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)] cursor-pointer">
             <input
               type="checkbox"
@@ -707,7 +707,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
                 setCrossError(null)
               }}
             />
-            冠军须通过同板块伙伴品种的联合验证
+            冠军须通过同板块伙伴币种的联合验证
           </label>
           {useCrossValidate && (
             <div className="flex items-center gap-1">
@@ -734,8 +734,8 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
             <p className="text-[10px] text-[var(--primary)]">{crossStatus}</p>
           )}
           <p className="text-[10px] text-[var(--text-muted)] leading-tight">
-            自动选取同板块流动性前 N 个品种（提交时拉取其 K 线，数据不足的自动跳过）。
-            要求至少一半伙伴品种上因子不亏——只在单一品种上灵的公式大概率是巧合，
+            自动选取同板块流动性前 N 个币种（提交时拉取其 K 线，数据不足的自动跳过）。
+            要求至少一半伙伴币种上因子不亏——只在单一币种上灵的公式大概率是巧合，
             联合验证显著压低过拟合，但冠军数也会减少。
           </p>
         </div>
