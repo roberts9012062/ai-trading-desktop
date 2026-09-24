@@ -12,15 +12,35 @@ import {
   bjTradingDay,
 } from "./big-order-data.mjs"
 
+// 大单提醒默认全关后，命中判定测试统一用显式开启的设置
+const ALL_ON = {
+  ...DEFAULT_BIG_ORDER_SETTINGS,
+  buy_enabled: true,
+  sell_enabled: true,
+}
+
+test("默认设置：大单提醒全关", () => {
+  assert.equal(DEFAULT_BIG_ORDER_SETTINGS.buy_enabled, false)
+  assert.equal(DEFAULT_BIG_ORDER_SETTINGS.sell_enabled, false)
+  assert.equal(DEFAULT_BIG_ORDER_SETTINGS.popup_enabled, false)
+  assert.equal(DEFAULT_BIG_ORDER_SETTINGS.sound_enabled, false)
+  assert.equal(DEFAULT_BIG_ORDER_SETTINGS.voice_enabled, false)
+})
+
 test("isBigOrderHit 命中：达阈值且方向启用", () => {
-  assert.equal(isBigOrderHit("buy", 100, DEFAULT_BIG_ORDER_SETTINGS), true)
-  assert.equal(isBigOrderHit("buy", 99, DEFAULT_BIG_ORDER_SETTINGS), false)
-  assert.equal(isBigOrderHit("sell", 150, DEFAULT_BIG_ORDER_SETTINGS), true)
-  assert.equal(isBigOrderHit("sell", 100, DEFAULT_BIG_ORDER_SETTINGS), true)
+  assert.equal(isBigOrderHit("buy", 100, ALL_ON), true)
+  assert.equal(isBigOrderHit("buy", 99, ALL_ON), false)
+  assert.equal(isBigOrderHit("sell", 150, ALL_ON), true)
+  assert.equal(isBigOrderHit("sell", 100, ALL_ON), true)
+})
+
+test("isBigOrderHit 默认设置（全关）不命中", () => {
+  assert.equal(isBigOrderHit("buy", 10000, DEFAULT_BIG_ORDER_SETTINGS), false)
+  assert.equal(isBigOrderHit("sell", 10000, DEFAULT_BIG_ORDER_SETTINGS), false)
 })
 
 test("isBigOrderHit 方向禁用时不命中", () => {
-  const s = { ...DEFAULT_BIG_ORDER_SETTINGS, buy_enabled: false }
+  const s = { ...ALL_ON, buy_enabled: false }
   assert.equal(isBigOrderHit("buy", 500, s), false)
   assert.equal(isBigOrderHit("sell", 500, s), true)
 })

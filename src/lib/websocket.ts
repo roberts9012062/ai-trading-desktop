@@ -23,9 +23,13 @@ export function resolveWsBase(
   // 不依赖构建时 NEXT_PUBLIC_WS_URL —— 曾因构建环境注入残留(uusb)导致测试环境误连公网入口，
   // 故浏览器侧一律按访问 hostname 判定；envWs 仅作 SSR/构建期无 location 时的兜底。
   if (location) {
-    const protocol = location.protocol === "https:" ? "wss:" : "ws:"
+    // HTTPS 页面:WS 走同源 443(反代把 /ws/* 升级转发到后端),
+    // 不能打 wss://host:8002 —— 后端 8002 是纯 HTTP,浏览器混合内容也会拦
+    if (location.protocol === "https:") {
+      return `wss://${location.hostname}`
+    }
     const port = location.hostname === "uusb.eu.org" ? 3051 : 8002
-    return `${protocol}//${location.hostname}:${port}`
+    return `ws://${location.hostname}:${port}`
   }
   if (envWs && envWs.trim()) return envWs.replace(/\/$/, "")
   return "ws://localhost"

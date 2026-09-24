@@ -13,6 +13,7 @@ import {
   Activity,
   Timer,
   Key,
+  Crown,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/stores/auth"
@@ -27,6 +28,7 @@ const ADMIN_MENU = [
   { icon: Activity, label: "交易所行情源", path: "/admin/channels" },
   { icon: Timer, label: "刷新节奏", path: "/admin/refresh-interval" },
   { icon: Key, label: "API Keys", path: "/admin/api-keys" },
+  { icon: Crown, label: "VIP 商城", path: "/admin/vip" },
 ]
 
 /** 管理端 Layout Shell —— 强制 admin 角色 */

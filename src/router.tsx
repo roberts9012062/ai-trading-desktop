@@ -8,7 +8,7 @@
  * - app/page.tsx + components/landing/ + lib/showcase-api.ts → 已删除(Web 端宣传页,桌面端不需要)
  */
 import { Navigate, Outlet, Route, Routes } from "react-router-dom"
-
+import { useAuthStore } from "@/stores/auth"
 import LoginPage from "./app/(auth)/login/page"
 import RegisterPage from "./app/(auth)/register/page"
 
@@ -22,6 +22,7 @@ import BacktestPage from "./app/(main)/backtest/page"
 import DashboardPage from "./app/(main)/dashboard/page"
 import FactorLabPage from "./app/(main)/factor-lab/page"
 import HistoryPage from "./app/(main)/history/page"
+import MallPage from "./app/(main)/mall/page"
 import MarketPage from "./app/(main)/market/page"
 import MarketScreenerPage from "./app/(main)/market/screener/page"
 import MessagesPage from "./app/(main)/messages/page"
@@ -42,12 +43,19 @@ import AdminRiskControlPage from "./app/admin/risk-control/page"
 import AdminSettingsPage from "./app/admin/settings/page"
 import AdminTradingConfigPage from "./app/admin/trading-config/page"
 import AdminUsersPage from "./app/admin/users/page"
+import AdminVipPage from "./app/admin/vip/page"
 import AdminUserDetailPage from "./app/admin/users/[id]/page"
+
+/** 已登录访问 / 直接进工作台,未登录去登录页 */
+function RootRedirect(): React.JSX.Element {
+  const authed = Boolean(useAuthStore.getState().accessToken)
+  return <Navigate to={authed ? "/dashboard" : "/login"} replace />
+}
 
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
 
@@ -61,6 +69,7 @@ export function AppRoutes() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/factor-lab" element={<FactorLabPage />} />
         <Route path="/history" element={<HistoryPage />} />
+        <Route path="/mall" element={<MallPage />} />
         <Route path="/market" element={<MarketPage />} />
         <Route path="/market/screener" element={<MarketScreenerPage />} />
         <Route path="/messages" element={<MessagesPage />} />
@@ -83,6 +92,7 @@ export function AppRoutes() {
         <Route path="settings" element={<AdminSettingsPage />} />
         <Route path="trading-config" element={<AdminTradingConfigPage />} />
         <Route path="users" element={<AdminUsersPage />} />
+        <Route path="vip" element={<AdminVipPage />} />
         <Route path="users/:id" element={<AdminUserDetailPage />} />
       </Route>
 

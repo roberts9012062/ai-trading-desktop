@@ -5,16 +5,16 @@
  * TS store 与组件从这里导入，保证行为一致。
  */
 
-/** 默认设置（与后端 server_default 对齐） */
+/** 默认设置（与后端 server_default 对齐）——大单提醒默认全关，用户在设置面板自行开启 */
 export const DEFAULT_BIG_ORDER_SETTINGS = {
-  buy_enabled: true,
+  buy_enabled: false,
   buy_threshold: 100,
   buy_color: "#ef4444",
-  sell_enabled: true,
+  sell_enabled: false,
   sell_threshold: 100,
   sell_color: "#22c55e",
-  popup_enabled: true,
-  sound_enabled: true,
+  popup_enabled: false,
+  sound_enabled: false,
   voice_enabled: false,
 }
 

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import Link from "next/link"
 import {
   LayoutDashboard, BarChart3, LineChart,
-  Briefcase, FileText, Wallet,
+  Briefcase, FileText, Wallet, Crown,
   User, MessageSquare, ChevronLeft, ChevronRight,
   ChevronDown, Bot, Sparkles, FlaskConical,
   Dna, Cpu, Radar, Bookmark, Filter,
@@ -54,6 +54,7 @@ const MENU_ITEMS: MenuItem[] = [
   { icon: Briefcase, label: "持仓", path: "/positions", demo: false },
   { icon: FileText, label: "订单", path: "/orders", demo: false },
   { icon: Wallet, label: "资产", path: "/assets", demo: false },
+  { icon: Crown, label: "商城 VIP", path: "/mall", demo: false },
   { icon: Cpu, label: "超级因子", path: "/history", demo: false },
   { icon: User, label: "个人", path: "/profile", demo: false },
   { icon: Bot, label: "AI 设置", path: "/ai-settings", demo: false },
