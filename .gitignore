@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env.local
+.env.*.local
+*.tsbuildinfo
+src-tauri/target/
+src-tauri/gen/schemas/
+update-dist/
+证书/
+logs/
+.zcode/
+__pycache__/
+
+# 挖掘基准评测数据(scripts/export-bench-bars.py 导出)
+scripts/.bench-data/

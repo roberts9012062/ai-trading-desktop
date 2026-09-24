@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN" class="dark" data-font-size="standard">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Trading Desktop</title>
+    <!-- 首屏前恢复字号,避免闪一下再变大(原 Next 根布局内联脚本,逻辑不变) -->
+    <script>
+      ;(function () {
+        try {
+          var k = "atd_font_size"
+          var s = localStorage.getItem(k) || "standard"
+          var ok = { standard: 1, large: 1, xlarge: 1, xxlarge: 1 }
+          if (!ok[s]) s = "standard"
+          document.documentElement.setAttribute("data-font-size", s)
+        } catch (e) {
+          document.documentElement.setAttribute("data-font-size", "standard")
+        }
+      })()
+    </script>
+  </head>
+  <body class="antialiased font-sans">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

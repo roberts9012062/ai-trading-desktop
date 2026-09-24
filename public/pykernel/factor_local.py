@@ -1,0 +1,668 @@
+"""Pyodide 因子实验室入口:JSON 进、JSON 出。需先加载 numpy(loadPackage)。
+
+模式(由 payload["mode"] 调度):
+- "search"(默认):GP 因子搜索
+- "backtest_factor":单因子资金曲线回测(对应服务端 /api/factor-lab/backtest-factor
+  的纯计算部分,主体逐字移植;配额/鉴权/取数留服务端)
+
+另有分代步进挖掘会话(mine_start/mine_step/mine_dispose,供本地长程挖掘任务
+M3 使用):每次 mine_step 只推进一代就把控制权交回 JS,进度上报/暂停/取消都
+落在代边界上,worker 不会被一次性几十分钟的 search() 阻塞死。
+评估口径与 search()/search_stepwise 完全同源,不另写一套。
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import fields as dc_fields
+
+import numpy as np
+
+from factor_lab import execute
+from factor_lab.features import FEATURE_NAMES, feature_matrix
+from factor_lab.scoring.cost import DEFAULT_SLIPPAGE_TICKS, turnover_cost_rate
+from factor_lab.scoring.evaluate import (
+    evaluate_factor,
+    evaluate_factor_live,
+    next_ret,
+    position_from_factor,
+)
+from factor_lab.scoring.periods import bars_per_year
+from factor_lab.scoring.walk_forward import MIN_TEST_BARS, split_bars
+from factor_lab.search import (
+    SearchConfig,
+    _dedup_top,
+    search,
+    search_stepwise,
+)
+from factor_lab.token_encoding import FEAT_OFFSET as _FEAT_OFFSET
+from factor_lab.vm import is_constant, validate
+
+# 允许透传的 SearchConfig 字段(其余保持内核默认;LLM coach/配额/落库属服务端)
+_CFG_FIELDS = {f.name for f in dc_fields(SearchConfig)}
+
+# 标准特征空间大小(与服务端 FEATURE_NAMES 对齐的部分;id 36-39 为桌面端
+# 本地专属批次)。含 id ≥ 该值 token 的公式服务端无法执行 → 打 local_only 标,
+# 前端拦截收藏/服务端任务挂载;本地引擎 AI 任务(客户端算信号)可用。
+# 服务端将来扩容其特征时需同步抬高该值。
+STANDARD_FEAT_COUNT = 36
+
+
+def _mark_local_only(metrics: dict, tokens: list) -> dict:
+    """纯函数:返回带 local_only 标记的 metrics 副本(不改入参)
+
+    判定只看特征 token 区间 [STANDARD_FEAT_COUNT, FEAT_OFFSET)——算子
+    token 从 FEAT_OFFSET=64 起,不经排除会把所有含算子的公式误判为本地专属。
+    """
+    out = dict(metrics)
+    out["local_only"] = any(
+        STANDARD_FEAT_COUNT <= int(t) < _FEAT_OFFSET for t in tokens
+    )
+    return out
+
+
+def run(payload_json: str, bars_json: str) -> str:
+    payload = json.loads(payload_json)
+    mode = str(payload.get("mode") or "search")
+    bars = json.loads(bars_json)
+    if mode == "backtest_factor":
+        return run_backtest_factor(payload, bars)
+    if mode == "mine_features":
+        return run_mine_features(payload, bars)
+    if mode == "mine_gpu_dispose":
+        _GPU_INPUTS.pop(str(payload.get("gpu_session_id") or ""), None)
+        return json.dumps({"disposed": True})
+    if mode == "mine_precise":
+        return run_mine_precise(payload, bars)
+    if mode == "mine_eval_shard":
+        return run_mine_shard(payload, bars)
+    if mode == "mine_portfolio":
+        return run_mine_portfolio(payload, bars)
+    if mode == "llm_vocab":
+        return run_llm_vocab(payload, bars)
+    if mode == "cross_peer_symbols":
+        return run_cross_peer_symbols(payload, bars)
+    if mode == "version":
+        return json.dumps({"kernel_version": kernel_version()}, ensure_ascii=False)
+    return run_search(payload, bars)
+
+
+def run_search(payload: dict, bars: list) -> str:
+    cfg_kwargs = {k: payload[k] for k in _CFG_FIELDS if k in payload}
+    # cost=None(前端"自动推导")需按服务端 search_api 同规则解析成真实成本率:
+    # 原样透传 None 会让 evaluate_factor 对全体候选抛异常,被 eval 防护静默
+    # 吞掉后 best_seen 为空,最终 0 冠军且无任何报错
+    if "cost" in cfg_kwargs and cfg_kwargs["cost"] is None:
+        cfg_kwargs["cost"] = resolve_cost(
+            str(payload.get("symbol") or ""), bars, None
+        )
+    cfg = SearchConfig(**cfg_kwargs)
+    champions = search(bars, str(payload.get("timeframe") or "1d"), cfg)
+    return json.dumps(
+        [
+            {
+                "tokens": c.tokens,
+                "text": c.text,
+                "metrics": _mark_local_only(c.metrics, c.tokens),
+                "composite": c.composite,
+            }
+            for c in champions
+        ],
+        ensure_ascii=False,
+        default=str,
+    )
+
+
+# ── 单因子回测(服务端 backtest_api.py 主体逐字移植)─────────────────────
+
+
+def resolve_cost(symbol: str, bars: list, cost: float | None) -> float:
+    """解析单位 turnover 成本率(服务端 api/factor_lab/common.py 同名函数移植)"""
+    if cost is not None:
+        return cost
+    valid = [float(b.get("close") or 0) for b in bars]
+    valid = [c for c in valid if c > 0]
+    if not valid:
+        return 0.0
+    recent = valid[-max(60, len(valid) // 4):]
+    price = sorted(recent)[len(recent) // 2]
+    return turnover_cost_rate(symbol, price, DEFAULT_SLIPPAGE_TICKS)
+
+
+def _round_value(v):
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, dict):
+        return {kk: _round_value(vv) for kk, vv in v.items()}
+    if isinstance(v, list):
+        return [_round_value(x) for x in v]
+    if isinstance(v, (int, float)):
+        return round(float(v), 4)
+    return v
+
+
+def _round_metrics(metrics: dict) -> dict:
+    return {k: _round_value(v) for k, v in metrics.items()}
+
+
+def run_backtest_factor(payload: dict, bars: list) -> str:
+    symbol = str(payload.get("symbol") or "")
+    timeframe = str(payload.get("timeframe") or "1d")
+    tokens = payload.get("factor_tokens") or []
+    initial_cash = float(payload.get("initial_cash") or 100000.0)
+    cost_input = payload.get("cost")
+    wf_folds = int(payload.get("walk_forward_folds") or 0)
+    norm_window = int(payload.get("norm_window") or 250)  # P0-2 因果归一化窗
+
+    mat = feature_matrix(bars)
+    factor = execute(tokens, mat, norm_window)
+    if factor is None:
+        return json.dumps({"error": "因子公式无效或无法执行"}, ensure_ascii=False)
+    close = np.array([float(b.get("close") or 0) for b in bars], dtype=float)
+    cost = resolve_cost(symbol, bars, None if cost_input is None else float(cost_input))
+    periods = bars_per_year(bars, timeframe)
+    metrics = evaluate_factor(factor, close, cost=cost, periods=periods)
+    # 实盘离散口径(±1 手、0.3 入场/0.05 平仓)
+    live_metrics = evaluate_factor_live(factor, close, cost=cost, periods=periods)
+    pos = position_from_factor(factor)
+    ret = next_ret(close)
+    # P1-6:与 evaluate_factor 完全同式——prev[0]=0(首根保留建仓成本,不用
+    # 环绕的 pos[-1]);资金曲线右移一根,第 t 根显示的是 t-1 决策已实现的
+    # 盈亏(原实现把 i→i+1 的收益标在 i 上,图形上"信号一出当根就赚钱")
+    prev = np.roll(pos, 1)
+    prev[0] = 0.0
+    pnl = pos * ret - np.abs(pos - prev) * cost
+    realized = np.roll(pnl, 1)
+    realized[0] = 0.0
+    equity = initial_cash * (1.0 + np.cumsum(realized))
+
+    wf_detail = None
+    if wf_folds > 0:
+        from factor_lab.scoring.walk_forward import walk_forward_eval
+
+        wf_detail = walk_forward_eval(tokens, bars, timeframe, cost, wf_folds)
+
+    n = len(bars)
+    step = max(1, n // 300)
+    curve = [
+        {
+            "time": str(bars[i].get("time") or ""),
+            "equity": round(float(equity[i]), 2),
+            "position": round(float(pos[i]), 4),
+            "price": round(float(close[i]), 4),
+        }
+        for i in range(0, n, step)
+    ]
+    if (n - 1) % step:
+        curve.append(
+            {
+                "time": str(bars[-1].get("time") or ""),
+                "equity": round(float(equity[-1]), 2),
+                "position": round(float(pos[-1]), 4),
+                "price": round(float(close[-1]), 4),
+            }
+        )
+
+    result = {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "bars": n,
+        "range": {
+            "from": bars[0].get("time") if bars else None,
+            "to": bars[-1].get("time") if bars else None,
+        },
+        "cost": cost,
+        "cost_auto": cost_input is None,
+        "metrics": _round_metrics(metrics),
+        "live_metrics": _round_metrics(live_metrics),
+        "equity_curve": curve,
+    }
+    if wf_detail is not None:
+        result["walk_forward"] = {
+            "folds": wf_detail["folds"],
+            "wf_stable": wf_detail["wf_stable"],
+            "wf_mean_test_sortino": round(wf_detail["wf_mean_test_sortino"], 4),
+            "wf_mean_test_ann": round(wf_detail["wf_mean_test_ann"], 4),
+            "wf_consistency": round(wf_detail["wf_consistency"], 4),
+            "n_folds": wf_detail["n_folds"],
+        }
+    return json.dumps(result, ensure_ascii=False, default=str)
+
+
+# ── 冠军组合评估(深挖强化 M4)─────────────────────────────────
+
+
+def run_mine_portfolio(payload: dict, bars: list) -> str:
+    """冠军组合评估(等权/IC 加权 vs 最优单因子,scoring/portfolio.py 现成实现)
+
+    payload 未带切分参数时在全段 bars 上评估(旧口径)。带 train_ratio/
+    test_recent_bars 时只在样本外段评估(IC 权重只用训练段估计):冠军是在
+    训练段上挑出来的,全段组合指标含训练段 = 样本内虚高。selection_v2 时
+    进一步只用封存段(验证段已参与冠军遴选)。<2 个可执行因子时 portfolio=None。
+    """
+    from factor_lab.scoring.portfolio import evaluate_portfolio
+    from factor_lab.search import holdout_len
+
+    symbol = str(payload.get("symbol") or "")
+    timeframe = str(payload.get("timeframe") or "1d")
+    tokens_list: list[list[int]] = []
+    for raw in payload.get("tokens_list") or []:
+        tokens = [int(t) for t in raw if isinstance(t, (int, float))]
+        if tokens:
+            tokens_list.append(tokens)
+    if len(tokens_list) < 2:
+        return json.dumps({"portfolio": None}, ensure_ascii=False)
+    cost_input = payload.get("cost")
+    cost = resolve_cost(
+        symbol, bars, None if cost_input is None else float(cost_input)
+    )
+    eval_from: int | None = None
+    segment = "full"
+    if payload.get("train_ratio") or payload.get("test_recent_bars"):
+        split_cfg = SearchConfig(
+            train_ratio=float(payload.get("train_ratio") or 0.0),
+            test_recent_bars=int(payload.get("test_recent_bars") or 0),
+        )
+        _train, test = _split_train_test(split_cfg, bars)
+        if len(test) >= MIN_TEST_BARS:
+            eval_from, segment = len(bars) - len(test), "test"
+            n_hold = holdout_len(len(test)) if payload.get("selection_v2") else 0
+            if n_hold:
+                eval_from, segment = len(bars) - n_hold, "holdout"
+    result = evaluate_portfolio(bars, timeframe, tokens_list, cost, eval_from=eval_from)
+    if result is not None and eval_from is not None:
+        result["segment"] = segment
+        result["eval_bars"] = len(bars) - eval_from
+    return json.dumps(
+        {"portfolio": _round_value(result)}, ensure_ascii=False, default=str
+    )
+
+
+# ── LLM 种子词表(路线 B 本地化,深挖强化 M5)─────────────────────
+
+
+def run_llm_vocab(payload: dict, bars: list) -> str:
+    """特征/算子词表 + token 编码规则 —— LLM 生成因子候选的输入约定
+
+    从 FEATURE_NAMES/OPS_CONFIG/文案表直接产出(单一事实源,不另维护一份
+    JS 词表);生成的 token 仍走 StackVM 校验,非法候选会被丢弃。
+    """
+    from factor_lab.express import _FEAT_TEXT, _OP_TEXT
+    from factor_lab.ops import OPS_CONFIG
+    from factor_lab.token_encoding import FEAT_OFFSET
+
+    feats = [
+        {"id": i, "name": n, "text": _FEAT_TEXT.get(n, n)}
+        for i, n in enumerate(FEATURE_NAMES)
+    ]
+    ops = [
+        {
+            "id": FEAT_OFFSET + i,
+            "name": str(entry[0]),
+            "text": _OP_TEXT.get(str(entry[0]), str(entry[0])),
+            "arity": int(entry[2]),
+        }
+        for i, entry in enumerate(OPS_CONFIG)
+    ]
+    return json.dumps(
+        {"feat_offset": FEAT_OFFSET, "features": feats, "ops": ops},
+        ensure_ascii=False,
+    )
+
+
+# ── 跨品种验证伙伴解析(深挖强化)───────────────────────────────
+
+
+def run_cross_peer_symbols(payload: dict, bars: list) -> str:
+    """品种 → 同板块验证伙伴品种代码(按板块内流动性排序取前 count 个)
+
+    板块映射单一事实源(product_sectors);调用方拿代码自行拉 K 线组装
+    cross_peers 注入 SearchConfig(严格筛 ≥⌈K/2⌉ 伙伴 sortino>0)。
+    """
+    from product_sectors import get_cross_peers, get_sector
+    from data.contracts import get_code_for_symbol
+
+    symbol = str(payload.get("symbol") or "")
+    raw_count = payload.get("count")
+    count = int(raw_count) if raw_count is not None else 4
+    count = max(1, min(4, count))
+    code = get_code_for_symbol(symbol) or (
+        "".join(ch for ch in symbol.lower() if ch.isalpha())
+    )
+    return json.dumps(
+        {
+            "code": code,
+            "sector": get_sector(code),
+            "peers": get_cross_peers(code, count),
+        },
+        ensure_ascii=False,
+    )
+
+
+def kernel_version() -> str:
+    # 批次三口径变更(P0-2 因果归一化——改变仓位序列本身;P1-7 warmup 切片
+    # 与 MIN_TEST_BARS=120)。批次二为 .2(P0-3/P1-4/P1-6/P1-8/P2-19):
+    # 同因子在新旧内核下指标不同,历史/收藏按此戳区分口径
+    return "pykernel-factor-2026-09-01.3"
+
+
+# ── 分代步进挖掘会话(本地长程任务 M3) ─────────────────────────
+
+
+_SESSIONS: dict[str, dict] = {}
+
+
+def _decode_seed_best(raw) -> list[tuple[float, list[int], dict]] | None:
+    """JS 持久化的历史最优摘要 → search_stepwise 的 seed_best 格式。
+
+    续训语义(决策记录 D-1):start_generation 只跳过已完成代数,种群重新随机
+    初始化,seed_best 注入历史最优作种子进入新种群——不是精确恢复演化轨迹。
+    """
+    if not raw:
+        return None
+    out: list[tuple[float, list[int], dict]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        try:
+            comp = float(item.get("composite"))
+            tokens = [int(t) for t in (item.get("tokens") or [])]
+        except (TypeError, ValueError):
+            continue
+        metrics = item.get("metrics") or {}
+        if tokens:
+            out.append((comp, tokens, metrics))
+    return out or None
+
+
+def mine_start(payload_json: str, bars_json: str) -> str:
+    """创建分代步进会话( bars 由会话持有,后续 mine_step 不再重传),返回 session_id"""
+    payload = json.loads(payload_json)
+    bars = json.loads(bars_json)
+    cfg_kwargs = {k: payload[k] for k in _CFG_FIELDS if k in payload}
+    # cost=null(前端"自动推导")与 run_search 同规则解析,防止 None 透传导致
+    # 全体候选评估异常被静默吞掉、0 冠军无报错
+    if "cost" in cfg_kwargs and cfg_kwargs["cost"] is None:
+        cfg_kwargs["cost"] = resolve_cost(
+            str(payload.get("symbol") or ""), bars, None
+        )
+    cfg = SearchConfig(**cfg_kwargs)
+    seed_best = _decode_seed_best(payload.get("seed_best"))
+    gen = search_stepwise(
+        bars,
+        str(payload.get("timeframe") or "1d"),
+        cfg,
+        start_generation=int(payload.get("start_generation") or 0),
+        seed_best=seed_best,
+    )
+    sid = str(payload.get("session_id") or "s1")
+    _SESSIONS[sid] = {"gen": gen}
+    return json.dumps({"session_id": sid}, ensure_ascii=False)
+
+
+def mine_step(session_id: str) -> str:
+    """推进一代;返回该代快照,迭代完毕返回 {"done": true}"""
+    s = _SESSIONS.get(session_id)
+    if s is None:
+        return json.dumps({"error": "会话不存在"}, ensure_ascii=False)
+    try:
+        snap = next(s["gen"])
+    except StopIteration:
+        _SESSIONS.pop(session_id, None)
+        return json.dumps({"done": True}, ensure_ascii=False)
+    return json.dumps(
+        {
+            "done": False,
+            "generation": snap.generation,
+            "total_generations": snap.total_generations,
+            "best_composite": snap.best_composite,
+            "champions": [
+                {
+                    "tokens": c.tokens,
+                    "text": c.text,
+                    "metrics": _mark_local_only(_round_metrics(c.metrics), c.tokens),
+                    "composite": c.composite,
+                }
+                for c in snap.champions
+            ],
+        },
+        ensure_ascii=False,
+        default=str,
+    )
+
+
+def mine_dispose(session_id: str) -> str:
+    _SESSIONS.pop(session_id, None)
+    return "{}"
+
+
+# ── GPU 粗排配套入口(M4) ─────────────────────────────────────
+#
+# 分工(文档 2.8):树的生成/交叉/变异在 JS,因子求值+适应度粗排在 WGSL(f32),
+# 每代 top-K 的精确指标与最继行情一律回到本内核(f64)。由此两个入口:
+# - mine_features:导出训练段特征矩阵/年化基数/成本率 —— 特征必须由内核产出,
+#   GPU 不重算特征,否则出现第三套口径;
+# - mine_precise:给定候选 tokens 做 f64 精算,并入 best_seen 后走 _dedup_top
+#   (严格筛/walk-forward/兜底回退全部复用既有 Python 实现)。GPU 的任何
+#   数字不落 UI/DB/实盘路径。
+
+
+def _split_train_test(cfg: SearchConfig, bars: list) -> tuple[list, list]:
+    """防过拟合切分 —— 与 search()/search_stepwise() 逐字同源(单点维护)"""
+    if cfg.test_recent_bars > 0:
+        cut = max(MIN_TEST_BARS, len(bars) - cfg.test_recent_bars)
+        if cut < MIN_TEST_BARS or (len(bars) - cut) < MIN_TEST_BARS:
+            return list(bars), []
+        return list(bars[:cut]), list(bars[cut:])
+    if cfg.train_ratio > 0.0:
+        return split_bars(bars, cfg.train_ratio)
+    return list(bars), []
+
+
+_GPU_INPUTS: dict = {}
+
+
+def _gpu_input_key(payload: dict, cfg: SearchConfig) -> tuple:
+    return (str(payload.get("timeframe") or "1d"), cfg.train_ratio, cfg.test_recent_bars)
+
+
+def run_mine_features(payload: dict, bars: list) -> str:
+    """训练段特征矩阵 + periods + 已解析成本率(GPU 粗排的只读输入)"""
+    timeframe = str(payload.get("timeframe") or "1d")
+    cfg_kwargs = {
+        k: payload[k] for k in _CFG_FIELDS if k in payload and k != "cost"
+    }
+    cfg = SearchConfig(**cfg_kwargs)
+    train_bars, test_bars = _split_train_test(cfg, bars)
+    mat = feature_matrix(train_bars)
+    periods = bars_per_year(train_bars, timeframe)
+    cost_input = payload.get("cost")
+    cost = resolve_cost(
+        str(payload.get("symbol") or ""), bars, None if cost_input is None else float(cost_input)
+    )
+    session_id = str(payload.get("gpu_session_id") or "")
+    if session_id:
+        if session_id in _GPU_INPUTS:
+            raise ValueError("GPU input session already exists")
+        if len(_GPU_INPUTS) >= 8:
+            raise ValueError("Too many active GPU input sessions")
+        # Inputs are task-frozen; only preparation is cached, never f64 results.
+        _GPU_INPUTS[session_id] = {
+            "key": _gpu_input_key(payload, cfg),
+            "bars": bars, "train": train_bars, "test": test_bars, "matrix": mat,
+            "close": np.array([float(b.get("close") or 0) for b in train_bars], dtype=float),
+            "periods": periods,
+        }
+    return json.dumps(
+        {
+            "feature_names": list(FEATURE_NAMES),
+            "matrix": [[float(v) for v in row] for row in mat],
+            "periods": int(periods),
+            "cost": float(cost),
+            "train_len": len(train_bars),
+            "total_len": len(bars),
+        },
+        ensure_ascii=False,
+    )
+
+
+# ── 精算分片(多 Pyodide worker 并行,深挖强化)──────────────────
+#
+# 每代 top-K 候选的评估(execute + evaluate_factor)是纯计算、无状态,
+# 分片到 N 个 worker 并行;有状态的 _dedup_top(WF/测试段/跨品种/兜底)
+# 仍单点在主实例出权威数字。bars 冻结(任务快照),分片 worker 首次调用
+# 缓存 bars 与任务级参数,后续每代只传候选分片。
+
+_SHARD: dict = {}
+
+
+def run_mine_shard(payload: dict, bars: list) -> str:
+    """分片评估:输入候选 tokens,输出 [{composite, tokens, metrics}]。
+
+    bars 非空时更新缓存(任务级参数一并缓存);为空时用缓存——调用方
+    首次带 bars 初始化,后续每代只传 candidates(载荷几十 KB)。
+    评估循环与 run_mine_precise 的候选段逐字同源(单点维护)。
+    """
+    if bars:
+        _SHARD["bars"] = bars
+        _SHARD["payload"] = payload
+    base = _SHARD.get("payload") or payload
+    shard_bars = _SHARD.get("bars") or []
+    timeframe = str(base.get("timeframe") or "1d")
+    cfg_kwargs = {k: base[k] for k in _CFG_FIELDS if k in base}
+    if "cost" in cfg_kwargs and cfg_kwargs["cost"] is None:
+        cfg_kwargs["cost"] = resolve_cost(
+            str(base.get("symbol") or ""), shard_bars, None
+        )
+    cfg = SearchConfig(**cfg_kwargs)
+    train_bars, _test = _split_train_test(cfg, shard_bars)
+    feat_mat = feature_matrix(train_bars)
+    close = np.array([float(b.get("close") or 0) for b in train_bars], dtype=float)
+    periods = bars_per_year(train_bars, timeframe)
+
+    out = []
+    for raw in payload.get("candidates") or []:
+        tokens = [int(t) for t in raw if isinstance(t, (int, float))]
+        if not tokens:
+            continue
+        if validate(tokens):
+            continue
+        try:
+            factor = execute(tokens, feat_mat)
+            if factor is None or is_constant(factor):
+                continue
+            metrics = evaluate_factor(factor, close, cost=cfg.cost, periods=periods)
+        except Exception:
+            continue
+        comp = float(metrics["composite"]) - 0.02 * max(0, len(tokens) - 12)
+        out.append({"composite": comp, "tokens": tokens, "metrics": metrics})
+    return json.dumps({"evaluated": out}, ensure_ascii=False, default=str)
+
+
+def run_mine_precise(payload: dict, bars: list) -> str:
+    """GPU 粗排后的 f64 精算 + 权威排行(search() 同口径,粗排分数不进任何结果)"""
+    session_id = str(payload.get("gpu_session_id") or "")
+    prepared = None
+    if session_id:
+        prepared = _GPU_INPUTS.get(session_id)
+        if prepared is None:
+            raise ValueError("GPU input session missing; restart mining task")
+        if bars:
+            raise ValueError("GPU input session cannot replace frozen bars")
+        bars = prepared["bars"]
+    timeframe = str(payload.get("timeframe") or "1d")
+    cfg_kwargs = {k: payload[k] for k in _CFG_FIELDS if k in payload}
+    if "cost" in cfg_kwargs and cfg_kwargs["cost"] is None:
+        cfg_kwargs["cost"] = resolve_cost(
+            str(payload.get("symbol") or ""), bars, None
+        )
+    cfg = SearchConfig(**cfg_kwargs)
+    if prepared is not None:
+        if prepared["key"] != _gpu_input_key(payload, cfg):
+            raise ValueError("GPU input session configuration mismatch")
+        train_bars, test_bars = prepared["train"], prepared["test"]
+        feat_mat, close, periods = prepared["matrix"], prepared["close"], prepared["periods"]
+    else:
+        train_bars, test_bars = _split_train_test(cfg, bars)
+        feat_mat = feature_matrix(train_bars)
+        close = np.array([float(b.get("close") or 0) for b in train_bars], dtype=float)
+        periods = bars_per_year(train_bars, timeframe)
+    use_test = bool(test_bars) and len(test_bars) >= MIN_TEST_BARS
+
+    best_seen: list[tuple[float, list[int], dict]] = list(
+        _decode_seed_best(payload.get("best_seen")) or []
+    )
+    for raw in payload.get("candidates") or []:
+        tokens = [int(t) for t in raw if isinstance(t, (int, float))]
+        if not tokens:
+            continue
+        if validate(tokens):
+            continue
+        try:
+            factor = execute(tokens, feat_mat)
+            if factor is None or is_constant(factor):
+                continue
+            metrics = evaluate_factor(factor, close, cost=cfg.cost, periods=periods)
+        except Exception:
+            continue
+        comp = float(metrics["composite"]) - 0.02 * max(0, len(tokens) - 12)
+        best_seen.append((comp, tokens, metrics))
+
+    # 分片 worker 已评估的候选直接并入(评估在 shard 池完成,此处零重复计算)
+    for raw in payload.get("evaluated") or []:
+        if not isinstance(raw, dict):
+            continue
+        # 护栏:只接受带完整 f64 指标的条目(分片 worker 的 evaluate_factor 产出)。
+        # 缺 sortino 说明不是内核 f64 结果 —— 丢弃,不允许进 best_seen/champions
+        # (GPU 的任何数字只许用于排序,绝不出数)。
+        if "sortino" not in (raw.get("metrics") or {}):
+            continue
+        tokens = [
+            int(t) for t in raw.get("tokens") or [] if isinstance(t, (int, float))
+        ]
+        if not tokens:
+            continue
+        best_seen.append(
+            (float(raw.get("composite") or 0.0), tokens, raw.get("metrics") or {})
+        )
+
+    trials = int(payload.get("trials") or 0)
+    champions = _dedup_top(
+        list(best_seen),
+        cfg.top_n,
+        test_bars=test_bars,
+        timeframe=timeframe,
+        cost=cfg.cost,
+        use_test=use_test,
+        walk_forward_folds=cfg.walk_forward_folds,
+        all_bars=bars,
+        train_bars=train_bars,
+        trials=trials,
+        live_fill_gate=cfg.live_fill_gate,
+        # 跨品种验证:伙伴 bars 由 JS 预加载注入(无数据时内核返回通过,不误杀)
+        cross_peers=cfg.cross_peers,
+        selection_v2=cfg.selection_v2,
+        live_entry_gate=cfg.live_entry_gate,
+    )
+    # best_seen 裁剪:_dedup_top 的 shortlist 只取 max(3·top_n, top_n+5) 个,
+    # 保留前 60 条足够跨代传递且载荷有界
+    best_seen.sort(key=lambda x: x[0], reverse=True)
+    return json.dumps(
+        {
+            "champions": [
+                {
+                    "tokens": c.tokens,
+                    "text": c.text,
+                    "metrics": _mark_local_only(_round_metrics(c.metrics), c.tokens),
+                    "composite": c.composite,
+                }
+                for c in champions
+            ],
+            "best_seen": [
+                {"composite": c, "tokens": t, "metrics": _round_metrics(m)}
+                for c, t, m in best_seen[:60]
+            ],
+        },
+        ensure_ascii=False,
+        default=str,
+    )

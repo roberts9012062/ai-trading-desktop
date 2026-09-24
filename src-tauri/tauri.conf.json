@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ai-trading-desktop",
+  "version": "0.1.0",
+  "identifier": "com.aitrading.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "AI Trading Desktop",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1180,
+        "minHeight": 720
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE4OTU4RjhEMzQ2RERGNTMKUldSVDMyMDBqWStWR1BmR1lXR2pGOW0wYWV4aEZ2RFRpV1FFOC9pYjNtTGJKQUR2bWhVL1hvN3UK",
+      "endpoints": [
+        "https://gist.githubusercontent.com/roberts9012062/373489c602619a435df63257d034849d/raw/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}
