@@ -145,7 +145,6 @@ export default function LoginPage(): React.JSX.Element {
   const { login } = useAuthStore()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
-  const [tradingMode, setTradingMode] = useState<"live" | "virtual">("live")
   const [remember, setRemember] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
@@ -225,7 +224,7 @@ export default function LoginPage(): React.JSX.Element {
       const authRes = await loginApi({
         account: username,
         password,
-        trading_mode: tradingMode,
+        trading_mode: "live",
       })
       // 先存 token，再获取用户信息（会话默认 7 天；盘模式绑定在 JWT）
       localStorage.setItem("access_token", authRes.access_token)
@@ -236,7 +235,7 @@ export default function LoginPage(): React.JSX.Element {
 
       const user = await getMeApi()
       login(
-        { ...user, trading_mode: user.trading_mode ?? tradingMode },
+        { ...user, trading_mode: user.trading_mode ?? "live" },
         authRes.access_token,
         authRes.refresh_token,
       )
@@ -300,39 +299,6 @@ export default function LoginPage(): React.JSX.Element {
               autoComplete={remember ? "current-password" : "off"}
               required
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label>数据盘（登录后不可切换）</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setTradingMode("live")}
-                className={`h-10 rounded-md border text-sm transition-colors ${
-                  tradingMode === "live"
-                    ? "border-[var(--primary)] bg-[var(--primary)]/15 text-[var(--primary)]"
-                    : "border-[var(--border)] text-[var(--text-secondary)]"
-                }`}
-              >
-                实盘交易
-              </button>
-              <button
-                type="button"
-                onClick={() => setTradingMode("virtual")}
-                className={`h-10 rounded-md border text-sm transition-colors ${
-                  tradingMode === "virtual"
-                    ? "border-[var(--accent-warn)] bg-[var(--accent-warn)]/15 text-[var(--accent-warn)]"
-                    : "border-[var(--border)] text-[var(--text-secondary)]"
-                }`}
-              >
-                虚拟盘
-              </button>
-            </div>
-            <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
-              {tradingMode === "live"
-                ? "实盘：直连 OKX / 币安 / 芝麻开门 真实下单（需配置 API 凭证）"
-                : "虚拟盘：7×24 模拟撮合 + 独立虚拟资金（与实盘完全隔离）"}
-            </p>
           </div>
 
           <div className="flex items-center justify-between">
