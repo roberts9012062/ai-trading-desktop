@@ -54,7 +54,16 @@ import { KindParams } from "@/components/ai-trading/form/create-quant-params"
 const TF_MINUTES: Record<string, number> = {
   "1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60, "1d": 1440,
 }
-const INTERVAL_CHIPS = [1, 2, 3, 5, 10, 15, 30, 60, 120, 240, 480, 720, 1440]
+/** 秒 → 友好文案（间隔档显示用） */
+function secLabel(v: number): string {
+  if (v >= 86400) return "1天"
+  if (v >= 3600) return v % 3600 === 0 ? `${v / 3600}小时` : `${v}秒`
+  if (v >= 60) return v % 60 === 0 ? `${v / 60}分钟` : `${v}秒`
+  return `${v}秒`
+}
+
+/** 快捷间隔档（秒，最低 3 秒），渲染时过滤 ≤ 周期上限 */
+const INTERVAL_CHIPS = [3, 5, 10, 15, 30, 60, 120, 300, 900, 1800, 3600, 7200, 14400, 86400]
 
 /** 全部量化策略类型集合（与 quant-strategy.ts 同源，避免重复维护漏判） */
 const QUANT_STRATEGY_SET = new Set<string>(QUANT_KIND_OPTIONS.map((o) => o.value))
@@ -103,8 +112,8 @@ export function EditTaskDialog({
   const [marginModel, setMarginModel] = useState({ marginPerTrade: 100, leverage: 10 })
   // 量化策略参数（停止后可改再继续）：strategy_params ↔ 表单
   const [quantParams, setQuantParams] = useState<QuantParamsState>(DEFAULT_QUANT_PARAMS)
-  // 量化分析间隔（分钟）：1 ~ K 线周期；默认=周期（每根收盘分析一次）
-  const [evalIntervalMin, setEvalIntervalMin] = useState(15)
+  // 量化分析间隔（秒）：3 ~ K 线周期秒；默认=周期（每根收盘分析一次）
+  const [evalIntervalSec, setEvalIntervalSec] = useState(900)
   const tfMinutes = TF_MINUTES[timeframe] ?? 15
   const funding = useFundingSource(open)
   const lastPrice = useMarketStore(
@@ -163,9 +172,7 @@ export function EditTaskDialog({
     setTimeframe(task.timeframe || "5m")
     const tfMin0 = TF_MINUTES[task.timeframe || "5m"] ?? 15
     const ivSec = Number(task.eval_interval_sec || 0)
-    setEvalIntervalMin(
-      ivSec >= 60 ? Math.max(1, Math.min(tfMin0, Math.round(ivSec / 60))) : tfMin0,
-    )
+    setEvalIntervalSec(ivSec > 0 ? Math.max(3, Math.min(tfMin0 * 60, ivSec)) : tfMin0 * 60)
     setExtraTfs(
       Array.isArray(task.extra_timeframes)
         ? task.extra_timeframes.filter((x) => x && x !== (task.timeframe || "5m"))
@@ -328,8 +335,8 @@ export function EditTaskDialog({
           : modelRowId,
       decision_interval_sec: isDecision ? decisionIntervalSec : undefined,
       eval_interval_sec:
-        quant && !isDecision && evalIntervalMin < tfMinutes
-          ? evalIntervalMin * 60
+        quant && !isDecision && evalIntervalSec < tfMinutes * 60
+          ? evalIntervalSec
           : null,
       symbol: symbol.trim().toLowerCase(),
       symbol_name: symbolName,
@@ -620,44 +627,44 @@ export function EditTaskDialog({
           {quantMode && !decisionMode && (
             <div className="space-y-1.5 rounded-md border border-[var(--border)] p-2.5">
               <div className="flex items-center justify-between">
-                <Label>分析间隔（分钟）</Label>
+                <Label>分析间隔</Label>
                 <span className="font-num text-xs text-[var(--primary)] font-semibold">
-                  {evalIntervalMin >= tfMinutes
-                    ? `每根K线收盘（${tfMinutes >= 1440 ? "1天" : tfMinutes + "分钟"}）`
-                    : `每 ${evalIntervalMin} 分钟`}
+                  {evalIntervalSec >= tfMinutes * 60
+                    ? `每根K线收盘（${secLabel(tfMinutes * 60)}）`
+                    : `每 ${secLabel(evalIntervalSec)}`}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Input
                   type="number"
-                  min={1}
-                  max={tfMinutes}
-                  value={evalIntervalMin}
+                  min={3}
+                  max={tfMinutes * 60}
+                  value={evalIntervalSec}
                   onChange={(e) =>
-                    setEvalIntervalMin(
-                      Math.max(1, Math.min(tfMinutes, Math.floor(Number(e.target.value) || 1))),
+                    setEvalIntervalSec(
+                      Math.max(3, Math.min(tfMinutes * 60, Math.floor(Number(e.target.value) || 3))),
                     )
                   }
                   className="font-num h-8 text-sm w-24"
                 />
-                {INTERVAL_CHIPS.filter((v) => v <= tfMinutes && v > 1).slice(-4).map((v) => (
+                {INTERVAL_CHIPS.filter((v) => v <= tfMinutes * 60 && v >= 3).slice(-4).map((v) => (
                   <button
                     key={v}
                     type="button"
-                    onClick={() => setEvalIntervalMin(v)}
+                    onClick={() => setEvalIntervalSec(v)}
                     className={
                       "px-1.5 h-7 text-[10px] rounded border transition-colors shrink-0 " +
-                      (evalIntervalMin === v
+                      (evalIntervalSec === v
                         ? "border-[var(--primary)] text-[var(--primary)] bg-[var(--primary)]/10"
                         : "border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)]")
                     }
                   >
-                    {v >= 1440 ? "1天" : v + "分"}
+                    {secLabel(v)}
                   </button>
                 ))}
               </div>
               <p className="text-[10px] text-[var(--text-muted)]">
-                最小 1 分钟，最大为 K 线周期（{tfMinutes >= 1440 ? "1 天" : tfMinutes + " 分钟"}）。
+                最小 3 秒，最大为 K 线周期（{tfMinutes >= 1440 ? "1 天" : tfMinutes + " 分钟"}）。
                 默认每根 K 线收盘分析一次；决策模型任务由其响应频率控制。
               </p>
             </div>
