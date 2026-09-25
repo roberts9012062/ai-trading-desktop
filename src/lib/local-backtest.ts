@@ -9,6 +9,7 @@
  */
 
 import { getChannelKlineApi, normalizeChannel, DEFAULT_KLINE_CHANNEL, type KlineChannelId } from "@/lib/kline-channels"
+import { enrichGateBars } from "@/lib/gate-futures"
 import { ensurePyWorker } from "@/lib/py-worker"
 import type { KlineBar, KlinePeriod } from "@/types"
 
@@ -88,10 +89,15 @@ export async function fetchBacktestBars(
   })
   const start = startDate.slice(0, 10)
   const end = endDate.slice(0, 10)
-  return deduped.filter((b) => {
+  const selected = deduped.filter((b) => {
     const d = String(b.time).slice(0, 10)
     return d >= start && d <= end
   })
+  if (channel === "gate_usdt") {
+    onProgress?.("直连 Gate 补充历史资金费率与持仓统计…")
+    return enrichGateBars(symbol, timeframe, selected)
+  }
+  return selected
 }
 
 /** 本地运行回测,返回与服务端 /api/backtest/run 同构的报告 */

@@ -117,18 +117,16 @@ function winStats(a: Vec, b: Vec, lo: number, t: number) {
   let bb = 0
   let ab = 0
   for (let i = lo; i <= t; i++) {
-    ma += a[i]
-    aa += a[i] * a[i]
-    mb += b[i]
-    bb += b[i] * b[i]
-    ab += a[i] * b[i]
+    ma += a[i] - a[lo]
+    mb += b[i] - b[lo]
   }
-  ma /= cnt
-  aa /= cnt
-  mb /= cnt
-  bb /= cnt
-  ab /= cnt
-  return { ma, va: aa - ma * ma, mb, vb: bb - mb * mb, cov: ab - ma * mb, cnt }
+  ma = a[lo] + ma / cnt
+  mb = b[lo] + mb / cnt
+  for (let i = lo; i <= t; i++) {
+    const da = a[i] - ma, db = b[i] - mb
+    aa += da * da; bb += db * db; ab += da * db
+  }
+  return { ma, va: aa / cnt, mb, vb: bb / cnt, cov: ab / cnt, cnt }
 }
 
 function tsCorr(x: Vec, y: Vec, w: number): Vec {

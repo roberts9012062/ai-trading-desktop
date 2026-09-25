@@ -4,6 +4,7 @@
  * 因子搜索表单 —— 合约/周期/种群/代数 + 教练控件
  */
 
+import { gateResearchRange } from "@/lib/crypto-direct"
 import { CRYPTO_RESEARCH_NOTE } from "@/lib/mining/crypto-profile"
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -20,7 +21,8 @@ import {
 } from "./factor-range-limits"
 import { SymbolCombobox } from "./symbol-combobox"
 import { DataChannelSelect } from "@/components/common/data-channel-select"
-import { DEFAULT_KLINE_CHANNEL } from "@/lib/kline-channels"
+import { CryptoDataPanel } from "@/components/common/crypto-data-panel"
+import { DEFAULT_KLINE_CHANNEL, LOCAL_DERIVATIVE_CHANNELS } from "@/lib/kline-channels"
 import { FACTOR_HELP, HelpTip, LabelWithHelp } from "./help-tip"
 import { CoachControls } from "./llm/coach-controls"
 import { antiOverfitPayload } from "./hooks/factor-helpers"
@@ -62,6 +64,7 @@ export interface SearchFormPayload {
 
 interface FactorSearchFormProps {
   defaultSymbol: string
+  localEngine?: boolean
   loading: boolean
   onSearch: (payload: SearchFormPayload) => void
   onSymbolChange: (symbol: string) => void
@@ -70,6 +73,7 @@ interface FactorSearchFormProps {
 /** 搜索表单 */
 export function FactorSearchForm({
   defaultSymbol,
+  localEngine = false,
   loading,
   onSearch,
   onSymbolChange,
@@ -81,6 +85,7 @@ export function FactorSearchForm({
   const [generations, setGenerations] = useState(15)
   const [contracts, setContracts] = useState<ContractItem[]>([])
   const [useCoach, setUseCoach] = useState(false)
+  useEffect(() => { if ((!localEngine || useCoach) && dataChannel === "gate_usdt") setDataChannel(DEFAULT_KLINE_CHANNEL) }, [localEngine, useCoach, dataChannel])
   const [modelRowId, setModelRowId] = useState("")
   const [models, setModels] = useState<AIModel[]>([])
   const [modelsLoading, setModelsLoading] = useState(false)
@@ -154,7 +159,7 @@ export function FactorSearchForm({
   // 用户切换后再开启时区间即为合法值）。
   function changeTimeframe(tf: string): void {
     setTimeframe(tf)
-    const r = defaultFactorRangeFor(tf, today)
+    const r = dataChannel === "gate_usdt" ? gateResearchRange(tf, today) : defaultFactorRangeFor(tf, today)
     setRangeStart(r.start)
     setRangeEnd(r.end)
     setRangeError(null)
@@ -232,11 +237,19 @@ export function FactorSearchForm({
         <div className="space-y-1.5">
           <Label>数据渠道</Label>
           <DataChannelSelect
+            extraChannels={localEngine && !useCoach ? LOCAL_DERIVATIVE_CHANNELS : undefined}
             value={dataChannel}
-            onChange={(v) => setDataChannel(v)}
+            onChange={(v) => {
+              setDataChannel(v)
+              if (v === "gate_usdt") {
+                const range = gateResearchRange(timeframe)
+                setRangeStart(range.start); setRangeEnd(range.end)
+              }
+            }}
             symbol={symbol.trim().toLowerCase() || null}
             timeframe={timeframe}
           />
+          {localEngine && <CryptoDataPanel channel={dataChannel} symbol={symbol} />}
         </div>
 
         <div className="space-y-1.5">

@@ -442,7 +442,51 @@ def _crypto_features(bars, close, high, low, volume):
         "CRYPTO_RANGE_POS20": _chan_pos(high, low, close, 20),
     }
     clock.update({name: _zscore_causal(a, 200) for name, a in raw.items()})
+    clock.update(_direct_data_features(bars, r))
     return clock
+
+
+def _direct_data_features(bars, returns):
+    """Append-only real exchange inputs. Missing is never interpreted as observed zero.
+
+    Empty input rows are constant zero and unsampled. Partially missing rows carry
+    NaN, which excludes them from training and rejects formulas on incomplete replay.
+    Fixed windows preserve prefix invariance, including availability gaps.
+    """
+    n = len(bars)
+    def series(key):
+        return np.array([float(b[key]) if b.get(key) is not None else np.nan for b in bars])
+    def normalize(values):
+        good = np.isfinite(values)
+        if not np.any(good):
+            return np.zeros(n)
+        normalized = _zscore_causal(np.where(good, values, 0.0), 200)
+        return np.where(good, normalized, np.nan)
+    funding = series("funding_rate")
+    quote = series("quote_volume")
+    flow = series("taker_imbalance")
+    for i, b in enumerate(bars):
+        # Spot K lines contain actual taker buy base volume for the same candle.
+        if b.get("taker_buy_volume") is not None and b.get("volume") is not None:
+            v, buy = float(b["volume"]), float(b["taker_buy_volume"])
+            if v >= 0 and 0 <= buy <= v:
+                flow[i] = 2 * buy / v - 1 if v > 0 else 0.0
+    count = series("trade_count")
+    # Causal rolling amount estimate; missing quote values invalidate that window.
+    valid_quote = np.isfinite(quote) & (quote >= 0)
+    illiq = ts_mean(np.abs(returns) / np.maximum(np.where(valid_quote, quote, 0), 1e-9), 20)
+    illiq[ts_mean(valid_quote.astype(float), 20) < 1] = np.nan
+    average = np.divide(quote, count, out=np.full(n, np.nan), where=count > 0)
+    average[(count == 0) & (quote == 0)] = 0
+    return {
+        "FUNDING_RATE": normalize(funding),
+        "FUNDING_DELTA": normalize(funding - np.concatenate((funding[:1], funding[:-1]))),
+        "TAKER_IMBALANCE": normalize(flow),
+        "QUOTE_ILLIQ20": normalize(np.log(np.maximum(illiq, 1e-30))),
+        "ACCOUNT_LS_RATIO": normalize(series("long_short_ratio")),
+        "LIQUIDATION_IMBALANCE": normalize(series("liquidation_imbalance")),
+        "AVG_TRADE_QUOTE": normalize(average),
+    }
 
 
 def active_feature_ids(matrix: np.ndarray, crypto_profile: bool = False) -> list[int]:
@@ -508,6 +552,9 @@ FEATURE_NAMES: tuple[str, ...] = (
     "UTC_HOUR_SIN", "UTC_HOUR_COS", "UTC_WEEK_SIN", "UTC_WEEK_COS", "UTC_WEEKEND",
     "CRYPTO_MOM6", "CRYPTO_MOM24", "CRYPTO_VOL20", "CRYPTO_ILLIQ20",
     "CRYPTO_FLOW20", "CRYPTO_TAIL20", "CRYPTO_RANGE_POS20",
+    # Direct exchange inputs, IDs 52-58. No historical order-book proxies.
+    "FUNDING_RATE", "FUNDING_DELTA", "TAKER_IMBALANCE", "QUOTE_ILLIQ20",
+    "ACCOUNT_LS_RATIO", "LIQUIDATION_IMBALANCE", "AVG_TRADE_QUOTE",
 )
 
 
@@ -541,7 +588,8 @@ def bars_signature(bars: list[dict[str, Any]]) -> tuple:
     if not bars:
         return (0,)
     import hashlib
-    keys = ("time", "open", "high", "low", "close", "volume", "open_interest", "_factor_market")
+    keys = ("time", "open", "high", "low", "close", "volume", "open_interest", "_factor_market", "funding_rate", "quote_volume",
+            "taker_imbalance", "taker_buy_volume", "trade_count", "long_short_ratio", "liquidation_imbalance")
     digest = hashlib.sha256()
     for b in bars:
         digest.update(repr(tuple(b.get(k) for k in keys)).encode("utf-8"))

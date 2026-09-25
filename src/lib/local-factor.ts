@@ -1,3 +1,4 @@
+import { gateResearchRange } from "@/lib/crypto-direct"
 /**
  * 因子实验室本地引擎门面(Pyodide + numpy / WebGPU)
  *
@@ -224,7 +225,7 @@ export async function searchFactorsLocal(
   const bars = await fetchBacktestBars(
     payload.symbol,
     payload.timeframe,
-    payload.start_date || "2005-01-01",
+    payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : "2005-01-01"),
     payload.end_date || new Date().toISOString().slice(0, 10),
     KLINE_MAX_PAGES,
     undefined,
@@ -265,7 +266,7 @@ export async function backtestFactorLocal(
   const bars = await fetchBacktestBars(
     payload.symbol,
     payload.timeframe,
-    payload.start_date || "2005-01-01",
+    payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : "2005-01-01"),
     payload.end_date || new Date().toISOString().slice(0, 10),
     KLINE_MAX_PAGES,
     undefined,

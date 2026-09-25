@@ -161,7 +161,10 @@ export async function acquireBarsSnapshot(req: AcquireBarsRequest): Promise<Bars
 
   const from = bars[0].time.slice(0, 10)
   const to = bars[bars.length - 1].time.slice(0, 10)
-  const sourceHash = fnv1a32(bars.map((b) => `${b.time}:${b.close}`).join())
+  // Include every frozen input: volume, OI, funding and provenance can change
+  // independently of close. Never reuse an old snapshot after such corrections.
+  const serialized = JSON.stringify(bars)
+  const sourceHash = fnv1a32(serialized)
   const id = `${symbol}:${channel}:${timeframe}:${from}:${to}:${sourceHash}`
 
   const db = await openDb()
@@ -186,7 +189,7 @@ export async function acquireBarsSnapshot(req: AcquireBarsRequest): Promise<Bars
     fetchedAt: Date.now(),
     sourceHash,
     refCount: 1,
-    sizeEstimate: bars.length * BYTES_PER_BAR,
+    sizeEstimate: new TextEncoder().encode(serialized).byteLength,
   }
   await idbPut(db, MINING_BARS_STORE, fresh)
   await pruneSnapshots(db)

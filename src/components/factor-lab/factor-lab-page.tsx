@@ -150,6 +150,7 @@ export function FactorLabPage(): React.JSX.Element {
       <FactorLabGuide />
 
       <FactorSearchForm
+        localEngine={s.engine !== "server"}
         defaultSymbol={s.symbol}
         loading={s.loading}
         onSearch={(p) => void s.handleSearch(p)}

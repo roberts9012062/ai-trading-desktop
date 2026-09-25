@@ -1,3 +1,4 @@
+import { gateResearchRange } from "@/lib/crypto-direct"
 import { isCryptoSymbol, LOCAL_MINING_KERNEL_VERSION } from "./crypto-profile"
 /**
  * LocalMiningRunner —— 本地 CPU 挖掘的任务编排(M3)
@@ -121,7 +122,7 @@ export class LocalMiningRunner implements MiningRunner {
     const resolution = await resolveDevice(opts.device)
 
     // 历史K线一律从服务器拉取并冻结(M1 数据层);区间缺省用该周期推荐区间
-    const range = defaultFactorRangeFor(config.timeframe, new Date())
+    const range = config.data_channel === "gate_usdt" ? gateResearchRange(config.timeframe) : defaultFactorRangeFor(config.timeframe, new Date())
     const snapshot = await acquireBarsSnapshot({
       symbol: config.symbol,
       timeframe: config.timeframe,

@@ -104,6 +104,10 @@ _FEAT_TEXT: dict[str, str] = {
     "CRYPTO_VOL20": "20根收益波动", "CRYPTO_ILLIQ20": "20根非流动性代理",
     "CRYPTO_FLOW20": "20根方向成交量代理", "CRYPTO_TAIL20": "20根下行风险占比",
     "CRYPTO_RANGE_POS20": "20根加密通道位置",
+    "FUNDING_RATE": "已结算资金费率", "FUNDING_DELTA": "已结算费率变化",
+    "TAKER_IMBALANCE": "主动买卖量不平衡", "QUOTE_ILLIQ20": "真实成交额非流动性",
+    "ACCOUNT_LS_RATIO": "多空账户比", "LIQUIDATION_IMBALANCE": "多空清算不平衡",
+    "AVG_TRADE_QUOTE": "平均每笔成交额",
 }
 
 

@@ -131,6 +131,8 @@ def execute(
         if token < FEAT_OFFSET:
             if token >= feat_matrix.shape[0]:
                 return None
+            if token >= 52 and not np.isfinite(feat_matrix[token]).all():
+                return None  # incomplete direct-data history must not become a fabricated signal
             stack.append(feat_matrix[token])
         else:
             idx = token - FEAT_OFFSET

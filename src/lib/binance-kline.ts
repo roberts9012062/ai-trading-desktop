@@ -16,6 +16,7 @@
  * 的分页/去重/截断逻辑零改动。
  */
 import type { KlineBar } from "@/types"
+import { cryptoPair, optionalNumber } from "@/lib/crypto-direct"
 
 const REST_BASE = "https://data-api.binance.vision/api/v3"
 export const HISTORICAL_TRADES_BASE = "https://data.binance.vision/data/spot/monthly/trades"
@@ -31,7 +32,7 @@ export function normalizeInterval(period: string): string {
 
 /** 统一规范符号(btcusdt / BTC-USDT) → Binance 原生符号(BTCUSDT) */
 export function toBinanceSymbol(symbol: string): string {
-  return symbol.replace(/[-_/]/g, "").toUpperCase()
+  return cryptoPair(symbol).replace("_", "")
 }
 
 function pad2(n: number): string {
@@ -94,6 +95,12 @@ export async function getBinanceKlineApi(
     low: Number(r[3]),
     close: Number(r[4]),
     volume: Number(r[5]),
+    open_time: r[0],
+    market_source: "binance_spot",
+    quote_volume: optionalNumber(r[7]),
+    trade_count: optionalNumber(r[8]),
+    taker_buy_volume: optionalNumber(r[9]),
+    taker_buy_quote_volume: optionalNumber(r[10]),
     settle: null,
     open_interest: null,
   }))

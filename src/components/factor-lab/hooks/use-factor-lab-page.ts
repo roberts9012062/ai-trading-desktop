@@ -166,6 +166,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
       const endDate = p?.end_date ?? lastReq?.end_date
       try {
         let res: FactorBacktestResult
+        if (engine === "server" && c.metrics.research_only) throw new Error("该因子依赖本地直连数据，请切换本地 CPU/GPU 回测")
         // 本地引擎:单因子回测也在本机计算(与搜索同一份 K 线)
         if (engine !== "server") {
           res = await backtestFactorLocal(
@@ -175,7 +176,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
               factor_tokens: c.tokens,
               crypto_profile: c.metrics.crypto_profile ?? false,
               cost: c.metrics.cost ?? p?.cost ?? lastReq?.cost,
-              data_channel: p?.data_channel ?? lastReq?.data_channel,
+              data_channel: c.metrics.data_channel ?? p?.data_channel ?? lastReq?.data_channel,
               ...(startDate && endDate ? { start_date: startDate, end_date: endDate } : {}),
             },
             setProgressNote,
@@ -237,6 +238,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
         trials: p.population * p.generations + seedCount,
         bars: r.bars,
         config: {
+          data_channel: p.data_channel,
           population: p.population,
           generations: p.generations,
           train_ratio: p.train_ratio,
@@ -265,6 +267,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     setLastReq(p)
     setSymbol(p.symbol)
     try {
+      if (p.data_channel === "gate_usdt" && (engine === "server" || p.use_llm_coach)) throw new Error("Gate 永续直连仅支持本地 CPU/GPU 搜索，请关闭服务端教练")
       // 本地引擎(CPU/GPU):GP 搜索在本机计算;LLM 教练开启时仍走服务端
       if (engine !== "server" && !p.use_llm_coach) {
         const r = await searchFactorsLocal(
@@ -324,6 +327,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     setError(null)
     setProgressNote(null)
     try {
+      if (p.data_channel === "gate_usdt" && (engine === "server" || p.use_llm_coach)) throw new Error("Gate 永续直连仅支持本地 CPU/GPU 搜索")
       // 本地引擎再进化:种子 token 直接透传,seed+1
       if (engine !== "server" && !p.use_llm_coach) {
         const r = await searchFactorsLocal(
@@ -412,6 +416,10 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
 
   async function handleBuildTask(): Promise<void> {
     if (!selected || !lastReq) return
+    if (selected.metrics?.research_only || selected.tokens.some((t) => t >= 52 && t < 64)) {
+      setError("该因子依赖新增直连历史数据，实盘行情尚未提供同源输入，暂仅支持本地研究")
+      return
+    }
     if (selected.metrics?.overfit_warning) {
       setError("该因子未通过样本外验证（测试段亏损），已禁止挂载实盘")
       return
@@ -451,6 +459,10 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
       setError("组合需勾选 2-5 个因子")
       return
     }
+    if (chosen.some((c) => c.metrics.research_only || c.tokens.some((t) => t >= 52 && t < 64))) {
+      setError("组合含直连历史数据因子，暂仅支持本地研究")
+      return
+    }
     const bad = chosen.find((c) => c.metrics?.overfit_warning || c.metrics?.stale_kernel)
     if (bad) {
       setError("组合成员含未通过样本外验证的因子（测试段亏损），已禁止挂载")
@@ -484,6 +496,10 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     item: FavoriteInput,
     opts?: { name?: string; folderId?: string | null },
   ): Promise<void> {
+    if (item.metrics?.research_only) {
+      setError("该因子依赖本地直连历史数据，暂不支持同步到实盘收藏")
+      return
+    }
     if (item.metrics?.overfit_warning) {
       setError("该因子未通过样本外验证（测试段亏损），已禁止收藏")
       return

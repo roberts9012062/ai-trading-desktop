@@ -112,6 +112,20 @@ export interface KlineBar {
   settle?: number | null
   /** 持仓量（后端字段名 open_interest，数据源不支持时为 null/undefined） */
   open_interest?: number | null
+  /** UTC epoch milliseconds, independent of the display time zone. */
+  open_time?: number
+  market_source?: "binance_spot" | "gate_spot" | "gate_usdt"
+  quote_volume?: number | null
+  trade_count?: number | null
+  taker_buy_volume?: number | null
+  taker_buy_quote_volume?: number | null
+  /** Last settled rate available before this bar, not the next predicted rate. */
+  funding_rate?: number | null
+  funding_time?: number
+  derivatives_time?: number
+  taker_imbalance?: number | null
+  long_short_ratio?: number | null
+  liquidation_imbalance?: number | null
   /** 服务端 forming bar 版本号（同 time 键幂等覆盖用：只接受更高版本） */
   version?: number
   /** "correction" = 权威对账修正帧（OHLCV 已被权威值替换） */
@@ -593,4 +607,3 @@ export interface CodeTree {
 
 /** 按品种代码分组的合约树字典 */
 export type CodeTreeMap = Record<string, CodeTree>
-

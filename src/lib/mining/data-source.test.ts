@@ -85,6 +85,19 @@ describe("acquireBarsSnapshot", () => {
     expect(s1.sourceHash).toMatch(/^[0-9a-f]{8}$/)
   })
 
+  it("资金费率或成交量修正也产生新快照，不能复用只按收盘价寻址的旧数据", async () => {
+    const ds = await loadDataSource()
+    const raw = daysOfMonth(2026, 1).map((b) => ({ ...b, funding_rate: .0001 }))
+    mockedGet.mockReturnValue(reply(raw, false))
+    const old = await ds.acquireBarsSnapshot(REQ)
+    const corrected = raw.map((b, i) => i === 7 ? { ...b, funding_rate: .0002, volume: 30 } : b)
+    mockedGet.mockReturnValue(reply(corrected, false))
+    const next = await ds.acquireBarsSnapshot(REQ)
+    expect(next.id).not.toBe(old.id)
+    expect((await ds.getBarsSnapshot(old.id))?.bars[7].funding_rate).toBe(.0001)
+    expect(next.bars[7].funding_rate).toBe(.0002)
+  })
+
   it("同区间但数据已变(新增 bar)→ 新 id,旧快照独立保留", async () => {
     const ds = await loadDataSource()
     mockedGet.mockReturnValueOnce(reply(daysOfMonth(2026, 1).slice(0, 30), false))

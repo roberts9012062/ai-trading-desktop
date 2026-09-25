@@ -1,10 +1,18 @@
 // Real WebGPU vs CPython f64. Start Vite first. No Pyodide CDN dependency.
 // PLAYWRIGHT_MODULE may point to a bundled Playwright installation.
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+let chromium = null
+try {
+  chromium = require(process.env.PLAYWRIGHT_MODULE || 'playwright').chromium
+} catch (e) {
+  console.error('SKIP: 未安装 playwright(GPU 真机对拍为可选验证)。')
+  console.error('  安装后运行: pnpm add -D playwright && npx playwright install chromium')
+  process.exit(0)
+}
 const { execFileSync } = require('node:child_process');
 const { mkdtempSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join } = require('node:path');
+const directData = process.env.CRYPTO_DIRECT_DATA === '1';
 
 (async () => {
   const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] });
@@ -16,6 +24,11 @@ const { join } = require('node:path');
       return makeBars(1200).map((b, i) => ({ ...b, open_interest: null,
         time: new Date(Date.UTC(2025, 0, 1) + i * 3600000).toISOString() }));
     });
+    if (directData) bars.forEach((b, i) => Object.assign(b, {
+      funding_rate: .0001 * Math.sin(Math.floor(i / 8)), quote_volume: b.close * b.volume,
+      taker_buy_volume: b.volume * (.5 + .2 * Math.sin(i)), trade_count: 100 + i % 37,
+      long_short_ratio: 1 + .1 * Math.cos(i), liquidation_imbalance: Math.sin(i / 4),
+    }));
     const dir = mkdtempSync(join(tmpdir(), 'crypto-gpu-'));
     const barsPath = join(dir, 'bars.json'), cfgPath = join(dir, 'config.json'), candidatesPath = join(dir, 'candidates.json');
     writeFileSync(barsPath, JSON.stringify(bars));

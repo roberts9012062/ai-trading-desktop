@@ -790,6 +790,12 @@ def _dedup_top(
             enriched["periods"] = bars_per_year(train_bars or all_bars, timeframe)
             enriched["cost"] = cost
             enriched["cost_model"] = "static_fee_plus_tick_no_funding"
+            source = (train_bars or all_bars)[0].get("market_source")
+            if source:
+                enriched["data_channel"] = source
+            if source == "gate_usdt" or any(52 <= t < 64 for t in tokens):
+                enriched["research_only"] = True
+
 
         if use_test and train_bars:
             train_m = evaluate_on_slice(tokens, all_bars, 0, len(train_bars), timeframe, cost)

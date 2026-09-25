@@ -135,16 +135,21 @@ fn evalVM(@builtin(workgroup_id) gid: vec3<u32>, @builtin(local_invocation_id) l
         else {
           // CORR/BETA/RESID:窗口 20 滚动回归族
           let lo = select(0u, t - 19u, t >= 19u);
-          var sx = 0.0; var sy = 0.0; var sxx = 0.0; var syy = 0.0; var sxy = 0.0;
+          // Anchor first, then center: E[x²]-E[x]² loses f32 precision on
+          // funding/calendar plateaus and can invent variance or a huge beta.
+          let anchorX = stk[a + lo]; let anchorY = stk[b + lo];
+          var sx = 0.0; var sy = 0.0;
           for (var i = lo; i <= t; i = i + 1u) {
-            let x = stk[a + i]; let y = stk[b + i];
-            sx = sx + x; sy = sy + y; sxx = sxx + x * x; syy = syy + y * y; sxy = sxy + x * y;
+            sx = sx + (stk[a + i] - anchorX); sy = sy + (stk[b + i] - anchorY);
           }
           let c = f32(t - lo + 1u);
-          let mx = sx / c; let my = sy / c;
-          let vx = max(sxx / c - mx * mx, 0.0);
-          let vy = max(syy / c - my * my, 0.0);
-          let cov = sxy / c - mx * my;
+          let mx = anchorX + sx / c; let my = anchorY + sy / c;
+          var sxx = 0.0; var syy = 0.0; var sxy = 0.0;
+          for (var i = lo; i <= t; i = i + 1u) {
+            let dx = stk[a + i] - mx; let dy = stk[b + i] - my;
+            sxx = sxx + dx * dx; syy = syy + dy * dy; sxy = sxy + dx * dy;
+          }
+          let vx = sxx / c; let vy = syy / c; let cov = sxy / c;
           if (op == OP_CORR) {
             if (t - lo + 1u >= 2u && sqrt(vx) >= 1e-9 && sqrt(vy) >= 1e-9) {
               v = cov / (sqrt(vx) * sqrt(vy));

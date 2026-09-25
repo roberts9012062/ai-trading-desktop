@@ -61,8 +61,35 @@ class CryptoProfileTests(unittest.TestCase):
         for op in range(104, 108):
             np.testing.assert_allclose(execute([45, op], prefix), execute([45, op], mat)[:500], atol=1e-9)
 
+    def test_direct_features_availability_causality_and_cache(self):
+        raw = bars(800)
+        for i, b in enumerate(raw):
+            b.update(funding_rate=.0001 * np.sin(i // 8), quote_volume=b["close"] * b["volume"],
+                     taker_buy_volume=b["volume"] * (.5 + .2 * np.sin(i)), trade_count=100 + i % 37,
+                     long_short_ratio=1 + .1 * np.cos(i), liquidation_imbalance=np.sin(i / 4))
+        mat = feature_matrix(raw)
+        self.assertTrue(set(range(52, 59)).issubset(active_feature_ids(mat, True)))
+        np.testing.assert_allclose(feature_matrix(raw[:500])[52:], mat[52:, :500], atol=1e-10)
+        absent = bars(800)
+        self.assertTrue(set(range(52, 59)).isdisjoint(active_feature_ids(feature_matrix(absent), True)))
+        changed = [dict(b) for b in raw]
+        changed[30]["funding_rate"] *= 3
+        self.assertNotEqual(bars_signature(raw), bars_signature(changed))
+        # A missing observation cannot be interpreted as a zero funding payment.
+        changed[400]["funding_rate"] = None
+        incomplete = feature_matrix(changed)
+        self.assertNotIn(52, active_feature_ids(incomplete, True))
+        self.assertIsNone(execute([52], incomplete))
+        wire = factor_local.run_mine_features(PAYLOAD, changed)
+        self.assertNotIn("NaN", wire)
+        self.assertNotIn(52, json.loads(wire)["active_feature_ids"])
+        # Known real zero rates are valid, though a constant sequence is unsampled.
+        for b in changed:
+            b["funding_rate"] = 0
+        self.assertTrue(np.isfinite(feature_matrix(changed)[52]).all())
+
     def test_ops_and_ids(self):
-        self.assertEqual(len(FEATURE_NAMES), 52)
+        self.assertEqual(len(FEATURE_NAMES), 59)
         self.assertEqual(OPS_NAMES[38:40], ("EMA_5", "EMA_20"))
         self.assertEqual(OPS_NAMES[40], "TS_CRANK_20")
         np.testing.assert_array_equal(ts_centered_rank(np.ones(30), 20), np.zeros(30))

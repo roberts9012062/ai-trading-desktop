@@ -32,6 +32,8 @@ export interface WalkForwardDetail {
 }
 
 export interface FactorMetrics {
+  data_channel?: string
+  research_only?: boolean
   crypto_profile?: boolean
   research_profile?: string
   periods?: number

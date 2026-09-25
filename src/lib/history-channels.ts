@@ -61,6 +61,15 @@ export async function getChannelRange(
   symbol: string,
   timeframe: string
 ): Promise<ChannelRange> {
+  if (channel === "gate_usdt") {
+    const max = Date.now(), min = max - 175 * 86400000
+    return { channel, symbol, timeframe, min_ts: min, max_ts: max,
+      min_date: new Date(min).toISOString().slice(0, 10), max_date: new Date(max).toISOString().slice(0, 10) }
+  }
+  if (isKlineChannel(channel) && channel !== "okx") {
+    const range = await probeLocalChannelRange(channel, symbol)
+    if (range) return { ...range, channel, symbol, timeframe }
+  }
   const qs = new URLSearchParams({ channel, symbol, timeframe })
   return historyRequest<ChannelRange>(`/api/history/range?${qs.toString()}`)
 }

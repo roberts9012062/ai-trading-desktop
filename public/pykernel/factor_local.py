@@ -318,7 +318,7 @@ def run_llm_vocab(payload: dict, bars: list) -> str:
         for i, n in enumerate(FEATURE_NAMES)
     ]
     if payload.get("crypto_profile"):
-        excluded = {14, 15, 16, 17, 18, 27, 28, 29, 30, 33, 34}
+        excluded = set(range(52, len(FEATURE_NAMES))) | {14, 15, 16, 17, 18, 27, 28, 29, 30, 33, 34}
         if payload.get("timeframe") == "1d":
             excluded.update({40, 41})
         feats = [f for f in feats if f["id"] not in excluded]
@@ -373,7 +373,7 @@ def kernel_version() -> str:
     # 同路径自动推导(run_search/mine_start/shard/precise 四处)。
     # 更早:批次三口径变更(P0-2 因果归一化;P1-7 warmup 切片与
     # MIN_TEST_BARS=120);同因子在新旧内核下指标不同,历史/收藏按此戳区分
-    return "pykernel-factor-2026-09-25.2"
+    return "pykernel-factor-2026-09-25.3"
 
 
 # ── 分代步进挖掘会话(本地长程任务 M3) ─────────────────────────
@@ -530,7 +530,7 @@ def run_mine_features(payload: dict, bars: list) -> str:
         {
             "active_feature_ids": active_feature_ids(mat, cfg.crypto_profile),
             "feature_names": list(FEATURE_NAMES),
-            "matrix": [[float(v) for v in row] for row in mat],
+            "matrix": np.nan_to_num(mat, nan=0.0, posinf=0.0, neginf=0.0).tolist(),
             "periods": int(periods),
             "cost": float(cost),
             "train_len": len(train_bars),

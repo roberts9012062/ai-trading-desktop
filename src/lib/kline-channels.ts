@@ -24,8 +24,13 @@ import {
 
 export type { BinanceKlinePage }
 import type { KlineBar } from "@/types"
+import { getGateFuturesKlineApi } from "@/lib/gate-futures"
+import { cryptoPair, optionalNumber } from "@/lib/crypto-direct"
 
-export type KlineChannelId = "okx" | "binance_spot" | "gate_spot"
+export type KlineChannelId = "okx" | "binance_spot" | "gate_spot" | "gate_usdt"
+
+/** Offered only by local mining forms; the server does not implement this channel. */
+export const LOCAL_DERIVATIVE_CHANNELS = [{ id: "gate_usdt", name: "Gate USDT 永续（本地直连·含衍生数据）", kind: "swap", note: "同源合约K线、历史资金费率与持仓统计；仅本地 CPU/GPU" }]
 
 /** 桌面端默认渠道:Binance 现货(国内直连可达 + 2017-08 起超长历史) */
 export const DEFAULT_KLINE_CHANNEL: KlineChannelId = "binance_spot"
@@ -58,7 +63,7 @@ export const LOCAL_HISTORY_CHANNELS: Array<{
 ]
 
 export function isKlineChannel(v: unknown): v is KlineChannelId {
-  return v === "okx" || v === "binance_spot" || v === "gate_spot"
+  return v === "okx" || v === "binance_spot" || v === "gate_spot" || v === "gate_usdt"
 }
 
 /** 规范化渠道:未知/缺省值回退默认渠道 */
@@ -102,7 +107,7 @@ async function getOkxKlineApi(
 const GATE_BASE = "https://api.gateio.ws/api/v4/spot"
 
 function gatePair(symbol: string): string {
-  return `${symbol.replace(/[-_/]/g, "").toUpperCase().replace(/USDT$/, "")}_USDT`
+  return cryptoPair(symbol)
 }
 
 function gateInterval(period: string): string {
@@ -139,6 +144,9 @@ async function getGateKlineApi(
     low: Number(r[4]),
     close: Number(r[2]),
     volume: Number(r[6]),
+    open_time: Number(r[0]) * 1000,
+    market_source: "gate_spot",
+    quote_volume: optionalNumber(r[1]),
     settle: null,
     open_interest: null,
   }))
@@ -154,6 +162,7 @@ export function getChannelKlineApi(
   options?: { limit?: number; endTime?: string },
   channel: KlineChannelId = DEFAULT_KLINE_CHANNEL,
 ): Promise<BinanceKlinePage> {
+  if (channel === "gate_usdt") return getGateFuturesKlineApi(symbol, period, options)
   if (channel === "okx") return getOkxKlineApi(symbol, period, options)
   if (channel === "gate_spot") return getGateKlineApi(symbol, period, options)
   return getBinanceKlineApi(symbol, period, options)

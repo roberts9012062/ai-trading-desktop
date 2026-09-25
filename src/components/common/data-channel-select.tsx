@@ -52,8 +52,8 @@ export function DataChannelSelect(props: {
     let cancelled = false
     void (async () => {
       if (_channelsCache !== null) {
-        if (!cancelled && extraChannels) {
-          setChannels([...extraChannels, ..._channelsCache])
+        if (!cancelled) {
+          setChannels([...(extraChannels ?? []), ..._channelsCache])
         }
         return
       }
@@ -75,6 +75,7 @@ export function DataChannelSelect(props: {
   useEffect(() => {
     // 渠道/品种/周期任一变化即重探范围（okx 之外的渠道才需要探测；
     // okx 也统一探测，让时间尺精确到实际数据起点）
+    onRangeRef.current?.(null)
     if (!symbol || !timeframe) return
     let cancelled = false
     void (async () => {
@@ -87,7 +88,7 @@ export function DataChannelSelect(props: {
         if (!cancelled) {
           // 范围探测只是日期 clamp 的辅助:失败不阻塞表单,温和提示
           onRangeRef.current?.(null)
-          setError("范围未探测到(可正常使用,日期范围不受限)")
+          setError(value === "gate_usdt" ? "资金费率与持仓历史按所选区间校验，覆盖不足时会提示缩小区间" : "范围未探测到(可正常使用,日期范围不受限)")
         }
       } finally {
         if (!cancelled) setProbing(false)

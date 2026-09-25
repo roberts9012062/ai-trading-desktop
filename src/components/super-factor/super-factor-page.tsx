@@ -24,6 +24,8 @@ import {
 } from "@/lib/super-factor-api"
 import type { DeviceKind, MiningTask, RunnerKind } from "@/lib/mining/types"
 import { MiningSymbolCombobox } from "./mining-symbol-combobox"
+import { CryptoDataPanel } from "@/components/common/crypto-data-panel"
+import { LOCAL_DERIVATIVE_CHANNELS } from "@/lib/kline-channels"
 import { DataChannelSelect } from "@/components/common/data-channel-select"
 import { DEFAULT_KLINE_CHANNEL } from "@/lib/kline-channels"
 import { PresetPicker, type MiningPreset } from "./mining-presets"
@@ -259,6 +261,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
   const [timeframe, setTimeframe] = useState("1d")
   // 执行位置:服务器计算机 / 本地计算机;本地再选算力(自动/CPU/GPU)
   const [origin, setOrigin] = useState<RunnerKind>("remote")
+  useEffect(() => { if (origin !== "local" && dataChannel === "gate_usdt") setDataChannel("binance_spot") }, [origin, dataChannel])
   const [device, setDevice] = useState<DeviceKind>("auto")
   // GPU 可用性探测(置灰 GPU 选项并给出原因)
   const [gpuAvailable, setGpuAvailable] = useState<boolean | null>(null)
@@ -440,11 +443,13 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
       <div className="space-y-1.5">
         <Label>数据渠道</Label>
         <DataChannelSelect
+          extraChannels={origin === "local" ? LOCAL_DERIVATIVE_CHANNELS : undefined}
           value={dataChannel}
           onChange={(v) => setDataChannel(v)}
           symbol={symbol.trim().toLowerCase() || null}
           timeframe={timeframe}
         />
+        {origin === "local" && <CryptoDataPanel channel={dataChannel} symbol={symbol} />}
       </div>
 
       <div className="space-y-1">
