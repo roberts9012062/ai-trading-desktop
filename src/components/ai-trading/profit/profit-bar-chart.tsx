@@ -85,8 +85,9 @@ export function ProfitBarChart({
           <div className="flex items-center gap-2 flex-wrap">
             <div className="text-[11px] px-2.5 py-1 rounded-full border border-[var(--border)] bg-[var(--bg-tertiary)]/80">
               <span className="text-[var(--text-muted)]">总收益</span>{" "}
+              {/* 定宽：悬停切换 总计↔单任务 数值时避免文本宽度变化引起顶行回流 */}
               <span
-                className={`font-num font-semibold ${
+                className={`font-num font-semibold inline-block min-w-[4.6rem] text-right ${
                   displayTotal >= 0 ? "text-up" : "text-down"
                 }`}
               >
@@ -144,45 +145,54 @@ export function ProfitBarChart({
           )}
         </div>
 
-        {hover && (
-          <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)]/80 px-3 py-2 text-xs grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <div>
-              <p className="text-[var(--text-muted)]">任务</p>
-              <p className="text-[var(--text-primary)] truncate">{hover.name}</p>
-            </div>
-            <div>
-              <p className="text-[var(--text-muted)]">合约</p>
-              <p className="font-num text-[var(--text-primary)]">
-                {hover.symbolName || hover.symbol}
-                {hover.hasOpen ? " · 持仓中" : ""}
-              </p>
-            </div>
-            <div>
-              <p className="text-[var(--text-muted)]">已实现 / 浮盈</p>
-              <p className="font-num text-[var(--text-primary)]">
-                <span className={hover.realized >= 0 ? "text-up" : "text-down"}>
-                  {formatProfitAmount(hover.realized)}
-                </span>
-                {" / "}
-                <span
-                  className={hover.unrealized >= 0 ? "text-up" : "text-down"}
+        {/* 悬停明细区常驻占位（固定高度）：条件渲染会造成卡片高度突变 →
+            页面滚动条出现/消失 → 视口宽度回流 → 鼠标相对位置漂移 →
+            悬停态反复进出（闪烁循环）。常驻后 hover 不再引起任何布局变化 */}
+        <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)]/80 px-3 py-2 text-xs min-h-[4.6rem] sm:min-h-[3.4rem] flex items-center">
+          {hover ? (
+            <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div>
+                <p className="text-[var(--text-muted)]">任务</p>
+                <p className="text-[var(--text-primary)] truncate">{hover.name}</p>
+              </div>
+              <div>
+                <p className="text-[var(--text-muted)]">合约</p>
+                <p className="font-num text-[var(--text-primary)]">
+                  {hover.symbolName || hover.symbol}
+                  {hover.hasOpen ? " · 持仓中" : ""}
+                </p>
+              </div>
+              <div>
+                <p className="text-[var(--text-muted)]">已实现 / 浮盈</p>
+                <p className="font-num text-[var(--text-primary)]">
+                  <span className={hover.realized >= 0 ? "text-up" : "text-down"}>
+                    {formatProfitAmount(hover.realized)}
+                  </span>
+                  {" / "}
+                  <span
+                    className={hover.unrealized >= 0 ? "text-up" : "text-down"}
+                  >
+                    {formatProfitAmount(hover.unrealized)}
+                  </span>
+                </p>
+              </div>
+              <div>
+                <p className="text-[var(--text-muted)]">总收益</p>
+                <p
+                  className={`font-num font-semibold ${
+                    hover.totalPnl >= 0 ? "text-up" : "text-down"
+                  }`}
                 >
-                  {formatProfitAmount(hover.unrealized)}
-                </span>
-              </p>
+                  {formatProfitAmount(hover.totalPnl)}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-[var(--text-muted)]">总收益</p>
-              <p
-                className={`font-num font-semibold ${
-                  hover.totalPnl >= 0 ? "text-up" : "text-down"
-                }`}
-              >
-                {formatProfitAmount(hover.totalPnl)}
-              </p>
-            </div>
-          </div>
-        )}
+          ) : (
+            <p className="text-[var(--text-muted)]">
+              鼠标悬停柱条查看任务收益明细（已实现 / 浮盈 / 总收益）
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )

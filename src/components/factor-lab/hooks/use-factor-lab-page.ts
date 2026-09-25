@@ -29,22 +29,20 @@ import {
   isLocalOnly,
 } from "./factor-helpers"
 
-/** 本地引擎类型:服务端 / 本地 CPU(Pyodide) / 本地 GPU(WebGPU 粗排+内核精算) */
+/** 本地引擎类型:本地 CPU(Pyodide) / 本地 GPU(WebGPU 粗排+内核精算)。
+ *  服务端引擎已下线:类型保留 "server" 以兼容旧持久化值,读取时回退 cpu。 */
 export type FactorEngine = "server" | "cpu" | "gpu"
 
-/** 一次性迁移:旧键 qh_factor_local("0"/"1") → qh_factor_engine("server"|"cpu"|"gpu") */
 function readEngine(): FactorEngine {
   if (typeof window === "undefined") return "cpu"
   try {
     const v = localStorage.getItem("qh_factor_engine")
-    if (v === "server" || v === "cpu" || v === "gpu") return v
-    const old = localStorage.getItem("qh_factor_local")
-    if (old === "0") return "server"
-    if (old === "1") return "cpu"
+    if (v === "cpu" || v === "gpu") return v
+    // 旧值 "server"(含旧键迁移值)一律回退本地 CPU
   } catch {
     // 忽略存储异常
   }
-  return "cpu" // 与旧默认(本地引擎)一致
+  return "cpu"
 }
 
 /** 收藏入参（Champion 或历史记录都可适配） */
@@ -267,9 +265,13 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     setLastReq(p)
     setSymbol(p.symbol)
     try {
-      if (p.data_channel === "gate_usdt" && (engine === "server" || p.use_llm_coach)) throw new Error("Gate 永续直连仅支持本地 CPU/GPU 搜索，请关闭服务端教练")
-      // 本地引擎(CPU/GPU):GP 搜索在本机计算;LLM 教练开启时仍走服务端
-      if (engine !== "server" && !p.use_llm_coach) {
+      if (p.data_channel === "gate_usdt" && p.use_llm_coach) throw new Error("Gate 永续直连仅支持本地 CPU/GPU 搜索，请关闭服务端教练")
+      // 服务端引擎已下线:一律本地计算(CPU/GPU,engine 读取时已回退)。
+      // LLM 教练依赖服务端搜索,入口已隐藏;此处再兜底忽略误传的 coach 标记
+      if (p.use_llm_coach) {
+        p = { ...p, use_llm_coach: false }
+      }
+      {
         const r = await searchFactorsLocal(
           {
             symbol: p.symbol,
@@ -287,7 +289,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
             ...(p.start_date && p.end_date ? { start_date: p.start_date, end_date: p.end_date } : {}),
           },
           setProgressNote,
-          engine,
+          engine === "gpu" ? "gpu" : "cpu",
         )
         await applySearchResult(r, p)
         void persistLocalHistory(r, p, 0)

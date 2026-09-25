@@ -311,14 +311,18 @@ export function FactorSearchForm({
         )}
       </form>
 
-      <CoachControls
-        enabled={useCoach}
-        onEnabledChange={setUseCoach}
-        models={models}
-        modelRowId={modelRowId}
-        onModelChange={setModelRowId}
-        modelsLoading={modelsLoading}
-      />
+      {/* LLM 教练(路线 A)依赖服务端搜索协同,服务端引擎已下线故隐藏;
+          仅本地引擎时勾选会静默回落服务端,隐藏入口最干净 */}
+      {!localEngine && (
+        <CoachControls
+          enabled={useCoach}
+          onEnabledChange={setUseCoach}
+          models={models}
+          modelRowId={modelRowId}
+          onModelChange={setModelRowId}
+          modelsLoading={modelsLoading}
+        />
+      )}
 
       {/* 长历史区间（默认关：不带日期 = 近期数据，与历史行为一致） */}
       <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] overflow-hidden">

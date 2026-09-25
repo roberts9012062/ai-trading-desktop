@@ -94,8 +94,6 @@ interface CreateTaskRulesProps {
   showFactorExit?: boolean
   /** 因子来源说明（AI 任务=挂载的参考因子；量化 factor 任务=任务自身公式） */
   factorExitHint?: string
-  /** 只渲染兜底平仓区块（持仓中运行时调整：普通止盈止损须平仓后改） */
-  onlyBottomLine?: boolean
 }
 
 type ExitKindKey = "exitMacd" | "exitMa" | "exitKdj" | "exitSwing"
@@ -118,7 +116,6 @@ export function CreateTaskRules({
   showIndicatorExits = true,
   showFactorExit = false,
   factorExitHint,
-  onlyBottomLine = false,
 }: CreateTaskRulesProps): React.JSX.Element {
   function patch(partial: Partial<RuleFormState>): void {
     onChange({ ...value, ...partial })
@@ -179,10 +176,6 @@ export function CreateTaskRules({
       </div>
     </div>
   )
-
-  if (onlyBottomLine) {
-    return bottomLineSection
-  }
 
   return (
     <>

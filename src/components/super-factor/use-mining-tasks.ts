@@ -22,9 +22,9 @@ import type {
 } from "@/lib/mining/types"
 import type { Champion } from "@/lib/factor-lab-api"
 
-// remote + local 双 runner(createRunner 返回单例,模块级数组保证引用稳定,
+// 仅本地 runner(服务端引擎已下线;createRunner 返回单例,模块级数组保证引用稳定,
 // 避免 useEffect 反复重订阅);列表按 updated_at 倒序合并展示
-const DEFAULT_RUNNERS: MiningRunner[] = [createRunner("remote"), createRunner("local")]
+const DEFAULT_RUNNERS: MiningRunner[] = [createRunner("local")]
 
 function sortKey(t: MiningTask): string {
   return t.updated_at ?? t.created_at ?? ""

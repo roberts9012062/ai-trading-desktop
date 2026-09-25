@@ -35,8 +35,8 @@ function hasLivePosition(task: AITradingTask | null): boolean {
 }
 
 /** 调整止盈/止损与兜底平仓参数。
- * 无持仓：全部规则可改（运行/暂停/已结束均可，运行中下轮评估生效）；
- * 有持仓：仅允许改兜底平仓参数——已达阈值时保存即触发立即平仓（警告确认）。 */
+ * 全部规则可改（普通平仓/止损/因子阈值/兜底/杠杆），持仓中也可调——
+ * 新规则下一轮评估生效；兜底阈值已越过当前收益率时保存前警告"将立即平仓"。 */
 export function EditRulesDialog({
   open,
   task,
@@ -62,7 +62,7 @@ export function EditRulesDialog({
   const stype = String(task?.strategy_type ?? "ai").toLowerCase()
   const quantMode = QUANT_STRATEGY_SET.has(stype)
   const decisionMode = stype === "decision"
-  const withPosition = hasLivePosition(task)
+  const holdingPosition = hasLivePosition(task)
   // 因子阈值平仓：量化 factor 任务用自身公式；AI 任务需已挂载参考因子
   const mountedTokens = (task?.strategy_params as Record<string, unknown> | null | undefined)
       ?.factor_tokens
@@ -83,7 +83,7 @@ export function EditRulesDialog({
     if (!task) return true
     const margin = Number(task.position_margin ?? 0)
     const unreal = Number(task.position_unrealized ?? 0)
-    if (margin <= 0 || !withPosition) return true
+    if (margin <= 0 || !holdingPosition) return true
     const roi = (unreal / margin) * 100
     const tp = bottom.max_profit_pct
     const sl = bottom.max_loss_pct
@@ -129,28 +129,23 @@ export function EditRulesDialog({
     if (!(await confirmBottomBreach(bottom))) return
     setSubmitting(true)
     try {
-      if (withPosition) {
-        // 持仓中：仅兜底平仓参数与杠杆（后端同样拦截普通规则改动）
-        await updateRules(task.id, { ...bottom, ...levPayload })
-      } else {
-        await updateRules(task.id, {
-          close_rules: buildCloseRulesPayload(
-            rules,
-            decisionMode ? rules.modelExit : quantMode ? false : rules.closeAi,
-          ),
-          stop_rules: {
-            loss_pct: rules.lossPct ? Number(rules.lossPct) : null,
-            loss_amount: rules.lossAmount ? Number(rules.lossAmount) : null,
-            ai_auto: decisionMode
-              ? rules.modelStop
-              : quantMode
-                ? false
-                : rules.stopAi,
-          },
-          ...bottom,
-          ...levPayload,
-        })
-      }
+      await updateRules(task.id, {
+        close_rules: buildCloseRulesPayload(
+          rules,
+          decisionMode ? rules.modelExit : quantMode ? false : rules.closeAi,
+        ),
+        stop_rules: {
+          loss_pct: rules.lossPct ? Number(rules.lossPct) : null,
+          loss_amount: rules.lossAmount ? Number(rules.lossAmount) : null,
+          ai_auto: decisionMode
+            ? rules.modelStop
+            : quantMode
+              ? false
+              : rules.stopAi,
+        },
+        ...bottom,
+        ...levPayload,
+      })
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存失败")
@@ -161,18 +156,21 @@ export function EditRulesDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-sm">
+      {/* 结构：标题固定 / 中部表单独立滚动 / 底部按钮常驻——
+          规则区块多（平仓标准+因子阈值+止损+兜底+杠杆）时内容超一屏
+          也不会把按钮和底部区块顶出视口 */}
+      <DialogContent className="max-w-md max-h-[85vh] flex flex-col gap-3 overflow-hidden">
         <DialogHeader>
           <DialogTitle>调整盈亏比例</DialogTitle>
+          <p className="text-[11px] text-[var(--text-muted)] leading-snug">
+            {task ? `${task.name} · ${task.symbol.toUpperCase()}` : ""}
+            {holdingPosition
+              ? "　持仓中：新规则下一轮评估生效（兜底越阈保存将立即平仓）。"
+              : "　任务状态不变；运行中的任务下一轮评估生效。"}
+          </p>
         </DialogHeader>
-        <p className="text-[11px] text-[var(--text-muted)]">
-          {task ? `${task.name} · ${task.symbol.toUpperCase()}` : ""}
-          {withPosition
-            ? "　当前持仓中：仅可调整兜底平仓参数（最高权重）；普通止盈止损请平仓后修改。"
-            : "　仅调整止盈/止损，任务状态不变；运行中的任务下一轮评估生效。"}
-        </p>
 
-        <div className="space-y-3 text-sm">
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-3 text-sm">
           <CreateTaskRules
             value={rules}
             onChange={setRules}
@@ -184,7 +182,6 @@ export function EditRulesDialog({
             factorExitHint={
               stype === "factor" ? "因子来源：任务公式。" : "因子来源：任务挂载的参考因子。"
             }
-            onlyBottomLine={withPosition}
           />
 
           {/* 杠杆倍数：运行中可改，仅影响后续新开仓 */}
@@ -204,7 +201,7 @@ export function EditRulesDialog({
           {error && <p className="text-xs text-red-400">{error}</p>}
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border)]">
           <Button variant="outline" onClick={onClose} disabled={submitting}>
             取消
           </Button>

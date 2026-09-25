@@ -92,12 +92,11 @@ export function FactorLabPage(): React.JSX.Element {
           <h1 className="text-lg font-semibold text-[var(--text-primary)]">
             因子实验室
           </h1>
-          {/* 计算引擎三态:服务端 / 本地 CPU / 本地 GPU(GPU 不可用置灰并提示) */}
+          {/* 计算引擎两态:本地 CPU / 本地 GPU(GPU 不可用置灰并提示);服务端引擎已下线 */}
           <div className="flex items-center gap-1">
             {(
               [
-                { value: "server", label: "服务端引擎", tip: "搜索在服务器运行;LLM 教练/生成只支持服务端" },
-                { value: "cpu", label: "本地 CPU", tip: "GP 搜索在本机运行(Pyodide+numpy,首次约 10MB);与服务器内核逐位同源" },
+                { value: "cpu", label: "本地 CPU", tip: "GP 搜索在本机运行(内核与 numpy 已内置,秒级启动)" },
                 { value: "gpu", label: "本地 GPU", tip: gpuTip },
               ] as const
             ).map((o) => {
@@ -219,7 +218,9 @@ export function FactorLabPage(): React.JSX.Element {
         />
       </div>
 
+      {/* 历史/收藏一行两列(历史内容多占 2/3),LLM 生成表单全宽更舒展 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 min-w-0">
         <HistoryPanel
           symbol={s.symbol}
           items={s.history}
@@ -248,6 +249,7 @@ export function FactorLabPage(): React.JSX.Element {
           onFavorite={(it) => setFavPending(it)}
           onRefresh={() => void s.refreshHistory(s.symbol)}
         />
+        </div>
         <FavoritesPanel
           items={s.favorites}
           loading={s.favLoading}
@@ -267,12 +269,14 @@ export function FactorLabPage(): React.JSX.Element {
           onDelete={(id) => void s.deleteFavorite(id)}
           onRefresh={() => void s.refreshFavorites(s.symbol)}
         />
+        <div className="lg:col-span-3 min-w-0">
         <GeneratePanel
           models={s.models}
           modelsLoading={s.modelsLoading}
           loading={s.genLoading}
           onGenerate={(p) => void s.handleGenerate(p)}
         />
+        </div>
       </div>
 
       {s.result?.portfolio && <PortfolioCard portfolio={s.result.portfolio} />}

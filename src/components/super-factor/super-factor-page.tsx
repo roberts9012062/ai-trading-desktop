@@ -264,7 +264,8 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
   const [dataChannel, setDataChannel] = useState<string>(DEFAULT_KLINE_CHANNEL)
   const [timeframe, setTimeframe] = useState("1d")
   // 执行位置:服务器计算机 / 本地计算机;本地再选算力(自动/CPU/GPU)
-  const [origin, setOrigin] = useState<RunnerKind>("remote")
+  // 服务端引擎已下线:恒为本地(旧任务列表中的服务端任务仍可查看/清理)
+  const [origin, setOrigin] = useState<RunnerKind>("local")
   useEffect(() => { if (origin !== "local" && dataChannel === "gate_usdt") setDataChannel("binance_spot") }, [origin, dataChannel])
   const [device, setDevice] = useState<DeviceKind>("auto")
   // GPU 可用性探测(置灰 GPU 选项并给出原因)
@@ -491,7 +492,6 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
         <div className="flex flex-wrap gap-1">
           {(
             [
-              { value: "remote", label: "服务器计算机" },
               { value: "local", label: "本地计算机" },
             ] as const
           ).map((o) => (
@@ -511,9 +511,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
           ))}
         </div>
         <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
-          {origin === "remote"
-            ? "服务器长程运行，关闭软件也继续；受配额限制，可用超长历史。"
-            : "本机运行，免配额；本机同时只跑 1 个任务，其余排队。关闭软件自动暂停，可恢复继续（以历史最优因子为种子进入新种群）。历史 K 线同样从服务器拉取。"}
+          本机运行，免配额；本机同时只跑 1 个任务，其余排队。关闭软件自动暂停，可恢复继续（以历史最优因子为种子进入新种群）。
         </p>
       </div>
 
@@ -991,17 +989,10 @@ function TaskDetailPanel(props: DetailProps): React.JSX.Element {
     }
   }, [task?.status, task?.symbol, taskId])
 
-  // 收藏冠军因子（复用 factor_lab 收藏 API，两个页面因子库打通）
+  // 收藏冠军因子（复用 factor_lab 收藏 API，两个页面因子库打通）。
+  // 本地专属公式同样可收藏:服务端引擎已下线,全部任务本地执行,本机可回放
   async function handleFavorite(c: Champion): Promise<void> {
     if (!task) return
-    // 本地专属特征公式服务端无法回放,禁止收藏同步(挂本地引擎任务不受影响)
-    if (isLocalOnly(c.tokens, c.metrics)) {
-      await showAlert({
-        title: "不支持收藏",
-        description: "该公式含本地专属特征，仅本机可执行，不支持收藏同步",
-      })
-      return
-    }
     const key = c.tokens.join(",")
     // 本地立即置灰，避免重复点击
     setFavoritedKeys((prev) => new Set(prev).add(key))

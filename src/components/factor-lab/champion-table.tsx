@@ -209,7 +209,7 @@ export function ChampionTable({
                   {c.metrics.local_only && (
                     <span
                       className="mr-1 px-1 py-px rounded bg-violet-500/15 text-violet-400 text-[9px] font-num"
-                      title="含本地专属特征：仅本机可执行，不支持收藏同步"
+                      title="含本地专属特征：本机执行与回放（可收藏）"
                     >
                       本地
                     </span>
