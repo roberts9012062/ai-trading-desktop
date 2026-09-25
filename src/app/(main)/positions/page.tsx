@@ -193,12 +193,13 @@ export default function PositionsPage(): React.JSX.Element {
                 <TableHead>合约</TableHead>
                 <TableHead>来源</TableHead>
                 <TableHead>方向</TableHead>
-                <TableHead>手数</TableHead>
-                <TableHead>可平</TableHead>
+                <TableHead>杠杆</TableHead>
+                <TableHead>数量</TableHead>
                 <TableHead>均价</TableHead>
                 <TableHead>现价</TableHead>
+                <TableHead>本金(U)</TableHead>
+                <TableHead>杠杆后(U)</TableHead>
                 <TableHead>浮动盈亏</TableHead>
-                <TableHead>保证金</TableHead>
                 <TableHead>操作</TableHead>
               </TableRow>
             </TableHeader>
@@ -210,6 +211,8 @@ export default function PositionsPage(): React.JSX.Element {
                 const isUp = pnl >= 0
                 const src = (p.source as string) || "manual"
                 const cfg = SOURCE_CFG[src] || SOURCE_CFG.manual
+                const lev = Number(p.leverage ?? 0)
+                const notional = Number(p.avg_price || 0) * Number(p.quantity || 0)
                 return (
                   <TableRow key={p.id}>
                     <TableCell>
@@ -219,8 +222,12 @@ export default function PositionsPage(): React.JSX.Element {
                       </p>
                     </TableCell>
                     <TableCell>
-                      <span className={cn("text-[10px] px-1.5 py-0.5 rounded", cfg.cls)}>
+                      <span
+                        className={cn("text-[10px] px-1.5 py-0.5 rounded", cfg.cls)}
+                        title={p.task_name ? `任务：${p.task_name}` : undefined}
+                      >
                         {cfg.label}
+                        {p.task_name ? `·${p.task_name}` : ""}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -228,10 +235,29 @@ export default function PositionsPage(): React.JSX.Element {
                         {p.direction === "long" ? "多" : "空"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-num">{p.quantity}</TableCell>
-                    <TableCell className="font-num">{p.available_quantity}</TableCell>
+                    <TableCell className="font-num">
+                      {lev > 0 ? `${lev}x` : "—"}
+                    </TableCell>
+                    <TableCell className="font-num">
+                      {Number(p.quantity).toLocaleString("zh-CN", {
+                        maximumFractionDigits: 4,
+                      })}
+                    </TableCell>
                     <TableCell className="font-num">{p.avg_price}</TableCell>
                     <TableCell className="font-num">{current > 0 ? current : "--"}</TableCell>
+                    <TableCell className="font-num">
+                      {p.margin > 0 ? p.margin.toLocaleString("zh-CN", { maximumFractionDigits: 2 }) : "—"}
+                    </TableCell>
+                    <TableCell className="font-num">
+                      {notional > 0
+                        ? notional.toLocaleString("zh-CN", { maximumFractionDigits: 2 })
+                        : "—"}
+                      {lev > 0 && notional > 0 && (
+                        <span className="text-[10px] text-[var(--text-muted)] ml-1">
+                          ({lev}x)
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell
                       className={cn("font-num font-medium", isUp ? "text-up" : "text-down")}
                     >
@@ -248,7 +274,6 @@ export default function PositionsPage(): React.JSX.Element {
                         "--"
                       )}
                     </TableCell>
-                    <TableCell className="font-num">{p.margin.toLocaleString()}</TableCell>
                     <TableCell>
                       <Button
                         variant="ghost"
@@ -272,8 +297,8 @@ export default function PositionsPage(): React.JSX.Element {
         <div className="flex items-center gap-6 px-4 py-2 border-t border-[var(--border)] bg-[var(--bg-secondary)] text-sm flex-wrap">
           <span className="text-[var(--text-muted)]">持仓 {filtered.length} 笔</span>
           <span className="text-[var(--text-muted)]">
-            保证金合计{" "}
-            <span className="font-num text-[var(--text-primary)]">¥{totalMargin.toLocaleString()}</span>
+            本金合计{" "}
+            <span className="font-num text-[var(--text-primary)]">{totalMargin.toLocaleString("zh-CN", { maximumFractionDigits: 2 })} USDT</span>
           </span>
           <span className="text-[var(--text-muted)]">
             浮动盈亏{" "}

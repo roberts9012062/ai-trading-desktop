@@ -23,6 +23,7 @@ import type { AITradingTask, UpdateTaskPayload } from "@/lib/ai-trading-api"
 import { useAITradingStore } from "@/stores/ai-trading"
 import {
   CreateTaskRules,
+  buildBottomPayload,
   rulesFromTask,
   type RuleFormState,
 } from "@/components/ai-trading/form/create-task-rules"
@@ -305,6 +306,13 @@ export function EditTaskDialog({
       qLo = 1
       qHi = 10000
     }
+    let bottom: ReturnType<typeof buildBottomPayload>
+    try {
+      bottom = buildBottomPayload(rules)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "兜底参数无效")
+      return
+    }
     const payload: UpdateTaskPayload = {
       name: name.trim(),
       icon,
@@ -392,6 +400,7 @@ export function EditTaskDialog({
             ? false
             : rules.stopAi,
       },
+      ...bottom,
       close_on_stop: rules.closeOnStop,
     }
     setSubmitting(true)

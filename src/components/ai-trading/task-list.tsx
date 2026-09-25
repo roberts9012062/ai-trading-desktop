@@ -144,9 +144,40 @@ export function TaskList({
                     </button>
                   )}
                 </div>
-                <div className="mt-0.5 text-[11px] text-[var(--text-muted)] truncate">
-                  {task.symbol_name || task.symbol} · {task.timeframe} ·{" "}
-                  {strategyLabel(task)}
+                <div className="mt-0.5 text-[11px] text-[var(--text-muted)] truncate flex items-center gap-1">
+                  <span className="truncate">
+                    {task.symbol_name || task.symbol} · {task.timeframe} ·{" "}
+                    {strategyLabel(task)}
+                  </span>
+                  {Number(task.leverage ?? 0) > 0 && (
+                    <span
+                      className="shrink-0 px-1 rounded bg-amber-500/15 text-amber-300 font-num text-[10px]"
+                      title={
+                        task.margin_per_trade
+                          ? `每笔保证金 ${Number(task.margin_per_trade)} USDT × ${task.leverage} 倍杠杆（后续新开仓生效）`
+                          : `${task.leverage} 倍杠杆`
+                      }
+                    >
+                      {task.margin_per_trade
+                        ? `${Number(task.margin_per_trade).toLocaleString("zh-CN", { maximumFractionDigits: 2 })}U×${task.leverage}倍`
+                        : `${task.leverage}倍`}
+                    </span>
+                  )}
+                  {task.position_opened_at != null &&
+                    task.hold_days_left != null &&
+                    Number(task.max_hold_days ?? 0) > 0 && (
+                      <span
+                        className={cn(
+                          "shrink-0 px-1 rounded font-num text-[10px]",
+                          task.hold_days_left <= 3
+                            ? "bg-red-500/15 text-red-300"
+                            : "bg-white/5 text-[var(--text-muted)]",
+                        )}
+                        title={`总周期 ${task.max_hold_days} 天，还剩 ${task.hold_days_left} 天（北京自然日，每过 0 点 -1，剩 0 天强制平仓）`}
+                      >
+                        剩{task.hold_days_left}天
+                      </span>
+                    )}
                 </div>
               </div>
             </div>

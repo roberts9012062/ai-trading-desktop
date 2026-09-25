@@ -152,7 +152,8 @@ export async function getLivePositionsApi(venue: string): Promise<PaperPositionI
     symbol: String(p.symbol),
     symbol_name: String(p.symbol_name ?? p.symbol),
     direction: p.direction as "long" | "short",
-    source: "manual",
+    // 来源归属：后端按未配对开仓镜像判定 ai/quant，无任务归属=manual
+    source: (p.source as string | undefined) ?? "manual",
     quantity: Number(p.quantity),
     available_quantity: Number(p.quantity),
     avg_price: Number(p.avg_price),
@@ -164,6 +165,8 @@ export async function getLivePositionsApi(venue: string): Promise<PaperPositionI
     liquidation_price: Number(p.liquidation_price ?? 0),
     leverage: Number(p.leverage ?? 0),
     updated_at: "",
+    /** 归属任务名（手动持仓无） */
+    task_name: (p.task_name as string | null) ?? null,
   })) as PaperPositionItem[]
 }
 

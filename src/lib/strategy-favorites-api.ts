@@ -106,6 +106,9 @@ export interface TaskFavoriteSnapshot {
   custom_prompt?: string | null
   close_rules?: Record<string, unknown>
   stop_rules?: Record<string, unknown>
+  /** 兜底止盈/止损（保证金收益率%）；null=关闭；旧快照无此字段 */
+  max_profit_pct?: number | null
+  max_loss_pct?: number | null
   max_hold_days?: number
   close_on_stop?: boolean
   status_at_save?: string

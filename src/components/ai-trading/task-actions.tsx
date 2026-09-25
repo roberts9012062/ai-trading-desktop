@@ -198,7 +198,7 @@ export function TaskActions({
           variant="outline"
           disabled={busy}
           onClick={() => onEditRules(task)}
-          title="调整止盈/止损比例（该品种无持仓时可用，运行中下轮生效）"
+          title="调整止盈/止损与兜底平仓参数（持仓中仅可改兜底，运行中下轮生效）"
         >
           <SlidersHorizontal className="w-3.5 h-3.5" />
           {!compact && <span className="ml-1">改比例</span>}

@@ -18,6 +18,7 @@ import { useAITradingStore } from "@/stores/ai-trading"
 import {
   CreateTaskRules,
   EMPTY_RULE_FORM,
+  buildBottomPayload,
   buildCloseRulesPayload,
   rulesFromTask,
   type RuleFormState,
@@ -258,6 +259,13 @@ export function CreateTaskDialog({
       useMin = 0
       useMax = 100
     }
+    let bottom: ReturnType<typeof buildBottomPayload>
+    try {
+      bottom = buildBottomPayload(rules)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "兜底参数无效")
+      return
+    }
     const payload: CreateTaskPayload = {
       name: name.trim(),
       model_row_id: modelRowId,
@@ -309,6 +317,7 @@ export function CreateTaskDialog({
         loss_amount: rules.lossAmount ? Number(rules.lossAmount) : null,
         ai_auto: rules.stopAi,
       },
+      ...bottom,
       close_on_stop: rules.closeOnStop,
       auto_start: rules.autoStart,
     }

@@ -188,6 +188,15 @@ export function TaskDetailDrawer({
     )
   }, [decisions])
 
+  // 抽屉打开期间轮询分析/交易记录：新分析自动顶部插入（带入场动画），无需手动刷新
+  const refreshDetail = useAITradingStore((s) => s.refreshDetail)
+  const taskId = task?.id
+  useEffect(() => {
+    if (!open || !taskId || readOnly) return
+    const timer = setInterval(() => void refreshDetail({ silent: true }), 4000)
+    return () => clearInterval(timer)
+  }, [open, taskId, readOnly, refreshDetail])
+
   const latestDecision = sortedDecisions[0]
   const modelError = isModelErrorDecision(latestDecision)
   const isAiTask = (task?.strategy_type ?? "ai") === "ai"
@@ -220,8 +229,41 @@ export function TaskDetailDrawer({
               <span>{task.model_display_name}</span>
               <span>状态 {STATUS_LABEL[statusKey(task)] ?? task.status}</span>
               {task.max_hold_days ? (
-                <span>周期 {task.max_hold_days} 天</span>
+                <span
+                  title="周期按北京自然日倒数：开仓后每过 0 点剩余天数 -1，剩 0 天时强制平仓"
+                >
+                  总周期：{task.max_hold_days}天
+                  {task.position_opened_at != null &&
+                  task.hold_days_left != null ? (
+                    <span
+                      className={
+                        task.hold_days_left <= 3 ? "text-amber-400" : undefined
+                      }
+                    >
+                      ，还剩{task.hold_days_left}天
+                    </span>
+                  ) : null}
+                </span>
               ) : null}
+              {Number(task.leverage ?? 0) > 0 && (
+                <span>
+                  杠杆 {task.leverage} 倍
+                  {task.margin_per_trade
+                    ? `（每笔 ${Number(task.margin_per_trade).toLocaleString("zh-CN", { maximumFractionDigits: 2 })}U）`
+                    : ""}
+                </span>
+              )}
+              {(task.max_profit_pct != null || task.max_loss_pct != null) && (
+                <span className="text-amber-500/90">
+                  兜底
+                  {task.max_profit_pct != null
+                    ? ` 止盈${Number(task.max_profit_pct).toFixed(0)}%`
+                    : ""}
+                  {task.max_loss_pct != null
+                    ? ` 止损${Number(task.max_loss_pct).toFixed(0)}%`
+                    : ""}
+                </span>
+              )}
               {task.total_realized_pnl != null && task.total_realized_pnl !== 0 ? (
                 <span
                   className={
@@ -256,7 +298,15 @@ export function TaskDetailDrawer({
               <TabsList>
                 {readOnly && <TabsTrigger value="profit">收益</TabsTrigger>}
                 <TabsTrigger value="decisions">
-                  分析记录 ({decisions.length})
+                  <span className="flex items-center gap-1.5">
+                    分析记录 ({decisions.length})
+                    {!readOnly && task.status === "running" && (
+                      <span
+                        className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"
+                        title="实时更新中：新分析自动置顶（每 4 秒刷新）"
+                      />
+                    )}
+                  </span>
                 </TabsTrigger>
                 <TabsTrigger value="trades">
                   交易记录 ({trades.length})
@@ -271,7 +321,11 @@ export function TaskDetailDrawer({
                 </TabsContent>
               )}
               <TabsContent value="decisions" className="mt-3">
-                <DecisionList items={decisions} loading={loading} />
+                <DecisionList
+                  items={decisions}
+                  loading={loading}
+                  resetKey={task.id}
+                />
               </TabsContent>
               <TabsContent value="trades" className="mt-3">
                 <TradeList items={trades} loading={loading} />

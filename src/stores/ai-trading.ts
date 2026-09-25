@@ -61,7 +61,8 @@ interface AITradingState {
   /** 切换任务模型并立即用新模型执行一次（接手操盘） */
   switchModel: (id: string, modelRowId: string) => Promise<void>
   selectTask: (id: string | null) => Promise<void>
-  refreshDetail: () => Promise<void>
+  /** opts.silent：轮询刷新不闪 loading/错误 */
+  refreshDetail: (opts?: { silent?: boolean }) => Promise<void>
 }
 
 /** AI 交易状态 */
@@ -205,10 +206,12 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
     await get().refreshDetail()
   },
 
-  refreshDetail: async () => {
+  refreshDetail: async (opts) => {
     const id = get().selectedTaskId
     if (!id) return
-    set({ detailLoading: true })
+    // silent：抽屉打开期间的轮询刷新——不闪 loading/错误（新分析由列表动画呈现）
+    const silent = Boolean(opts?.silent)
+    if (!silent) set({ detailLoading: true })
     try {
       const [dec, trades] = await Promise.all([
         listAITradingDecisions(id, 50, 0),
@@ -220,10 +223,12 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
         detailLoading: false,
       })
     } catch (err) {
-      set({
-        detailLoading: false,
-        error: err instanceof Error ? err.message : "加载详情失败",
-      })
+      if (!silent) {
+        set({
+          detailLoading: false,
+          error: err instanceof Error ? err.message : "加载详情失败",
+        })
+      }
     }
   },
 }))

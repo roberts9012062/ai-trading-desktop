@@ -36,6 +36,11 @@ export interface RuleFormState {
   factorExitMode: "" | "decay" | "reach"
   factorExitLong: string
   factorExitShort: string
+  // —— 兜底平仓（最高权重）：按保证金收益率触发 ——
+  bottomTpOn: boolean
+  bottomTpPct: string
+  bottomSlOn: boolean
+  bottomSlPct: string
 }
 
 /** 空白规则表单（各弹窗在此基础上覆盖自己的默认值） */
@@ -64,6 +69,11 @@ export const EMPTY_RULE_FORM: RuleFormState = {
   factorExitMode: "",
   factorExitLong: "",
   factorExitShort: "",
+  // 兜底平仓默认开启：止盈 20% / 止损 10%（相对保证金收益率）
+  bottomTpOn: true,
+  bottomTpPct: "20",
+  bottomSlOn: true,
+  bottomSlPct: "10",
 }
 
 interface CreateTaskRulesProps {
@@ -84,6 +94,8 @@ interface CreateTaskRulesProps {
   showFactorExit?: boolean
   /** 因子来源说明（AI 任务=挂载的参考因子；量化 factor 任务=任务自身公式） */
   factorExitHint?: string
+  /** 只渲染兜底平仓区块（持仓中运行时调整：普通止盈止损须平仓后改） */
+  onlyBottomLine?: boolean
 }
 
 type ExitKindKey = "exitMacd" | "exitMa" | "exitKdj" | "exitSwing"
@@ -106,6 +118,7 @@ export function CreateTaskRules({
   showIndicatorExits = true,
   showFactorExit = false,
   factorExitHint,
+  onlyBottomLine = false,
 }: CreateTaskRulesProps): React.JSX.Element {
   function patch(partial: Partial<RuleFormState>): void {
     onChange({ ...value, ...partial })
@@ -114,6 +127,62 @@ export function CreateTaskRules({
   const decayMode = value.factorExitMode === "decay"
   const reachMode = value.factorExitMode === "reach"
   const factorPh = reachMode ? "0.80" : "0.15"
+
+  const bottomLineSection = (
+    <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2.5 space-y-2">
+      <div className="text-xs font-medium text-amber-500/90">
+        兜底平仓（最高权重）
+      </div>
+      <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
+        按保证金收益率实时触发（每 2 秒检查），先于策略/AI 与普通止盈止损，二者互不影响。
+        例：100U 保证金 × 5 倍，盈利 50U = 收益率 50%。
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={value.bottomTpOn}
+              onChange={(e) => patch({ bottomTpOn: e.target.checked })}
+            />
+            最大收益平仓
+          </label>
+          <Input
+            placeholder="20"
+            disabled={!value.bottomTpOn}
+            value={value.bottomTpPct}
+            onChange={(e) => patch({ bottomTpPct: e.target.value })}
+          />
+          <p className="text-[10px] text-[var(--text-muted)]">
+            收益率达阈值即平 · 最小 10% · 无上限
+          </p>
+        </div>
+        <div className="space-y-1">
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={value.bottomSlOn}
+              onChange={(e) => patch({ bottomSlOn: e.target.checked })}
+            />
+            最大止损
+          </label>
+          <Input
+            placeholder="10"
+            disabled={!value.bottomSlOn}
+            value={value.bottomSlPct}
+            onChange={(e) => patch({ bottomSlPct: e.target.value })}
+          />
+          <p className="text-[10px] text-[var(--text-muted)]">
+            亏损率达阈值即平 · 最小 5% · 无上限
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+
+  if (onlyBottomLine) {
+    return bottomLineSection
+  }
 
   return (
     <>
@@ -375,6 +444,8 @@ export function CreateTaskRules({
         )}
       </div>
 
+      {bottomLineSection}
+
       {showLifecycle && (
         <>
           <label className="flex items-center gap-2 text-xs">
@@ -453,11 +524,31 @@ export function buildCloseRulesPayload(
   return out
 }
 
+/** 兜底平仓表单 → 提交字段（开=数值，关=null；校验最小值） */
+export function buildBottomPayload(
+  rules: RuleFormState,
+): { max_profit_pct: number | null; max_loss_pct: number | null } {
+  const tp = rules.bottomTpOn ? Number(rules.bottomTpPct) : NaN
+  const sl = rules.bottomSlOn ? Number(rules.bottomSlPct) : NaN
+  if (rules.bottomTpOn && (!Number.isFinite(tp) || tp < 10)) {
+    throw new Error("兜底止盈百分比无效：开启后最小 10%")
+  }
+  if (rules.bottomSlOn && (!Number.isFinite(sl) || sl < 5)) {
+    throw new Error("兜底止损百分比无效：开启后最小 5%")
+  }
+  return {
+    max_profit_pct: rules.bottomTpOn ? tp : null,
+    max_loss_pct: rules.bottomSlOn ? sl : null,
+  }
+}
+
 /** 任务 → 止盈止损表单状态（创建弹窗克隆预填 / 编辑弹窗共用） */
 export function rulesFromTask(task: {
   close_rules?: unknown
   stop_rules?: unknown
   close_on_stop?: boolean | null
+  max_profit_pct?: number | null
+  max_loss_pct?: number | null
 }): RuleFormState {
   const c = (task.close_rules ?? {}) as Record<string, unknown>
   const s = (task.stop_rules ?? {}) as Record<string, unknown>
@@ -498,5 +589,10 @@ export function rulesFromTask(task: {
       fx?.mode === "reach" ? "reach" : fx?.mode === "decay" ? "decay" : "",
     factorExitLong: fx?.long_threshold != null ? String(fx.long_threshold) : "",
     factorExitShort: fx?.short_threshold != null ? String(fx.short_threshold) : "",
+    bottomTpOn: task.max_profit_pct != null,
+    bottomTpPct:
+      task.max_profit_pct != null ? String(task.max_profit_pct) : "20",
+    bottomSlOn: task.max_loss_pct != null,
+    bottomSlPct: task.max_loss_pct != null ? String(task.max_loss_pct) : "10",
   }
 }

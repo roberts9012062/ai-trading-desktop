@@ -87,6 +87,8 @@ export interface PaperPositionItem {
   unrealized_pnl?: number
   liquidation_price?: number
   leverage?: number
+  /** 实盘扩展：归属任务名（后端按开仓镜像判定来源；手动持仓无） */
+  task_name?: string | null
 }
 
 /** 下单请求 */

@@ -72,6 +72,13 @@ function payloadFromSnapshot(
     custom_prompt: s.custom_prompt ?? null,
     close_rules: (s.close_rules ?? {}) as unknown as CreateTaskPayload["close_rules"],
     stop_rules: (s.stop_rules ?? {}) as unknown as CreateTaskPayload["stop_rules"],
+    // 兜底平仓随快照克隆（快照无该字段=旧收藏，走后端默认 20%/10%）
+    ...(s.max_profit_pct !== undefined || s.max_loss_pct !== undefined
+      ? {
+          max_profit_pct: (s.max_profit_pct as number | null) ?? null,
+          max_loss_pct: (s.max_loss_pct as number | null) ?? null,
+        }
+      : {}),
     close_on_stop: s.close_on_stop !== false,
     auto_start: true,
   }

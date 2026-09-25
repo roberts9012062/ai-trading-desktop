@@ -143,6 +143,32 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* 分析记录新条目入场：顶部滑入 + 琥珀高亮渐隐（配合 FLIP 旧条目下移） */
+@keyframes decision-enter {
+  0% { opacity: 0; transform: translateY(-18px) scale(0.985); }
+  35% { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes decision-enter-glow {
+  0% {
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.6);
+    background-color: rgba(245, 158, 11, 0.09);
+  }
+  60% {
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.35);
+    background-color: rgba(245, 158, 11, 0.05);
+  }
+  100% {
+    box-shadow: 0 0 0 1px transparent;
+    background-color: transparent;
+  }
+}
+.decision-enter {
+  animation:
+    decision-enter 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    decision-enter-glow 1.6s ease-out;
+}
+
 /* 新闻条水平滚动动画 */
 @keyframes news-ticker {
   0% { transform: translateX(100%); }

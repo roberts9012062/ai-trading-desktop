@@ -84,11 +84,17 @@ export interface AITradingTask {
   risk_style?: RiskStyle | string
   /** 最长持仓天数 */
   max_hold_days?: number
+  /** 周期剩余天数（北京自然日倒计时；开仓后每过 0 点 -1，无持仓=完整周期） */
+  hold_days_left?: number | null
   custom_prompt_enabled?: boolean
   custom_prompt?: string | null
   position_opened_at?: string | null
   close_rules: CloseRules
   stop_rules: StopRules
+  /** 兜底止盈：保证金收益率%≥值立即平仓（最高权重）；null=关闭 */
+  max_profit_pct?: number | null
+  /** 兜底止损：保证金收益率%≤-值立即平仓（最高权重）；null=关闭 */
+  max_loss_pct?: number | null
   status: TaskStatus | string
   /** user=手动暂停；market_closed=休市自动暂停 */
   pause_reason?: string | null
@@ -124,6 +130,8 @@ export interface AITradingTask {
   position_last_price?: number | null
   /** 浮动盈亏（元，不含手续费） */
   position_unrealized?: number | null
+  /** 持仓保证金（兜底收益率计算用；无仓为 0） */
+  position_margin?: number | null
   /** 胜率统计：盈利平仓笔数 */
   win_count?: number
   /** 胜率统计：亏损平仓笔数 */
@@ -225,6 +233,10 @@ export interface CreateTaskPayload {
   custom_prompt?: string | null
   close_rules: CloseRules
   stop_rules: StopRules
+  /** 兜底止盈：保证金收益率%≥值立即平仓（最高权重）；null=关闭 */
+  max_profit_pct?: number | null
+  /** 兜底止损：保证金收益率%≤-值立即平仓（最高权重）；null=关闭 */
+  max_loss_pct?: number | null
   close_on_stop: boolean
   auto_start: boolean
 }
@@ -261,6 +273,10 @@ export interface UpdateTaskPayload {
   custom_prompt?: string | null
   close_rules?: CloseRules
   stop_rules?: StopRules
+  /** 兜底止盈%；null=关闭；不传=不变 */
+  max_profit_pct?: number | null
+  /** 兜底止损%；null=关闭；不传=不变 */
+  max_loss_pct?: number | null
   close_on_stop?: boolean
 }
 
@@ -354,6 +370,12 @@ export async function updateAITradingTask(
 export interface UpdateTaskRulesPayload {
   close_rules?: CloseRules
   stop_rules?: StopRules
+  /** 兜底止盈%；null=关闭；不传=不变 */
+  max_profit_pct?: number | null
+  /** 兜底止损%；null=关闭；不传=不变 */
+  max_loss_pct?: number | null
+  /** 杠杆倍数 1-100（运行中可改，仅影响后续新开仓） */
+  leverage?: number
 }
 
 /** 无持仓时调整止盈/止损规则（运行/暂停/已结束均可，运行中下轮评估生效） */
