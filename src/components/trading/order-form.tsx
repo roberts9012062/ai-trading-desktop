@@ -104,6 +104,37 @@ export function OrderPanel(): React.JSX.Element {
             ))}
           </div>
         </div>
+        {p.direction !== "close" && (
+          <div className="space-y-1">
+            <Label className="text-xs">保证金模式</Label>
+            <div className="grid grid-cols-2 gap-1.5">
+              {(
+                [
+                  { v: "cross" as const, label: "全仓", hint: "账户共享保证金" },
+                  { v: "isolated" as const, label: "逐仓", hint: "仓位独立强平线" },
+                ]
+              ).map(({ v, label, hint }) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => p.setMarginMode(v)}
+                  className={cn(
+                    "h-8 rounded-md border text-xs transition-colors",
+                    p.marginMode === v
+                      ? "border-[var(--primary)] text-[var(--primary)] bg-[var(--primary)]/10"
+                      : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]",
+                  )}
+                  title={hint}
+                >
+                  {label}
+                  <span className="ml-1 text-[10px] text-[var(--text-muted)]">
+                    {hint}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <InfoRow
           label={`自动数量（保证金×杠杆 ÷ 价格）`}
           value={p.autoQty > 0 ? `${p.autoQty.toFixed(6).replace(/0+$/, "").replace("\.$/", "")}` : "--"}

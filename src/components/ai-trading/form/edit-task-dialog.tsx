@@ -110,7 +110,7 @@ export function EditTaskDialog({
   const [sideMode, setSideMode] = useState("both")
   const [positionMode, setPositionMode] = useState("fixed_margin")
   // r20：每笔保证金 USDT + 杠杆
-  const [marginModel, setMarginModel] = useState({ marginPerTrade: 100, leverage: 10 })
+  const [marginModel, setMarginModel] = useState<{ marginPerTrade: number; leverage: number; marginMode: "cross" | "isolated" }>({ marginPerTrade: 100, leverage: 10, marginMode: "cross" })
   // 量化策略参数（停止后可改再继续）：strategy_params ↔ 表单
   const [quantParams, setQuantParams] = useState<QuantParamsState>(DEFAULT_QUANT_PARAMS)
   // 量化分析间隔（秒）：3 ~ K 线周期秒；默认=周期（每根收盘分析一次）
@@ -197,6 +197,7 @@ export function EditTaskDialog({
     )
     setMarginModel({
       marginPerTrade: Number(task.margin_per_trade) > 0 ? Number(task.margin_per_trade) : 100,
+      marginMode: task.margin_mode === "isolated" ? "isolated" as const : "cross" as const,
       leverage: Math.max(1, Math.min(100, Number(task.leverage) || 10)),
     })
     // 量化策略参数回填：decision 任务取 decision_strategy 内层，factor 走独立因子挂载
@@ -364,6 +365,7 @@ export function EditTaskDialog({
       // 所有模式统一保证金 sizing（旧手数路径会把小数数量截成 0）
       margin_per_trade: marginModel.marginPerTrade,
       leverage: marginModel.leverage,
+      margin_mode: marginModel.marginMode,
       funding_source:
         funding.info && funding.info.source === "live" && funding.info.balance_usdt != null
           ? "live"

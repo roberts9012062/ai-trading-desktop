@@ -1,6 +1,32 @@
 /** AI 交易 API 客户端 */
-import { listFactorFavorites } from "./factor-lab-api"
-import { serverFactorBlockReason } from "./factor-access"
+
+import { isResearchOnlyFactor, RESEARCH_FACTOR_MESSAGE } from "@/lib/factor-access"
+import { listFactorFavorites } from "@/lib/factor-lab-api"
+
+/** AI 任务的因子守卫:服务端因子信号回放不了直连衍生数据特征(research-only)。
+ *  本地因子策略(strategy_type=factor)在本地引擎执行,不受此限制。 */
+async function guardAiFactorTokens(tokens: number[] | undefined): Promise<void> {
+  if (!tokens || tokens.length === 0) return
+  // 1) 直接按 token 区间判(新公式,不依赖收藏元数据)
+  if (isResearchOnlyFactor(tokens, null)) throw new Error(RESEARCH_FACTOR_MESSAGE)
+  // 2) 已保存收藏的 research_only 标记(历史存量公式)
+  const favs = await listFactorFavorites().catch(() => [])
+  const key = tokens.join(",")
+  const hit = favs.find((f) => (f.tokens ?? []).join(",") === key)
+  if (hit && isResearchOnlyFactor(tokens, hit.metrics)) {
+    throw new Error(RESEARCH_FACTOR_MESSAGE)
+  }
+}
+
+/** AI 任务(strategy_type=ai)载荷中的因子 tokens;factor 策略/无 tokens 返回 undefined */
+function aiFactorTokensOf(payload: {
+  strategy_type?: string
+  strategy_params?: unknown
+}): number[] | undefined {
+  if (payload.strategy_type !== "ai") return undefined
+  const params = payload.strategy_params as { factor_tokens?: unknown } | null | undefined
+  return Array.isArray(params?.factor_tokens) ? (params.factor_tokens as number[]) : undefined
+}
 export type Timeframe = "1m" | "5m" | "15m" | "30m" | "60m" | "1d"
 export type SideMode = "long_only" | "short_only" | "both"
 export type PositionMode = "full" | "half" | "fixed_qty" | "scale_in" | "fixed_margin"
@@ -72,6 +98,8 @@ export interface AITradingTask {
   margin_per_trade?: number | null
   /** 杠杆倍数 1-100 */
   leverage?: number
+  /** 保证金模式 cross 全仓 / isolated 逐仓 */
+  margin_mode?: "cross" | "isolated" | string
   /** 资金源 live=实盘资金库 / site=站内账户 */
   funding_source?: "live" | "site" | string
   /** 开仓最少/最多手数（旧模式） */
@@ -221,6 +249,7 @@ export interface CreateTaskPayload {
   fixed_qty?: number
   margin_per_trade?: number | null
   leverage?: number
+  margin_mode?: "cross" | "isolated" | string
   funding_source?: "live" | "site"
   eval_interval_sec?: number | null
   qty_min?: number
@@ -261,6 +290,7 @@ export interface UpdateTaskPayload {
   fixed_qty?: number
   margin_per_trade?: number | null
   leverage?: number
+  margin_mode?: "cross" | "isolated" | string
   funding_source?: "live" | "site"
   eval_interval_sec?: number | null
   qty_min?: number
@@ -330,30 +360,10 @@ export async function fetchFundingSource(): Promise<FundingSourceInfo> {
   return request<FundingSourceInfo>("/api/ai-trading/funding-source")
 }
 
-/** Recheck persisted favorites at submission: UI filtering cannot protect old task snapshots. */
-async function validateAiFactorMount(params: CreateTaskPayload["strategy_params"], symbol: string): Promise<void> {
-  if (!params || !("factor_tokens" in params)) return
-  const tokens = params.factor_tokens
-  if (tokens == null) return
-  if (!Array.isArray(tokens) || !tokens.length || !tokens.every((t) => Number.isInteger(t) && t >= 0)) {
-    throw new Error("请选择有效收藏因子，或取消因子挂载")
-  }
-  const tokenError = serverFactorBlockReason(tokens)
-  if (tokenError) throw new Error(tokenError)
-  const favorites = await listFactorFavorites(symbol)
-  const matching = favorites.filter((f) => JSON.stringify(f.tokens) === JSON.stringify(tokens))
-  if (!matching.length) throw new Error("未找到该币种的收藏因子，请重新选择后提交")
-  if (matching.every((f) => serverFactorBlockReason(f.tokens, f.metrics))) {
-    throw new Error(serverFactorBlockReason(matching[0].tokens, matching[0].metrics)!)
-  }
-}
-
 export async function createAITradingTask(
   payload: CreateTaskPayload,
 ): Promise<AITradingTask> {
-  if (!payload.strategy_type || payload.strategy_type === "ai") {
-    await validateAiFactorMount(payload.strategy_params, payload.symbol)
-  }
+  await guardAiFactorTokens(aiFactorTokensOf(payload))
   return request("/api/ai-trading/tasks", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -384,11 +394,12 @@ export async function updateAITradingTask(
   id: string,
   payload: UpdateTaskPayload,
 ): Promise<AITradingTask> {
-  if (payload.strategy_params && "factor_tokens" in payload.strategy_params) {
-    const current = await getAITradingTask(id)
-    if (!current.strategy_type || current.strategy_type === "ai") {
-      await validateAiFactorMount(payload.strategy_params, payload.symbol ?? current.symbol)
-    }
+  // 编辑载荷改因子 token 时,先取任务详情确认是 AI 任务(factor 策略不限)再守卫
+  const tokens = (payload.strategy_params as { factor_tokens?: number[] } | undefined)
+    ?.factor_tokens
+  if (Array.isArray(tokens) && tokens.length > 0) {
+    const task = await request<AITradingTask>(`/api/ai-trading/tasks/${id}`)
+    if (task?.strategy_type === "ai") await guardAiFactorTokens(tokens)
   }
   return request(`/api/ai-trading/tasks/${id}`, {
     method: "PATCH",

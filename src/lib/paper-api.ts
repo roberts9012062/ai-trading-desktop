@@ -60,6 +60,8 @@ export interface PaperOrderItem {
   filled_at: string | null
   /** 实盘扩展：杠杆 / 开平 / 止盈止损（virtual 无） */
   leverage?: number | null
+  /** 实盘扩展：保证金模式 cross/isolated（virtual 无） */
+  margin_mode?: string | null
   tp_price?: number | null
   sl_price?: number | null
   /** 实盘扩展：交易所订单号（挂单/历史合并去重用；virtual 无） */
@@ -89,6 +91,8 @@ export interface PaperPositionItem {
   leverage?: number
   /** 实盘扩展：归属任务名（后端按开仓镜像判定来源；手动持仓无） */
   task_name?: string | null
+  /** 保证金模式 cross 全仓 / isolated 逐仓（virtual 模式无） */
+  margin_mode?: string | null
 }
 
 /** 下单请求 */

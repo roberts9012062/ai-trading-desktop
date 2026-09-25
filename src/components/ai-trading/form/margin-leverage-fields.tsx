@@ -16,9 +16,11 @@ export interface MarginLeverageValue {
   marginPerTrade: number
   /** 杠杆 1-100 */
   leverage: number
+  /** 保证金模式 cross 全仓 / isolated 逐仓 */
+  marginMode: "cross" | "isolated"
 }
 
-/** 保证金 + 杠杆 + 自动数量预览（数量预览需传最新价）
+/** 保证金 + 杠杆 + 保证金模式 + 自动数量预览（数量预览需传最新价）
  * budgetOnly=true：半仓/全仓/资金比例模式，保证金由预算比例决定，只露杠杆。 */
 export function MarginLeverageFields(props: {
   value: MarginLeverageValue
@@ -91,6 +93,47 @@ export function MarginLeverageFields(props: {
             </button>
           ))}
         </div>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">保证金模式</Label>
+        <div className="grid grid-cols-2 gap-1.5">
+          {(
+            [
+              { v: "cross" as const, label: "全仓", hint: "账户共享保证金" },
+              { v: "isolated" as const, label: "逐仓", hint: "仓位独立强平线" },
+            ]
+          ).map(({ v, label, hint }) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onChange({ ...value, marginMode: v })}
+              className={cn(
+                "h-9 rounded-md border text-left px-2 transition-colors",
+                value.marginMode === v
+                  ? "border-[var(--primary)] bg-[var(--primary)]/10"
+                  : "border-[var(--border)] hover:bg-[var(--bg-tertiary)]",
+              )}
+            >
+              <span
+                className={cn(
+                  "block text-xs font-medium",
+                  value.marginMode === v
+                    ? "text-[var(--primary)]"
+                    : "text-[var(--text-secondary)]",
+                )}
+              >
+                {label}
+              </span>
+              <span className="block text-[10px] text-[var(--text-muted)]">
+                {hint}
+              </span>
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
+          全仓=全部仓位共用账户保证金，单仓无独立强平价；逐仓=该仓锁定自己的保证金，
+          浮亏击穿即强平该仓（交易所按此口径执行，回测同口径模拟）。
+        </p>
       </div>
       <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
         <span>{budgetOnly ? "数量 = 预算保证金×杠杆 ÷ 价格" : "自动数量 = 保证金×杠杆 ÷ 价格"}</span>

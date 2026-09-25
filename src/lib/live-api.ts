@@ -167,6 +167,7 @@ export async function getLivePositionsApi(venue: string): Promise<PaperPositionI
     updated_at: "",
     /** 归属任务名（手动持仓无） */
     task_name: (p.task_name as string | null) ?? null,
+    margin_mode: (p.margin_mode as string | undefined) ?? "cross",
   })) as PaperPositionItem[]
 }
 
@@ -211,6 +212,7 @@ export async function getLiveOrdersApi(
     filled_at: (o.filled_at as string | null) ?? null,
     exchange_order_id: o.exchange_order_id ?? o.order_id ?? "",
     leverage: (o.leverage as number | null) ?? null,
+    margin_mode: (o.margin_mode as string | null) ?? null,
     tp_price: (o.tp_price as number | null) ?? null,
     sl_price: (o.sl_price as number | null) ?? null,
   })) as PaperOrderItem[]
@@ -226,6 +228,8 @@ export interface PlaceLiveOrderRequest {
   quantity: number | null
   margin_usdt?: number | null
   leverage?: number | null
+  /** 保证金模式 cross 全仓 / isolated 逐仓 */
+  margin_mode?: "cross" | "isolated"
   tp_price?: number | null
   sl_price?: number | null
   reduce_only?: boolean

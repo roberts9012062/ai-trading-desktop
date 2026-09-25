@@ -28,6 +28,10 @@ const SOURCE_CFG: Record<string, { label: string; cls: string }> = {
   quant: { label: "量化", cls: "bg-amber-500/15 text-amber-300" },
 }
 
+function mmLabel(mode: string | null | undefined): string {
+  return mode === "isolated" ? "逐仓" : mode === "cross" ? "全仓" : ""
+}
+
 function calcPnl(pos: PaperPositionItem, current: number) {
   if (current <= 0 || pos.avg_price <= 0) return { pnl: 0, pct: 0 }
   const mult = pos.multiplier || 10
@@ -237,6 +241,18 @@ export default function PositionsPage(): React.JSX.Element {
                     </TableCell>
                     <TableCell className="font-num">
                       {lev > 0 ? `${lev}x` : "—"}
+                      {mmLabel(p.margin_mode) && (
+                        <span
+                          className={cn(
+                            "ml-1 text-[10px] px-1 rounded",
+                            p.margin_mode === "isolated"
+                              ? "bg-amber-500/15 text-amber-300"
+                              : "bg-sky-500/15 text-sky-300",
+                          )}
+                        >
+                          {mmLabel(p.margin_mode)}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="font-num">
                       {Number(p.quantity).toLocaleString("zh-CN", {

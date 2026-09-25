@@ -161,6 +161,7 @@ export function TaskList({
                       {task.margin_per_trade
                         ? `${Number(task.margin_per_trade).toLocaleString("zh-CN", { maximumFractionDigits: 2 })}U×${task.leverage}倍`
                         : `${task.leverage}倍`}
+                      ·{task.margin_mode === "isolated" ? "逐仓" : "全仓"}
                     </span>
                   )}
                   {task.position_opened_at != null &&

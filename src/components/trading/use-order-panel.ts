@@ -65,6 +65,8 @@ export function useOrderPanel() {
   /** ===== r20 受保护下单模型 ===== */
   const [marginInput, setMarginInput] = useState("100")
   const [leverage, setLeverage] = useState(10)
+  /** 保证金模式：全仓（账户共享）/ 逐仓（仓位独立强平线） */
+  const [marginMode, setMarginMode] = useState<"cross" | "isolated">("cross")
   const [tpPrice, setTpPrice] = useState("")
   const [slPrice, setSlPrice] = useState("")
   /** 持仓点选指定要平的方向（多/空） */
@@ -255,6 +257,7 @@ export function useOrderPanel() {
       clearMessage,
       marginUsdt: autoQty > 0 ? marginNum : null,
       leverage: autoQty > 0 ? leverage : null,
+      marginMode,
       tpPrice: direction !== "close" && tpNum > 0 ? tpNum : null,
       slPrice: direction !== "close" && slNum > 0 ? slNum : null,
     })
@@ -274,6 +277,7 @@ export function useOrderPanel() {
     priceNum,
     qtyNum,
     sessionMsg,
+    marginMode,
   ])
 
   const handleSubmitClick = () => {
@@ -313,6 +317,8 @@ export function useOrderPanel() {
     marginInput,
     setMarginInput,
     leverage,
+    marginMode,
+    setMarginMode,
     setLeverage,
     tpPrice,
     setTpPrice,

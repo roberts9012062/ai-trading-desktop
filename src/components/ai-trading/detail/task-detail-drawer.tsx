@@ -251,6 +251,7 @@ export function TaskDetailDrawer({
                   {task.margin_per_trade
                     ? `（每笔 ${Number(task.margin_per_trade).toLocaleString("zh-CN", { maximumFractionDigits: 2 })}U）`
                     : ""}
+                  ·{task.margin_mode === "isolated" ? "逐仓" : "全仓"}
                 </span>
               )}
               {(task.max_profit_pct != null || task.max_loss_pct != null) && (

@@ -74,6 +74,8 @@ export function BacktestForm({
   // r20 模型：每笔保证金（USDT）×杠杆 自动算量；数量留空时按此口径
   const [marginPerTrade, setMarginPerTrade] = useState(1000)
   const [leverage, setLeverage] = useState(5)
+  /** 保证金模式：全仓（账户共享，回测不强平）/ 逐仓（仓位独立强平线） */
+  const [marginMode, setMarginMode] = useState<"cross" | "isolated">("cross")
   const [initialCash, setInitialCash] = useState(1_000_000)
   const [name, setName] = useState("")
   const [lossPct, setLossPct] = useState("3")
@@ -205,6 +207,7 @@ export function BacktestForm({
       side_mode: sideMode,
       margin_per_trade: marginPerTrade,
       leverage,
+      margin_mode: marginMode,
       initial_cash: initialCash,
       risk_style: mode === "ai" ? fundStyle.riskStyle : "balanced",
       custom_prompt_enabled:
@@ -383,6 +386,32 @@ export function BacktestForm({
             value={leverage}
             onChange={(e) => setLeverage(Math.max(1, Math.min(125, Number(e.target.value || 5))))}
           />
+        </div>
+        <div className="space-y-2">
+          <Label>保证金模式</Label>
+          <div className="grid grid-cols-2 gap-1.5">
+            {(
+              [
+                { v: "cross" as const, label: "全仓", hint: "共享保证金·不强平" },
+                { v: "isolated" as const, label: "逐仓", hint: "独立强平线" },
+              ]
+            ).map(({ v, label, hint }) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setMarginMode(v)}
+                className={
+                  "h-9 rounded-md border text-xs transition-colors " +
+                  (marginMode === v
+                    ? "border-[var(--primary)] text-[var(--primary)] bg-[var(--primary)]/10"
+                    : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]")
+                }
+              >
+                {label}
+                <span className="ml-1 text-[10px] text-[var(--text-muted)]">{hint}</span>
+              </button>
+            ))}
+          </div>
         </div>
         <div className="space-y-2">
           <Label>初始资金（USDT）</Label>

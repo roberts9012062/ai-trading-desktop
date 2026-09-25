@@ -54,6 +54,8 @@ export interface PlaceInput {
   /** ===== r20 受保护下单模型 ===== */
   marginUsdt?: number | null
   leverage?: number | null
+  /** 保证金模式 cross 全仓 / isolated 逐仓（实盘下发交易所；虚拟盘记账同） */
+  marginMode?: "cross" | "isolated"
   tpPrice?: number | null
   slPrice?: number | null
 }
@@ -229,6 +231,7 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
           tp_price: input.tpPrice ?? null,
           sl_price: input.slPrice ?? null,
           reduce_only: offset === "close",
+          margin_mode: input.marginMode ?? "cross",
         })) as unknown as PaperOrderItem
         set({
           submitting: false,

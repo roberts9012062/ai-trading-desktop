@@ -27,6 +27,7 @@ export type SubmitParams = {
   /** r20 模型：保证金+杠杆自动算量 + 止盈止损 */
   marginUsdt?: number | null
   leverage?: number | null
+  marginMode?: "cross" | "isolated"
   tpPrice?: number | null
   slPrice?: number | null
 }
@@ -83,6 +84,7 @@ export async function submitPaperOrder(p: SubmitParams): Promise<void> {
     positionDirection: null,
     marginUsdt: p.marginUsdt ?? null,
     leverage: p.leverage ?? null,
+    marginMode: p.marginMode,
     tpPrice: p.tpPrice ?? null,
     slPrice: p.slPrice ?? null,
   })

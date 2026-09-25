@@ -39,6 +39,25 @@ function dirLabel(o: PaperOrderItem): string {
   return paperActionLabel(o.direction, o.offset)
 }
 
+/** 保证金模式标签（virtual 订单无 → 空串） */
+function mmLabel(mode: string | null | undefined): string {
+  return mode === "isolated" ? "逐仓" : mode === "cross" ? "全仓" : ""
+}
+
+/** 杠杆口径的保证金/名义价值（virtual 旧订单无杠杆 → null 不展示） */
+function leveragedAmounts(o: PaperOrderItem): {
+  lev: number
+  margin: number | null
+  notional: number | null
+} {
+  const lev = Number(o.leverage ?? 0)
+  const notional = Number(o.price || 0) * Number(o.quantity || 0)
+  if (lev <= 0 || !Number.isFinite(notional) || notional <= 0) {
+    return { lev, margin: null, notional: notional > 0 ? notional : null }
+  }
+  return { lev, margin: notional / lev, notional }
+}
+
 /** 订单管理 —— 挂单 / 历史 / 成交 */
 export default function OrdersPage(): React.JSX.Element {
   const orders = usePaperTradingStore((s) => s.orders)
@@ -168,6 +187,9 @@ export default function OrdersPage(): React.JSX.Element {
                 <TableHead>方向</TableHead>
                 <TableHead>成交价</TableHead>
                 <TableHead>成交量</TableHead>
+                <TableHead>杠杆</TableHead>
+                <TableHead>本金(U)</TableHead>
+                <TableHead>杠杆后(U)</TableHead>
                 <TableHead>手续费</TableHead>
                 <TableHead>平仓盈亏</TableHead>
               </TableRow>
@@ -176,14 +198,16 @@ export default function OrdersPage(): React.JSX.Element {
               {fills.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={10}
                     className="text-center text-[var(--text-muted)] py-8"
                   >
                     暂无成交
                   </TableCell>
                 </TableRow>
               ) : (
-                fills.map((o) => (
+                fills.map((o) => {
+                  const amt = leveragedAmounts(o)
+                  return (
                   <TableRow key={o.id}>
                     <TableCell className="font-num text-xs text-[var(--text-muted)]">
                       {formatShanghaiTime(o.filled_at ?? o.updated_at)}
@@ -196,6 +220,24 @@ export default function OrdersPage(): React.JSX.Element {
                     </TableCell>
                     <TableCell className="font-num">{o.price}</TableCell>
                     <TableCell className="font-num">{o.filled_qty}</TableCell>
+                    <TableCell className="font-num">
+                      {amt.lev > 0 ? `${amt.lev}x` : "—"}
+                      {mmLabel(o.margin_mode) && (
+                        <span className="ml-1 text-[10px] text-[var(--text-muted)]">
+                          ·{mmLabel(o.margin_mode)}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-num">
+                      {amt.margin != null
+                        ? amt.margin.toLocaleString("zh-CN", { maximumFractionDigits: 2 })
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="font-num">
+                      {amt.notional != null
+                        ? amt.notional.toLocaleString("zh-CN", { maximumFractionDigits: 2 })
+                        : "—"}
+                    </TableCell>
                     <TableCell className="font-num">{o.fee}</TableCell>
                     <TableCell
                       className={
@@ -209,7 +251,8 @@ export default function OrdersPage(): React.JSX.Element {
                         : "—"}
                     </TableCell>
                   </TableRow>
-                ))
+                  )
+                })
               )}
             </TableBody>
           </Table>
@@ -274,6 +317,9 @@ function OrderTable(props: {
           <TableHead>委托价</TableHead>
           <TableHead>委托量</TableHead>
           <TableHead>已成交</TableHead>
+          <TableHead>杠杆</TableHead>
+          <TableHead>本金(U)</TableHead>
+          <TableHead>杠杆后(U)</TableHead>
           <TableHead>冻结保证金</TableHead>
           <TableHead>状态</TableHead>
           {props.showCancel && <TableHead>操作</TableHead>}
@@ -284,14 +330,16 @@ function OrderTable(props: {
         {props.rows.length === 0 ? (
           <TableRow>
             <TableCell
-              colSpan={props.showCancel ? (showAmend ? 11 : 10) : 9}
+              colSpan={props.showCancel ? (showAmend ? 14 : 13) : 12}
               className="text-center text-[var(--text-muted)] py-8"
             >
               {props.emptyText}
             </TableCell>
           </TableRow>
         ) : (
-          props.rows.map((o) => (
+          props.rows.map((o) => {
+            const amt = leveragedAmounts(o)
+            return (
             <React.Fragment key={o.id}>
             <TableRow>
               <TableCell className="font-num text-xs text-[var(--text-muted)]">
@@ -309,6 +357,24 @@ function OrderTable(props: {
               <TableCell className="font-num text-sm">{o.price}</TableCell>
               <TableCell className="font-num text-sm">{o.quantity}</TableCell>
               <TableCell className="font-num text-sm">{o.filled_qty}</TableCell>
+              <TableCell className="font-num text-sm">
+                {amt.lev > 0 ? `${amt.lev}x` : "—"}
+                {mmLabel(o.margin_mode) && (
+                  <span className="ml-1 text-[10px] text-[var(--text-muted)]">
+                    ·{mmLabel(o.margin_mode)}
+                  </span>
+                )}
+              </TableCell>
+              <TableCell className="font-num text-sm">
+                {amt.margin != null
+                  ? amt.margin.toLocaleString("zh-CN", { maximumFractionDigits: 2 })
+                  : "—"}
+              </TableCell>
+              <TableCell className="font-num text-sm">
+                {amt.notional != null
+                  ? amt.notional.toLocaleString("zh-CN", { maximumFractionDigits: 2 })
+                  : "—"}
+              </TableCell>
               <TableCell className="font-num text-sm text-[var(--text-muted)]">
                 {o.frozen_margin > 0 ? o.frozen_margin.toLocaleString() : "—"}
               </TableCell>
@@ -389,7 +455,8 @@ function OrderTable(props: {
               </TableRow>
             )}
             </React.Fragment>
-          ))
+            )
+          })
         )}
       </TableBody>
     </Table>

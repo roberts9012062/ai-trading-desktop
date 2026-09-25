@@ -115,7 +115,7 @@ export function CreateQuantDialog({
   const [sideMode, setSideMode] = useState("both")
   const [positionMode, setPositionMode] = useState("fixed_margin")
   // r20：每笔保证金 USDT + 杠杆（数量自动换算，不再按手数）
-  const [marginModel, setMarginModel] = useState({ marginPerTrade: 100, leverage: 10 })
+  const [marginModel, setMarginModel] = useState<{ marginPerTrade: number; leverage: number; marginMode: "cross" | "isolated" }>({ marginPerTrade: 100, leverage: 10, marginMode: "cross" })
   // 量化分析间隔（分钟）：1 ~ K 线周期；默认=周期（每根收盘分析一次）
   const [evalIntervalSec, setEvalIntervalSec] = useState(900)
   const tfMinutes = TF_MINUTES[timeframe] ?? 15
@@ -171,6 +171,7 @@ export function CreateQuantDialog({
     setPositionMode(t.position_mode || "fixed_margin")
     setMarginModel({
       marginPerTrade: Number(t.margin_per_trade) > 0 ? Number(t.margin_per_trade) : 100,
+      marginMode: t.margin_mode === "isolated" ? "isolated" as const : "cross" as const,
       leverage: Math.max(1, Math.min(100, Number(t.leverage) || 10)),
     })
     setRules(rulesFromTask(t))
@@ -260,6 +261,7 @@ export function CreateQuantDialog({
       position_mode: positionMode,
       margin_per_trade: marginModel.marginPerTrade,
       leverage: marginModel.leverage,
+      margin_mode: marginModel.marginMode,
       funding_source:
         funding.info && funding.info.source === "live" && funding.info.balance_usdt != null
           ? "live"

@@ -94,7 +94,7 @@ export function CreateTaskDialog({
   const [sideMode, setSideMode] = useState("both")
   const [positionMode, setPositionMode] = useState("fixed_margin")
   // r20：每笔保证金 USDT + 杠杆（数量自动换算，不再按手数）
-  const [marginModel, setMarginModel] = useState({ marginPerTrade: 100, leverage: 10 })
+  const [marginModel, setMarginModel] = useState<{ marginPerTrade: number; leverage: number; marginMode: "cross" | "isolated" }>({ marginPerTrade: 100, leverage: 10, marginMode: "cross" })
   const funding = useFundingSource(open)
   const lastPrice = useMarketStore(
     (s) => Number(s.quotes[symbol]?.last_price) || 0,
@@ -174,6 +174,7 @@ export function CreateTaskDialog({
     setCapitalUsageMax(useMax0)
     setMarginModel({
       marginPerTrade: Number(t.margin_per_trade) > 0 ? Number(t.margin_per_trade) : 100,
+      marginMode: t.margin_mode === "isolated" ? "isolated" as const : "cross" as const,
       leverage: Math.max(1, Math.min(100, Number(t.leverage) || 10)),
     })
     setFundStyle({
@@ -296,6 +297,7 @@ export function CreateTaskDialog({
       // 但必须传正值让引擎走 margin 模式（旧手数路径会把小数数量截成 0）
       margin_per_trade: marginModel.marginPerTrade,
       leverage: marginModel.leverage,
+      margin_mode: marginModel.marginMode,
       funding_source:
         funding.info && funding.info.source === "live" && funding.info.balance_usdt != null
           ? "live"

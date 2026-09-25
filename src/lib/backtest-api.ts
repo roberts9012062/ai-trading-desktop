@@ -72,6 +72,7 @@ export interface BacktestRunPayload {
   fixed_qty?: number
   margin_per_trade?: number
   leverage?: number
+  margin_mode?: "cross" | "isolated"
   initial_cash?: number
   /** aggressive/balanced/conservative */
   risk_style?: string
@@ -125,6 +126,7 @@ export interface BacktestTrade {
   margin?: number
   /** 杠杆倍数 */
   leverage?: number
+  margin_mode?: "cross" | "isolated"
   /** 收益率（保证金口径 = 杠杆放大后） */
   pnl_pct_margin?: number
   /** 收益率（名义口径 = 价格变动百分比，r20 同款） */
@@ -269,6 +271,7 @@ export interface SyntheticStepRequest {
   fixed_qty?: number
   margin_per_trade?: number
   leverage?: number
+  margin_mode?: "cross" | "isolated"
   initial_cash?: number
   risk_style?: string
   custom_prompt_enabled?: boolean
