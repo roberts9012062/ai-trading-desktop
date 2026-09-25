@@ -24,6 +24,7 @@ from .features import bars_signature, feature_matrix, active_feature_ids
 from .ops import OPS_CONFIG
 from .scoring.evaluate import evaluate_factor, next_ret, position_from_factor
 from .scoring.periods import bars_per_year
+from .scoring.split_plan import SplitPlan, build_split_plan
 from .scoring.walk_forward import (
     WARMUP_BARS,
     evaluate_on_slice,
@@ -32,8 +33,9 @@ from .scoring.walk_forward import (
     live_discrete_on_slice,
     split_bars,
     walk_forward_eval,
+    walk_forward_eval_v2,
 )
-from .vm import FEAT_COUNT, FEAT_OFFSET, execute, is_constant, validate
+from .vm import FEAT_COUNT, FEAT_OFFSET, execute, execute_for_bars, is_constant, validate
 
 
 @dataclass
@@ -93,6 +95,16 @@ class SearchConfig:
     # 实盘离散口径门:>0 时严格筛要求验证段按 ±1 手、该开仓阈值执行 sortino>0
     # (连续 tanh 仓位与实盘"超阈值才开仓"不一致,弱信号因子模拟赚钱实盘不开仓)
     live_entry_gate: float = 0.0
+    # ── crypto_local_v2 研究契约(方案 §3/§5;空 = 旧路径逐位不变)─────
+    # research_profile: "crypto_local_v2" 启用显式切分计划(60/20/20)、
+    #   严格因果归一化、验证折只在验证区内、样本不足显式标记;
+    #   未知版本号在 factor_local 入口被拒绝,不静默走旧执行器。
+    research_profile: str = ""
+    # execution_model: signal_research | spot_long_flat | perp_next_open
+    #   (执行收益/资金费用在 scoring/execution.py;此处随结果冻结)
+    execution_model: str = "signal_research"
+    # label_span: 收益标签跨越的 bar 数(末尾不足的不补 0 参加统计)
+    label_span: int = 1
 
 
 @dataclass
@@ -102,6 +114,30 @@ class Champion:
     text: str
     metrics: dict[str, Any]
     composite: float
+
+
+def is_v2_config(cfg: SearchConfig) -> bool:
+    """cfg 是否处于 crypto_local_v2 研究契约"""
+    return cfg.research_profile == "crypto_local_v2"
+
+
+def _v2_head_trim(mat: np.ndarray, active_ids: list[int]) -> int:
+    """v2:直连特征头部未采样前缀的最大长度(共享计分日历的统一裁剪)。
+
+    头部缺失经 nan_to_num 参与算子统计会冒充 0;统一从 trim 起计分,
+    所有候选(无论是否用到晚启动特征)在同一日历上比较(方案 5.2-6)。
+    仅统计留在 active 集的特征(超限特征已被 active_feature_ids 排除)。
+    """
+    trim = 0
+    for i in active_ids:
+        if i < 52:
+            continue
+        row = mat[i]
+        finite = np.isfinite(row)
+        if finite.all() or not finite.any():
+            continue
+        trim = max(trim, int(np.argmax(finite)))
+    return trim
 
 
 # Pyodide（桌面端本地引擎）无紧凑 GC，代际回收缓解 numpy 碎片堆积。
@@ -133,19 +169,23 @@ def _draw_feature(rng: random.Random, feat_n: int) -> int:
 
 
 def _search_space(mat, cfg, rng):
-    active = active_feature_ids(mat, cfg.crypto_profile)
-    if cfg.crypto_profile:
+    crypto = cfg.crypto_profile or is_v2_config(cfg)
+    active = active_feature_ids(
+        mat, crypto,
+        max_head_gap=WARMUP_BARS if is_v2_config(cfg) else None,
+    )
+    if crypto:
         # Modest prior for new information, not calendar overfitting.
         rng._active_features = active + [i for i in active if i >= 45]
     for seed in cfg.seed_tokens or []:
         if any(int(t) < FEAT_OFFSET and int(t) not in active for t in seed):
             raise ValueError("Seed depends on unavailable features for this training data/profile")
-    limit = len(OPS_CONFIG) if cfg.crypto_profile else 40
+    limit = len(OPS_CONFIG) if crypto else 40
     return ([i for i, (_, _, a) in enumerate(OPS_CONFIG[:limit]) if a == 1],
             [i for i, (_, _, a) in enumerate(OPS_CONFIG[:limit]) if a == 2])
 
 
-def _training_evaluator(mat, close, cost, periods):
+def _training_evaluator(mat, close, cost, periods, trim: int = 0, bars: list | None = None):
     # Only tokens/metrics are cached; no T-length series per candidate.
     from functools import lru_cache
     @lru_cache(maxsize=20000)
@@ -153,10 +193,18 @@ def _training_evaluator(mat, close, cost, periods):
         if validate(list(tokens)):
             return None, None, -999.0
         try:
-            factor = execute(list(tokens), mat)
-            if factor is None or is_constant(factor):
+            factor = (
+                execute_for_bars(list(tokens), mat, bars)
+                if bars is not None
+                else execute(list(tokens), mat)
+            )
+            if factor is None or is_constant(factor[trim:] if trim else factor):
                 return None, None, -999.0
-            metrics = evaluate_factor(factor, close, cost=cost, periods=periods)
+            if trim:
+                # v2 共享计分日历:头部未采样前缀不参与适应度
+                metrics = evaluate_factor(factor[trim:], close[trim:], cost=cost, periods=periods)
+            else:
+                metrics = evaluate_factor(factor, close, cost=cost, periods=periods)
         except (ValueError, FloatingPointError, OverflowError):
             return None, None, -999.0
         comp = float(metrics["composite"]) - 0.02 * max(0, len(tokens) - 12)
@@ -456,11 +504,26 @@ def search(
     """
     cfg = cfg or SearchConfig()
 
-    # ── 切分：test_recent_bars 优先于 train_ratio ──────────────
+    # ── 切分:v2 显式计划优先;test_recent_bars 优先于 train_ratio ────
     anti_overfit = (
         cfg.train_ratio > 0.0 or cfg.test_recent_bars > 0 or cfg.walk_forward_folds > 0
     )
-    if cfg.test_recent_bars > 0:
+    plan: SplitPlan | None = None
+    v2 = is_v2_config(cfg)
+    if v2:
+        plan = build_split_plan(
+            len(bars), label_span=cfg.label_span, warmup=WARMUP_BARS, bars=bars
+        )
+        if plan.sufficient:
+            # 封存段 [validation_end, n) 对搜索全程不可见;验证段作严格筛 test
+            bars = list(bars[: plan.validation_end])
+            train_bars = list(bars[: plan.train_end])
+            test_bars = list(bars[plan.train_end :])
+            anti_overfit = True
+        else:
+            # 样本不足:允许明确探索(全量训练),但不得输出验证通过的标记
+            train_bars, test_bars = list(bars), []
+    elif cfg.test_recent_bars > 0:
         # 方案 E：尾部 N 根强制作测试段，专治"近期失效"
         cut = max(MIN_TEST_BARS, len(bars) - cfg.test_recent_bars)
         if cut < MIN_TEST_BARS or (len(bars) - cut) < MIN_TEST_BARS:
@@ -472,15 +535,20 @@ def search(
     else:
         train_bars, test_bars = list(bars), []
     use_test = bool(test_bars) and len(test_bars) >= MIN_TEST_BARS
+    if v2:
+        use_test = plan is not None and plan.sufficient
 
     # 遗传搜索全程只在 train_bars 上进行（消除"假 OOS"）
     feat_mat = feature_matrix(train_bars)
     close = np.array([float(b.get("close") or 0) for b in train_bars], dtype=float)
     periods = bars_per_year(train_bars, timeframe)
-    feat_n = feat_mat.shape[0] if cfg.crypto_profile else min(40, feat_mat.shape[0])
+    feat_n = feat_mat.shape[0] if (cfg.crypto_profile or v2) else min(40, feat_mat.shape[0])
     rng = random.Random(cfg.seed)
     op_one, op_two = _search_space(feat_mat, cfg, rng)
-    cached_eval = _training_evaluator(feat_mat, close, cfg.cost, periods)
+    head_trim = _v2_head_trim(feat_mat, rng._active_features or []) if v2 else 0
+    cached_eval = _training_evaluator(
+        feat_mat, close, cfg.cost, periods, trim=head_trim, bars=train_bars if v2 else None
+    )
     seeds = list(cfg.seed_tokens or [])
 
     def eval_tree(tree: list):
@@ -510,6 +578,24 @@ def search(
         seed_tree = tokens_to_tree(clean)
         if seed_tree is not None and k < len(population):
             population[k] = seed_tree
+
+    # v2: 因子族种子模板注入初始种群 20%~30%(方案 §9.1)——用户 seed_tokens
+    # 优先占位,模板紧随其后,其余保持随机探索;注入先于任何 RNG 消耗,
+    # 同 seed 结果确定
+    if v2:
+        from .seed_templates import seed_fraction, templates_for
+
+        tpl_tokens = templates_for(rng._active_features or [])
+        k_start = min(len(seeds), len(population))
+        k_max = min(k_start + seed_fraction(cfg.population, tpl_tokens), len(population))
+        for j in range(k_start, k_max):
+            tpl = tpl_tokens[(j - k_start) % len(tpl_tokens)] if tpl_tokens else None
+            if tpl is None:
+                break
+            population[j] = tokens_to_tree(tpl) or population[j]
+            tok, metrics, comp = eval_tokens(tpl)
+            if metrics is not None and tok is not None:
+                best_seen.append((comp, tok, metrics))
 
     # 岛划分：每岛至少 5 个体；余数并入末岛。islands=1 时退化为原单岛。
     n_islands = max(1, min(int(cfg.islands), cfg.population // 5))
@@ -594,6 +680,9 @@ def search(
         cross_peers=cfg.cross_peers,
         selection_v2=cfg.selection_v2,
         live_entry_gate=cfg.live_entry_gate,
+        plan=plan,
+        head_trim=head_trim,
+        execution_model=cfg.execution_model,
     )
 
 
@@ -613,13 +702,20 @@ _SERIES_CACHE_MAX_ELEMENTS = 3_000_000
 _series_cache_elements = 0
 
 
-def _cached_series(tokens: list[int], mat: np.ndarray, sig: tuple) -> np.ndarray | None:
+def _cached_series(
+    tokens: list[int],
+    mat: np.ndarray,
+    sig: tuple,
+    bars: list | None = None,
+) -> np.ndarray | None:
     global _series_cache_elements
     key = (tuple(int(t) for t in tokens), sig)
     if key in _SERIES_CACHE:
         _SERIES_CACHE.move_to_end(key)
         return _SERIES_CACHE[key]
-    series = execute(tokens, mat)
+    series = (
+        execute_for_bars(tokens, mat, bars) if bars is not None else execute(tokens, mat)
+    )
     _SERIES_CACHE[key] = series
     _series_cache_elements += 0 if series is None else int(series.size)
     while len(_SERIES_CACHE) > 1 and _series_cache_elements > _SERIES_CACHE_MAX_ELEMENTS:
@@ -645,6 +741,9 @@ def _dedup_top(
     selection_v2: bool = False,
     live_entry_gate: float = 0.0,
     reveal_holdout: bool = True,
+    plan: SplitPlan | None = None,
+    head_trim: int = 0,
+    execution_model: str = "signal_research",
 ) -> list[Champion]:
     """去重并取 top-N，可选叠加测试段验证与 walk-forward 淘汰
 
@@ -660,12 +759,19 @@ def _dedup_top(
     selection_v2（本地增强，默认关）：测试段切出封存段（见 holdout_len），
     shortlist 改为行为去重后的 ~30 个不同因子，冠军附 holdout_metrics/dsr。
     live_entry_gate>0：严格筛追加验证段实盘离散口径 sortino>0。
+
+    crypto_local_v2（plan 非 None）：test_bars 即验证区 [train_end,
+    validation_end)（调用方已裁掉封存段）；验证折走 walk_forward_eval_v2
+    （计分只在验证区内,上下文允许进训练区）;样本不足时兜底冠军带
+    insufficient_samples + 具体缺口,不再以 overfit_warning 冒充通过。
+    封存段评估由调用方(factor_local)在最终代做一次性揭示,本函数不触碰。
     """
     # selection_v2 封存段：从尾部切走，之后的一切筛选（测试段/WF/保守 OOS/
     # 跨品种）都只看得到切走后的数据；封存段仅在 _enrich 报告一次
+    # v2 不走该机制(封存由 SplitPlan 显式持有,调用方已裁掉)
     full_bars = all_bars
     n_holdout = 0
-    if selection_v2 and use_test and test_bars and all_bars:
+    if selection_v2 and plan is None and use_test and test_bars and all_bars:
         n_holdout = holdout_len(len(test_bars))
         if n_holdout:
             test_bars = test_bars[: len(test_bars) - n_holdout]
@@ -709,8 +815,13 @@ def _dedup_top(
         if corr_mat is None:
             return None
         if selection_v2:
-            return _cached_series(tokens, corr_mat, corr_sig)
-        return execute(tokens, corr_mat)
+            series = _cached_series(tokens, corr_mat, corr_sig, train_bars)
+        else:
+            series = execute_for_bars(tokens, corr_mat, train_bars) if train_bars else execute(tokens, corr_mat)
+        # v2 共享计分日历:相关性去重同样从头部裁剪之后比较
+        if series is not None and head_trim:
+            series = series[head_trim:]
+        return series
 
     def _corr_dup(factor: np.ndarray | None) -> bool:
         """与已入选因子的相关性 > 0.9 视为重复"""
@@ -783,10 +894,12 @@ def _dedup_top(
     ) -> Champion:
         """附 train/test/walk_forward 子键构造 Champion"""
         enriched = dict(metrics)
-        from .market import is_crypto, CRYPTO_PROFILE
+        from .market import is_crypto, CRYPTO_PROFILE, V2_PROFILE
         if is_crypto(train_bars or all_bars or []):
+            marker = (train_bars or all_bars or [""])[0].get("_factor_market")
+            profile_id = marker if marker in (CRYPTO_PROFILE, V2_PROFILE) else CRYPTO_PROFILE
             enriched["crypto_profile"] = True
-            enriched["research_profile"] = CRYPTO_PROFILE
+            enriched["research_profile"] = profile_id
             enriched["periods"] = bars_per_year(train_bars or all_bars, timeframe)
             enriched["cost"] = cost
             enriched["cost_model"] = "static_fee_plus_tick_no_funding"
@@ -796,6 +909,12 @@ def _dedup_top(
             if source == "gate_usdt" or any(52 <= t < 64 for t in tokens):
                 enriched["research_only"] = True
 
+        if plan is not None:
+            # v2:切分计划随结果冻结,报告直接消费同一对象(方案 5.1-7)
+            enriched["split_plan"] = plan.to_summary()
+            if not plan.sufficient:
+                enriched["insufficient_samples"] = True
+                enriched["sample_gaps"] = list(plan.insufficiency_reasons)
 
         if use_test and train_bars:
             train_m = evaluate_on_slice(tokens, all_bars, 0, len(train_bars), timeframe, cost)
@@ -806,19 +925,31 @@ def _dedup_top(
             test_m = evaluate_on_slice(tokens, all_bars, lo_test, len(all_bars), timeframe, cost)
             if test_m is not None:
                 enriched["test_metrics"] = test_m
+                if plan is not None:
+                    enriched["validation_metrics"] = test_m
         if walk_forward_folds > 0 and all_bars:
             # P1-8:传入训练段长度,前几折落在训练段内的标记 in_train,
             # wf_stable 只按样本外折判定(UI 据 folds[].in_train 区分展示)
-            wf = walk_forward_eval(
-                tokens, all_bars, timeframe, cost, walk_forward_folds,
-                train_len=len(train_bars) if train_bars else None,
-            )
+            # v2:验证折只在验证区内切分(walk_forward_eval_v2)
+            if plan is not None:
+                wf = walk_forward_eval_v2(
+                    tokens, all_bars, timeframe, cost, plan, walk_forward_folds
+                )
+            else:
+                wf = walk_forward_eval(
+                    tokens, all_bars, timeframe, cost, walk_forward_folds,
+                    train_len=len(train_bars) if train_bars else None,
+                )
             if wf is not None:
                 enriched["walk_forward"] = wf
         if cross_scores:
             enriched["cross_symbol"] = {
                 k: round(v, 3) for k, v in cross_scores.items()
             }
+        if plan is not None and execution_model in ("perp_next_open", "spot_long_flat"):
+            exec_m = _executable_metrics_for(tokens, 1.0)
+            if exec_m is not None:
+                enriched["execution_metrics"] = exec_m
         cons = _conservative_oos(tokens)
         if cons is not None:
             enriched["oos_conservative"] = round(cons, 4)
@@ -880,11 +1011,23 @@ def _dedup_top(
                 if lm is None or lm["sortino"] <= 0.0:
                     return False, cross_scores
         if walk_forward_folds > 0 and all_bars:
-            wf = walk_forward_eval(
-                tokens, all_bars, timeframe, cost, walk_forward_folds,
-                train_len=len(train_bars) if train_bars else None,
-            )
+            if plan is not None:
+                wf = walk_forward_eval_v2(
+                    tokens, all_bars, timeframe, cost, plan, walk_forward_folds
+                )
+            else:
+                wf = walk_forward_eval(
+                    tokens, all_bars, timeframe, cost, walk_forward_folds,
+                    train_len=len(train_bars) if train_bars else None,
+                )
             if wf is None or not wf["wf_stable"]:
+                return False, cross_scores
+        if plan is not None and execution_model in ("perp_next_open", "spot_long_flat"):
+            # v2(方案 §7):新合格状态统一以所选 executionModel 的净收益验证。
+            # 1×与 2×成本压力(仅放大交易费用/滑点,funding 按事件原值)下
+            # 验证区可执行净 sortino 均 >0。perp 无 funding 事件 = 关键成本
+            # 未知,不得默认通过。
+            if not _executable_gate(tokens, cross_scores):
                 return False, cross_scores
         if cross_peers:
             from factor_lab.cross_symbol import cross_validate_tokens
@@ -895,6 +1038,41 @@ def _dedup_top(
             if not ok:
                 return False, cross_scores
         return True, cross_scores
+
+    def _executable_metrics_for(tokens: list[int], stress: float) -> dict | None:
+        """验证区可执行口径指标(v2;上下文含训练段,现金流连续推进后取验证段)"""
+        if plan is None or not train_bars or all_bars is None:
+            return None
+        from factor_lab.scoring.execution import ExecutionConfig, executable_metrics
+
+        lo_test = len(all_bars) - len(test_bars) if test_bars else plan.train_end
+        if lo_test <= 0 or lo_test >= len(all_bars) - 2:
+            return None
+        ctx_bars = all_bars  # 已由调用方截到 validation_end;训练段作上下文
+        mat_ctx = feature_matrix(ctx_bars)
+        factor_ctx = execute_for_bars(tokens, mat_ctx, ctx_bars)
+        if factor_ctx is None:
+            return None
+        cfg_exec = ExecutionConfig(
+            fee_rate=cost, slippage_bps=0.0,
+            execution_model=execution_model, stress_multiplier=stress,
+        )
+        return executable_metrics(
+            factor_ctx, ctx_bars, timeframe, cfg_exec, lo=lo_test, hi=len(ctx_bars)
+        )
+
+    def _executable_gate(tokens: list[int], cross_scores: dict) -> bool:
+        if not (use_test and test_bars):
+            return True  # 无验证区(探索模式)时不拦截,由 insufficient 标记兜底
+        for stress in (1.0, 2.0):
+            m = _executable_metrics_for(tokens, stress)
+            if m is None or m["sortino"] <= 0.0:
+                return False
+            if execution_model == "perp_next_open" and m.get("n_funding_events", 0) == 0:
+                # 关键成本未知(funding 缺失):不得默认通过
+                cross_scores["executable"] = "missing_funding_events"
+                return False
+        return True
 
     # 第一轮：严格筛 + 相关性去重。PBO 分母限定在前 2×n_cap 个候选
     # （完整计数会显著拖慢搜索；前 2×n_cap 已是"训练最优"核心区，失败率
@@ -927,18 +1105,22 @@ def _dedup_top(
         pbo_pool = distinct
     strict_pool: list[tuple[float, list[int], dict, dict[str, float]]] = []
     n_failed = 0
-    for comp, tokens, metrics in pbo_pool:
-        ok, cross_scores = _passes_strict(tokens)
-        if not ok:
-            n_failed += 1
-            continue
-        if not selection_v2:  # v2 的池已行为去重
-            factor = _factor_series(tokens)
-            if _corr_dup(factor):
+    # v2 样本不足:无验证区,严格筛会空转通过(use_test=False 时门全开)——
+    # 直接跳过严格轮,所有候选走探索路径,不得输出 validation_passed
+    v2_insufficient = plan is not None and not plan.sufficient
+    if not v2_insufficient:
+        for comp, tokens, metrics in pbo_pool:
+            ok, cross_scores = _passes_strict(tokens)
+            if not ok:
+                n_failed += 1
                 continue
-            if factor is not None:
-                corr_factors.append(factor)
-        strict_pool.append((comp, tokens, metrics, cross_scores))
+            if not selection_v2:  # v2 的池已行为去重
+                factor = _factor_series(tokens)
+                if _corr_dup(factor):
+                    continue
+                if factor is not None:
+                    corr_factors.append(factor)
+            strict_pool.append((comp, tokens, metrics, cross_scores))
 
     # PBO 代理（P5）：训练段最优 K 个候选中样本外失败的比例，
     # 即"训练赢家样本外翻车"的经验概率估计。
@@ -954,6 +1136,11 @@ def _dedup_top(
     if pbo_proxy is not None:
         for c in strict_out:
             c.metrics["pbo_proxy"] = pbo_proxy
+    if plan is not None:
+        # v2:通过严格筛 = 验证区(1×/2×成本+折)通过;封存尚未揭示
+        for c in strict_out:
+            c.metrics["validation_passed"] = True
+            c.metrics["candidate_status"] = "validation_passed"
     if strict_out:
         return strict_out
 
@@ -962,10 +1149,25 @@ def _dedup_top(
     fallback: list[Champion] = []
     for comp, tokens, metrics in shortlist[:n_cap]:
         c = _enrich(comp, tokens, metrics)
-        c.metrics["overfit_warning"] = (
-            "测试段 sortino≤0 或 walk-forward 不稳健：该因子在搜索时未见的"
-            "近期数据上亏损，过拟合风险高，仅供参考。"
-        )
+        if plan is not None:
+            # v2:样本不足 → 探索(带缺口明细);样本够但严格筛全灭 → 拒绝。
+            # 两者都不计入合格因子数,不以 overfit_warning 冒充通过。
+            if not plan.sufficient:
+                c.metrics["candidate_status"] = "exploratory"
+                c.metrics["exploratory_reason"] = (
+                    "样本不足,仅探索: " + "; ".join(plan.insufficiency_reasons)
+                )
+            else:
+                c.metrics["candidate_status"] = "rejected"
+            c.metrics["overfit_warning"] = (
+                "验证区未通过严格筛(样本不足或 sortino/WF 不达标):"
+                "该结果仅供研究参考,不计入合格因子数。"
+            )
+        else:
+            c.metrics["overfit_warning"] = (
+                "测试段 sortino≤0 或 walk-forward 不稳健：该因子在搜索时未见的"
+                "近期数据上亏损，过拟合风险高，仅供参考。"
+            )
         fallback.append(c)
     return fallback
 
@@ -981,6 +1183,7 @@ class StepwiseSnapshot:
     total_generations: int
     best_composite: float  # 截至本代的最优综合分
     champions: list[Champion]  # 截至本代去重 top-N（仅最终代为正式结果）
+    stats: dict | None = None  # 漏斗计数/淘汰原因(任务1/10,旁路统计)
 
 
 def search_stepwise(
@@ -1010,7 +1213,19 @@ def search_stepwise(
     故每代 snapshot 已含去重 top-N，最终代 snapshot.champions 即可作结果。
     """
     # ── 切分（与 search() 同源）──────────────────────────────
-    if cfg.test_recent_bars > 0:
+    v2 = is_v2_config(cfg)
+    plan: SplitPlan | None = None
+    if v2:
+        plan = build_split_plan(
+            len(bars), label_span=cfg.label_span, warmup=WARMUP_BARS, bars=bars
+        )
+        if plan.sufficient:
+            bars = list(bars[: plan.validation_end])
+            train_bars = list(bars[: plan.train_end])
+            test_bars = list(bars[plan.train_end :])
+        else:
+            train_bars, test_bars = list(bars), []
+    elif cfg.test_recent_bars > 0:
         cut = max(MIN_TEST_BARS, len(bars) - cfg.test_recent_bars)
         if cut < MIN_TEST_BARS or (len(bars) - cut) < MIN_TEST_BARS:
             train_bars, test_bars = list(bars), []
@@ -1021,20 +1236,44 @@ def search_stepwise(
     else:
         train_bars, test_bars = list(bars), []
     use_test = bool(test_bars) and len(test_bars) >= MIN_TEST_BARS
+    if v2:
+        use_test = plan is not None and plan.sufficient
 
     feat_mat = feature_matrix(train_bars)
     close = np.array([float(b.get("close") or 0) for b in train_bars], dtype=float)
     periods = bars_per_year(train_bars, timeframe)
-    feat_n = feat_mat.shape[0] if cfg.crypto_profile else min(40, feat_mat.shape[0])
+    feat_n = feat_mat.shape[0] if (cfg.crypto_profile or v2) else min(40, feat_mat.shape[0])
     rng = random.Random(cfg.seed)
     op_one, op_two = _search_space(feat_mat, cfg, rng)
-    cached_eval = _training_evaluator(feat_mat, close, cfg.cost, periods)
+    head_trim = _v2_head_trim(feat_mat, rng._active_features or []) if v2 else 0
+    cached_eval = _training_evaluator(
+        feat_mat, close, cfg.cost, periods, trim=head_trim, bars=train_bars if v2 else None
+    )
+
+    # 漏斗计数(任务1/10):旁路统计,不侵入任何评估数值
+    from .scoring.research_report import SearchStats
+
+    stats = SearchStats()
+
+    def _eval_with_stats(tokens_tuple: tuple):
+        stats.note_generated()
+        tok, metrics, comp = cached_eval(tokens_tuple)
+        if tok is None:
+            if validate(list(tokens_tuple)):
+                stats.note_invalid_syntax("invalid_syntax")
+            else:
+                stats.note_syntax_valid()
+                stats.note_execution(list(tokens_tuple), False, "not_train_valid", None)
+        else:
+            stats.note_syntax_valid()
+            stats.note_execution(list(tokens_tuple), True, None, metrics)
+        return tok, metrics, comp
 
     def eval_tree(tree: list):
-        return cached_eval(tuple(tree_to_tokens(tree)))
+        return _eval_with_stats(tuple(tree_to_tokens(tree)))
 
     def eval_tokens(tokens: list[int]):
-        return cached_eval(tuple(tokens))
+        return _eval_with_stats(tuple(tokens))
 
     # 初始种群
     population = [
@@ -1056,6 +1295,24 @@ def search_stepwise(
         seed_tree = tokens_to_tree(clean)
         if seed_tree is not None and k < len(population):
             population[k] = seed_tree
+
+    # v2: 因子族种子模板注入初始种群 20%~30%(方案 §9.1)——用户 seed_tokens
+    # 优先占位,模板紧随其后,其余保持随机探索;注入先于任何 RNG 消耗,
+    # 同 seed 结果确定
+    if v2:
+        from .seed_templates import seed_fraction, templates_for
+
+        tpl_tokens = templates_for(rng._active_features or [])
+        k_start = min(len(cfg.seed_tokens or []), len(population))
+        k_max = min(k_start + seed_fraction(cfg.population, tpl_tokens), len(population))
+        for j in range(k_start, k_max):
+            tpl = tpl_tokens[(j - k_start) % len(tpl_tokens)] if tpl_tokens else None
+            if tpl is None:
+                break
+            population[j] = tokens_to_tree(tpl) or population[j]
+            tok, metrics, comp = eval_tokens(tpl)
+            if metrics is not None and tok is not None:
+                best_seen.append((comp, tok, metrics))
 
     # 岛划分（与 search() 同款）：islands=1 退化为单岛
     n_islands = max(1, min(int(cfg.islands), cfg.population // 5))
@@ -1107,13 +1364,21 @@ def search_stepwise(
             selection_v2=cfg.selection_v2,
             reveal_holdout=gen_idx == cfg.generations - 1,
             live_entry_gate=cfg.live_entry_gate,
+            plan=plan,
+            head_trim=head_trim,
+            execution_model=cfg.execution_model,
         )
         best_comp = max((c.composite for c in cur_champions), default=-999.0)
+        snap_stats = dict(stats.to_dict())
+        snap_stats["champions"] = SearchStats.summarize(
+            [{"metrics": c.metrics} for c in cur_champions]
+        )
         yield StepwiseSnapshot(
             generation=gen_idx + 1,
             total_generations=cfg.generations,
             best_composite=best_comp,
             champions=cur_champions,
+            stats=snap_stats,
         )
 
         # 进化下一代种群（每岛：精英 + 锦标赛 + 交叉/变异）

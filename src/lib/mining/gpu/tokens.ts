@@ -24,6 +24,7 @@ export type OpKind =
   | "delta" | "lag" | "atr_norm"
   | "corr" | "beta" | "resid" | "demean"
   | "step" | "ema" | "ts_crank" | "decay_linear"
+  | "robust_zscore" | "winsor"
 
 export interface OpDef {
   name: string
@@ -81,14 +82,21 @@ export const OPS: readonly OpDef[] = [
   { name: "TS_CRANK_60", arity: 1, kind: "ts_crank", win: 60 },
   { name: "DECAY_LINEAR_10", arity: 1, kind: "decay_linear", win: 10 },
   { name: "DECAY_LINEAR_20", arity: 1, kind: "decay_linear", win: 20 },
+  // 批次3(crypto_local_v2 稳健变换):排序类滚动统计,WGSL 未实现 → GPU 不支持,
+  // 含这些算子的候选由 GP 生成时排除/历史种子走 CPU 精算回落
+  { name: "ROBUST_ZSCORE_20", arity: 1, kind: "robust_zscore", win: 20 },
+  { name: "WINSOR_20", arity: 1, kind: "winsor", win: 20 },
 ] as const
 
 export const OP_INDEX: ReadonlyMap<string, number> = new Map(
   OPS.map((o, i) => [o.name, i]),
 )
 
-/** EMA 串行递推无法在 WGSL 并行化(v1 不支持);其余全部支持 */
-export const GPU_UNSUPPORTED_KINDS: ReadonlySet<OpKind> = new Set(["ema"])
+/** EMA 串行递推无法在 WGSL 并行化(v1 不支持);robust_zscore/winsor 为
+ * 排序类滚动统计,WGSL 尚未实现(v2 批次3),同样不支持。其余全部支持。
+ */
+export const GPU_UNSUPPORTED_KINDS: ReadonlySet<OpKind> =
+  new Set(["ema", "robust_zscore", "winsor"])
 
 /** token 序列是否全部落在 GPU 支持范围(算子不支持/超长/栈深超限 → 回落) */
 export function tokensGpuSupported(tokens: number[], featCount: number): boolean {

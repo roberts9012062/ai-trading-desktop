@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 
 from ..features import feature_matrix
-from ..vm import execute
+from ..vm import execute, execute_for_bars
 from .evaluate import _sortino, next_ret, position_from_factor
 from .periods import bars_per_year
 
@@ -71,7 +71,7 @@ def regime_decompose(
     prefix = list(prefix_bars or [])
     ctx = prefix + list(bars)
     mat = feature_matrix(ctx)
-    factor_all = execute(tokens, mat)
+    factor_all = execute_for_bars(tokens, mat, ctx)
     if factor_all is None:
         return None
     factor = factor_all[len(prefix) :]

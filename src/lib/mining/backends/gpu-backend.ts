@@ -31,6 +31,7 @@ import {
   preciseTopK,
   rankPopulation,
   selectPreciseIndices,
+  selectPreciseIndicesQuota,
   type RankOutcome,
   type RankedCandidate,
 } from "../gpu/rank"
@@ -115,6 +116,9 @@ export class GpuBackend implements ComputeBackend {
         timeframe: cfg.timeframe,
         train_ratio: cfg.train_ratio,
         ...(cfg.test_recent_bars != null ? { test_recent_bars: cfg.test_recent_bars } : {}),
+        ...(cfg.research_profile ? { research_profile: cfg.research_profile } : {}),
+        ...(cfg.execution_model ? { execution_model: cfg.execution_model } : {}),
+        ...(cfg.label_span != null ? { label_span: cfg.label_span } : {}),
         cost: cfg.cost ?? null,
       },
       bars as unknown,
@@ -183,6 +187,9 @@ export class GpuBackend implements ComputeBackend {
             // 本地增强遴选/实盘离散口径门(内核 SearchConfig 字段,默认关)
             ...(cfg.selection_v2 ? { selection_v2: true } : {}),
             ...(cfg.live_entry_gate ? { live_entry_gate: cfg.live_entry_gate } : {}),
+            ...(cfg.research_profile ? { research_profile: cfg.research_profile } : {}),
+            ...(cfg.execution_model ? { execution_model: cfg.execution_model } : {}),
+            ...(cfg.label_span != null ? { label_span: cfg.label_span } : {}),
           },
           [],
           600_000,
@@ -244,9 +251,12 @@ export class GpuBackend implements ComputeBackend {
         }
 
         // 粗排 top-K → 内核精算(名单内全部 f64 重算;权威 champions + best_seen 传递)
-        const topCandidates = selectPreciseIndices(scored, topK, evolveV2).map(
-          (i) => scored[i].tokens,
-        )
+        // v2 漏斗(方案 §8.2):60% 粗排前列不同候选 / 25% 分组前列 / 15% 确定性
+        // 探索——精算预算不只给全局最高分,同质头部挤占时互补候选仍能进精算。
+        const topCandidates = (evolveV2
+          ? selectPreciseIndicesQuota(scored, topK)
+          : selectPreciseIndices(scored, topK, evolveV2)
+        ).map((i) => scored[i].tokens)
 
         // 下一代:岛模型进化(每岛精英+锦标赛+交叉/变异,每 5 代环状迁移;
         // islands=1 退化为原单种群行为)

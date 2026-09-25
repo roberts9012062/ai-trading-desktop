@@ -10,7 +10,7 @@ from .evaluate import _calmar, _sortino, evaluate_factor, next_ret
 from ..express import to_text
 from ..features import feature_matrix
 from .periods import bars_per_year
-from ..vm import execute
+from ..vm import execute, execute_for_bars
 
 
 def buy_hold_metrics(close: np.ndarray, periods: int) -> dict[str, float]:
@@ -55,7 +55,7 @@ def compare(
     factors: list[dict[str, Any]] = []
     for tokens in tokens_list:
         text = to_text(tokens)
-        factor = execute(tokens, mat)
+        factor = execute_for_bars(tokens, mat, bars)
         if factor is None:
             factors.append({"text": text, "ok": False, "reason": "公式无效"})
             continue

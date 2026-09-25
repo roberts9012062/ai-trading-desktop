@@ -17,7 +17,7 @@ import numpy as np
 from data.contracts import get_code_for_symbol
 
 from ..features import feature_matrix
-from ..vm import execute, validate
+from ..vm import execute, execute_for_bars, validate
 from .cost import DEFAULT_SLIPPAGE_TICKS, turnover_cost_rate
 from .evaluate import _sortino, _ts_ic, next_ret, position_from_factor
 from .periods import bars_per_year
@@ -49,7 +49,7 @@ def rolling_sortino(
     if len(bars) < window + 5 or not tokens or validate(list(tokens)):
         return None
     mat = feature_matrix(bars)
-    factor = execute(list(tokens), mat)
+    factor = execute_for_bars(list(tokens), mat, bars)
     if factor is None:
         return None
     if cost is None:
@@ -89,7 +89,7 @@ def rolling_health(
     if len(bars) < ic_window + 5 or not tokens or validate(list(tokens)):
         return None
     mat = feature_matrix(bars)
-    factor = execute(list(tokens), mat)
+    factor = execute_for_bars(list(tokens), mat, bars)
     if factor is None:
         return None
     close = np.array([float(b.get("close") or 0) for b in bars], dtype=float)

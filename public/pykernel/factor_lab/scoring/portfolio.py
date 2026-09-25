@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 
 from ..features import feature_matrix
-from ..vm import execute
+from ..vm import execute, execute_for_bars
 from .evaluate import _calmar, _sortino, _ts_ic, next_ret, position_from_factor
 from .periods import bars_per_year
 
@@ -44,7 +44,7 @@ def evaluate_portfolio(
     ics: list[float] = []
     positions: list[np.ndarray] = []
     for tokens in tokens_list:
-        f = execute(tokens, mat)
+        f = execute_for_bars(tokens, mat, bars)
         if f is None:
             continue
         factors.append(f)

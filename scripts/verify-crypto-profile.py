@@ -157,12 +157,12 @@ class CryptoProfileTests(unittest.TestCase):
     def test_nested_warmup_uses_prefix(self):
         raw = prepare_bars(PAYLOAD, bars(1200))
         import factor_lab.scoring.walk_forward as wf
-        actual = wf.execute
+        actual = wf.execute_for_bars
         observed = []
-        def capture(tokens, matrix):
+        def capture(tokens, matrix, bars, norm_window=None):
             observed.append(matrix.shape[1])
-            return actual(tokens, matrix)
-        with patch.object(wf, "execute", capture):
+            return actual(tokens, matrix, bars, norm_window)
+        with patch.object(wf, "execute_for_bars", capture):
             self.assertIsNotNone(evaluate_on_slice([45, 106, 107], raw, 800, 1100, "60m", .001))
         self.assertEqual(observed, [1100])
 

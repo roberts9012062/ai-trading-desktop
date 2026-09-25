@@ -22,7 +22,7 @@ from typing import Any
 import numpy as np
 
 from ..features import bars_signature, feature_matrix
-from ..vm import execute
+from ..vm import NORM_CAUSAL_V2, execute, execute_for_bars
 from .evaluate import (
     _calmar,
     _sortino,
@@ -131,7 +131,7 @@ def evaluate_on_slice(
     if cached is not None:
         return dict(cached) if cached != "__none__" else None
     mat = feature_matrix(ctx)
-    factor = execute(tokens, mat)
+    factor = execute_for_bars(tokens, mat, ctx)
     if factor is None:
         _cache_put(key, "__none__")
         return None
@@ -201,7 +201,7 @@ def live_discrete_on_slice(
     cached = _cache_get(key)
     if cached is not None:
         return dict(cached) if cached != "__none__" else None
-    factor = execute(tokens, feature_matrix(ctx))
+    factor = execute_for_bars(tokens, feature_matrix(ctx), ctx)
     if factor is None:
         _cache_put(key, "__none__")
         return None
@@ -253,9 +253,13 @@ def walk_forward_eval(
 
     train_len(P1-8 折中版)：遗传搜索传入的 bars 通常是含训练段的全量数据,
     前几折的"测试段"实际落在训练段内——见过数据上的"通过"不构成样本外
-    证据。传入训练段长度后,每折标记 in_train(test_end ≤ train_len),
-    wf_stable 只对 in_train=False 的折生效(无样本外折时恒真,由调用方
-    依据 n_oos_folds 自行展示);None = 不区分(报告路径的旧行为)。
+    证据。传入训练段长度后按**区间交集**标记 in_train:计分区间与
+    [0, train_len) 有任何交集即 in_train(2026-09-25 fix A:原实现
+    test_end <= train_len 只认整折落在训练区,跨越训练边界的折被整体计入
+    OOS——例如可见 850 根、训练 700 根、3 折时末折 [636,850) 其中 64 根
+    属于训练区,却按纯样本外折参与 wf_stable 判定)。wf_stable 只对
+    in_train=False 的折生效(无样本外折时恒真,由调用方依据 n_oos_folds
+    自行展示);None = 不区分(报告路径的旧行为)。
 
     稳健性判据（wf_stable）：(样本外)折的测试段 sortino > 0 才算稳定。
     返回 None 表示因子无法执行或窗口不足；返回 dict 含 folds 明细与汇总。
@@ -278,12 +282,17 @@ def walk_forward_eval(
         test_start = train_end
         # 最后一折的测试段吃到尾部，避免余数被丢弃
         test_end = (i + 1) * seg if i < n_folds else n
-        in_train = bool(train_len is not None and test_end <= train_len)
+        # 区间交集判定:计分区 [test_start, test_end) 触碰训练区即非样本外
+        in_train = bool(train_len is not None and test_start < train_len)
         train_m = evaluate_on_slice(tokens, bars, 0, train_end, timeframe, cost)
         test_m = evaluate_on_slice(tokens, bars, test_start, test_end, timeframe, cost)
         if train_m is None or test_m is None:
             return None
-        folds.append({"train": train_m, "test": test_m, "in_train": in_train})
+        fold_rec = {"train": train_m, "test": test_m, "in_train": in_train}
+        if in_train and train_len is not None:
+            # 与训练区重叠的 bar 数(诊断用:跨边界折的部分污染量)
+            fold_rec["overlap_train_bars"] = int(min(test_end, train_len) - test_start)
+        folds.append(fold_rec)
         test_sortinos.append(test_m["sortino"])
         test_anns.append(test_m["ann_ret"])
         if not in_train:
@@ -305,4 +314,80 @@ def walk_forward_eval(
         "wf_consistency": float(wf_consistency),
         "n_folds": int(n_folds),
         "n_oos_folds": len(oos_sortinos),
+    }
+
+
+def walk_forward_eval_v2(
+    tokens: list[int],
+    bars: list[dict[str, Any]],
+    timeframe: str,
+    cost: float,
+    plan: Any,
+    n_folds: int,
+    norm_window: int = 250,
+) -> dict[str, Any] | None:
+    """crypto_local_v2 验证折:只在 [train_end, validation_end) 内切分计分。
+
+    与 walk_forward_eval 的区别(方案 5.1-3):
+    - 计分样本永不出验证区:折来自 plan_validation_folds,每折记录
+      score_start/score_end/context_start;上下文(warmup)允许延伸进
+      训练区,计分样本不可以;
+    - 不存在"跨训练边界的折"这一类别——边界由切分计划显式持有;
+    - 封存区完全不参与(调用方在最终揭示前传入的 bars 应已不含封存段;
+      本函数亦按 plan.validation_end 截断计分,双保险)。
+
+    折不足 MIN_FOLD_BARS 或因子无法执行时返回 None。
+    """
+    from .split_plan import plan_validation_folds
+
+    folds_idx = plan_validation_folds(plan, n_folds)
+    if not folds_idx:
+        return None
+    folds: list[dict[str, Any]] = []
+    sortinos: list[float] = []
+    anns: list[float] = []
+    for a, b in folds_idx:
+        context_start = max(0, a - plan.warmup)
+        n_score = b - a
+        if n_score < MIN_TEST_BARS:
+            # 单折短于统计下限:整份验证判不足,不降格计分
+            return None
+        ctx = bars[context_start:b]
+        mat = feature_matrix(ctx)
+        factor = execute(tokens, mat, norm_window, NORM_CAUSAL_V2)
+        if factor is None:
+            return None
+        factor = factor[-n_score:]
+        score_bars = ctx[-n_score:]
+        close = np.array([float(x.get("close") or 0) for x in score_bars], dtype=float)
+        periods = bars_per_year(score_bars, timeframe)
+        pos = position_from_factor(factor)
+        ret = next_ret(close)
+        prev = np.roll(pos, 1)
+        prev[0] = 0.0
+        turnover = np.abs(pos - prev)
+        pnl = pos * ret - turnover * cost
+        m = {
+            "ann_ret": float(pnl.mean() * periods),
+            "sortino": float(_sortino(pnl, periods)),
+            "avg_turnover": float(turnover.mean()),
+            "bars": float(n_score),
+            "score_start": int(a),
+            "score_end": int(b),
+            "context_start": int(context_start),
+        }
+        folds.append(m)
+        sortinos.append(m["sortino"])
+        anns.append(m["ann_ret"])
+    mean_ann = float(np.mean(anns))
+    std_ann = float(np.std(anns))
+    wf_consistency = 1.0 - std_ann / (abs(mean_ann) + 1e-9) if mean_ann != 0 else 0.0
+    return {
+        "folds": folds,
+        "wf_stable": bool(all(s > 0.0 for s in sortinos)),
+        "wf_mean_test_sortino": float(np.mean(sortinos)),
+        "wf_mean_test_ann": mean_ann,
+        "wf_consistency": float(wf_consistency),
+        "n_folds": int(n_folds),
+        "n_oos_folds": int(n_folds),  # v2:验证区折均为训练未见样本外
     }

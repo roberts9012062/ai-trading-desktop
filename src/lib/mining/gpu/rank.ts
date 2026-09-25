@@ -167,6 +167,111 @@ export function preciseTopK(population: number, topN: number, trainLen: number):
   return Math.min(cap, Math.max(60, topN * 3, Math.ceil(population * 0.05)))
 }
 
+/** 精算漏斗配额(方案 §8.2 默认提议,待消融):
+ * 60% 粗排前列不同候选 / 25% 分组(族×复杂度)前列 / 15% 确定性探索。
+ */
+export interface PreciseQuotas {
+  top: number
+  group: number
+  explore: number
+}
+
+export const DEFAULT_PRECISE_QUOTAS: PreciseQuotas = { top: 0.6, group: 0.25, explore: 0.15 }
+
+/** 主要因子族(与内核 archive.family_of 同阈值):直连衍生 > 加密扩展 > 传统量价 */
+export function familyOfTokens(tokens: readonly number[]): string {
+  const feats = tokens.filter((t) => t >= 0 && t < 64)
+  if (feats.some((f) => f >= 52 && f <= 58)) return "direct_deriv"
+  if (feats.some((f) => f >= 40 && f <= 51)) return "crypto_v1"
+  return "ohlcv_legacy"
+}
+
+/** 复杂度档:token 数 /4 截断到 [0,4](与内核 complexity_band 一致) */
+export function complexityBand(tokens: readonly number[]): number {
+  return Math.min(Math.floor(tokens.length / 4), 4)
+}
+
+/** 稳定哈希(FNV-1a 32 位,与 data-source.fnv1a32 同族):确定性探索序 */
+function stableHash(tokens: readonly number[]): number {
+  let h = 0x811c9dc5
+  for (const t of tokens) {
+    h ^= t & 0xff
+    h = Math.imul(h, 0x01000193) >>> 0
+    h ^= (t >>> 8) & 0xff
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  return h >>> 0
+}
+
+/**
+ * 配额制精算漏斗(v2):精算预算不只给全局最高分。
+ *
+ * - top 配额:粗排分降序、行为指纹去重后的前列(原行为);
+ * - group 配额:其余候选按 (族, 复杂度档) 分组轮转取组内最优
+ *   (换手档粗排阶段未知,首版不进分组键——内核精算后再分组);
+ * - explore 配额:仍未入选者按 tokens 稳定哈希序(等价固定种子抽样);
+ * - 无效粗排分(≤-998)不占任何名额;输出按粗排分降序。
+ */
+export function selectPreciseIndicesQuota(
+  scored: readonly RankedCandidate[],
+  topK: number,
+  quotas: PreciseQuotas = DEFAULT_PRECISE_QUOTAS,
+): number[] {
+  const order = scored
+    .map((s, i) => ({ i, comp: s.comp }))
+    .filter((x) => x.comp > -998)
+    .sort((a, b) => b.comp - a.comp)
+  if (order.length === 0) return []
+  const nTop = Math.min(order.length, Math.max(1, Math.round(topK * quotas.top)))
+  const nGroup = Math.min(order.length - nTop, Math.round(topK * quotas.group))
+  const chosen: number[] = []
+  const taken = new Set<number>()
+  const seenFp = new Set<number>()
+  for (const { i } of order) {
+    if (chosen.length >= nTop) break
+    const fp = scored[i].fp
+    if (fp !== undefined) {
+      if (seenFp.has(fp)) continue
+      seenFp.add(fp)
+    }
+    chosen.push(i)
+    taken.add(i)
+  }
+  // 分组轮转:rest 按 (族, 复杂度) 分组,组内已按分排序
+  const groups = new Map<string, number[]>()
+  for (const { i } of order) {
+    if (taken.has(i)) continue
+    const key = `${familyOfTokens(scored[i].tokens)}:${complexityBand(scored[i].tokens)}`
+    const g = groups.get(key) ?? []
+    g.push(i)
+    groups.set(key, g)
+  }
+  const keys = [...groups.keys()].sort()
+  let groupBudget = nGroup
+  while (groupBudget > 0 && keys.some((k) => (groups.get(k)?.length ?? 0) > 0)) {
+    let progressed = false
+    for (const k of keys) {
+      const g = groups.get(k)!
+      if (!g.length || groupBudget <= 0) continue
+      const i = g.shift()!
+      chosen.push(i)
+      taken.add(i)
+      groupBudget -= 1
+      progressed = true
+    }
+    if (!progressed) break
+  }
+  // 确定性探索:余下按稳定哈希序补满 topK
+  const rest = order.filter(({ i }) => !taken.has(i))
+  rest.sort((a, b) => stableHash(scored[a.i].tokens) - stableHash(scored[b.i].tokens))
+  for (const { i } of rest) {
+    if (chosen.length >= topK) break
+    chosen.push(i)
+  }
+  // 输出按粗排分降序(精算入口不关心顺序,但确定性输出便于测试与复现)
+  return chosen.sort((a, b) => scored[b].comp - scored[a].comp)
+}
+
 /**
  * 从粗排结果选精算名单(返回种群下标,按粗排分降序)。
  * distinct=true(evolve_v2)时行为指纹相同的只取一个:收敛期头部大多是

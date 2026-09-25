@@ -13,3 +13,6 @@ __pycache__/
 
 # 挖掘基准评测数据(scripts/export-bench-bars.py 导出)
 scripts/.bench-data/
+
+# 本地基准行情缓存(可再生的数据文件,不入库)
+.local-data/

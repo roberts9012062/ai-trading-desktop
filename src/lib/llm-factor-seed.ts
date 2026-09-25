@@ -26,6 +26,7 @@ interface LlmVocab {
   feat_offset: number
   features: VocabEntry[]
   ops: VocabEntry[]
+  excluded_features?: Record<string, string>
 }
 
 export interface LlmSeedOptions {
@@ -36,6 +37,11 @@ export interface LlmSeedOptions {
   /** 已有冠军(提示 LLM 提供不同思路,避免重复探索) */
   champions?: { text: string; composite: number }[]
   signal?: AbortSignal
+  /** 行情快照(词表按真实数据能力生成;缺省时自动探测最近窗口,
+   *  探测失败则词表退化为保守清单——不臆造 funding/OI 可用) */
+  bars?: Array<Record<string, unknown>>
+  /** 数据渠道(探测快照用,缺省 binance_spot) */
+  channel?: string
 }
 
 export interface LlmSeedResult {
@@ -44,9 +50,51 @@ export interface LlmSeedResult {
   note: string
 }
 
-async function fetchVocab(opts: LlmSeedOptions): Promise<LlmVocab> {
+/** 按周期选择词表可用性探测窗口:足够判定特征覆盖,又不过度取数 */
+function probeDays(timeframe: string): number {
+  if (timeframe === "1d") return 120
+  if (["4h", "1h", "60m"].includes(timeframe)) return 14
+  return 3 // 15m/5m/1m
+}
+
+async function probeBars(opts: LlmSeedOptions): Promise<Array<Record<string, unknown>>> {
+  if (opts.bars?.length) return opts.bars
+  if (!isCryptoSymbol(opts.symbol)) return []
+  try {
+    const { acquireBarsSnapshot, releaseBarsSnapshot } = await import("@/lib/mining/data-source")
+    const days = probeDays(opts.timeframe)
+    const end = new Date()
+    const start = new Date(end.getTime() - days * 86400_000)
+    const iso = (d: Date) => d.toISOString().slice(0, 10)
+    const snap = await acquireBarsSnapshot({
+      symbol: opts.symbol,
+      timeframe: opts.timeframe,
+      channel: opts.channel,
+      startDate: iso(start),
+      endDate: iso(end),
+    })
+    const bars = snap.bars as unknown as Array<Record<string, unknown>>
+    // 词表探测只读一次,引用立即归还(任务自身的快照另行获取)
+    releaseBarsSnapshot(snap.id)
+    return bars
+  } catch {
+    return [] // 探测失败:词表退化为保守清单,不臆造数据能力
+  }
+}
+
+async function fetchVocab(opts: LlmSeedOptions, bars: Array<Record<string, unknown>>): Promise<LlmVocab> {
   const { ensurePyWorker } = await import("@/lib/py-worker")
-  return (await ensurePyWorker().factorRun({ mode: "llm_vocab", symbol: opts.symbol, timeframe: opts.timeframe, crypto_profile: isCryptoSymbol(opts.symbol) }, [], 30_000)) as LlmVocab
+  return (await ensurePyWorker().factorRun(
+    {
+      mode: "llm_vocab",
+      symbol: opts.symbol,
+      timeframe: opts.timeframe,
+      crypto_profile: isCryptoSymbol(opts.symbol),
+      ...(opts.channel ? { market_source: opts.channel } : {}),
+    },
+    bars,
+    30_000,
+  )) as LlmVocab
 }
 
 function buildMessages(
@@ -64,8 +112,19 @@ function buildMessages(
     .map((c) => `- ${c.text}(综合 ${c.composite.toFixed(2)})`)
     .join("\n")
 
+  // 数据能力按词表真实内容声明(fix F):有 funding/OI/直连微结构特征才说可用
+  const names = new Set(vocab.features.map((f) => f.name))
+  const hasFunding = names.has("FUNDING_RATE") || names.has("FUNDING_DELTA")
+  const hasOI = names.has("OI_CHG") || names.has("OI_PV") || names.has("OI_CHG5")
+  const hasFlow = names.has("TAKER_IMBALANCE")
+  const cryptoRole = isCryptoSymbol(opts.symbol)
+    ? [
+        "你是加密货币因子研究员，研究全天候量价、动量、流动性代理和尾部风险。",
+        `可用数据能力: 量价K线; ${hasFunding ? "资金费率(funding)" : "无资金费率数据"}; ${hasOI ? "持仓量(OI)" : "无持仓量数据"}; ${hasFlow ? "主动买卖不平衡" : "无订单流数据"}。词表未列出的数据一律不得使用,不得臆造。`,
+      ].join("")
+    : "你是资深量化因子研究员,精通期货市场因子挖掘。"
   const system = [
-    isCryptoSymbol(opts.symbol) ? "你是加密货币因子研究员，研究全天候量价、动量、流动性代理和尾部风险；无资金费率、盘口或持仓数据，不得臆造。" : "你是资深量化因子研究员,精通期货市场因子挖掘。",
+    cryptoRole,
     "你的任务是为遗传算法生成初始因子公式候选——不是最终答案,而是带人类直觉先验的多样化种子,GP 会在这些种子之上大规模进化精炼。",
     "",
     "因子公式用后缀 token 序列(栈式)编码:",
@@ -115,7 +174,9 @@ function parseCandidates(raw: string): { candidates?: unknown; note?: unknown } 
 
 /** 生成因子种子:词表 → LLM → 严格校验,返回合法 token 候选(可能为空) */
 export async function localLlmGenerateFactors(opts: LlmSeedOptions): Promise<LlmSeedResult> {
-  const vocab = await fetchVocab(opts)
+  // 取数/预检后才请求词表(方案 §10 LLM 约定)
+  const bars = await probeBars(opts)
+  const vocab = await fetchVocab(opts, bars)
   const messages = buildMessages(opts, vocab)
   const raw = await localChatJson(messages, { temperature: 0.7, signal: opts.signal })
   const parsed = parseCandidates(raw)

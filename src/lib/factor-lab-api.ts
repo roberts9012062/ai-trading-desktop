@@ -70,6 +70,19 @@ export interface FactorMetrics {
   walk_forward?: WalkForwardDetail
   /** 防过拟合：兜底回退标记（严格筛全军覆没时，该因子测试段亏损，仅供参考） */
   overfit_warning?: string
+  /** v2 研究状态(crypto_local_v2):holdout_passed|validation_passed|
+   *  rejected|exploratory;旧口径无此字段 */
+  candidate_status?: string
+  /** v2 样本不足:仅探索,不计入合格因子数(带 sample_gaps 缺口明细) */
+  insufficient_samples?: boolean
+  sample_gaps?: string[]
+  /** v2 封存通过判定(指标复用 selection_v2 的 holdout_metrics 字段) */
+  holdout_passed?: boolean
+  validation_passed?: boolean
+  /** v2 执行口径指标(次根开盘成交 + funding 事件现金流) */
+  execution_metrics?: Record<string, number>
+  /** v2 切分计划摘要(训练/验证/封存边界与充分性) */
+  split_plan?: Record<string, unknown>
   /** P5 统计严谨性：PBO 代理（训练段最优 K 个候选中样本外失败比例） */
   pbo_proxy?: number
   /** P5 统计严谨性：测试段四等分最差子段 Sortino（样本外保守下界） */

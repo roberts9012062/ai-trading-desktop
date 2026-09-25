@@ -42,6 +42,14 @@ export interface MiningConfig {
   evolve_v2?: boolean
   /** 实盘离散口径门(SearchConfig.live_entry_gate):>0 时严格筛按该开仓阈值验证 */
   live_entry_gate?: number
+  /** 研究契约版本(crypto_local_v2 = 60/20/20 显式切分+严格因果归一化+
+   *  样本充分性门+封存揭示;缺省/crypto_ohlcv_v1 = 旧语义逐位不变) */
+  research_profile?: string
+  /** 执行模型(signal_research|spot_long_flat|perp_next_open):v2 时严格筛
+   *  按该模型的净收益(含 funding 事件现金流)验证 */
+  execution_model?: string
+  /** 收益标签跨度 bar 数(v2;末尾不足的不补 0 参加统计) */
+  label_span?: number
   start_date?: string
   end_date?: string
 }

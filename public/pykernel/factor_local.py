@@ -38,7 +38,7 @@ from factor_lab.search import (
     search_stepwise,
 )
 from factor_lab.token_encoding import FEAT_OFFSET as _FEAT_OFFSET
-from factor_lab.vm import is_constant, validate
+from factor_lab.vm import execute_for_bars, is_constant, validate
 
 # 允许透传的 SearchConfig 字段(其余保持内核默认;LLM coach/配额/落库属服务端)
 _CFG_FIELDS = {f.name for f in dc_fields(SearchConfig)}
@@ -67,6 +67,8 @@ def run(payload_json: str, bars_json: str) -> str:
     payload = json.loads(payload_json)
     mode = str(payload.get("mode") or "search")
     bars = json.loads(bars_json)
+    # 未知研究 profile 显式拒绝,不允许静默走旧执行器(方案 §3)
+    _reject_unknown_profile(payload)
     if mode == "backtest_factor":
         return run_backtest_factor(payload, bars)
     if mode == "mine_features":
@@ -84,9 +86,120 @@ def run(payload_json: str, bars_json: str) -> str:
         return run_llm_vocab(payload, bars)
     if mode == "cross_peer_symbols":
         return run_cross_peer_symbols(payload, bars)
+    if mode == "research_context":
+        return run_research_context(payload, bars)
     if mode == "version":
         return json.dumps({"kernel_version": kernel_version()}, ensure_ascii=False)
     return run_search(payload, bars)
+
+
+def _reject_unknown_profile(payload: dict) -> None:
+    from factor_lab.research_context import KNOWN_PROFILES
+
+    profile = str(payload.get("research_profile") or "")
+    if profile and profile not in KNOWN_PROFILES:
+        raise ValueError(
+            f"未知 research_profile '{profile}':拒绝静默按旧版本执行;"
+            f"已知版本: {', '.join(KNOWN_PROFILES)}"
+        )
+
+
+def run_research_context(payload: dict, bars: list) -> str:
+    """运行前研究上下文预检:切分计划、样本充分性、归一化窗口、数据能力。
+
+    两入口在搜索发起前调用本入口展示:启用特征、每段长度、验证折数、
+    样本缺口(方案 5.3「运行前显示」与任务 10 界面数据源)。非 v2 profile
+    返回 legacy 标记。
+    """
+    from factor_lab.research_context import resolve_context
+
+    bars = prepare_bars(payload, bars)
+    cost = resolve_search_cost(payload, bars)
+    ctx = resolve_context(payload, bars, cost)
+    if ctx is None:
+        profile = str(payload.get("research_profile") or "") or "legacy"
+        return json.dumps(
+            {
+                "profile_id": profile,
+                "legacy": True,
+                "bars": len(bars),
+                "cost": cost,
+            },
+            ensure_ascii=False,
+        )
+    from factor_lab.features import active_feature_ids, feature_matrix
+
+    mat = feature_matrix(bars[: ctx.split.train_end] if ctx.split.sufficient else bars)
+    try:
+        active = active_feature_ids(mat, True, max_head_gap=250)
+    except ValueError:
+        active = []
+    return json.dumps(
+        {
+            **ctx.to_summary(),
+            "legacy": False,
+            "active_feature_ids": active,
+            "kernel_version": kernel_version(),
+        },
+        ensure_ascii=False,
+        default=str,
+    )
+
+
+def _reveal_v2_holdout(champions: list[dict], payload: dict, bars: list, cost: float) -> None:
+    """crypto_local_v2 封存段一次性揭示:仅在最终代调用(方案 §5)。
+
+    搜索全程只见 [0, validation_end);本函数在 [validation_end, n) 上对
+    最终冠军做唯一一次评估,写入 holdout_metrics + holdout_passed。
+    样本不足(无封存段)时不揭示。修改封存数据不会改变训练候选或验证
+    名单——它们在搜索时已冻结。
+    """
+    from factor_lab.research_context import resolve_context
+    from factor_lab.scoring.evaluate import next_ret, position_from_factor, _sortino
+    from factor_lab.scoring.periods import bars_per_year
+    from factor_lab.vm import execute_for_bars
+
+    ctx = resolve_context(payload, bars, cost)
+    if ctx is None or not ctx.split.sufficient:
+        return
+    plan = ctx.split
+    lo, hi = plan.validation_end, plan.holdout_end - plan.tail_unclear_bars
+    n_score = hi - lo
+    if n_score <= 0:
+        return
+    context_start = max(0, lo - plan.warmup)
+    ctx_bars = bars[context_start:hi]
+    mat = feature_matrix(ctx_bars)
+    timeframe = ctx.timeframe
+    periods = bars_per_year(ctx_bars[-n_score:], timeframe)
+    close = np.array([float(b.get("close") or 0) for b in ctx_bars[-n_score:]], dtype=float)
+    ret = next_ret(close)
+    for c in champions:
+        tokens = [int(t) for t in c.get("tokens") or []]
+        if not tokens or not c.get("metrics", {}).get("validation_passed"):
+            continue  # 只有通过验证的冻结候选才揭示封存
+        factor = execute_for_bars(tokens, mat, ctx_bars)
+        if factor is None:
+            continue
+        factor = factor[-n_score:]
+        pos = position_from_factor(factor)
+        prev = np.roll(pos, 1)
+        prev[0] = 0.0
+        turnover = np.abs(pos - prev)
+        pnl = pos * ret - turnover * cost
+        pnl_2x = pos * ret - turnover * cost * 2.0
+        m = c["metrics"]
+        m["holdout_metrics"] = {
+            "ann_ret": float(pnl.mean() * periods),
+            "sortino": float(_sortino(pnl, periods)),
+            "sortino_2x": float(_sortino(pnl_2x, periods)),
+            "avg_turnover": float(turnover.mean()),
+            "bars": float(n_score),
+        }
+        # 封存按预注册标准评估:1×/2×成本净 sortino 均 >0 才算通过;
+        # 不根据封存指标重新排序或补选候选
+        m["holdout_passed"] = bool(m["holdout_metrics"]["sortino"] > 0 and m["holdout_metrics"]["sortino_2x"] > 0)
+        m["candidate_status"] = "holdout_passed" if m["holdout_passed"] else "rejected"
 
 
 def run_search(payload: dict, bars: list) -> str:
@@ -98,23 +211,33 @@ def run_search(payload: dict, bars: list) -> str:
     if cfg_kwargs.get("cost") is None:
         cfg_kwargs["cost"] = resolve_search_cost(payload, bars)
     cfg = SearchConfig(**cfg_kwargs)
+    if cfg.research_profile == "crypto_local_v2":
+        cfg.crypto_profile = True  # v2 隐含加密口径(特征空间/成本解析)
     if cfg.crypto_profile and cfg.cross_peers:
         cfg.cross_peers = [(symbol, prepare_bars({**payload, "symbol": symbol}, peer))
                            for symbol, peer in cfg.cross_peers]
+    full_bars = list(bars)
     champions = search(bars, str(payload.get("timeframe") or "1d"), cfg)
-    return json.dumps(
-        [
-            {
-                "tokens": c.tokens,
-                "text": c.text,
-                "metrics": _mark_local_only(c.metrics, c.tokens),
-                "composite": c.composite,
-            }
-            for c in champions
-        ],
-        ensure_ascii=False,
-        default=str,
-    )
+    out = [
+        {
+            "tokens": c.tokens,
+            "text": c.text,
+            "metrics": _mark_local_only(c.metrics, c.tokens),
+            "composite": c.composite,
+        }
+        for c in champions
+    ]
+    if cfg.research_profile == "crypto_local_v2" and payload.get("final_generation", True):
+        # 封存段一次性揭示:仅最终代、仅通过验证的冻结候选
+        _reveal_v2_holdout(out, payload, full_bars, cfg.cost)
+    if cfg.research_profile == "crypto_local_v2":
+        from factor_lab.research_context import resolve_context
+
+        ctx = resolve_context(payload, full_bars, cfg.cost)
+        if ctx is not None:
+            for item in out:
+                item["metrics"]["research_context"] = ctx.to_summary()
+    return json.dumps(out, ensure_ascii=False, default=str)
 
 
 # ── 单因子回测(服务端 backtest_api.py 主体逐字移植)─────────────────────
@@ -178,7 +301,13 @@ def run_backtest_factor(payload: dict, bars: list) -> str:
     norm_window = int(payload.get("norm_window") or 250)  # P0-2 因果归一化窗
 
     mat = feature_matrix(bars)
-    factor = execute(tokens, mat, norm_window)
+    from factor_lab.market import is_v2
+
+    if is_v2(bars):
+        # v2:归一化窗口由研究契约持有(前缀不变推导),不取 legacy 默认 250
+        factor = execute_for_bars(tokens, mat, bars)
+    else:
+        factor = execute(tokens, mat, norm_window)
     if factor is None:
         return json.dumps({"error": "因子公式无效或无法执行"}, ensure_ascii=False)
     close = np.array([float(b.get("close") or 0) for b in bars], dtype=float)
@@ -308,8 +437,15 @@ def run_llm_vocab(payload: dict, bars: list) -> str:
 
     从 FEATURE_NAMES/OPS_CONFIG/文案表直接产出(单一事实源,不另维护一份
     JS 词表);生成的 token 仍走 StackVM 校验,非法候选会被丢弃。
+
+    crypto 词表按**实际数据能力**生成(2026-09-25 fix F):传入 bars 时用
+    训练段特征矩阵的可用性(active_feature_ids)决定开放哪些特征——
+    funding/OI/直连微结构字段真实覆盖时开放,不可用时排除并在
+    excluded_features 给出原因;不再一律禁止 52-58,也不一律开放。
+    无 bars 时保守排除直连特征(可用性未知)。
     """
     from factor_lab.express import _FEAT_TEXT, _OP_TEXT
+    from factor_lab.features import FEATURE_NAMES
     from factor_lab.ops import OPS_CONFIG
     from factor_lab.token_encoding import FEAT_OFFSET
 
@@ -317,11 +453,42 @@ def run_llm_vocab(payload: dict, bars: list) -> str:
         {"id": i, "name": n, "text": _FEAT_TEXT.get(n, n)}
         for i, n in enumerate(FEATURE_NAMES)
     ]
+    excluded_reasons: dict[str, str] = {}
     if payload.get("crypto_profile"):
-        excluded = set(range(52, len(FEATURE_NAMES))) | {14, 15, 16, 17, 18, 27, 28, 29, 30, 33, 34}
-        if payload.get("timeframe") == "1d":
-            excluded.update({40, 41})
-        feats = [f for f in feats if f["id"] not in excluded]
+        from factor_lab.market import is_v2, prepare_bars
+
+        if bars:
+            # 只用训练段评估可用性(v2 显式切分),不向 LLM 暴露封存段细节
+            bars = prepare_bars(payload, bars)
+            cfg_kwargs = {
+                k: payload[k]
+                for k in _CFG_FIELDS
+                if k in payload and k not in ("cost", "cross_peers")
+            }
+            cfg = SearchConfig(**cfg_kwargs)
+            train_bars, _ = _split_train_test(cfg, bars)
+            from factor_lab.features import active_feature_ids, feature_matrix
+
+            mat = feature_matrix(train_bars)
+            try:
+                active = set(
+                    active_feature_ids(mat, True, max_head_gap=250 if is_v2(bars) else None)
+                )
+            except ValueError:
+                active = set()
+            excluded_reasons = {
+                FEATURE_NAMES[i]: "训练段数据不可用(缺失/常数/覆盖不足)"
+                for i in range(len(FEATURE_NAMES))
+                if i not in active
+            }
+            feats = [f for f in feats if f["id"] in active]
+        else:
+            # 无行情快照:直连特征可用性未知,保守排除(不臆造数据能力)
+            static_excluded = set(range(52, len(FEATURE_NAMES)))
+            excluded_reasons = {
+                FEATURE_NAMES[i]: "数据可用性未知(未传行情快照)" for i in static_excluded
+            }
+            feats = [f for f in feats if f["id"] not in static_excluded]
     ops = [
         {
             "id": FEAT_OFFSET + i,
@@ -332,7 +499,12 @@ def run_llm_vocab(payload: dict, bars: list) -> str:
         for i, entry in enumerate(OPS_CONFIG)
     ]
     return json.dumps(
-        {"feat_offset": FEAT_OFFSET, "features": feats, "ops": ops},
+        {
+            "feat_offset": FEAT_OFFSET,
+            "features": feats,
+            "ops": ops,
+            "excluded_features": excluded_reasons,
+        },
         ensure_ascii=False,
     )
 
@@ -371,9 +543,14 @@ def kernel_version() -> str:
     # 加密币口径(2026-09-25.1):加密 specs(multiplier=1/taker 万5/按币 tick)、
     # 符号别名归一(各所原生写法)、未知加密币显式报错、cost 省略与 null
     # 同路径自动推导(run_search/mine_start/shard/precise 四处)。
+    # 2026-09-25.4: crypto_local_v2 研究契约(60/20/20 显式切分/前缀不变
+    # 归一化/缺失掩码/样本充分性门/封存一次性揭示)+ funding 事件现金流
+    # + perp_next_open 执行口径 + robust_zscore/winsor 算子(append-only,
+    # id 44/45)+ 因子族种子模板 + 有界多样性档案。legacy(crypto_ohlcv_v1
+    # 与空 profile)路径行为不变;v2 结果按本戳区分。
     # 更早:批次三口径变更(P0-2 因果归一化;P1-7 warmup 切片与
     # MIN_TEST_BARS=120);同因子在新旧内核下指标不同,历史/收藏按此戳区分
-    return "pykernel-factor-2026-09-25.3"
+    return "pykernel-factor-2026-09-25.4"
 
 
 # ── 分代步进挖掘会话(本地长程任务 M3) ─────────────────────────
@@ -447,6 +624,7 @@ def mine_step(session_id: str) -> str:
             "generation": snap.generation,
             "total_generations": snap.total_generations,
             "best_composite": snap.best_composite,
+            **({"stats": snap.stats} if snap.stats else {}),
             "champions": [
                 {
                     "tokens": c.tokens,
@@ -479,7 +657,18 @@ def mine_dispose(session_id: str) -> str:
 
 
 def _split_train_test(cfg: SearchConfig, bars: list) -> tuple[list, list]:
-    """防过拟合切分 —— 与 search()/search_stepwise() 逐字同源(单点维护)"""
+    """防过拟合切分 —— 与 search()/search_stepwise() 逐字同源(单点维护)
+
+    v2:60/20/20 显式计划;返回的 test 是验证区(封存区由调用方另行处理,
+    本函数不返回封存段——避免任何路径意外把它当验证用)。
+    """
+    if cfg.research_profile == "crypto_local_v2":
+        from factor_lab.scoring.split_plan import build_split_plan
+
+        plan = build_split_plan(len(bars), label_span=cfg.label_span, warmup=250, bars=bars)
+        if plan.sufficient:
+            return list(bars[: plan.train_end]), list(bars[plan.train_end : plan.validation_end])
+        return list(bars), []
     if cfg.test_recent_bars > 0:
         cut = max(MIN_TEST_BARS, len(bars) - cfg.test_recent_bars)
         if cut < MIN_TEST_BARS or (len(bars) - cut) < MIN_TEST_BARS:
@@ -494,7 +683,7 @@ _GPU_INPUTS: dict = {}
 
 
 def _gpu_input_key(payload: dict, cfg: SearchConfig) -> tuple:
-    return (str(payload.get("timeframe") or "1d"), cfg.train_ratio, cfg.test_recent_bars, cfg.crypto_profile)
+    return (str(payload.get("timeframe") or "1d"), cfg.train_ratio, cfg.test_recent_bars, cfg.crypto_profile, cfg.research_profile, cfg.label_span, cfg.execution_model)
 
 
 def run_mine_features(payload: dict, bars: list) -> str:
@@ -575,6 +764,18 @@ def run_mine_shard(payload: dict, bars: list) -> str:
     feat_mat = feature_matrix(train_bars)
     close = np.array([float(b.get("close") or 0) for b in train_bars], dtype=float)
     periods = bars_per_year(train_bars, timeframe)
+    v2 = cfg.research_profile == "crypto_local_v2"
+    head_trim = 0
+    if v2:
+        from factor_lab.search import _v2_head_trim
+        from factor_lab.features import active_feature_ids
+
+        try:
+            head_trim = _v2_head_trim(
+                feat_mat, active_feature_ids(feat_mat, True, max_head_gap=250)
+            )
+        except ValueError:
+            head_trim = 0
 
     out = []
     for raw in payload.get("candidates") or []:
@@ -584,10 +785,17 @@ def run_mine_shard(payload: dict, bars: list) -> str:
         if validate(tokens):
             continue
         try:
-            factor = execute(tokens, feat_mat)
-            if factor is None or is_constant(factor):
+            factor = (
+                execute_for_bars(tokens, feat_mat, train_bars)
+                if v2
+                else execute(tokens, feat_mat)
+            )
+            if factor is None or is_constant(factor[head_trim:] if head_trim else factor):
                 continue
-            metrics = evaluate_factor(factor, close, cost=cfg.cost, periods=periods)
+            if head_trim:
+                metrics = evaluate_factor(factor[head_trim:], close[head_trim:], cost=cfg.cost, periods=periods)
+            else:
+                metrics = evaluate_factor(factor, close, cost=cfg.cost, periods=periods)
         except Exception:
             continue
         comp = float(metrics["composite"]) - 0.02 * max(0, len(tokens) - 12)
@@ -612,20 +820,53 @@ def run_mine_precise(payload: dict, bars: list) -> str:
     if cfg_kwargs.get("cost") is None:
         cfg_kwargs["cost"] = resolve_search_cost(payload, bars)
     cfg = SearchConfig(**cfg_kwargs)
+    if cfg.research_profile == "crypto_local_v2":
+        cfg.crypto_profile = True
     if cfg.crypto_profile and cfg.cross_peers:
         cfg.cross_peers = [(symbol, prepare_bars({**payload, "symbol": symbol}, peer))
                            for symbol, peer in cfg.cross_peers]
+    # v2:显式切分计划;封存段对精算去重不可见(与 search() 一致)
+    v2 = cfg.research_profile == "crypto_local_v2"
+    full_bars = list(bars)
+    plan = None
+    head_trim = 0
+    if v2:
+        from factor_lab.search import _v2_head_trim
+        from factor_lab.scoring.split_plan import build_split_plan
+
+        plan = build_split_plan(
+            len(bars), label_span=cfg.label_span, warmup=250, bars=bars
+        )
+        if plan.sufficient:
+            bars = list(bars[: plan.validation_end])
+        train_bars = list(bars[: plan.train_end]) if plan.sufficient else list(bars)
+        test_bars = list(bars[plan.train_end :]) if plan.sufficient else []
     if prepared is not None:
         if prepared["key"] != _gpu_input_key(payload, cfg):
             raise ValueError("GPU input session configuration mismatch")
+        if v2:
+            prepared["train"] = train_bars
+            prepared["test"] = test_bars
         train_bars, test_bars = prepared["train"], prepared["test"]
         feat_mat, close, periods = prepared["matrix"], prepared["close"], prepared["periods"]
-    else:
+    elif not v2:
         train_bars, test_bars = _split_train_test(cfg, bars)
         feat_mat = feature_matrix(train_bars)
         close = np.array([float(b.get("close") or 0) for b in train_bars], dtype=float)
         periods = bars_per_year(train_bars, timeframe)
+    else:
+        feat_mat = feature_matrix(train_bars)
+        close = np.array([float(b.get("close") or 0) for b in train_bars], dtype=float)
+        periods = bars_per_year(train_bars, timeframe)
+    if v2:
+        from factor_lab.features import active_feature_ids
+
+        head_trim = _v2_head_trim(
+            feat_mat, active_feature_ids(feat_mat, True, max_head_gap=250)
+        )
     use_test = bool(test_bars) and len(test_bars) >= MIN_TEST_BARS
+    if v2:
+        use_test = plan is not None and plan.sufficient
 
     best_seen: list[tuple[float, list[int], dict]] = list(
         _decode_seed_best(payload.get("best_seen")) or []
@@ -637,10 +878,17 @@ def run_mine_precise(payload: dict, bars: list) -> str:
         if validate(tokens):
             continue
         try:
-            factor = execute(tokens, feat_mat)
-            if factor is None or is_constant(factor):
+            factor = (
+                execute_for_bars(tokens, feat_mat, train_bars)
+                if v2
+                else execute(tokens, feat_mat)
+            )
+            if factor is None or is_constant(factor[head_trim:] if head_trim else factor):
                 continue
-            metrics = evaluate_factor(factor, close, cost=cfg.cost, periods=periods)
+            if head_trim:
+                metrics = evaluate_factor(factor[head_trim:], close[head_trim:], cost=cfg.cost, periods=periods)
+            else:
+                metrics = evaluate_factor(factor, close, cost=cfg.cost, periods=periods)
         except Exception:
             continue
         comp = float(metrics["composite"]) - 0.02 * max(0, len(tokens) - 12)
@@ -682,21 +930,45 @@ def run_mine_precise(payload: dict, bars: list) -> str:
         selection_v2=cfg.selection_v2,
         reveal_holdout=bool(payload.get("final_generation", True)),
         live_entry_gate=cfg.live_entry_gate,
+        plan=plan,
+        head_trim=head_trim,
+        execution_model=cfg.execution_model,
     )
+    champion_out = [
+        {
+            "tokens": c.tokens,
+            "text": c.text,
+            "metrics": _mark_local_only(_round_metrics(c.metrics), c.tokens),
+            "composite": c.composite,
+        }
+        for c in champions
+    ]
+    if v2 and payload.get("final_generation", True):
+        _reveal_v2_holdout(champion_out, payload, full_bars, cfg.cost)
+    if v2:
+        # 有界多样性档案(方案 §8.1):取代裸截前 60——头部同质变体占满时,
+        # 后部互补候选(不同族/复杂度/换手)仍保留跨代传递;只用训练指标。
+        from factor_lab.archive import BoundedArchive
+
+        archive = BoundedArchive()
+        archive.extend(best_seen)
+        return json.dumps(
+            {
+                "champions": champion_out,
+                "best_seen": [
+                    {"composite": c, "tokens": t, "metrics": _round_metrics(m)}
+                    for c, t, m in archive.to_payload()
+                ],
+            },
+            ensure_ascii=False,
+            default=str,
+        )
     # best_seen 裁剪:_dedup_top 的 shortlist 只取 max(3·top_n, top_n+5) 个,
     # 保留前 60 条足够跨代传递且载荷有界
     best_seen.sort(key=lambda x: x[0], reverse=True)
     return json.dumps(
         {
-            "champions": [
-                {
-                    "tokens": c.tokens,
-                    "text": c.text,
-                    "metrics": _mark_local_only(_round_metrics(c.metrics), c.tokens),
-                    "composite": c.composite,
-                }
-                for c in champions
-            ],
+            "champions": champion_out,
             "best_seen": [
                 {"composite": c, "tokens": t, "metrics": _round_metrics(m)}
                 for c, t, m in best_seen[:60]

@@ -51,6 +51,9 @@ _OP_TEXT: dict[str, str] = {
     "EMA_20": "20周期EMA",
     "TS_CRANK_20": "20周期中心秩", "TS_CRANK_60": "60周期中心秩",
     "DECAY_LINEAR_10": "10周期线性衰减", "DECAY_LINEAR_20": "20周期线性衰减",
+    # 扩容批次3(crypto_local_v2 稳健变换)
+    "ROBUST_ZSCORE_20": "20周期稳健Z值",
+    "WINSOR_20": "20周期缩尾",
 }
 
 # 中文特征名

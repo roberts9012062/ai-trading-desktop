@@ -297,6 +297,67 @@ def ts_decay_linear(x: np.ndarray, w: int) -> np.ndarray:
                            lambda sw: (sw @ weights) / weights.sum(), head)
 
 
+def ts_median(x: np.ndarray, w: int) -> np.ndarray:
+    """因果滚动中位数(窗口含当前 bar;robust_zscore 的基座)"""
+    x = np.asarray(x, dtype=float)
+    return _rolling_reduce(x, w, lambda sw: np.median(sw, axis=1),
+                           lambda h: float(np.median(h)))
+
+
+def ts_mad(x: np.ndarray, w: int) -> np.ndarray:
+    """因果滚动 MAD(中位绝对偏差;窗口含当前 bar)"""
+    x = np.asarray(x, dtype=float)
+
+    def _mad_full(sw: np.ndarray) -> np.ndarray:
+        med = np.median(sw, axis=1, keepdims=True)
+        return np.median(np.abs(sw - med), axis=1)
+
+    def _mad_head(h: np.ndarray) -> float:
+        med = float(np.median(h))
+        return float(np.median(np.abs(h - med)))
+
+    return _rolling_reduce(x, w, _mad_full, _mad_head)
+
+
+def robust_zscore(x: np.ndarray, w: int, clip: float = 3.0) -> np.ndarray:
+    """稳健 zscore:(x − rolling_median) / (1.4826 × MAD),有界截断。
+
+    MAD≈0 且 x≈median → 0;MAD≈0 但 x 偏离 → 按约定饱和到 ±clip,
+    不除出无穷(方案 §11.1)。常数输入(整窗相同)输出 0,交上层
+    is_constant 过滤。
+    """
+    x = np.asarray(x, dtype=float)
+    med = ts_median(x, w)
+    mad = ts_mad(x, w)
+    scale = 1.4826 * mad
+    with np.errstate(invalid="ignore", divide="ignore"):
+        z = np.where(
+            scale > 1e-9,
+            (x - med) / np.maximum(scale, 1e-9),
+            np.where(np.abs(x - med) < 1e-9, 0.0, np.sign(x - med) * clip),
+        )
+    return np.clip(z, -clip, clip)
+
+
+def rolling_winsor(x: np.ndarray, w: int, q_lo: float = 0.05, q_hi: float = 0.95) -> np.ndarray:
+    """按过去窗口分位数裁剪当前值(方案 §11.1 顺序 1)。
+
+    阈值只用截至 t−1 的观测(当前值不参与自身阈值,避免自截断);
+    分位数固定线性插值(numpy 默认)。头部窗口不足 2 个历史值时
+    原样返回(不裁剪)。
+    """
+    x = np.asarray(x, dtype=float)
+    n = len(x)
+    out = x.copy()
+    for i in range(1, n):
+        lo = max(0, i - w + 1)
+        hist = x[lo:i]  # 不含当前
+        if len(hist) < 2:
+            continue
+        out[i] = float(np.clip(x[i], np.quantile(hist, q_lo), np.quantile(hist, q_hi)))
+    return out
+
+
 OPS_CONFIG: list[tuple[str, Any, int]] = [
     # 二元
     ("ADD", _add, 2),
@@ -347,6 +408,11 @@ OPS_CONFIG: list[tuple[str, Any, int]] = [
     ("TS_CRANK_60", lambda a: ts_centered_rank(a, 60), 1),
     ("DECAY_LINEAR_10", lambda a: ts_decay_linear(a, 10), 1),
     ("DECAY_LINEAR_20", lambda a: ts_decay_linear(a, 20), 1),
+    # ── 扩容批次3(id 44 起,append-only;crypto_local_v2 稳健变换)──
+    # robust_zscore:滚动中位数/MAD 稳健标准化,有界截断(方案 §11.1)
+    ("ROBUST_ZSCORE_20", lambda a: robust_zscore(a, 20), 1),
+    # rolling_winsor:按过去窗口分位数裁剪,阈值截至 t−1(方案 §11.1)
+    ("WINSOR_20", lambda a: rolling_winsor(a, 20), 1),
 ]
 
 OPS_NAMES: tuple[str, ...] = tuple(name for name, _, _ in OPS_CONFIG)

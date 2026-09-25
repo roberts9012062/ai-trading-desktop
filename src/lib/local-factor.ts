@@ -38,6 +38,10 @@ export interface LocalFactorPayload {
   selection_v2?: boolean
   evolve_v2?: boolean
   live_entry_gate?: number
+  /** v2 研究契约(crypto_local_v2)与执行模型(方案 §3;经 _CFG_FIELDS 白名单透传) */
+  research_profile?: string
+  execution_model?: string
+  label_span?: number
   start_date?: string
   end_date?: string
 }
@@ -111,6 +115,8 @@ async function evaluatePortfolio(
         ...(payload.train_ratio ? { train_ratio: payload.train_ratio } : {}),
         ...(payload.test_recent_bars != null ? { test_recent_bars: payload.test_recent_bars } : {}),
         ...(payload.selection_v2 ? { selection_v2: true } : {}),
+        ...(payload.research_profile ? { research_profile: payload.research_profile } : {}),
+        ...(payload.execution_model ? { execution_model: payload.execution_model } : {}),
       },
       bars,
       120_000,
@@ -190,6 +196,9 @@ async function searchGpu(
         ...(payload.selection_v2 ? { selection_v2: true } : {}),
         ...(payload.evolve_v2 ? { evolve_v2: true } : {}),
         ...(payload.live_entry_gate ? { live_entry_gate: payload.live_entry_gate } : {}),
+        ...(payload.research_profile ? { research_profile: payload.research_profile } : {}),
+        ...(payload.execution_model ? { execution_model: payload.execution_model } : {}),
+        ...(payload.label_span != null ? { label_span: payload.label_span } : {}),
       },
       startGeneration: 0,
     },
@@ -259,6 +268,8 @@ export async function backtestFactorLocal(
     start_date?: string
     end_date?: string
     data_channel?: string
+    /** v2 复测同口径:与搜索一致的因果归一化/缺失掩码 */
+    research_profile?: string
   },
   onProgress?: (msg: string) => void,
 ): Promise<FactorBacktestResult> {

@@ -88,7 +88,7 @@ def _zscore_causal(x: np.ndarray, w: int) -> np.ndarray:
 
 
 def zscore_window(bars: list[dict[str, Any]]) -> int:
-    """因果归一化窗口 —— 至少覆盖一个完整交易日
+    """因果归一化窗口(旧口径) —— 至少覆盖一个完整交易日
 
     固定 200 根在日线上约合一年，语义合理；但在 1m 上只有 200 分钟，
     短于一个交易日（约 345 分钟），归一化基线跨不过完整交易时段，
@@ -96,7 +96,17 @@ def zscore_window(bars: list[dict[str, Any]]) -> int:
 
     日均 bar 数直接由 bars 的交易日跨度推出，不需要外部传周期；
     1d（日均 1 根）与 5m 及以上周期结果仍是 200，只有 1m 会被抬高。
+
+    已知局限(方案 2.1-C):分子 len(bars) 含全段,追加未来数据会改变
+    过去的归一化基线 —— 旧 profile 保持该口径逐位不变;crypto_local_v2
+    走 research_context.norm_window_for_bars(头部 bar 间距推导,前缀不变)。
     """
+    from .market import is_v2
+
+    if is_v2(bars):
+        from .research_context import norm_window_for_bars
+
+        return norm_window_for_bars(bars)
     days = distinct_trading_days(bars)
     if days <= 0 or not bars:
         return _BASE_ZSCORE_WINDOW
@@ -446,17 +456,62 @@ def _crypto_features(bars, close, high, low, volume):
     return clock
 
 
+def _masked_zscore_causal(values: np.ndarray, w: int) -> np.ndarray:
+    """v2 掩码因果归一化:NaN 不参与滚动统计(方案 2.1-D / 5.2-4)
+
+    旧 normalize 先把缺失填 0 参与滚动归一化——0 作为"真实观测"拉偏均值/
+    方差,污染缺口邻域的有效 bar 统计。v2 规则:
+    - 滚动窗内所有有效值参与统计,缺失不冒充 0;
+    - min_periods = 完整窗口有效:窗内任一缺失(或头部不足整窗)→ NaN;
+    - 全缺失序列 → 全 NaN(无效),不再返回常量 0。
+    前缀含义随之修正:首个观测之前无信息,输出 NaN;追加未来有效数据不会
+    让已有前缀从 0 变 NaN 或反之(旧口径的全缺失=0 歧义消除)。
+    """
+    values = np.asarray(values, dtype=float)
+    n = len(values)
+    good = np.isfinite(values)
+    out = np.full(n, np.nan)
+    if not good.any() or n == 0:
+        return out
+    x = np.where(good, values, 0.0)
+    c = np.concatenate([[0.0], np.cumsum(x)])
+    c2 = np.concatenate([[0.0], np.cumsum(x * x)])
+    cnt = np.concatenate([[0], np.cumsum(good.astype(np.int64))])
+    idx = np.arange(n)
+    lo = np.maximum(0, idx - w + 1)
+    span = idx - lo + 1
+    n_in = cnt[idx + 1] - cnt[lo]
+    full = n_in == span  # 窗内无缺失(头部部分窗口同样要求无缺失)
+    s = c[idx + 1] - c[lo]
+    s2 = c2[idx + 1] - c2[lo]
+    with np.errstate(invalid="ignore", divide="ignore"):
+        mean = s / span
+        var = np.maximum(s2 / span - mean * mean, 0.0)
+        std = np.sqrt(var)
+        z = (x - mean) / np.maximum(std, 1e-8)
+        out[full] = np.clip(z[full], -5.0, 5.0)
+    return out
+
+
 def _direct_data_features(bars, returns):
     """Append-only real exchange inputs. Missing is never interpreted as observed zero.
 
     Empty input rows are constant zero and unsampled. Partially missing rows carry
     NaN, which excludes them from training and rejects formulas on incomplete replay.
     Fixed windows preserve prefix invariance, including availability gaps.
+
+    crypto_local_v2(is_v2)切换:_masked_zscore_causal —— 缺失不参与统计、
+    全缺失返回 NaN(无效)而非常量 0;缺口后按完整窗口重新预热。
     """
+    from .market import is_v2
+
     n = len(bars)
+    v2 = is_v2(bars)
     def series(key):
         return np.array([float(b[key]) if b.get(key) is not None else np.nan for b in bars])
     def normalize(values):
+        if v2:
+            return _masked_zscore_causal(values, 200)
         good = np.isfinite(values)
         if not np.any(good):
             return np.zeros(n)
@@ -489,13 +544,42 @@ def _direct_data_features(bars, returns):
     }
 
 
-def active_feature_ids(matrix: np.ndarray, crypto_profile: bool = False) -> list[int]:
-    """Training-only availability mask. IDs are never compacted/reassigned."""
+def active_feature_ids(
+    matrix: np.ndarray,
+    crypto_profile: bool = False,
+    max_head_gap: int | None = None,
+) -> list[int]:
+    """Training-only availability mask. IDs are never compacted/reassigned.
+
+    v2(max_head_gap 非 None,方案 2.1-D):直连特征(≥52)允许"头部未采样"
+    前缀——首个观测之前的缺失不是观测缺口,不计入污染;头部之后必须连续
+    有效,中间缺口仍整项排除(首版不做跨缺口前填)。可容忍头部长度由
+    max_head_gap 控制(调用方按 warmup 预算给定),超限特征不进搜索空间。
+    """
     if not crypto_profile:
         return list(range(min(40, len(matrix))))
     excluded = {17, 18, 33, 34}
-    active = [i for i, row in enumerate(matrix)
-              if i not in excluded and np.isfinite(row).all() and np.std(row) > 1e-8]
+    active: list[int] = []
+    for i, row in enumerate(matrix):
+        if i in excluded:
+            continue
+        finite = np.isfinite(row)
+        if not finite.any():
+            continue  # 全缺失:无效(v1 常量 0 同样被 std 过滤,行为一致)
+        if finite.all():
+            head = 0
+        else:
+            first = int(np.argmax(finite))
+            if max_head_gap is None:
+                continue  # legacy:任一缺失整项排除(旧行为逐位一致)
+            if not finite[first:].all():
+                continue  # 中间缺口:整项排除
+            head = first
+            if head > max_head_gap:
+                continue  # 头部超出预热预算:该特征本段不可用
+        if float(np.std(row[finite] if head else row)) <= 1e-8:
+            continue
+        active.append(i)
     if not active:
         raise ValueError("No usable nonconstant training features")
     return active

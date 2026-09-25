@@ -1,0 +1,173 @@
+{
+ "mode": "budget",
+ "generated_at": "2026-09-25T16:26:38.571548+00:00",
+ "kernel_version": "pykernel-factor-2026-09-25.3",
+ "python": "3.10.9",
+ "symbol": "BTCUSDT",
+ "timeframe": "60m",
+ "n_bars": 1600,
+ "bars_hash": "a57624f2810d6356",
+ "synthetic": false,
+ "config": {
+  "population": 20,
+  "generations": 5,
+  "top_n": 10,
+  "cost": 0.0008
+ },
+ "seeds": [
+  42,
+  43
+ ],
+ "groups": [
+  {
+   "group": "legacy",
+   "seed": 42,
+   "elapsed_s": 6.915,
+   "n_champions": 5,
+   "statuses": {
+    "unclassified": 5
+   },
+   "holdout_passed": 0,
+   "validation_passed": 0,
+   "funnel": {
+    "generated": 100,
+    "syntax_valid": 98,
+    "unique_expression": 62,
+    "train_valid": 96,
+    "distinct_behavior": 59,
+    "precise_evaluated": 96
+   },
+   "rejection_reasons": {
+    "invalid_syntax": 2,
+    "not_train_valid": 2
+   },
+   "unique_per_sec": 8.97
+  },
+  {
+   "group": "legacy",
+   "seed": 43,
+   "elapsed_s": 6.043,
+   "n_champions": 5,
+   "statuses": {
+    "unclassified": 5
+   },
+   "holdout_passed": 0,
+   "validation_passed": 0,
+   "funnel": {
+    "generated": 100,
+    "syntax_valid": 96,
+    "unique_expression": 60,
+    "train_valid": 95,
+    "distinct_behavior": 59,
+    "precise_evaluated": 95
+   },
+   "rejection_reasons": {
+    "invalid_syntax": 4,
+    "not_train_valid": 1
+   },
+   "unique_per_sec": 9.93
+  },
+  {
+   "group": "v2",
+   "seed": 42,
+   "elapsed_s": 1.717,
+   "n_champions": 5,
+   "statuses": {
+    "exploratory": 5
+   },
+   "holdout_passed": 0,
+   "validation_passed": 0,
+   "funnel": {
+    "generated": 105,
+    "syntax_valid": 101,
+    "unique_expression": 62,
+    "train_valid": 100,
+    "distinct_behavior": 61,
+    "precise_evaluated": 100
+   },
+   "rejection_reasons": {
+    "invalid_syntax": 4,
+    "not_train_valid": 1
+   },
+   "unique_per_sec": 36.11
+  },
+  {
+   "group": "v2",
+   "seed": 43,
+   "elapsed_s": 0.777,
+   "n_champions": 5,
+   "statuses": {
+    "exploratory": 5
+   },
+   "holdout_passed": 0,
+   "validation_passed": 0,
+   "funnel": {
+    "generated": 105,
+    "syntax_valid": 102,
+    "unique_expression": 60,
+    "train_valid": 101,
+    "distinct_behavior": 59,
+    "precise_evaluated": 101
+   },
+   "rejection_reasons": {
+    "invalid_syntax": 3,
+    "not_train_valid": 1
+   },
+   "unique_per_sec": 77.23
+  },
+  {
+   "group": "v2_exec",
+   "seed": 42,
+   "elapsed_s": 1.795,
+   "n_champions": 5,
+   "statuses": {
+    "exploratory": 5
+   },
+   "holdout_passed": 0,
+   "validation_passed": 0,
+   "funnel": {
+    "generated": 105,
+    "syntax_valid": 101,
+    "unique_expression": 62,
+    "train_valid": 100,
+    "distinct_behavior": 61,
+    "precise_evaluated": 100
+   },
+   "rejection_reasons": {
+    "invalid_syntax": 4,
+    "not_train_valid": 1
+   },
+   "unique_per_sec": 34.54,
+   "exec_sortino_median": 3.3237
+  },
+  {
+   "group": "v2_exec",
+   "seed": 43,
+   "elapsed_s": 1.053,
+   "n_champions": 5,
+   "statuses": {
+    "exploratory": 5
+   },
+   "holdout_passed": 0,
+   "validation_passed": 0,
+   "funnel": {
+    "generated": 105,
+    "syntax_valid": 102,
+    "unique_expression": 60,
+    "train_valid": 101,
+    "distinct_behavior": 59,
+    "precise_evaluated": 101
+   },
+   "rejection_reasons": {
+    "invalid_syntax": 3,
+    "not_train_valid": 1
+   },
+   "unique_per_sec": 56.98,
+   "exec_sortino_median": 2.9509
+  }
+ ],
+ "determinism_check": {
+  "statuses_equal": true,
+  "funnel_equal": true
+ }
+}

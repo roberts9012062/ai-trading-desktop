@@ -164,6 +164,15 @@ export function ChampionTable({
             const overfit =
               (!!tm && c.metrics.ann_ret > 0.1 && tm.ann_ret < 0) ||
               Boolean(c.metrics.overfit_warning)
+            // v2 研究状态徽标(crypto_local_v2):封存通过/验证通过/拒绝/探索
+            const status = String(c.metrics.candidate_status ?? "")
+            const statusBadge =
+              status === "holdout_passed" ? "封存通过"
+              : status === "validation_passed" ? "验证通过"
+              : status === "rejected" ? "已拒绝"
+              : status === "exploratory" ? "探索"
+              : ""
+            const insufficient = Boolean(c.metrics.insufficient_samples)
             // 已收藏：后端已入库 或 本地 pending（刚点击）—— 整行变灰、收藏按钮禁用
             const favorited =
               (favoritedKeys?.has(key) ?? false) || pendingKeys.has(key)
@@ -212,6 +221,30 @@ export function ChampionTable({
                       title="含本地专属特征：本机执行与回放（可收藏）"
                     >
                       本地
+                    </span>
+                  )}
+                  {statusBadge && (
+                    <span
+                      className={cn(
+                        "mr-1 px-1 py-px rounded text-[9px] font-num",
+                        status === "holdout_passed" && "bg-emerald-500/15 text-emerald-400",
+                        status === "validation_passed" && "bg-sky-500/15 text-sky-400",
+                        status === "rejected" && "bg-rose-500/15 text-rose-400",
+                        status === "exploratory" && "bg-amber-500/15 text-amber-400",
+                      )}
+                      title={
+                        insufficient
+                          ? "样本不足，仅探索（不计入合格因子数）"
+                          : status === "holdout_passed"
+                            ? "预注册验证与封存评估均通过（研究证据，不自动获得实盘权限）"
+                            : status === "validation_passed"
+                              ? "验证区 1×/2× 成本与折检验通过（封存未揭示）"
+                              : status === "rejected"
+                                ? "验证区未通过严格筛"
+                                : ""
+                      }
+                    >
+                      {statusBadge}
                     </span>
                   )}
                   {c.text}

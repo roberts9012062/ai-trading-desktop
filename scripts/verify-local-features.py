@@ -56,7 +56,9 @@ def test_append_only() -> None:
     """前 36 个特征与标准空间逐项一致;本地批次紧随其后"""
     assert FEATURE_NAMES[:36] == STANDARD_FEATURES, "标准特征顺序被动过(token 兼容被破坏)"
     assert FEATURE_NAMES[36:40] == LOCAL_FEATURES, "本地专属批次应紧跟标准空间之后"
-    assert len(FEATURE_NAMES) == 52
+    # v0.2.14 为 52;v0.2.16 起追加直连数据特征 52-58(FUNDING_RATE 等),
+    # append-only 扩容后同步计数。新增批次必须在此处同步登记。
+    assert len(FEATURE_NAMES) == 59, f"特征计数应为 59(含 52-58 直连批次), 实际 {len(FEATURE_NAMES)}"
 
 
 def test_text_coverage() -> None:
