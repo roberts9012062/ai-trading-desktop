@@ -83,10 +83,11 @@ export function DataChannelSelect(props: {
       try {
         const range = await getChannelRange(value, symbol, timeframe)
         if (!cancelled) onRangeRef.current?.(range)
-      } catch (e) {
+      } catch {
         if (!cancelled) {
+          // 范围探测只是日期 clamp 的辅助:失败不阻塞表单,温和提示
           onRangeRef.current?.(null)
-          setError(e instanceof Error ? e.message : "范围探测失败")
+          setError("范围未探测到(可正常使用,日期范围不受限)")
         }
       } finally {
         if (!cancelled) setProbing(false)
@@ -120,7 +121,7 @@ export function DataChannelSelect(props: {
         ))}
       </select>
       {error && (
-        <p className="text-[10px] text-[var(--accent-danger)] mt-0.5">{error}</p>
+        <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{error}</p>
       )}
     </div>
   )

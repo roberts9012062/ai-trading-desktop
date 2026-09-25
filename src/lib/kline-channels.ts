@@ -158,3 +158,72 @@ export function getChannelKlineApi(
   if (channel === "gate_spot") return getGateKlineApi(symbol, period, options)
   return getBinanceKlineApi(symbol, period, options)
 }
+
+// ===== 本地范围探测(数据渠道选择器的日期 clamp 辅助) =====
+
+/** UTC 日期 YYYY-MM-DD(bar 起时口径,与后端 ChannelRange 一致) */
+function tsToUtcDate(ms: number): string {
+  const d = new Date(ms)
+  const p = (n: number) => String(n).padStart(2, "0")
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`
+}
+
+export interface LocalChannelRange {
+  min_ts: number
+  max_ts: number
+  min_date: string
+  max_date: string
+}
+
+/**
+ * 直连渠道的可用历史范围探测(日线口径):
+ * - binance_spot:startTime=0 一次拿到精确上线日(如 BTC 2017-08-17)
+ * - gate_spot:窗口上限 1000 根 → 取最近 1000 根日线,首根为保守下界
+ *   (保证可选即有数据;真实起点可能更早,低估不误导)
+ * - okx:无本地直连 → 返回 null(由调用方回落后端探测)
+ */
+export async function probeLocalChannelRange(
+  channel: KlineChannelId,
+  symbol: string,
+): Promise<LocalChannelRange | null> {
+  if (channel === "binance_spot") {
+    const sym = symbol.replace(/[-_/]/g, "").toUpperCase()
+    const base = "https://data-api.binance.vision/api/v3"
+    const [earliest, latest] = await Promise.all([
+      fetch(`${base}/klines?symbol=${sym}&interval=1d&startTime=0&limit=1`).then(
+        (r) => (r.ok ? r.json() : null),
+      ),
+      fetch(`${base}/klines?symbol=${sym}&interval=1d&limit=1`).then((r) =>
+        r.ok ? r.json() : null,
+      ),
+    ])
+    if (!Array.isArray(earliest) || !earliest.length) return null
+    if (!Array.isArray(latest) || !latest.length) return null
+    const minTs = Number(earliest[0][0])
+    const maxTs = Number(latest[0][0])
+    return {
+      min_ts: minTs,
+      max_ts: maxTs,
+      min_date: tsToUtcDate(minTs),
+      max_date: tsToUtcDate(maxTs),
+    }
+  }
+  if (channel === "gate_spot") {
+    const pair = gatePair(symbol)
+    const resp = await fetch(
+      `${GATE_BASE}/candlesticks?currency_pair=${pair}&interval=1d&limit=1000`,
+    )
+    if (!resp.ok) return null
+    const rows = (await resp.json()) as Array<[number, ...unknown[]]>
+    if (!Array.isArray(rows) || !rows.length) return null
+    const minTs = rows[0][0] * 1000
+    const maxTs = rows[rows.length - 1][0] * 1000
+    return {
+      min_ts: minTs,
+      max_ts: maxTs,
+      min_date: tsToUtcDate(minTs),
+      max_date: tsToUtcDate(maxTs),
+    }
+  }
+  return null
+}

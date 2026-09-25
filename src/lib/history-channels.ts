@@ -1,6 +1,6 @@
 /** 历史数据渠道 API 客户端 —— 回测 / 因子实验室 / 超级因子挖掘共用 */
 
-import { LOCAL_HISTORY_CHANNELS } from "@/lib/kline-channels"
+import { LOCAL_HISTORY_CHANNELS, probeLocalChannelRange, isKlineChannel } from "@/lib/kline-channels"
 
 export interface HistoryChannel {
   id: string
