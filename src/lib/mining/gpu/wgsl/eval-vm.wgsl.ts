@@ -13,6 +13,8 @@
  * ⚠️ 本文件产物只用于排序:对外暴露的一切数字出自 Pyodide f64 精算。
  */
 
+import { OPS } from "../tokens"
+
 export const EVAL_VM_WGSL = /* wgsl */ `
 const LEVELS: u32 = 8u;   // 栈深上限(树深≤6 → 栈深≤7,留 1 余量)
 const TMP_LVL: u32 = 8u;  // 第 9 层作一元算子的临时层(避免同层读写竞争)
@@ -33,6 +35,8 @@ const OP_LAG1 = 27u; const OP_LAG5 = 28u; const OP_CORR = 29u;
 const OP_MA60 = 30u; const OP_STD60 = 31u; const OP_ZS60 = 32u; const OP_RANK60 = 33u;
 const OP_DMN20 = 34u; const OP_BETA = 35u; const OP_RESID = 36u; const OP_STEP = 37u;
 const OP_EMA5 = 38u; const OP_EMA20 = 39u;
+const OP_CRANK20 = 40u; const OP_CRANK60 = 41u;
+const OP_DECAY10 = 42u; const OP_DECAY20 = 43u;
 
 struct Params {
   T: u32,        // 训练段长度
@@ -71,6 +75,9 @@ fn sane(v: f32) -> f32 {
 }
 
 fn winOf(op: u32) -> u32 {
+  if (op == OP_CRANK20 || op == OP_DECAY20) { return 20u; }
+  if (op == OP_CRANK60) { return 60u; }
+  if (op == OP_DECAY10) { return 10u; }
   if (op == OP_MA5) { return 5u; }
   if (op == OP_MA10 || op == OP_STD10 || op == OP_RANK10 || op == OP_MAX10 || op == OP_MIN10) { return 10u; }
   if (op == OP_MA20 || op == OP_STD20 || op == OP_RANK20 || op == OP_ZS20 || op == OP_DMN20 || op == OP_MAX20) { return 20u; }
@@ -108,7 +115,7 @@ fn evalVM(@builtin(workgroup_id) gid: vec3<u32>, @builtin(local_invocation_id) l
     }
 
     let op = tok - 64u;
-    if (op > 39u) { fail = true; break; }
+    if (op >= ${OPS.length}u) { fail = true; break; }
     let isBin = (op <= 5u) || (op == OP_CORR) || (op == OP_BETA) || (op == OP_RESID);
 
     if (isBin) {
@@ -195,6 +202,21 @@ fn evalVM(@builtin(workgroup_id) gid: vec3<u32>, @builtin(local_invocation_id) l
             else { acc = max(acc, stk[src + i]); }
           }
           v = acc;
+        }
+        else if (op == OP_CRANK20 || op == OP_CRANK60 || op == OP_DECAY10 || op == OP_DECAY20) {
+          let lo = select(0u, t - w + 1u, t + 1u >= w);
+          var acc = 0.0;
+          let cur = stk[src + t];
+          for (var i = lo; i <= t; i = i + 1u) {
+            if (op == OP_CRANK20 || op == OP_CRANK60) {
+              let eps = 1e-6 * max(1.0, abs(cur));
+              if (stk[src + i] < cur - eps) { acc = acc + 1.0; }
+              else if (abs(stk[src + i] - cur) <= eps) { acc = acc + 0.5; }
+            } else { acc = acc + stk[src + i] * f32(i - lo + 1u); }
+          }
+          let count = f32(t - lo + 1u);
+          if (op == OP_CRANK20 || op == OP_CRANK60) { v = 2.0 * acc / count - 1.0; }
+          else { v = acc / (count * (count + 1.0) / 2.0); }
         }
         else if (op == OP_RANK10 || op == OP_RANK20 || op == OP_RANK60) {
           let lo = select(0u, t - w + 1u, t + 1u >= w);

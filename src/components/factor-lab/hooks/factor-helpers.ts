@@ -121,7 +121,7 @@ const FEAT_OFFSET = 64
  *  (历史/收藏等未带标的场景也能拦住)。本地引擎 AI 任务可用(客户端算信号)。 */
 export function isLocalOnly(tokens: number[] | null | undefined, metrics?: unknown): boolean {
   if ((metrics as { local_only?: boolean } | undefined)?.local_only === true) return true
-  return !!tokens?.some((t) => t >= STANDARD_FEAT_COUNT && t < FEAT_OFFSET)
+  return !!tokens?.some((t) => (t >= STANDARD_FEAT_COUNT && t < FEAT_OFFSET) || t >= FEAT_OFFSET + 40)
 }
 
 /** 默认空指标（补齐字段用） */

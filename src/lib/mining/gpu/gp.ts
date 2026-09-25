@@ -11,8 +11,11 @@ import { FEAT_OFFSET, MAX_TOKENS, OPS, tokensGpuSupported } from "./tokens"
 /** mulberry32 —— [0,1) 均匀分布,种子化可复现 */
 export class Rng {
   private s: number
-  constructor(seed: number) {
+  constructor(seed: number, private readonly activeFeatures?: readonly number[]) {
     this.s = seed >>> 0
+  }
+  feature(featN: number): number {
+    return this.activeFeatures?.length ? this.choice(this.activeFeatures) : this.randrange(featN)
   }
   next(): number {
     this.s = (this.s + 0x6d2b79f5) | 0
@@ -57,7 +60,7 @@ export function randomTree(
   rng: Rng,
 ): Tree {
   if (depth <= 0 || (depth < 3 && rng.next() < 0.4)) {
-    return ["feat", rng.randrange(featN)]
+    return ["feat", rng.feature(featN)]
   }
   if (opTwo.length > 0 && rng.next() < 0.3) {
     return [
@@ -164,7 +167,7 @@ export function pointMutate(
 ): Tree {
   const node = rng.choice(allNodes(tree, []))
   if (node[0] === "feat") {
-    node[1] = rng.randrange(featN)
+    node[1] = rng.feature(featN)
     return tree
   }
   const pool = node.length === 3 ? opOne : opTwo
@@ -208,11 +211,11 @@ export function mutateV2(
 }
 
 /** GPU 路径的可用算子集(排除 EMA 等不支持算子) */
-export function gpuOpSets(): { opOne: number[]; opTwo: number[] } {
+export function gpuOpSets(cryptoProfile = true): { opOne: number[]; opTwo: number[] } {
   const opOne: number[] = []
   const opTwo: number[] = []
   OPS.forEach((o, i) => {
-    if (o.kind === "ema") return
+    if (o.kind === "ema" || (!cryptoProfile && i >= 40)) return
     ;(o.arity === 2 ? opTwo : opOne).push(i)
   })
   return { opOne, opTwo }
@@ -230,7 +233,7 @@ export function randomTreeGpuSafe(
     const tree = randomTree(depth, featN, opOne, opTwo, rng)
     if (tokensGpuSupported(treeToTokens(tree), featN)) return tree
   }
-  return ["feat", rng.randrange(featN)]
+  return ["feat", rng.feature(featN)]
 }
 
 /** 交叉/变异结果可能超限,超限时回退母体(保代不中断) */

@@ -275,6 +275,28 @@ def _max(a: Any, b: Any) -> np.ndarray:
 # 算子注册表（顺序决定 token id）
 # ──────────────────────────────────────────────────────────────
 
+def ts_centered_rank(x: np.ndarray, w: int) -> np.ndarray:
+    """Signed midrank with 1e-6 relative/absolute tie tolerance; constants map to zero."""
+    def head(h):
+        eps = 1e-6 * max(1.0, abs(h[-1]))
+        return float(((h < h[-1] - eps).sum() + 0.5 * (np.abs(h - h[-1]) <= eps).sum()) * 2 / len(h) - 1)
+    def full(sw):
+        last = sw[:, -1:]
+        eps = 1e-6 * np.maximum(1.0, np.abs(last))
+        return ((sw < last - eps).sum(axis=1) + 0.5 * (np.abs(sw - last) <= eps).sum(axis=1)) * 2 / sw.shape[1] - 1
+    return _rolling_reduce(np.asarray(x, dtype=float), w, full, head)
+
+
+def ts_decay_linear(x: np.ndarray, w: int) -> np.ndarray:
+    """Finite causal linear weighting; newest observation has highest weight."""
+    def head(h):
+        weights = np.arange(1, len(h) + 1, dtype=float)
+        return float(h @ weights / weights.sum())
+    weights = np.arange(1, w + 1, dtype=float)
+    return _rolling_reduce(np.asarray(x, dtype=float), w,
+                           lambda sw: (sw @ weights) / weights.sum(), head)
+
+
 OPS_CONFIG: list[tuple[str, Any, int]] = [
     # 二元
     ("ADD", _add, 2),
@@ -321,6 +343,10 @@ OPS_CONFIG: list[tuple[str, Any, int]] = [
     ("STEP", _step, 1),
     ("EMA_5", lambda a: _ema(a, 5), 1),
     ("EMA_20", lambda a: _ema(a, 20), 1),
+    ("TS_CRANK_20", lambda a: ts_centered_rank(a, 20), 1),
+    ("TS_CRANK_60", lambda a: ts_centered_rank(a, 60), 1),
+    ("DECAY_LINEAR_10", lambda a: ts_decay_linear(a, 10), 1),
+    ("DECAY_LINEAR_20", lambda a: ts_decay_linear(a, 20), 1),
 ]
 
 OPS_NAMES: tuple[str, ...] = tuple(name for name, _, _ in OPS_CONFIG)

@@ -1,3 +1,4 @@
+import { isCryptoSymbol, LOCAL_MINING_KERNEL_VERSION } from "./crypto-profile"
 /**
  * LocalMiningRunner —— 本地 CPU 挖掘的任务编排(M3)
  *
@@ -116,6 +117,7 @@ export class LocalMiningRunner implements MiningRunner {
     opts: { device: DeviceKind; name?: string },
   ): Promise<MiningTask> {
     await this.#ready()
+    config = { ...config, kernel_version: LOCAL_MINING_KERNEL_VERSION, crypto_profile: config.crypto_profile ?? isCryptoSymbol(config.symbol) }
     const resolution = await resolveDevice(opts.device)
 
     // 历史K线一律从服务器拉取并冻结(M1 数据层);区间缺省用该周期推荐区间
@@ -198,6 +200,9 @@ export class LocalMiningRunner implements MiningRunner {
     await this.#ready()
     const rec = this.#records.get(id)
     if (!rec || rec.status !== "paused") return
+    if (rec.config.crypto_profile && rec.config.kernel_version !== LOCAL_MINING_KERNEL_VERSION) {
+      throw new Error("该任务使用旧版加密挖掘内核，请新建任务，避免混用历史评分")
+    }
     rec.status = "pending"
     rec.pause_reason = null
     rec.updated_at = nowIso()
@@ -261,6 +266,7 @@ export class LocalMiningRunner implements MiningRunner {
       const res = (await ensurePyWorker().factorRun(
         {
           mode: "mine_portfolio",
+          crypto_profile: rec.config.crypto_profile ?? false,
           symbol: rec.config.symbol,
           timeframe: rec.config.timeframe,
           cost: rec.config.cost ?? null,

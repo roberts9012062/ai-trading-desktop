@@ -10,6 +10,7 @@
  * (栈式合法性),非法候选直接丢弃,LLM 无法注入任何非法 token。
  */
 
+import { isCryptoSymbol } from "@/lib/mining/crypto-profile"
 import { localChatJson } from "@/lib/local-ai"
 import { tokensToTree } from "@/lib/mining/gpu/gp"
 import type { MultimodalMessage } from "@/lib/ai-stream"
@@ -43,9 +44,9 @@ export interface LlmSeedResult {
   note: string
 }
 
-async function fetchVocab(): Promise<LlmVocab> {
+async function fetchVocab(opts: LlmSeedOptions): Promise<LlmVocab> {
   const { ensurePyWorker } = await import("@/lib/py-worker")
-  return (await ensurePyWorker().factorRun({ mode: "llm_vocab" }, [], 30_000)) as LlmVocab
+  return (await ensurePyWorker().factorRun({ mode: "llm_vocab", symbol: opts.symbol, timeframe: opts.timeframe, crypto_profile: isCryptoSymbol(opts.symbol) }, [], 30_000)) as LlmVocab
 }
 
 function buildMessages(
@@ -64,7 +65,7 @@ function buildMessages(
     .join("\n")
 
   const system = [
-    "你是资深量化因子研究员,精通期货市场因子挖掘。",
+    isCryptoSymbol(opts.symbol) ? "你是加密货币因子研究员，研究全天候量价、动量、流动性代理和尾部风险；无资金费率、盘口或持仓数据，不得臆造。" : "你是资深量化因子研究员,精通期货市场因子挖掘。",
     "你的任务是为遗传算法生成初始因子公式候选——不是最终答案,而是带人类直觉先验的多样化种子,GP 会在这些种子之上大规模进化精炼。",
     "",
     "因子公式用后缀 token 序列(栈式)编码:",
@@ -76,7 +77,7 @@ function buildMessages(
     "1. 只使用词表中列出的特征与算子,token 必须是整数;",
     "2. 每条公式 3-12 个 token,含义清晰;",
     "3. 候选之间思路尽量不同(动量/均值回复/量价/波动/持仓/微观结构等),不要全是均线类;",
-    "4. 期货是双向市场,因子天然支持多空(正值做多/负值做空),不要设计只做多的公式;",
+    "4. 这是多空信号研究(正值偏多/负值偏空)，现货价格代理不代表可直接做空，不宣称收益可执行;",
     "5. 所有特征本身严格因果,直接组合即可,无需担心未来信息。",
     "",
     '只输出 JSON:{"candidates": [[token, ...], ...], "note": "一句话说明各候选思路"}',
@@ -114,11 +115,11 @@ function parseCandidates(raw: string): { candidates?: unknown; note?: unknown } 
 
 /** 生成因子种子:词表 → LLM → 严格校验,返回合法 token 候选(可能为空) */
 export async function localLlmGenerateFactors(opts: LlmSeedOptions): Promise<LlmSeedResult> {
-  const vocab = await fetchVocab()
+  const vocab = await fetchVocab(opts)
   const messages = buildMessages(opts, vocab)
   const raw = await localChatJson(messages, { temperature: 0.7, signal: opts.signal })
   const parsed = parseCandidates(raw)
-  const featCount = vocab.features.length
+  const featCount = (Math.max(...vocab.features.map((f) => f.id)) + 1)
   const tokensList: number[][] = []
   if (Array.isArray(parsed.candidates)) {
     const seen = new Set<string>()
@@ -128,6 +129,8 @@ export async function localLlmGenerateFactors(opts: LlmSeedOptions): Promise<Llm
       if (tokens.length < 2 || tokens.length > 32) continue
       // 栈式合法性校验(tokensToTree 非空 = 合法),非法候选直接丢弃
       if (!tokensToTree(tokens, featCount)) continue
+      const allowed = new Set([...vocab.features, ...vocab.ops].map((entry) => entry.id))
+      if (tokens.some((token) => !allowed.has(token))) continue
       const key = tokens.join(",")
       if (seen.has(key)) continue
       seen.add(key)

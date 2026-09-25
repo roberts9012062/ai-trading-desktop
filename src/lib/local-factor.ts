@@ -8,12 +8,14 @@
  * POST /api/factor-lab/history 落服务端历史(端点未上线时静默降级)。
  */
 
+import { isCryptoSymbol } from "@/lib/mining/crypto-profile"
 import { fetchBacktestBars, KLINE_MAX_PAGES } from "@/lib/local-backtest"
 import { normalizeChannel } from "@/lib/kline-channels"
 import type { Champion, FactorBacktestResult, SearchResult } from "@/lib/factor-lab-api"
 import type { KlineBar } from "@/types"
 
 export interface LocalFactorPayload {
+  crypto_profile?: boolean
   symbol: string
   timeframe: string
   population: number
@@ -99,6 +101,7 @@ async function evaluatePortfolio(
     const res = (await ensurePyWorker().factorRun(
       {
         mode: "mine_portfolio",
+        crypto_profile: payload.crypto_profile,
         symbol: payload.symbol,
         timeframe: payload.timeframe,
         cost: payload.cost ?? null,
@@ -171,6 +174,7 @@ async function searchGpu(
       snapshotId: "direct",
       config: {
         symbol: payload.symbol,
+        crypto_profile: payload.crypto_profile,
         timeframe: payload.timeframe,
         population: payload.population,
         generations: payload.generations,
@@ -213,6 +217,7 @@ export async function searchFactorsLocal(
   onProgress?: (msg: string) => void,
   engine: LocalSearchEngine = "cpu",
 ): Promise<SearchResult> {
+  payload = { ...payload, crypto_profile: payload.crypto_profile ?? isCryptoSymbol(payload.symbol) }
   onProgress?.("拉取 K 线数据…")
   // 深历史(start_date 默认 2005)在服务端修复连续合约回溯后可达,
   // 页数上限须覆盖 15m 全量(rb≈134 页),否则长区间被静默截断
@@ -246,6 +251,7 @@ export async function backtestFactorLocal(
     symbol: string
     timeframe: string
     factor_tokens: number[]
+    crypto_profile?: boolean
     initial_cash?: number
     cost?: number | null
     walk_forward_folds?: number

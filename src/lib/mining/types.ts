@@ -14,6 +14,8 @@ export type DeviceKind = "auto" | "cpu" | "gpu"
 /** 挖掘配置(两种执行位置共用)。islands/top_n/seed/cost 仅本地路径消费,
  *  缺省由 local-runner 填默认值;服务端 CreateTaskPayload 不含这些字段。 */
 export interface MiningConfig {
+  crypto_profile?: boolean
+  kernel_version?: string
   symbol: string
   timeframe: string
   /** 数据渠道(okx/binance_spot/gate_spot;缺省 binance_spot)——bars 快照与取数分流 */

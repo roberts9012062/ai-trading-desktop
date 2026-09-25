@@ -45,6 +45,7 @@ import { StagnationTracker, nextGeneration, resolveIslands } from "../gpu/evolve
 
 interface MineFeaturesResult {
   feature_names: string[]
+  active_feature_ids?: number[]
   matrix: number[][]
   periods: number
   cost: number
@@ -110,6 +111,7 @@ export class GpuBackend implements ComputeBackend {
         mode: "mine_features",
         gpu_session_id: sessionId,
         symbol: cfg.symbol,
+        crypto_profile: cfg.crypto_profile ?? false,
         timeframe: cfg.timeframe,
         train_ratio: cfg.train_ratio,
         ...(cfg.test_recent_bars != null ? { test_recent_bars: cfg.test_recent_bars } : {}),
@@ -156,12 +158,14 @@ export class GpuBackend implements ComputeBackend {
       // 3) 精算入口(每代 top-K 与历史种子都走这里,f64 权威口径)。
       //    粗排只定漏斗名单,名单内全部由内核 f64 重算(GPU 数字只用于
       //    排序,绝不出数);漏斗宽度由 preciseTopK 按训练段长度钳住。
-      const precise = async (candidates: number[][]): Promise<MinePreciseResult> =>
+      const precise = async (candidates: number[][], finalGeneration = false): Promise<MinePreciseResult> =>
         (await py.factorRun(
           {
             mode: "mine_precise",
+            final_generation: finalGeneration,
             gpu_session_id: sessionId,
             symbol: cfg.symbol,
+            crypto_profile: cfg.crypto_profile ?? false,
             timeframe: cfg.timeframe,
             population: cfg.population,
             generations: cfg.generations,
@@ -186,14 +190,20 @@ export class GpuBackend implements ComputeBackend {
 
       // 4) GP 初始化(仅 GPU 支持的算子;种子注入种群,与 stepwise 同构)
       const islands = resolveIslands(cfg.population, cfg.islands)
-      const rng = new Rng((cfg.seed ?? 42) + req.startGeneration)
-      const { opOne, opTwo } = gpuOpSets()
+      const active = features.active_feature_ids ?? Array.from({ length: F }, (_, i) => i)
+      if (!active.length) throw new Error("训练段没有可用特征")
+      const sampling = cfg.crypto_profile ? [...active, ...active.filter((i) => i >= 45)] : active
+      const rng = new Rng((cfg.seed ?? 42) + req.startGeneration, sampling)
+      const { opOne, opTwo } = gpuOpSets(cfg.crypto_profile ?? false)
       const maxDepth = cfg.max_depth
       const population: Tree[] = []
       for (let i = 0; i < cfg.population; i++) {
         population.push(randomTreeGpuSafe(maxDepth, F, opOne, opTwo, rng))
       }
       const seedTokens = cfg.seed_tokens ?? []
+      if (seedTokens.some((tokens) => tokens.some((t) => t < 64 && !active.includes(t)))) {
+        throw new Error("种子依赖当前训练数据不可用的特征")
+      }
       for (let k = 0; k < seedTokens.length && k < population.length; k++) {
         const tree = tokensToTree(seedTokens[k], F)
         if (tree) population[k] = tree // 含不支持算子的种子留待精算(GPU 判 -999)
@@ -258,8 +268,8 @@ export class GpuBackend implements ComputeBackend {
           )
         }
         const preciseStart = performance.now()
-        if (topCandidates.length > 0) {
-          const result = await precise(topCandidates)
+        if (topCandidates.length > 0 || genIdx + 1 === cfg.generations) {
+          const result = await precise(topCandidates, genIdx + 1 === cfg.generations)
           bestSeen = result.best_seen
           lastChampions = result.champions
         }

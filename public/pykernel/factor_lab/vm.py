@@ -96,7 +96,7 @@ def validate(tokens: list[int]) -> list[str]:
 DEFAULT_NORM_WINDOW = 250
 
 
-def _normalize_output(x: np.ndarray, window: int = DEFAULT_NORM_WINDOW) -> np.ndarray:
+def _normalize_output(x: np.ndarray, window: int = DEFAULT_NORM_WINDOW, causal: bool = False) -> np.ndarray:
     """因子输出标准化:因果滚动 zscore + clip[-3,3]
 
     P0-2 修复:原实现用全样本 mean/std——bar t 的因子值被 t 之后的数据
@@ -108,7 +108,7 @@ def _normalize_output(x: np.ndarray, window: int = DEFAULT_NORM_WINDOW) -> np.nd
     近常数序列(std<1e-6)原样返回,交上层 is_constant 过滤。
     """
     x = np.asarray(x, dtype=float)
-    if float(x.std()) < 1e-6:
+    if not causal and float(x.std()) < 1e-6:
         return x
     m = ts_mean(x, window)
     s = ts_std(x, window)
@@ -154,7 +154,7 @@ def execute(
             stack.append(res)
     if len(stack) != 1:
         return None
-    return _normalize_output(stack[0], norm_window)
+    return _normalize_output(stack[0], norm_window, causal=any(40 <= t < 64 or t >= 104 for t in tokens))
 
 
 def is_constant(factor: np.ndarray) -> bool:

@@ -49,6 +49,8 @@ _OP_TEXT: dict[str, str] = {
     "STEP": "阶跃",
     "EMA_5": "5周期EMA",
     "EMA_20": "20周期EMA",
+    "TS_CRANK_20": "20周期中心秩", "TS_CRANK_60": "60周期中心秩",
+    "DECAY_LINEAR_10": "10周期线性衰减", "DECAY_LINEAR_20": "20周期线性衰减",
 }
 
 # 中文特征名
@@ -96,6 +98,12 @@ _FEAT_TEXT: dict[str, str] = {
     "VWAP_DEV": "量价偏离",
     "UPDOWN_VOL_RATIO": "涨跌波动比",
     "CHAN_POS": "通道位置",
+    "UTC_HOUR_SIN": "UTC时钟正弦", "UTC_HOUR_COS": "UTC时钟余弦",
+    "UTC_WEEK_SIN": "UTC星期正弦", "UTC_WEEK_COS": "UTC星期余弦", "UTC_WEEKEND": "UTC周末",
+    "CRYPTO_MOM6": "6根波动调整动量", "CRYPTO_MOM24": "24根波动调整动量",
+    "CRYPTO_VOL20": "20根收益波动", "CRYPTO_ILLIQ20": "20根非流动性代理",
+    "CRYPTO_FLOW20": "20根方向成交量代理", "CRYPTO_TAIL20": "20根下行风险占比",
+    "CRYPTO_RANGE_POS20": "20根加密通道位置",
 }
 
 

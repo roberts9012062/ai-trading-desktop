@@ -190,6 +190,9 @@ describe("GPU 求值语义 parity(M4)", () => {
       pyComps.push(entry.composite!)
       tsComps.push(tsComp)
       diffs.push(Math.abs(entry.composite! - tsComp))
+      if (process.env.PARITY_DIAGNOSTICS && Math.abs(entry.composite! - tsComp) > 1e-6) {
+        console.log("parity difference", candidates[i], entry.composite, tsComp)
+      }
     }
     // 刀锋计数约束:常数判定(std<1e-6)与中性带/平局翻转同属浮点刀锋,
     // 大样本下允许极少量

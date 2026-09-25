@@ -23,7 +23,7 @@ export type OpKind =
   | "ts_ma" | "ts_std" | "ts_max" | "ts_min" | "ts_rank" | "ts_zscore"
   | "delta" | "lag" | "atr_norm"
   | "corr" | "beta" | "resid" | "demean"
-  | "step" | "ema"
+  | "step" | "ema" | "ts_crank" | "decay_linear"
 
 export interface OpDef {
   name: string
@@ -77,6 +77,10 @@ export const OPS: readonly OpDef[] = [
   { name: "STEP", arity: 1, kind: "step" },
   { name: "EMA_5", arity: 1, kind: "ema", win: 5 },
   { name: "EMA_20", arity: 1, kind: "ema", win: 20 },
+  { name: "TS_CRANK_20", arity: 1, kind: "ts_crank", win: 20 },
+  { name: "TS_CRANK_60", arity: 1, kind: "ts_crank", win: 60 },
+  { name: "DECAY_LINEAR_10", arity: 1, kind: "decay_linear", win: 10 },
+  { name: "DECAY_LINEAR_20", arity: 1, kind: "decay_linear", win: 20 },
 ] as const
 
 export const OP_INDEX: ReadonlyMap<string, number> = new Map(

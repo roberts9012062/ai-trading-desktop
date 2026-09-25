@@ -407,7 +407,54 @@ def compute_features(bars: list[dict[str, Any]]) -> dict[str, np.ndarray]:
     dow, dom = _dow_dom(bars)
     out["DOW"] = dow
     out["DOM"] = dom
+    # New IDs have fixed causal windows; legacy rows retain their semantics.
+    out.update(_crypto_features(bars, close, high, low, volume))
     return out
+
+
+def _crypto_features(bars, close, high, low, volume):
+    from .market import utc_time
+    n = len(bars)
+    clock = {k: np.zeros(n) for k in ("UTC_HOUR_SIN", "UTC_HOUR_COS", "UTC_WEEK_SIN", "UTC_WEEK_COS", "UTC_WEEKEND")}
+    for i, bar in enumerate(bars):
+        dt = utc_time(bar.get("time", ""))
+        if dt is None:
+            continue
+        if len(str(bar.get("time", ""))) > 10:
+            phase = 2 * np.pi * (dt.hour * 60 + dt.minute) / 1440
+            clock["UTC_HOUR_SIN"][i] = np.sin(phase)
+            clock["UTC_HOUR_COS"][i] = np.cos(phase)
+        phase = 2 * np.pi * dt.weekday() / 7
+        clock["UTC_WEEK_SIN"][i] = np.sin(phase)
+        clock["UTC_WEEK_COS"][i] = np.cos(phase)
+        clock["UTC_WEEKEND"][i] = float(dt.weekday() >= 5)
+    clock = {name: np.round(values, 7) for name, values in clock.items()}
+    r = _ret(close, 1)
+    vol = ts_std(r, 20)
+    amount = np.maximum(close * volume, 1e-9)  # OHLCV turnover proxy
+    raw = {
+        "CRYPTO_MOM6": _ret(close, 6) / np.maximum(vol * np.sqrt(6), 1e-8),
+        "CRYPTO_MOM24": _ret(close, 24) / np.maximum(vol * np.sqrt(24), 1e-8),
+        "CRYPTO_VOL20": vol,
+        "CRYPTO_ILLIQ20": np.log(np.maximum(ts_mean(np.abs(r) / amount, 20), 1e-30)),
+        "CRYPTO_FLOW20": ts_mean(np.sign(r) * volume, 20) / np.maximum(ts_mean(volume, 20), 1e-9),
+        "CRYPTO_TAIL20": ts_mean(np.minimum(r, 0) ** 2, 20) / np.maximum(ts_mean(r ** 2, 20), 1e-12),
+        "CRYPTO_RANGE_POS20": _chan_pos(high, low, close, 20),
+    }
+    clock.update({name: _zscore_causal(a, 200) for name, a in raw.items()})
+    return clock
+
+
+def active_feature_ids(matrix: np.ndarray, crypto_profile: bool = False) -> list[int]:
+    """Training-only availability mask. IDs are never compacted/reassigned."""
+    if not crypto_profile:
+        return list(range(min(40, len(matrix))))
+    excluded = {17, 18, 33, 34}
+    active = [i for i, row in enumerate(matrix)
+              if i not in excluded and np.isfinite(row).all() and np.std(row) > 1e-8]
+    if not active:
+        raise ValueError("No usable nonconstant training features")
+    return active
 
 
 FEATURE_NAMES: tuple[str, ...] = (
@@ -457,6 +504,10 @@ FEATURE_NAMES: tuple[str, ...] = (
     "VWAP_DEV",
     "UPDOWN_VOL_RATIO",
     "CHAN_POS",
+    # Crypto v1, append-only IDs 40-51. Windows are bars, not days.
+    "UTC_HOUR_SIN", "UTC_HOUR_COS", "UTC_WEEK_SIN", "UTC_WEEK_COS", "UTC_WEEKEND",
+    "CRYPTO_MOM6", "CRYPTO_MOM24", "CRYPTO_VOL20", "CRYPTO_ILLIQ20",
+    "CRYPTO_FLOW20", "CRYPTO_TAIL20", "CRYPTO_RANGE_POS20",
 )
 
 
@@ -485,22 +536,17 @@ _MATRIX_CACHE_MAX_ELEMENTS = 4_000_000
 def bars_signature(bars: list[dict[str, Any]]) -> tuple:
     """段签名 —— 按段缓存的键
 
-    取首/中/尾三根 bar 的时间与收盘加长度：同一段必同签名；三点采样
-    使不同品种或不同区间偶然同签名的概率可忽略（仅取首尾时，同长度
-    同起止日的两个品种只靠一个收盘价区分）。
+    哈希全部特征输入与市场标记；修正中间 bar 的量/价也必须使缓存失效。
     """
     if not bars:
         return (0,)
-    mid = len(bars) // 2
-    return (
-        len(bars),
-        str(bars[0].get("time") or ""),
-        str(bars[0].get("close") or ""),
-        str(bars[mid].get("time") or ""),
-        str(bars[mid].get("close") or ""),
-        str(bars[-1].get("time") or ""),
-        str(bars[-1].get("close") or ""),
-    )
+    import hashlib
+    keys = ("time", "open", "high", "low", "close", "volume", "open_interest", "_factor_market")
+    digest = hashlib.sha256()
+    for b in bars:
+        digest.update(repr(tuple(b.get(k) for k in keys)).encode("utf-8"))
+    return (len(bars), digest.digest())
+
 
 
 def _evict_matrix_cache() -> None:

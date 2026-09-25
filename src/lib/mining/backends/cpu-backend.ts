@@ -39,6 +39,7 @@ function newSessionId(): string {
 function buildPayload(config: MiningConfig, req: EvalRequest): Record<string, unknown> {
   return {
     symbol: config.symbol,
+    crypto_profile: config.crypto_profile ?? false,
     timeframe: config.timeframe,
     population: config.population,
     generations: config.generations,

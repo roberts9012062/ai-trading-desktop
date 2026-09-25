@@ -4,6 +4,7 @@
  * 因子搜索表单 —— 合约/周期/种群/代数 + 教练控件
  */
 
+import { CRYPTO_RESEARCH_NOTE } from "@/lib/mining/crypto-profile"
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -471,6 +472,7 @@ export function FactorSearchForm({
               「启用防过拟合」；如要专治近期失效，可设「近期作测试 60」（日线约一个季度），
               优先级高于训练比例。
             </p>
+            <p className="text-[11px] text-[var(--text-muted)]">{CRYPTO_RESEARCH_NOTE}</p>
             <label className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)] cursor-pointer">
               <input
                 type="checkbox"

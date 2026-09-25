@@ -56,7 +56,7 @@ def test_append_only() -> None:
     """前 36 个特征与标准空间逐项一致;本地批次紧随其后"""
     assert FEATURE_NAMES[:36] == STANDARD_FEATURES, "标准特征顺序被动过(token 兼容被破坏)"
     assert FEATURE_NAMES[36:40] == LOCAL_FEATURES, "本地专属批次应紧跟标准空间之后"
-    assert len(FEATURE_NAMES) == 40
+    assert len(FEATURE_NAMES) == 52
 
 
 def test_text_coverage() -> None:
@@ -112,7 +112,7 @@ def test_matrix_shape() -> None:
     clear_feature_matrix_cache()
     bars = _make_bars(120)
     mat = feature_matrix(bars)
-    assert mat.shape == (40, 120), f"矩阵形状异常: {mat.shape}"
+    assert mat.shape == (len(FEATURE_NAMES), 120), f"矩阵形状异常: {mat.shape}"
     assert np.isfinite(mat).all(), "特征矩阵含 NaN/Inf"
 
 
@@ -154,7 +154,7 @@ def test_llm_vocab() -> None:
     assert [o["id"] for o in ops] == list(range(64, 64 + len(ops))), "算子 id 应从 64 连续编号"
     assert all(o["arity"] in (1, 2) for o in ops), "算子元数异常"
     # 本地专属特征在词表中(含文案,LLM 可引用)
-    local_names = {f["name"] for f in feats[36:]}
+    local_names = {f["name"] for f in feats[36:40]}
     assert local_names == {"STREAK", "VWAP_DEV", "UPDOWN_VOL_RATIO", "CHAN_POS"}
 
 

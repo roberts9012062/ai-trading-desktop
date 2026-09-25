@@ -48,6 +48,7 @@ def main() -> int:
 
     payload = {
         "mode": "mine_features",
+        "crypto_profile": cfg_in.get("crypto_profile", False),
         "timeframe": cfg_in.get("timeframe", "1d"),
         "train_ratio": cfg_in.get("train_ratio", 0),
         "test_recent_bars": cfg_in.get("test_recent_bars", 0),
@@ -97,6 +98,7 @@ def main() -> int:
 
     out = {
         "feature_names": feats["feature_names"],
+        "active_feature_ids": feats["active_feature_ids"],
         "matrix": feats["matrix"],
         "periods": periods,
         "cost": cost,

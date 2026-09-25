@@ -32,11 +32,11 @@ type Vec = Float64Array
 function tsMean(x: Vec, w: number): Vec {
   const n = x.length
   const out = new Float64Array(n)
+  const cumulative = new Float64Array(n + 1)
+  for (let i = 0; i < n; i++) cumulative[i + 1] = cumulative[i] + x[i]
   for (let t = 0; t < n; t++) {
     const lo = Math.max(0, t - w + 1)
-    let s = 0
-    for (let i = lo; i <= t; i++) s += x[i]
-    out[t] = s / (t - lo + 1)
+    out[t] = (cumulative[t + 1] - cumulative[lo]) / (t - lo + 1)
   }
   return out
 }
@@ -206,6 +206,18 @@ function applyOp(kind: string, a: Vec, b: Vec | null, win = 0, nn = 0): Vec {
     case "tanh":
       for (let i = 0; i < n; i++) out[i] = Math.tanh(Math.max(-30, Math.min(30, a[i])))
       return out
+    case "ts_crank":
+    case "decay_linear":
+      for (let t = 0; t < n; t++) {
+        const lo = Math.max(0, t - win + 1)
+        let sum = 0
+        for (let i = lo; i <= t; i++) {
+          sum += kind === "ts_crank" ? (a[i] < a[t] - 1e-6 * Math.max(1, Math.abs(a[t])) ? 1 : Math.abs(a[i] - a[t]) <= 1e-6 * Math.max(1, Math.abs(a[t])) ? 0.5 : 0) : a[i] * (i - lo + 1)
+        }
+        const count = t - lo + 1
+        out[t] = kind === "ts_crank" ? 2 * sum / count - 1 : sum / (count * (count + 1) / 2)
+      }
+      return out
     case "ts_ma":
       return tsMean(a, win)
     case "ts_std":
@@ -268,7 +280,7 @@ export const DEFAULT_NORM_WINDOW = 250
 
 /** 因果滚动归一化(P0-2 修复口径,与 vm.py 同源):只用截至当下的历史,
  *  头部按部分窗口退化;近常数序列原样返回(交上层过滤) */
-function normalizeOutput(x: Vec, window = DEFAULT_NORM_WINDOW): Vec {
+function normalizeOutput(x: Vec, window = DEFAULT_NORM_WINDOW, causal = false): Vec {
   const n = x.length
   let mean = 0
   for (let i = 0; i < n; i++) mean += x[i]
@@ -276,20 +288,12 @@ function normalizeOutput(x: Vec, window = DEFAULT_NORM_WINDOW): Vec {
   let v2 = 0
   for (let i = 0; i < n; i++) v2 += x[i] * x[i]
   const fullStd = Math.sqrt(Math.max(v2 / n - mean * mean, 0))
-  if (fullStd < 1e-6) return x
+  if (!causal && fullStd < 1e-6) return x
   const out = new Float64Array(n)
+  const m = tsMean(x, window)
+  const sd = tsStd(x, window)
   for (let t = 0; t < n; t++) {
-    const lo = Math.max(0, t - window + 1)
-    let s1 = 0
-    let s2 = 0
-    for (let i = lo; i <= t; i++) {
-      s1 += x[i]
-      s2 += x[i] * x[i]
-    }
-    const c = t - lo + 1
-    const m = s1 / c
-    const sd = Math.sqrt(Math.max(s2 / c - m * m, 0))
-    out[t] = Math.max(-3, Math.min(3, (x[t] - m) / Math.max(sd, 1e-8)))
+    out[t] = Math.max(-3, Math.min(3, (x[t] - m[t]) / Math.max(sd[t], 1e-8)))
   }
   return out
 }
@@ -320,7 +324,7 @@ export function executeTokensCore(
       }
     }
   }
-  return stack.length === 1 ? normalizeOutput(stack[0]) : null
+  return stack.length === 1 ? normalizeOutput(stack[0], DEFAULT_NORM_WINDOW, tokens.some((t) => (t >= 40 && t < 64) || t >= 104)) : null
 }
 
 export function isConstantCore(factor: Vec): boolean {

@@ -32,6 +32,11 @@ export interface WalkForwardDetail {
 }
 
 export interface FactorMetrics {
+  crypto_profile?: boolean
+  research_profile?: string
+  periods?: number
+  cost?: number
+  cost_model?: string
   /** 产出该指标的内核口径版本(发布前清单第 2 步;旧记录无此字段=旧口径) */
   kernel_version?: string
   /** 派生标记:版本戳与当前内核不一致(championFromHistory/Favorite 打标,

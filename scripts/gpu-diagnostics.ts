@@ -27,8 +27,8 @@ export function makeBars(n = 420) {
   })
 }
 
-function candidates(n: number, F: number) {
-  const rng = new Rng(99)
+function candidates(n: number, F: number, active?: number[]) {
+  const rng = new Rng(99, active)
   const { opOne, opTwo } = gpuOpSets()
   return Array.from({ length: n }, () => treeToTokens(randomTreeGpuSafe(4, F, opOne, opTwo, rng)))
 }
@@ -51,15 +51,15 @@ function spearman(a: number[], b: number[]) {
   return xy / Math.sqrt(xx * yy)
 }
 
-export async function runGpuParity(n = 500) {
+export async function runGpuParity(n = 500, cryptoProfile = false) {
   const bars = makeBars()
   const py = ensurePyWorker()
-  const base = { symbol: "rb8888", timeframe: "1d", train_ratio: 0.7, test_recent_bars: 0, cost: 0.001 }
+  const base = { symbol: cryptoProfile ? "BTCUSDT" : "rb8888", crypto_profile: cryptoProfile, timeframe: "1d", train_ratio: 0.7, test_recent_bars: 0, cost: 0.001 }
   const features = await py.factorRun({ ...base, mode: "mine_features" }, bars) as {
-    matrix: number[][]; train_len: number; periods: number; cost: number
+    matrix: number[][]; train_len: number; periods: number; cost: number; active_feature_ids: number[]
   }
   const F = features.matrix.length, T = features.train_len
-  const tokens = candidates(n, F)
+  const tokens = candidates(n, F, cryptoProfile ? features.active_feature_ids : undefined)
   const cpu = await py.factorRun({ ...base, mode: "mine_eval_shard", candidates: tokens }, bars) as {
     evaluated: Array<{ tokens: number[]; composite: number }>
   }
@@ -121,13 +121,13 @@ export async function runGpuStress(opts: { T?: number; population?: number; dura
   }
 }
 
-export async function runMiningSmoke(population = 512, generations = 3) {
+export async function runMiningSmoke(population = 512, generations = 3, cryptoProfile = false) {
   const backend = new GpuBackend()
   const steps = []
   const start = performance.now()
-  const gen = backend.runDirect(makeBars(600), {
+  const gen = backend.runDirect(makeBars(cryptoProfile ? 1200 : 600), {
     snapshotId: "diagnostic-only", startGeneration: 0,
-    config: { symbol: "rb8888", timeframe: "1d", population, generations, max_depth: 4,
+    config: { symbol: cryptoProfile ? "BTCUSDT" : "rb8888", crypto_profile: cryptoProfile, selection_v2: cryptoProfile, timeframe: "1d", population, generations, max_depth: 4,
       train_ratio: 0.7, test_recent_bars: 0, walk_forward_folds: 0, top_n: 3, cost: 0.001, seed: 42 },
   }, new AbortController().signal)
   for await (const step of gen) steps.push(step)

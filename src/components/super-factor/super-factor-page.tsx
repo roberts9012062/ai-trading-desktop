@@ -5,6 +5,7 @@
  * 左：配置表单 + 任务列表；右：选中任务的进度/冠军结果
  */
 
+import { CRYPTO_RESEARCH_NOTE } from "@/lib/mining/crypto-profile"
 import { useEffect, useState } from "react"
 import { Loader2, Pause, Play, Plus, Square, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -764,6 +765,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
       {origin === "local" && (
         <div className="space-y-1">
           <Label>增强挖掘（本地）</Label>
+          <p className="text-[11px] text-[var(--text-muted)]">{CRYPTO_RESEARCH_NOTE}</p>
           <label className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)] cursor-pointer">
             <input
               type="checkbox"
@@ -774,7 +776,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
           </label>
           <p className="text-[10px] text-[var(--text-muted)] leading-tight">
             先把同一因子的不同写法去重，再做样本外筛选；测试段后半封存，冠军选定后才评估一次（冠军表「封存Sortino」列）；
-            进化加入点变异/收缩变异、克隆降权与停滞重启。关闭则与服务器挖掘结果逐位一致。
+            进化加入点变异/收缩变异、克隆降权与停滞重启。关闭仅停用增强遴选与进化，加密特征优化仍生效。
           </p>
           <label className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)] cursor-pointer">
             <input

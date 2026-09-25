@@ -173,6 +173,9 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
               symbol: sym,
               timeframe: tf,
               factor_tokens: c.tokens,
+              crypto_profile: c.metrics.crypto_profile ?? false,
+              cost: c.metrics.cost ?? p?.cost ?? lastReq?.cost,
+              data_channel: p?.data_channel ?? lastReq?.data_channel,
               ...(startDate && endDate ? { start_date: startDate, end_date: endDate } : {}),
             },
             setProgressNote,
@@ -267,6 +270,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
         const r = await searchFactorsLocal(
           {
             symbol: p.symbol,
+            data_channel: p.data_channel,
             timeframe: p.timeframe,
             population: p.population,
             generations: p.generations,
@@ -325,6 +329,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
         const r = await searchFactorsLocal(
           {
             symbol: p.symbol,
+            data_channel: p.data_channel,
             timeframe: p.timeframe,
             population: p.population,
             generations: p.generations,

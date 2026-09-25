@@ -185,6 +185,10 @@ describe("GpuBackend.run", () => {
     const featureCall = rpcCalls.find(([p]) => (p as { mode: string }).mode === "mine_features")!
     const id = (featureCall[0] as { gpu_session_id: string }).gpu_session_id
     expect(id).toBeTruthy()
+    const precisePayloads = rpcCalls.filter(([p]) => (p as { mode: string }).mode === "mine_precise")
+      .map(([p]) => p as { final_generation: boolean; crypto_profile: boolean })
+    expect(precisePayloads.map((p) => p.final_generation)).toEqual([false, false, true])
+    expect(precisePayloads.every((p) => p.crypto_profile === false)).toBe(true)
     for (const [payload, bars] of rpcCalls.filter(([p]) => (p as { mode: string }).mode === "mine_precise")) {
       expect((payload as { gpu_session_id: string }).gpu_session_id).toBe(id)
       expect(bars).toEqual([])

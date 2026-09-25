@@ -67,6 +67,14 @@ def bars_per_year(bars: list[dict[str, Any]], timeframe: str) -> int:
     日线返回 243；分钟线返回 日均 bar 数 × 243。
     未知周期按日线兜底，绝不返回小于 243 的值（避免比日线还低的荒谬基数）。
     """
+    from ..market import is_crypto
+    if is_crypto(bars):
+        if timeframe == "1d":
+            return 365
+        minutes = TF_MINUTES.get(timeframe)
+        if minutes is None:
+            raise ValueError(f"Unsupported crypto timeframe: {timeframe}")
+        return 365 * 1440 // minutes
     if timeframe == "1d" or timeframe not in TF_MINUTES:
         return TRADING_DAYS_PER_YEAR
     per_year = int(round(bars_per_day(bars, timeframe) * TRADING_DAYS_PER_YEAR))

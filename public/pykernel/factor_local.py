@@ -19,7 +19,8 @@ from dataclasses import fields as dc_fields
 import numpy as np
 
 from factor_lab import execute
-from factor_lab.features import FEATURE_NAMES, feature_matrix
+from factor_lab.features import FEATURE_NAMES, feature_matrix, active_feature_ids
+from factor_lab.market import prepare_bars
 from factor_lab.scoring.cost import DEFAULT_SLIPPAGE_TICKS, turnover_cost_rate
 from data.product_specs import normalize_crypto_symbol, CRYPTO_TICKS
 from factor_lab.scoring.evaluate import (
@@ -57,7 +58,7 @@ def _mark_local_only(metrics: dict, tokens: list) -> dict:
     """
     out = dict(metrics)
     out["local_only"] = any(
-        STANDARD_FEAT_COUNT <= int(t) < _FEAT_OFFSET for t in tokens
+        STANDARD_FEAT_COUNT <= int(t) < _FEAT_OFFSET or int(t) >= _FEAT_OFFSET + 40 for t in tokens
     )
     return out
 
@@ -89,15 +90,17 @@ def run(payload_json: str, bars_json: str) -> str:
 
 
 def run_search(payload: dict, bars: list) -> str:
+    bars = prepare_bars(payload, bars)
     cfg_kwargs = {k: payload[k] for k in _CFG_FIELDS if k in payload}
     # cost 省略与 cost=None 同路径(自动推导,对齐服务端 search_api 语义):
     # 原样透传 None 会让 evaluate_factor 对全体候选抛异常,被 eval 防护静默
     # 吞掉后 best_seen 为空,最终 0 冠军且无任何报错
     if cfg_kwargs.get("cost") is None:
-        cfg_kwargs["cost"] = resolve_cost(
-            str(payload.get("symbol") or ""), bars, None
-        )
+        cfg_kwargs["cost"] = resolve_search_cost(payload, bars)
     cfg = SearchConfig(**cfg_kwargs)
+    if cfg.crypto_profile and cfg.cross_peers:
+        cfg.cross_peers = [(symbol, prepare_bars({**payload, "symbol": symbol}, peer))
+                           for symbol, peer in cfg.cross_peers]
     champions = search(bars, str(payload.get("timeframe") or "1d"), cfg)
     return json.dumps(
         [
@@ -139,6 +142,15 @@ def resolve_cost(symbol: str, bars: list, cost: float | None) -> float:
     return turnover_cost_rate(norm or symbol, price, DEFAULT_SLIPPAGE_TICKS)
 
 
+def resolve_search_cost(payload: dict, bars: list) -> float:
+    """Freeze crypto search cost from the training segment, never held-out prices."""
+    cost = payload.get("cost")
+    if payload.get("crypto_profile") and cost is None:
+        cfg = SearchConfig(**{k: payload[k] for k in _CFG_FIELDS if k in payload and k != "cost"})
+        bars, _ = _split_train_test(cfg, bars)
+    return resolve_cost(str(payload.get("symbol") or ""), bars, None if cost is None else float(cost))
+
+
 def _round_value(v):
     if isinstance(v, bool):
         return v
@@ -156,6 +168,7 @@ def _round_metrics(metrics: dict) -> dict:
 
 
 def run_backtest_factor(payload: dict, bars: list) -> str:
+    bars = prepare_bars(payload, bars)
     symbol = str(payload.get("symbol") or "")
     timeframe = str(payload.get("timeframe") or "1d")
     tokens = payload.get("factor_tokens") or []
@@ -250,6 +263,7 @@ def run_mine_portfolio(payload: dict, bars: list) -> str:
     训练段上挑出来的,全段组合指标含训练段 = 样本内虚高。selection_v2 时
     进一步只用封存段(验证段已参与冠军遴选)。<2 个可执行因子时 portfolio=None。
     """
+    bars = prepare_bars(payload, bars)
     from factor_lab.scoring.portfolio import evaluate_portfolio
     from factor_lab.search import holdout_len
 
@@ -263,9 +277,7 @@ def run_mine_portfolio(payload: dict, bars: list) -> str:
     if len(tokens_list) < 2:
         return json.dumps({"portfolio": None}, ensure_ascii=False)
     cost_input = payload.get("cost")
-    cost = resolve_cost(
-        symbol, bars, None if cost_input is None else float(cost_input)
-    )
+    cost = resolve_search_cost(payload, bars)
     eval_from: int | None = None
     segment = "full"
     if payload.get("train_ratio") or payload.get("test_recent_bars"):
@@ -305,6 +317,11 @@ def run_llm_vocab(payload: dict, bars: list) -> str:
         {"id": i, "name": n, "text": _FEAT_TEXT.get(n, n)}
         for i, n in enumerate(FEATURE_NAMES)
     ]
+    if payload.get("crypto_profile"):
+        excluded = {14, 15, 16, 17, 18, 27, 28, 29, 30, 33, 34}
+        if payload.get("timeframe") == "1d":
+            excluded.update({40, 41})
+        feats = [f for f in feats if f["id"] not in excluded]
     ops = [
         {
             "id": FEAT_OFFSET + i,
@@ -350,12 +367,13 @@ def run_cross_peer_symbols(payload: dict, bars: list) -> str:
 
 
 def kernel_version() -> str:
+    # 2026-09-25.2: crypto profile, new features/operators, training cost, sealed reporting.
     # 加密币口径(2026-09-25.1):加密 specs(multiplier=1/taker 万5/按币 tick)、
     # 符号别名归一(各所原生写法)、未知加密币显式报错、cost 省略与 null
     # 同路径自动推导(run_search/mine_start/shard/precise 四处)。
     # 更早:批次三口径变更(P0-2 因果归一化;P1-7 warmup 切片与
     # MIN_TEST_BARS=120);同因子在新旧内核下指标不同,历史/收藏按此戳区分
-    return "pykernel-factor-2026-09-25.1"
+    return "pykernel-factor-2026-09-25.2"
 
 
 # ── 分代步进挖掘会话(本地长程任务 M3) ─────────────────────────
@@ -390,15 +408,16 @@ def _decode_seed_best(raw) -> list[tuple[float, list[int], dict]] | None:
 def mine_start(payload_json: str, bars_json: str) -> str:
     """创建分代步进会话( bars 由会话持有,后续 mine_step 不再重传),返回 session_id"""
     payload = json.loads(payload_json)
-    bars = json.loads(bars_json)
+    bars = prepare_bars(payload, json.loads(bars_json))
     cfg_kwargs = {k: payload[k] for k in _CFG_FIELDS if k in payload}
     # cost 省略与 cost=null 同规则解析(与 run_search 一致),防止 None 透传
     # 导致全体候选评估异常被静默吞掉、0 冠军无报错
     if cfg_kwargs.get("cost") is None:
-        cfg_kwargs["cost"] = resolve_cost(
-            str(payload.get("symbol") or ""), bars, None
-        )
+        cfg_kwargs["cost"] = resolve_search_cost(payload, bars)
     cfg = SearchConfig(**cfg_kwargs)
+    if cfg.crypto_profile and cfg.cross_peers:
+        cfg.cross_peers = [(symbol, prepare_bars({**payload, "symbol": symbol}, peer))
+                           for symbol, peer in cfg.cross_peers]
     seed_best = _decode_seed_best(payload.get("seed_best"))
     gen = search_stepwise(
         bars,
@@ -475,23 +494,25 @@ _GPU_INPUTS: dict = {}
 
 
 def _gpu_input_key(payload: dict, cfg: SearchConfig) -> tuple:
-    return (str(payload.get("timeframe") or "1d"), cfg.train_ratio, cfg.test_recent_bars)
+    return (str(payload.get("timeframe") or "1d"), cfg.train_ratio, cfg.test_recent_bars, cfg.crypto_profile)
 
 
 def run_mine_features(payload: dict, bars: list) -> str:
     """训练段特征矩阵 + periods + 已解析成本率(GPU 粗排的只读输入)"""
+    bars = prepare_bars(payload, bars)
     timeframe = str(payload.get("timeframe") or "1d")
     cfg_kwargs = {
         k: payload[k] for k in _CFG_FIELDS if k in payload and k != "cost"
     }
     cfg = SearchConfig(**cfg_kwargs)
+    if cfg.crypto_profile and cfg.cross_peers:
+        cfg.cross_peers = [(symbol, prepare_bars({**payload, "symbol": symbol}, peer))
+                           for symbol, peer in cfg.cross_peers]
     train_bars, test_bars = _split_train_test(cfg, bars)
     mat = feature_matrix(train_bars)
     periods = bars_per_year(train_bars, timeframe)
     cost_input = payload.get("cost")
-    cost = resolve_cost(
-        str(payload.get("symbol") or ""), bars, None if cost_input is None else float(cost_input)
-    )
+    cost = resolve_search_cost(payload, bars)
     session_id = str(payload.get("gpu_session_id") or "")
     if session_id:
         if session_id in _GPU_INPUTS:
@@ -507,6 +528,7 @@ def run_mine_features(payload: dict, bars: list) -> str:
         }
     return json.dumps(
         {
+            "active_feature_ids": active_feature_ids(mat, cfg.crypto_profile),
             "feature_names": list(FEATURE_NAMES),
             "matrix": [[float(v) for v in row] for row in mat],
             "periods": int(periods),
@@ -535,6 +557,7 @@ def run_mine_shard(payload: dict, bars: list) -> str:
     首次带 bars 初始化,后续每代只传 candidates(载荷几十 KB)。
     评估循环与 run_mine_precise 的候选段逐字同源(单点维护)。
     """
+    bars = prepare_bars(payload, bars)
     if bars:
         _SHARD["bars"] = bars
         _SHARD["payload"] = payload
@@ -543,10 +566,11 @@ def run_mine_shard(payload: dict, bars: list) -> str:
     timeframe = str(base.get("timeframe") or "1d")
     cfg_kwargs = {k: base[k] for k in _CFG_FIELDS if k in base}
     if cfg_kwargs.get("cost") is None:
-        cfg_kwargs["cost"] = resolve_cost(
-            str(base.get("symbol") or ""), shard_bars, None
-        )
+        cfg_kwargs["cost"] = resolve_search_cost(base, shard_bars)
     cfg = SearchConfig(**cfg_kwargs)
+    if cfg.crypto_profile and cfg.cross_peers:
+        cfg.cross_peers = [(symbol, prepare_bars({**payload, "symbol": symbol}, peer))
+                           for symbol, peer in cfg.cross_peers]
     train_bars, _test = _split_train_test(cfg, shard_bars)
     feat_mat = feature_matrix(train_bars)
     close = np.array([float(b.get("close") or 0) for b in train_bars], dtype=float)
@@ -573,6 +597,7 @@ def run_mine_shard(payload: dict, bars: list) -> str:
 
 def run_mine_precise(payload: dict, bars: list) -> str:
     """GPU 粗排后的 f64 精算 + 权威排行(search() 同口径,粗排分数不进任何结果)"""
+    bars = prepare_bars(payload, bars)
     session_id = str(payload.get("gpu_session_id") or "")
     prepared = None
     if session_id:
@@ -585,10 +610,11 @@ def run_mine_precise(payload: dict, bars: list) -> str:
     timeframe = str(payload.get("timeframe") or "1d")
     cfg_kwargs = {k: payload[k] for k in _CFG_FIELDS if k in payload}
     if cfg_kwargs.get("cost") is None:
-        cfg_kwargs["cost"] = resolve_cost(
-            str(payload.get("symbol") or ""), bars, None
-        )
+        cfg_kwargs["cost"] = resolve_search_cost(payload, bars)
     cfg = SearchConfig(**cfg_kwargs)
+    if cfg.crypto_profile and cfg.cross_peers:
+        cfg.cross_peers = [(symbol, prepare_bars({**payload, "symbol": symbol}, peer))
+                           for symbol, peer in cfg.cross_peers]
     if prepared is not None:
         if prepared["key"] != _gpu_input_key(payload, cfg):
             raise ValueError("GPU input session configuration mismatch")
@@ -654,6 +680,7 @@ def run_mine_precise(payload: dict, bars: list) -> str:
         # 跨品种验证:伙伴 bars 由 JS 预加载注入(无数据时内核返回通过,不误杀)
         cross_peers=cfg.cross_peers,
         selection_v2=cfg.selection_v2,
+        reveal_holdout=bool(payload.get("final_generation", True)),
         live_entry_gate=cfg.live_entry_gate,
     )
     # best_seen 裁剪:_dedup_top 的 shortlist 只取 max(3·top_n, top_n+5) 个,

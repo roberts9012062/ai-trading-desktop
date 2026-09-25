@@ -117,7 +117,9 @@ def evaluate_on_slice(
     n = hi - lo
     if n < MIN_TEST_BARS:
         return None
-    w = min(lo, WARMUP_BARS)
+    from ..market import is_crypto
+    full_context = is_crypto(all_bars) or any(40 <= t < 64 or t >= 104 for t in tokens)
+    w = lo if full_context else min(lo, WARMUP_BARS)
     ctx = all_bars[lo - w : hi]
     key = (
         tuple(int(t) for t in tokens),
@@ -184,7 +186,9 @@ def live_discrete_on_slice(
     n = hi - lo
     if n < MIN_TEST_BARS:
         return None
-    w = min(lo, WARMUP_BARS)
+    from ..market import is_crypto
+    full_context = is_crypto(all_bars) or any(40 <= t < 64 or t >= 104 for t in tokens)
+    w = lo if full_context else min(lo, WARMUP_BARS)
     ctx = all_bars[lo - w : hi]
     key = (
         "live_discrete",

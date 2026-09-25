@@ -20,7 +20,7 @@ from typing import Any
 import numpy as np
 
 from .express import to_text
-from .features import bars_signature, feature_matrix
+from .features import bars_signature, feature_matrix, active_feature_ids
 from .ops import OPS_CONFIG
 from .scoring.evaluate import evaluate_factor, next_ret, position_from_factor
 from .scoring.periods import bars_per_year
@@ -54,6 +54,7 @@ class SearchConfig:
     - walk_forward_folds: 搜索后对候选因子跑 N 折滚动 walk-forward，
       任一折测试段为负的因子被淘汰。0 = 关闭。
     """
+    crypto_profile: bool = False
     population: int = 40
     generations: int = 20
     max_depth: int = 4
@@ -126,6 +127,43 @@ def _clone(tree: list) -> list:
     return ["op", tree[1]] + [_clone(c) for c in tree[2:]]
 
 
+def _draw_feature(rng: random.Random, feat_n: int) -> int:
+    pool = getattr(rng, "_active_features", None)
+    return rng.choice(pool) if pool else rng.randrange(feat_n)
+
+
+def _search_space(mat, cfg, rng):
+    active = active_feature_ids(mat, cfg.crypto_profile)
+    if cfg.crypto_profile:
+        # Modest prior for new information, not calendar overfitting.
+        rng._active_features = active + [i for i in active if i >= 45]
+    for seed in cfg.seed_tokens or []:
+        if any(int(t) < FEAT_OFFSET and int(t) not in active for t in seed):
+            raise ValueError("Seed depends on unavailable features for this training data/profile")
+    limit = len(OPS_CONFIG) if cfg.crypto_profile else 40
+    return ([i for i, (_, _, a) in enumerate(OPS_CONFIG[:limit]) if a == 1],
+            [i for i, (_, _, a) in enumerate(OPS_CONFIG[:limit]) if a == 2])
+
+
+def _training_evaluator(mat, close, cost, periods):
+    # Only tokens/metrics are cached; no T-length series per candidate.
+    from functools import lru_cache
+    @lru_cache(maxsize=20000)
+    def cached(tokens):
+        if validate(list(tokens)):
+            return None, None, -999.0
+        try:
+            factor = execute(list(tokens), mat)
+            if factor is None or is_constant(factor):
+                return None, None, -999.0
+            metrics = evaluate_factor(factor, close, cost=cost, periods=periods)
+        except (ValueError, FloatingPointError, OverflowError):
+            return None, None, -999.0
+        comp = float(metrics["composite"]) - 0.02 * max(0, len(tokens) - 12)
+        return list(tokens), metrics, comp
+    return cached
+
+
 def _random_tree(
     depth: int,
     feat_n: int,
@@ -135,7 +173,7 @@ def _random_tree(
 ) -> list:
     """随机生成合法语法树"""
     if depth <= 0 or (depth < 3 and rng.random() < 0.4):
-        return ["feat", rng.randrange(feat_n)]
+        return ["feat", _draw_feature(rng, feat_n)]
     if op_two and rng.random() < 0.3:
         op = rng.choice(op_two)
         return [
@@ -260,7 +298,7 @@ def _point_mutate(
     """
     node = rng.choice(_all_nodes(tree))
     if node[0] == "feat":
-        node[1] = rng.randrange(feat_n)
+        node[1] = _draw_feature(rng, feat_n)
         return tree
     pool = op_one if len(node) == 3 else op_two
     cur = int(node[1])
@@ -439,44 +477,17 @@ def search(
     feat_mat = feature_matrix(train_bars)
     close = np.array([float(b.get("close") or 0) for b in train_bars], dtype=float)
     periods = bars_per_year(train_bars, timeframe)
-    feat_n = feat_mat.shape[0]
-    op_one = [i for i, (_, _, a) in enumerate(OPS_CONFIG) if a == 1]
-    op_two = [i for i, (_, _, a) in enumerate(OPS_CONFIG) if a == 2]
+    feat_n = feat_mat.shape[0] if cfg.crypto_profile else min(40, feat_mat.shape[0])
     rng = random.Random(cfg.seed)
+    op_one, op_two = _search_space(feat_mat, cfg, rng)
+    cached_eval = _training_evaluator(feat_mat, close, cfg.cost, periods)
     seeds = list(cfg.seed_tokens or [])
 
-    def eval_tree(tree: list) -> tuple[list[int] | None, dict | None, float]:
-        tokens = tree_to_tokens(tree)
-        # 恒正感染校验：GP 演化可堆 TS_RANK/ABS 链产出单边 beta 因子，
-        # 此前只有 LLM 路径校验，主搜索路径裸奔
-        if validate(tokens):
-            return None, None, -999.0
-        try:
-            # 坏候选(极端数据形状/算子组合/宿主内存压力)跳过,不炸整场搜索
-            factor = execute(tokens, feat_mat)
-            if factor is None or is_constant(factor):
-                return None, None, -999.0
-            metrics = evaluate_factor(factor, close, cost=cfg.cost, periods=periods)
-        except Exception:
-            return None, None, -999.0
-        # parsimony 惩罚：token 超过 12 个每 1 个扣 0.02。无界公式 = 更强
-        # 拟合容量，交叉/变异又无深度检查，不惩罚会随代数膨胀刷分。
-        comp = float(metrics["composite"]) - 0.02 * max(0, len(tokens) - 12)
-        return tokens, metrics, comp
+    def eval_tree(tree: list):
+        return cached_eval(tuple(tree_to_tokens(tree)))
 
-    def eval_tokens(tokens: list[int]) -> tuple[list[int] | None, dict | None, float]:
-        if validate(tokens):
-            return None, None, -999.0
-        try:
-            # 坏候选(极端数据形状/算子组合/宿主内存压力)跳过,不炸整场搜索
-            factor = execute(tokens, feat_mat)
-            if factor is None or is_constant(factor):
-                return None, None, -999.0
-            metrics = evaluate_factor(factor, close, cost=cfg.cost, periods=periods)
-        except Exception:
-            return None, None, -999.0
-        comp = float(metrics["composite"]) - 0.02 * max(0, len(tokens) - 12)
-        return list(tokens), metrics, comp
+    def eval_tokens(tokens: list[int]):
+        return cached_eval(tuple(tokens))
 
     # 初始种群
     population = [
@@ -633,6 +644,7 @@ def _dedup_top(
     cross_peers: list[tuple[str, list[dict[str, Any]]]] | None = None,
     selection_v2: bool = False,
     live_entry_gate: float = 0.0,
+    reveal_holdout: bool = True,
 ) -> list[Champion]:
     """去重并取 top-N，可选叠加测试段验证与 walk-forward 淘汰
 
@@ -736,7 +748,7 @@ def _dedup_top(
 
     def _enrich_v2(enriched: dict, tokens: list[int]) -> None:
         """selection_v2 报告项：封存段指标（唯一一次触碰封存段）+ Deflated Sharpe"""
-        if n_holdout and full_bars:
+        if reveal_holdout and n_holdout and full_bars:
             lo_h = len(full_bars) - n_holdout
             hm = evaluate_on_slice(tokens, full_bars, lo_h, len(full_bars), timeframe, cost)
             if hm is not None:
@@ -771,6 +783,14 @@ def _dedup_top(
     ) -> Champion:
         """附 train/test/walk_forward 子键构造 Champion"""
         enriched = dict(metrics)
+        from .market import is_crypto, CRYPTO_PROFILE
+        if is_crypto(train_bars or all_bars or []):
+            enriched["crypto_profile"] = True
+            enriched["research_profile"] = CRYPTO_PROFILE
+            enriched["periods"] = bars_per_year(train_bars or all_bars, timeframe)
+            enriched["cost"] = cost
+            enriched["cost_model"] = "static_fee_plus_tick_no_funding"
+
         if use_test and train_bars:
             train_m = evaluate_on_slice(tokens, all_bars, 0, len(train_bars), timeframe, cost)
             if train_m is not None:
@@ -804,7 +824,7 @@ def _dedup_top(
 
                 lo_test = len(all_bars) - len(test_bars) if all_bars else 0
                 prefix = (
-                    all_bars[max(0, lo_test - WARMUP_BARS) : lo_test] if all_bars else []
+                    all_bars[0 if is_crypto(all_bars) or any(40 <= t < 64 or t >= 104 for t in tokens) else max(0, lo_test - WARMUP_BARS) : lo_test] if all_bars else []
                 )
                 reg = regime_decompose(
                     tokens, test_bars, timeframe, cost, prefix_bars=prefix
@@ -999,41 +1019,16 @@ def search_stepwise(
     feat_mat = feature_matrix(train_bars)
     close = np.array([float(b.get("close") or 0) for b in train_bars], dtype=float)
     periods = bars_per_year(train_bars, timeframe)
-    feat_n = feat_mat.shape[0]
-    op_one = [i for i, (_, _, a) in enumerate(OPS_CONFIG) if a == 1]
-    op_two = [i for i, (_, _, a) in enumerate(OPS_CONFIG) if a == 2]
+    feat_n = feat_mat.shape[0] if cfg.crypto_profile else min(40, feat_mat.shape[0])
     rng = random.Random(cfg.seed)
+    op_one, op_two = _search_space(feat_mat, cfg, rng)
+    cached_eval = _training_evaluator(feat_mat, close, cfg.cost, periods)
 
-    def eval_tree(tree: list) -> tuple[list[int] | None, dict | None, float]:
-        tokens = tree_to_tokens(tree)
-        # 恒正感染校验：GP 演化可堆 TS_RANK/ABS 链产出单边 beta 因子，
-        # 此前只有 LLM 路径校验，主搜索路径裸奔
-        if validate(tokens):
-            return None, None, -999.0
-        try:
-            # 坏候选(极端数据形状/算子组合/宿主内存压力)跳过,不炸整场搜索
-            factor = execute(tokens, feat_mat)
-            if factor is None or is_constant(factor):
-                return None, None, -999.0
-            metrics = evaluate_factor(factor, close, cost=cfg.cost, periods=periods)
-        except Exception:
-            return None, None, -999.0
-        comp = float(metrics["composite"]) - 0.02 * max(0, len(tokens) - 12)
-        return tokens, metrics, comp
+    def eval_tree(tree: list):
+        return cached_eval(tuple(tree_to_tokens(tree)))
 
-    def eval_tokens(tokens: list[int]) -> tuple[list[int] | None, dict | None, float]:
-        if validate(tokens):
-            return None, None, -999.0
-        try:
-            # 坏候选(极端数据形状/算子组合/宿主内存压力)跳过,不炸整场搜索
-            factor = execute(tokens, feat_mat)
-            if factor is None or is_constant(factor):
-                return None, None, -999.0
-            metrics = evaluate_factor(factor, close, cost=cfg.cost, periods=periods)
-        except Exception:
-            return None, None, -999.0
-        comp = float(metrics["composite"]) - 0.02 * max(0, len(tokens) - 12)
-        return list(tokens), metrics, comp
+    def eval_tokens(tokens: list[int]):
+        return cached_eval(tuple(tokens))
 
     # 初始种群
     population = [
@@ -1104,6 +1099,7 @@ def search_stepwise(
             live_fill_gate=cfg.live_fill_gate,
             cross_peers=cfg.cross_peers,
             selection_v2=cfg.selection_v2,
+            reveal_holdout=gen_idx == cfg.generations - 1,
             live_entry_gate=cfg.live_entry_gate,
         )
         best_comp = max((c.composite for c in cur_champions), default=-999.0)
