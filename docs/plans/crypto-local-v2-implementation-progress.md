@@ -124,6 +124,10 @@ GP 搜索(registry 感知变异,当前 v3 经 backtest/模板入口使用);v3 �
 
 测试: 14 verify 脚本 + vitest 166(23 files)+ typecheck + build 全绿。
 
+交付: feat b66b47b + release ed642cf(tag v0.2.24);Actions run
+[36201661111](https://github.com/roberts9012062/ai-trading-desktop/actions/runs/36201661111)
+**success**(16m29s),Release v0.2.24 产物齐全。
+
 ## 关键决策记录
 
 - 旧 profile(crypto_ohlcv_v1)行为保持逐位不变;新能力挂 crypto_local_v2 显式版本,未知版本拒绝执行。
