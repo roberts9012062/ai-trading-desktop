@@ -1,7 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
-import { getPaperAccount, type PaperAccountSummary } from "@/lib/paper-api"
+import { usePaperTradingStore } from "@/stores/paper-trading"
 import { cn } from "@/lib/utils"
 
 /** 格式化金额 */
@@ -12,26 +11,13 @@ function formatMoney(value: number): string {
   })
 }
 
-/** 实时资产摘要条 —— 模拟账户 */
+/** 实时资产摘要条 —— 双模式统一入口(live=交易所真实账户聚合,virtual=模拟账本)。
+ *  旧版直连 /api/paper/account:纯实盘环境下模拟账本恒空,五项全部 0.00。
+ *  数据随工作台页 15s 轮询的 store.refresh 保持新鲜。 */
 export function AssetSummaryBar(): React.JSX.Element {
-  const [account, setAccount] = useState<PaperAccountSummary | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    try {
-      const data = await getPaperAccount()
-      setAccount(data)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "账户加载失败")
-    }
-  }, [])
-
-  useEffect(() => {
-    load()
-    const timer = setInterval(load, 8000)
-    return () => clearInterval(timer)
-  }, [load])
+  const account = usePaperTradingStore((s) => s.account)
+  const error = usePaperTradingStore((s) => s.error)
+  const mode = usePaperTradingStore((s) => s.mode)
 
   if (error && !account) {
     return (
@@ -82,6 +68,11 @@ export function AssetSummaryBar(): React.JSX.Element {
 
   return (
     <div className="flex items-center gap-6 px-4 py-3 border-b border-[var(--border)] bg-[var(--bg-secondary)] overflow-x-auto">
+      {mode === "live" && account.account_id?.startsWith("live-") && (
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-muted)] shrink-0">
+          实盘
+        </span>
+      )}
       {items.map((item) => (
         <div key={item.label} className="flex items-center gap-2 shrink-0">
           <span className="text-xs text-[var(--text-muted)]">{item.label}</span>
