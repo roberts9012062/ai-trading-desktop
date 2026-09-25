@@ -79,6 +79,11 @@ Python: 3.10.9 (CPython 本地跑回归;Pyodide 路径由 vitest + verify-gpu-se
    + verify-crypto-entries 未知会话用例覆盖。
 5. 进度文档与 RESULTS.md 同步更新;基准 JSON 归档。
 
+本批提交: fix 300eb5d + release aa21a97(tag v0.2.23);Actions run
+[36169632965](https://github.com/roberts9012062/ai-trading-desktop/actions/runs/36169632965)
+**success**(12m46s),Release v0.2.23 产物齐全。最终回归: 13 个 verify
+脚本 + vitest 160(22 files) + typecheck + build 全绿。
+
 ## 关键决策记录
 
 - 旧 profile(crypto_ohlcv_v1)行为保持逐位不变;新能力挂 crypto_local_v2 显式版本,未知版本拒绝执行。
