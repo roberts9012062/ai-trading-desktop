@@ -48,6 +48,40 @@ export interface LocalFactorPayload {
 
 export type LocalSearchEngine = "cpu" | "gpu"
 
+/**
+ * 搜索时冻结的行情快照(方案任务 3 / 问题 H):单因子复测复用同一份 bars
+ * 与已解析成本,不按新拉行情或末端价格重算——搜索后网络原始数据被修订,
+ * 复测仍复现原结果。只保留最近一次搜索的快照(内存有界);超级因子入口
+ * 走 IDB 快照层(data-source),此处覆盖因子实验室入口。
+ */
+export interface SearchBarsSnapshot {
+  key: string
+  symbol: string
+  timeframe: string
+  channel?: string
+  bars: KlineBar[]
+  /** 搜索实际取数区间(与复测请求比对:一致才复用) */
+  startDate: string
+  endDate: string
+  /** 搜索时冻结的已解析成本(内核 resolve_search_cost 口径) */
+  cost: number | null
+  researchProfile?: string
+}
+
+let lastSearchSnapshot: SearchBarsSnapshot | null = null
+
+export function getLastSearchSnapshot(): SearchBarsSnapshot | null {
+  return lastSearchSnapshot
+}
+
+export function clearSearchSnapshot(): void {
+  lastSearchSnapshot = null
+}
+
+function snapshotKey(symbol: string, timeframe: string, channel?: string): string {
+  return `${symbol}:${channel ?? ""}:${timeframe}`
+}
+
 interface MineStepResult {
   done?: boolean
   error?: string
@@ -242,6 +276,18 @@ export async function searchFactorsLocal(
     normalizeChannel(payload.data_channel),
   )
   if (bars.length < 60) throw new Error("该区间 K 线数据不足(至少 60 根)")
+  // 冻结本次搜索的行情与口径:复测复用(方案任务 3 验收)
+  lastSearchSnapshot = {
+    key: snapshotKey(payload.symbol, payload.timeframe, payload.data_channel),
+    symbol: payload.symbol,
+    timeframe: payload.timeframe,
+    channel: payload.data_channel,
+    bars,
+    startDate: payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : "2005-01-01"),
+    endDate: payload.end_date || new Date().toISOString().slice(0, 10),
+    cost: payload.cost ?? null,
+    researchProfile: payload.research_profile,
+  }
   if (engine === "gpu") {
     try {
       return await searchGpu(payload, bars, onProgress)
@@ -255,7 +301,13 @@ export async function searchFactorsLocal(
   return await searchStepwiseCpu(payload, bars, onProgress)
 }
 
-/** 单因子资金曲线回测(本地):与 /api/factor-lab/backtest-factor 同构 */
+/** 单因子资金曲线回测(本地):与 /api/factor-lab/backtest-factor 同构。
+ *
+ * reuseSnapshot=true(默认)时复用最近一次搜索冻结的行情快照与成本口径
+ * (方案任务 3 验收:搜索后网络原始数据被修订,复测仍复现原结果)。
+ * 快照与请求的 symbol/timeframe/channel 不匹配,或显式传入了新的日期
+ * 区间(用户改了表单)时,回退重新取数。
+ */
 export async function backtestFactorLocal(
   payload: {
     symbol: string
@@ -272,23 +324,45 @@ export async function backtestFactorLocal(
     research_profile?: string
   },
   onProgress?: (msg: string) => void,
+  reuseSnapshot = true,
 ): Promise<FactorBacktestResult> {
-  onProgress?.("拉取 K 线数据…")
-  const bars = await fetchBacktestBars(
-    payload.symbol,
-    payload.timeframe,
-    payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : "2005-01-01"),
-    payload.end_date || new Date().toISOString().slice(0, 10),
-    KLINE_MAX_PAGES,
-    undefined,
-    onProgress,
-    normalizeChannel(payload.data_channel),
-  )
+  const snap = reuseSnapshot ? lastSearchSnapshot : null
+  // 复用条件:symbol/timeframe/channel 一致,且请求区间与搜索取数区间相同
+  // (用户改了日期区间 → 不复用,按新区间重新取数)
+  const reqStart = payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : "2005-01-01")
+  const reqEnd = payload.end_date || new Date().toISOString().slice(0, 10)
+  const snapUsable =
+    snap !== null &&
+    snap.key === snapshotKey(payload.symbol, payload.timeframe, payload.data_channel) &&
+    snap.startDate === reqStart &&
+    snap.endDate === reqEnd
+  let bars: KlineBar[]
+  let effectivePayload = payload
+  if (snapUsable && snap) {
+    bars = snap.bars // 冻结快照:不重新取数,复现搜索时口径
+    // 成本优先级:调用方显式值 > 搜索时冻结值(不按当前末端价格重算)
+    if (payload.cost == null && snap.cost != null) {
+      effectivePayload = { ...payload, cost: snap.cost }
+    }
+    onProgress?.(`复用搜索快照(${bars.length} 根 K,冻结成本 ${snap.cost ?? "自动"})复测…`)
+  } else {
+    onProgress?.("拉取 K 线数据…")
+    bars = await fetchBacktestBars(
+      payload.symbol,
+      payload.timeframe,
+      payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : "2005-01-01"),
+      payload.end_date || new Date().toISOString().slice(0, 10),
+      KLINE_MAX_PAGES,
+      undefined,
+      onProgress,
+      normalizeChannel(payload.data_channel),
+    )
+  }
   if (bars.length < 30) throw new Error("该区间 K 线数据不足")
   onProgress?.("本地单因子回测…")
   const { ensurePyWorker } = await import("@/lib/py-worker")
   const result = (await ensurePyWorker().factorRun(
-    { mode: "backtest_factor", ...payload } as unknown as Record<string, unknown>,
+    { mode: "backtest_factor", ...effectivePayload } as unknown as Record<string, unknown>,
     bars,
   )) as FactorBacktestResult
   if (result && (result as { error?: string }).error) {

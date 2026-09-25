@@ -199,7 +199,10 @@ def _reveal_v2_holdout(champions: list[dict], payload: dict, bars: list, cost: f
         # 封存按预注册标准评估:1×/2×成本净 sortino 均 >0 才算通过;
         # 不根据封存指标重新排序或补选候选
         m["holdout_passed"] = bool(m["holdout_metrics"]["sortino"] > 0 and m["holdout_metrics"]["sortino_2x"] > 0)
-        m["candidate_status"] = "holdout_passed" if m["holdout_passed"] else "rejected"
+        # 未通过时保留 validation_passed 裁定(验证结论不被封存覆盖),
+        # 封存明细见 holdout_metrics;通过则升级为 holdout_passed
+        if m["holdout_passed"]:
+            m["candidate_status"] = "holdout_passed"
 
 
 def run_search(payload: dict, bars: list) -> str:
@@ -604,7 +607,16 @@ def mine_start(payload_json: str, bars_json: str) -> str:
         seed_best=seed_best,
     )
     sid = str(payload.get("session_id") or "s1")
-    _SESSIONS[sid] = {"gen": gen}
+    # v2:持有全量 bars(search_stepwise 内部只在局部副本上裁掉封存段),
+    # 末代快照产出后做一次性封存揭示——与 run_search 入口同口径
+    _SESSIONS[sid] = {
+        "gen": gen,
+        "v2": cfg.research_profile == "crypto_local_v2",
+        "full_bars": list(bars),
+        "payload": payload,
+        "cost": cfg.cost,
+        "revealed": False,
+    }
     return json.dumps({"session_id": sid}, ensure_ascii=False)
 
 
@@ -618,6 +630,23 @@ def mine_step(session_id: str) -> str:
     except StopIteration:
         _SESSIONS.pop(session_id, None)
         return json.dumps({"done": True}, ensure_ascii=False)
+    champions = [
+        {
+            "tokens": c.tokens,
+            "text": c.text,
+            "metrics": dict(c.metrics),
+            "composite": c.composite,
+        }
+        for c in snap.champions
+    ]
+    if (
+        s.get("v2")
+        and not s.get("revealed")
+        and snap.generation >= snap.total_generations
+    ):
+        # 最终代:封存段一次性揭示(与 run_search 的 final_generation 同口径)
+        _reveal_v2_holdout(champions, s["payload"], s["full_bars"], s["cost"])
+        s["revealed"] = True
     return json.dumps(
         {
             "done": False,
@@ -627,12 +656,12 @@ def mine_step(session_id: str) -> str:
             **({"stats": snap.stats} if snap.stats else {}),
             "champions": [
                 {
-                    "tokens": c.tokens,
-                    "text": c.text,
-                    "metrics": _mark_local_only(_round_metrics(c.metrics), c.tokens),
-                    "composite": c.composite,
+                    "tokens": c["tokens"],
+                    "text": c["text"],
+                    "metrics": _mark_local_only(_round_metrics(c["metrics"]), c["tokens"]),
+                    "composite": c["composite"],
                 }
-                for c in snap.champions
+                for c in champions
             ],
         },
         ensure_ascii=False,

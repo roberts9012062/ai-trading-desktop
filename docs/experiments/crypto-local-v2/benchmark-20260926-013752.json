@@ -1,0 +1,190 @@
+{
+ "mode": "time",
+ "generated_at": "2026-09-25T17:20:30.146611+00:00",
+ "kernel_version": "pykernel-factor-2026-09-25.4",
+ "python": "3.10.9",
+ "symbol": "BTCUSDT",
+ "timeframe": "60m",
+ "n_bars": 3600,
+ "bars_hash": "30bb3f0cb5874c4b",
+ "synthetic": false,
+ "config": {
+  "population": 30,
+  "generations": 8,
+  "top_n": 10,
+  "cost": 0.0008
+ },
+ "seeds": [
+  42,
+  43,
+  44
+ ],
+ "groups": [
+  {
+   "group": "legacy",
+   "seed": 42,
+   "mode": "time",
+   "budget_s": 60.0,
+   "actual_elapsed_s": 325.801,
+   "repetitions": 2,
+   "unique_expression_total": 302,
+   "train_valid_total": 474,
+   "validation_passed": 0,
+   "statuses": {
+    "unclassified": 10
+   },
+   "unique_per_sec": 0.93,
+   "peak_rss_mb": 90.1,
+   "peak_rss_baseline_mb": 37.5,
+   "kernel_version": "pykernel-factor-2026-09-25.4"
+  },
+  {
+   "group": "legacy",
+   "seed": 43,
+   "mode": "time",
+   "budget_s": 60.0,
+   "actual_elapsed_s": 146.529,
+   "repetitions": 1,
+   "unique_expression_total": 137,
+   "train_valid_total": 237,
+   "validation_passed": 0,
+   "statuses": {
+    "unclassified": 8
+   },
+   "unique_per_sec": 0.93,
+   "peak_rss_mb": 90.7,
+   "peak_rss_baseline_mb": 90.1,
+   "kernel_version": "pykernel-factor-2026-09-25.4"
+  },
+  {
+   "group": "legacy",
+   "seed": 44,
+   "mode": "time",
+   "budget_s": 60.0,
+   "actual_elapsed_s": 78.391,
+   "repetitions": 2,
+   "unique_expression_total": 285,
+   "train_valid_total": 462,
+   "validation_passed": 0,
+   "statuses": {
+    "unclassified": 14
+   },
+   "unique_per_sec": 3.64,
+   "peak_rss_mb": 91.6,
+   "peak_rss_baseline_mb": 90.7,
+   "kernel_version": "pykernel-factor-2026-09-25.4"
+  },
+  {
+   "group": "v2",
+   "seed": 42,
+   "mode": "time",
+   "budget_s": 60.0,
+   "actual_elapsed_s": 77.7,
+   "repetitions": 3,
+   "unique_expression_total": 372,
+   "train_valid_total": 730,
+   "validation_passed": 1,
+   "statuses": {
+    "validation_passed": 1,
+    "rejected": 16
+   },
+   "unique_per_sec": 4.79,
+   "peak_rss_mb": 97.3,
+   "peak_rss_baseline_mb": 91.6,
+   "kernel_version": "pykernel-factor-2026-09-25.4"
+  },
+  {
+   "group": "v2",
+   "seed": 43,
+   "mode": "time",
+   "budget_s": 60.0,
+   "actual_elapsed_s": 94.774,
+   "repetitions": 3,
+   "unique_expression_total": 433,
+   "train_valid_total": 725,
+   "validation_passed": 0,
+   "statuses": {
+    "rejected": 24
+   },
+   "unique_per_sec": 4.57,
+   "peak_rss_mb": 98.4,
+   "peak_rss_baseline_mb": 97.3,
+   "kernel_version": "pykernel-factor-2026-09-25.4"
+  },
+  {
+   "group": "v2",
+   "seed": 44,
+   "mode": "time",
+   "budget_s": 60.0,
+   "actual_elapsed_s": 78.946,
+   "repetitions": 2,
+   "unique_expression_total": 273,
+   "train_valid_total": 480,
+   "validation_passed": 0,
+   "statuses": {
+    "rejected": 16
+   },
+   "unique_per_sec": 3.46,
+   "peak_rss_mb": 98.9,
+   "peak_rss_baseline_mb": 98.4,
+   "kernel_version": "pykernel-factor-2026-09-25.4"
+  },
+  {
+   "group": "v2_exec",
+   "seed": 42,
+   "mode": "time",
+   "budget_s": 60.0,
+   "actual_elapsed_s": 77.232,
+   "repetitions": 3,
+   "unique_expression_total": 372,
+   "train_valid_total": 730,
+   "validation_passed": 0,
+   "statuses": {
+    "rejected": 24
+   },
+   "unique_per_sec": 4.82,
+   "peak_rss_mb": 98.9,
+   "peak_rss_baseline_mb": 98.9,
+   "kernel_version": "pykernel-factor-2026-09-25.4"
+  },
+  {
+   "group": "v2_exec",
+   "seed": 43,
+   "mode": "time",
+   "budget_s": 60.0,
+   "actual_elapsed_s": 90.161,
+   "repetitions": 3,
+   "unique_expression_total": 433,
+   "train_valid_total": 725,
+   "validation_passed": 0,
+   "statuses": {
+    "rejected": 24
+   },
+   "unique_per_sec": 4.8,
+   "peak_rss_mb": 98.9,
+   "peak_rss_baseline_mb": 98.9,
+   "kernel_version": "pykernel-factor-2026-09-25.4"
+  },
+  {
+   "group": "v2_exec",
+   "seed": 44,
+   "mode": "time",
+   "budget_s": 60.0,
+   "actual_elapsed_s": 73.035,
+   "repetitions": 1,
+   "unique_expression_total": 146,
+   "train_valid_total": 240,
+   "validation_passed": 0,
+   "statuses": {
+    "rejected": 8
+   },
+   "unique_per_sec": 2.0,
+   "peak_rss_mb": 98.9,
+   "peak_rss_baseline_mb": 98.9,
+   "kernel_version": "pykernel-factor-2026-09-25.4"
+  }
+ ],
+ "determinism_check": {
+  "note": "time 模式不做确定性复跑(预算语义不同)"
+ }
+}

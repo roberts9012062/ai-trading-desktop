@@ -44,6 +44,41 @@ Python: 3.10.9 (CPython 本地跑回归;Pyodide 路径由 vitest + verify-gpu-se
 - v2_exec(执行成本+funding): 0/8 全拦截——诚实负结果,小预算下无因子扛真实成本;
 - holdout: 0 通过;确定性 ✓;v2 效率 ≈3.4×(同预算)。
 
+### B9 验证缺口补齐批次 2026-09-26
+
+针对完成度审查提出的 6 项缺口逐一补齐:
+
+1. **两入口一致性显式测试** `scripts/verify-crypto-entries.py`(5 tests):
+   实验室入口(run_search)与超级因子入口(mine_start/mine_step 会话)对相同
+   bars+配置(含 v2 与 legacy)冠军序列/综合分逐位一致(会话路径指标按
+   _round_metrics 4 位圆整精度比对——序列化差异,决策字段精确相等)。
+   **测试暴露并修复 2 个真实缺陷**:
+   (a) `_reveal_v2_holdout` 把未过封存的候选从 validation_passed 覆盖成
+   rejected(验证裁定不得被封存覆盖;通过才升级 holdout_passed);
+   (b) CPU 会话路径(超级因子 CPU 任务)从不做 v2 封存揭示,与实验室入口
+   不一致——mine_step 末代快照后现在与 run_search 同口径一次性揭示。
+2. **任务 3 快照复用(问题 H)落地**: local-factor.ts 新增 SearchBarsSnapshot
+   (搜索冻结 bars+取数区间+成本+v2 profile),backtestFactorLocal 默认复用
+   (symbol/timeframe/channel+区间匹配才复用;用户改区间/品种回退重新取数;
+   复测未显式给 cost 时注入冻结值)。TS 测试
+   `src/lib/local-factor-snapshot.test.ts`(4 tests):复用不重新取数、
+   网络修订隔离(fetch 层返回篡改数据后复测仍收冻结引用)、冻结成本注入、
+   不匹配回退。内核侧 verify-crypto-entries 快照复现测试同步覆盖。
+3. **benchmark --mode time + 峰值内存**: time 模式(固定时间内反复搜索,
+   不同子种子,unique 跨重复累计)与 peak_rss(Windows psapi
+   PeakWorkingSetSize,显式 argtypes 修复返回 0 的问题)落地并实测:
+   60s×3 种子:legacy 724 unique/91.6MB,v2 1078/98.9MB,v2_exec 951/98.9MB
+   (详见 RESULTS.md)。
+4. **浏览器两页面实际操作联调**(vite dev + in-app 浏览器):
+   因子实验室——BTCUSDT 60m 搜索(74849 根,Pyodide 冷加载约 6 分钟)、
+   冠军表渲染、单因子复测(资金曲线/实盘口径/状态分解)、无控制台错误;
+   超级因子——本地任务创建运行完成(3 冠军+组合评估:等权 Sortino 2.06 vs
+   最优单因子 1.51)、暂停(代 4/30 边界生效)→恢复(代 6 继续)验证通过。
+   "刷新"语义由 local-runner 单测的"重启恢复:持久化 running→paused"覆盖
+   (刷新即重建 runner,同一代码路径);版本不兼容由内核未知 profile 拒绝
+   + verify-crypto-entries 未知会话用例覆盖。
+5. 进度文档与 RESULTS.md 同步更新;基准 JSON 归档。
+
 ## 关键决策记录
 
 - 旧 profile(crypto_ohlcv_v1)行为保持逐位不变;新能力挂 crypto_local_v2 显式版本,未知版本拒绝执行。

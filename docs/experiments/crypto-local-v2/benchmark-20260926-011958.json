@@ -1,0 +1,79 @@
+{
+ "mode": "time",
+ "generated_at": "2026-09-25T17:19:02.123078+00:00",
+ "kernel_version": "pykernel-factor-2026-09-25.4",
+ "python": "3.10.9",
+ "symbol": "BTCUSDT",
+ "timeframe": "60m",
+ "n_bars": 1600,
+ "bars_hash": "a57624f2810d6356",
+ "synthetic": false,
+ "config": {
+  "population": 20,
+  "generations": 4,
+  "top_n": 10,
+  "cost": 0.0008
+ },
+ "seeds": [
+  42
+ ],
+ "groups": [
+  {
+   "group": "legacy",
+   "seed": 42,
+   "mode": "time",
+   "budget_s": 15.0,
+   "actual_elapsed_s": 15.106,
+   "repetitions": 2,
+   "unique_expression_total": 111,
+   "train_valid_total": 157,
+   "validation_passed": 0,
+   "statuses": {
+    "unclassified": 8
+   },
+   "unique_per_sec": 7.35,
+   "peak_rss_mb": -1.0,
+   "peak_rss_baseline_mb": -1.0,
+   "kernel_version": "pykernel-factor-2026-09-25.4"
+  },
+  {
+   "group": "v2",
+   "seed": 42,
+   "mode": "time",
+   "budget_s": 15.0,
+   "actual_elapsed_s": 19.067,
+   "repetitions": 8,
+   "unique_expression_total": 429,
+   "train_valid_total": 652,
+   "validation_passed": 0,
+   "statuses": {
+    "exploratory": 32
+   },
+   "unique_per_sec": 22.5,
+   "peak_rss_mb": -1.0,
+   "peak_rss_baseline_mb": -1.0,
+   "kernel_version": "pykernel-factor-2026-09-25.4"
+  },
+  {
+   "group": "v2_exec",
+   "seed": 42,
+   "mode": "time",
+   "budget_s": 15.0,
+   "actual_elapsed_s": 22.131,
+   "repetitions": 8,
+   "unique_expression_total": 429,
+   "train_valid_total": 652,
+   "validation_passed": 0,
+   "statuses": {
+    "exploratory": 32
+   },
+   "unique_per_sec": 19.38,
+   "peak_rss_mb": -1.0,
+   "peak_rss_baseline_mb": -1.0,
+   "kernel_version": "pykernel-factor-2026-09-25.4"
+  }
+ ],
+ "determinism_check": {
+  "note": "time 模式不做确定性复跑(预算语义不同)"
+ }
+}

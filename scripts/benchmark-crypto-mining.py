@@ -38,6 +38,49 @@ import numpy as np  # noqa: E402
 
 import factor_local  # noqa: E402
 
+
+def peak_rss_mb() -> float:
+    """进程峰值内存(MB)。Windows 用 GetProcessMemoryInfo(PeakWorkingSetSize),
+    POSIX 用 ru_maxrss;不可用时返回 -1 并在报告中标注。"""
+    try:
+        import sys as _sys
+
+        if _sys.platform == "win32":
+            import ctypes
+            from ctypes import wintypes
+
+            class _PMC(ctypes.Structure):
+                _fields_ = [
+                    ("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD),
+                    ("PeakWorkingSetSize", ctypes.c_size_t),
+                    ("WorkingSetSize", ctypes.c_size_t),
+                    ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                    ("PagefileUsage", ctypes.c_size_t),
+                    ("PeakPagefileUsage", ctypes.c_size_t),
+                ]
+
+            psapi = ctypes.WinDLL("psapi")
+            psapi.GetProcessMemoryInfo.argtypes = [
+                wintypes.HANDLE, ctypes.POINTER(_PMC), wintypes.DWORD,
+            ]
+            psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
+            k32 = ctypes.WinDLL("kernel32")
+            k32.GetCurrentProcess.restype = wintypes.HANDLE
+            pmc = _PMC()
+            pmc.cb = ctypes.sizeof(_PMC)
+            if psapi.GetProcessMemoryInfo(k32.GetCurrentProcess(), ctypes.byref(pmc), pmc.cb):
+                return round(pmc.PeakWorkingSetSize / 1048576, 1)
+        else:
+            import resource
+
+            return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1)
+    except Exception:
+        return -1.0
+    return -1.0
+
 OUT_DIR = ROOT / "docs" / "experiments" / "crypto-local-v2"
 CACHE = ROOT / ".local-data" / "bench-bars"
 SYMBOL = "BTCUSDT"
@@ -172,8 +215,10 @@ def run_group(bars: list, group: str, seed: int, cfg: dict) -> dict:
         payload["research_profile"] = "crypto_local_v2"
         payload["execution_model"] = "perp_next_open"
     t0 = time.perf_counter()
+    mem0 = peak_rss_mb()
     champions, stats = run_search_with_stats(bars, payload)
     elapsed = time.perf_counter() - t0
+    peak_mem = peak_rss_mb()
     statuses: dict[str, int] = {}
     holdout_passed = 0
     exec_sortinos = []
@@ -200,7 +245,70 @@ def run_group(bars: list, group: str, seed: int, cfg: dict) -> dict:
             "distinct_behavior", "precise_evaluated")},
         "rejection_reasons": stats.get("rejection_reasons", {}),
         "unique_per_sec": round(stats.get("unique_expression", 0) / max(elapsed, 1e-9), 2),
+        "peak_rss_mb": peak_mem,
+        "peak_rss_baseline_mb": mem0,
         **({"exec_sortino_median": round(float(np.median(exec_sortinos)), 4)} if exec_sortinos else {}),
+    }
+
+
+def run_group_time(bars: list, group: str, seed: int, cfg: dict, budget_s: float) -> dict:
+    """time 模式:固定本机计算时间内反复搜索(每次不同子种子),累计产出。
+
+    unique_expression 为跨重复累计(重复间种子不同,重叠可忽略——报告口径
+    已注明);单次搜索完整跑完,末次可能超出预算(报告 actual_elapsed)。
+    """
+    import factor_local as fl
+
+    base_payload = {
+        "symbol": SYMBOL, "timeframe": TIMEFRAME, "crypto_profile": True,
+        "population": cfg["population"], "generations": cfg["generations"],
+        "top_n": cfg["top_n"], "cost": cfg["cost"],
+        "walk_forward_folds": 2, "final_generation": True,
+    }
+    if group == "v2":
+        base_payload["research_profile"] = "crypto_local_v2"
+    elif group == "v2_exec":
+        base_payload["research_profile"] = "crypto_local_v2"
+        base_payload["execution_model"] = "perp_next_open"
+    t0 = time.perf_counter()
+    mem0 = peak_rss_mb()
+    unique_total = 0
+    train_valid_total = 0
+    validation_passed = 0
+    statuses: dict[str, int] = {}
+    reps = 0
+    last_champions: list = []
+    while time.perf_counter() - t0 < budget_s:
+        payload = {**base_payload, "seed": seed * 1000 + reps}
+        champions, stats = run_search_with_stats(bars, payload)
+        last_champions = champions
+        unique_total += int(stats.get("unique_expression") or 0)
+        train_valid_total += int(stats.get("train_valid") or 0)
+        validation_passed += sum(
+            1 for c in champions
+            if (c.get("metrics") or {}).get("candidate_status") == "validation_passed"
+        )
+        for c in champions:
+            m = c.get("metrics") or {}
+            st = str(m.get("candidate_status") or "unclassified")
+            statuses[st] = statuses.get(st, 0) + 1
+        reps += 1
+    elapsed = time.perf_counter() - t0
+    return {
+        "group": group,
+        "seed": seed,
+        "mode": "time",
+        "budget_s": budget_s,
+        "actual_elapsed_s": round(elapsed, 3),
+        "repetitions": reps,
+        "unique_expression_total": unique_total,
+        "train_valid_total": train_valid_total,
+        "validation_passed": validation_passed,
+        "statuses": statuses,
+        "unique_per_sec": round(unique_total / max(elapsed, 1e-9), 2),
+        "peak_rss_mb": peak_rss_mb(),
+        "peak_rss_baseline_mb": mem0,
+        "kernel_version": fl.kernel_version(),
     }
 
 
@@ -236,17 +344,24 @@ def main() -> None:
     }
 
     groups = ["legacy", "v2", "v2_exec"]
-    for group in groups:
-        for seed in seeds:
-            results["groups"].append(run_group(bars, group, seed, cfg))
-
-    # 确定性:同组同 seed 重跑,冠军 tokens 序列一致
-    a = run_group(bars, "v2", seeds[0], cfg)
-    b = run_group(bars, "v2", seeds[0], cfg)
-    results["determinism_check"] = {
-        "statuses_equal": a["statuses"] == b["statuses"],
-        "funnel_equal": a["funnel"] == b["funnel"],
-    }
+    if args.mode == "time":
+        for group in groups:
+            for seed in seeds:
+                results["groups"].append(
+                    run_group_time(bars, group, seed, cfg, args.time_budget)
+                )
+        results["determinism_check"] = {"note": "time 模式不做确定性复跑(预算语义不同)"}
+    else:
+        for group in groups:
+            for seed in seeds:
+                results["groups"].append(run_group(bars, group, seed, cfg))
+        # 确定性:同组同 seed 重跑,冠军 tokens 序列一致
+        a = run_group(bars, "v2", seeds[0], cfg)
+        b = run_group(bars, "v2", seeds[0], cfg)
+        results["determinism_check"] = {
+            "statuses_equal": a["statuses"] == b["statuses"],
+            "funnel_equal": a["funnel"] == b["funnel"],
+        }
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out = OUT_DIR / f"benchmark-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
@@ -257,11 +372,22 @@ def main() -> None:
     print(f"kernel={results['kernel_version']} bars={len(bars)} hash={results['bars_hash']} synthetic={synthetic}")
     for group in groups:
         rows = [g for g in results["groups"] if g["group"] == group]
-        uniq = sum(g["funnel"]["unique_expression"] or 0 for g in rows) / len(rows)
-        val = sum(g["validation_passed"] for g in rows)
-        hold = sum(g["holdout_passed"] for g in rows)
-        t = sum(g["elapsed_s"] for g in rows) / len(rows)
-        print(f"[{group:8s}] unique/cand={uniq:7.1f} validation_passed={val} holdout_passed={hold} avg={t:.1f}s")
+        if args.mode == "time":
+            uniq = sum(g["unique_expression_total"] for g in rows)
+            val = sum(g["validation_passed"] for g in rows)
+            t = sum(g["actual_elapsed_s"] for g in rows)
+            mem = max(g["peak_rss_mb"] for g in rows)
+            reps = sum(g["repetitions"] for g in rows)
+            print(f"[{group:8s}] unique_total={uniq:6d} ({t:.0f}s, {reps} reps) "
+                  f"validation_passed={val} peak_rss={mem}MB")
+        else:
+            uniq = sum(g["funnel"]["unique_expression"] or 0 for g in rows) / len(rows)
+            val = sum(g["validation_passed"] for g in rows)
+            hold = sum(g["holdout_passed"] for g in rows)
+            t = sum(g["elapsed_s"] for g in rows) / len(rows)
+            mem = max(g["peak_rss_mb"] for g in rows)
+            print(f"[{group:8s}] unique/cand={uniq:7.1f} validation_passed={val} "
+                  f"holdout_passed={hold} avg={t:.1f}s peak_rss={mem}MB")
     print(f"determinism: {results['determinism_check']}")
     print(f"output: {out}")
 
