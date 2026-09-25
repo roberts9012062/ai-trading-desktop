@@ -1,0 +1,1449 @@
+/**
+ * registry-data —— factor registry v3 生成数据(勿手改)。
+ *
+ * 来源: schemas/factor-registry-v3.json;生成器: scripts/gen-factor-registry.mjs
+ * registryHash 与 public/pykernel/factor_lab/registry_data.py 内嵌值必须一致
+ * (verify-expression-v3.py 校验)。
+ */
+
+export const REGISTRY_VERSION = "factor-registry-v3-2026-09-26.1"
+export const REGISTRY_HASH = "c290514fd8dce9db42869f8b1b4b600604e0fd6501a2d308b81611357f2fb888"
+
+export interface RegistryParam {
+  name: string
+  type: "int"
+  enum: number[]
+  required?: boolean
+  default?: number
+}
+
+export interface RegistryFeature {
+  name: string
+  canonicalId: number
+  outputType: "signed_signal" | "positive_scale" | "bounded_weight"
+  requiredFields: string[]
+  lookbackBars: number
+  params: RegistryParam[]
+  description: string
+}
+
+export interface RegistryOperator {
+  name: string
+  arity: 1 | 2
+  outputType: "signed_signal" | "positive_scale" | "bounded_weight"
+  params: RegistryParam[]
+  /** lookback 表达式:"0" | "<param>" | "<param>-1"(registry 求值) */
+  lookbackExpr: string
+  cpu: boolean
+  gpu: boolean
+  description: string
+}
+
+export const LIMITS = {
+ "maxDepth": 6,
+ "maxNodes": 32,
+ "maxCumulativeLookback": 250,
+ "maxTokensDisplay": 48,
+ "windowPresetsIntradayHours": [
+  1,
+  4,
+  12,
+  24,
+  72,
+  168
+ ],
+ "windowPresetsDailyBars": [
+  2,
+  5,
+  10,
+  20,
+  60
+ ]
+} as const
+
+export const OUTPUT_MAPPINGS = ["preserve_signed_bounded","rolling_zscore"] as const
+
+export const FEATURES: readonly RegistryFeature[] = [
+ {
+  "name": "ret",
+  "canonicalId": 0,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [
+   {
+    "name": "lagBars",
+    "type": "int",
+    "enum": [
+     1
+    ],
+    "default": 1
+   }
+  ],
+  "description": "v2 canonical feature id 0"
+ },
+ {
+  "name": "ret5",
+  "canonicalId": 1,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 1"
+ },
+ {
+  "name": "ret20",
+  "canonicalId": 2,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 2"
+ },
+ {
+  "name": "ma_diff",
+  "canonicalId": 3,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 3"
+ },
+ {
+  "name": "slope20",
+  "canonicalId": 4,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 4"
+ },
+ {
+  "name": "atr14",
+  "canonicalId": 5,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 14,
+  "params": [],
+  "description": "v2 canonical feature id 5"
+ },
+ {
+  "name": "rvol",
+  "canonicalId": 6,
+  "outputType": "positive_scale",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 6"
+ },
+ {
+  "name": "hl_range",
+  "canonicalId": 7,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 7"
+ },
+ {
+  "name": "dev",
+  "canonicalId": 8,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 8"
+ },
+ {
+  "name": "rsi14",
+  "canonicalId": 9,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 9"
+ },
+ {
+  "name": "ac1",
+  "canonicalId": 10,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 10"
+ },
+ {
+  "name": "vol_ratio",
+  "canonicalId": 11,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 11"
+ },
+ {
+  "name": "vol_z",
+  "canonicalId": 12,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 12"
+ },
+ {
+  "name": "pv_corr",
+  "canonicalId": 13,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 13"
+ },
+ {
+  "name": "oi_chg",
+  "canonicalId": 14,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 14"
+ },
+ {
+  "name": "oi_pv",
+  "canonicalId": 15,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "open_interest",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 15"
+ },
+ {
+  "name": "vol_oi",
+  "canonicalId": 16,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "open_interest",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 16"
+ },
+ {
+  "name": "tod",
+  "canonicalId": 17,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "open_interest",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 17"
+ },
+ {
+  "name": "night",
+  "canonicalId": 18,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 18"
+ },
+ {
+  "name": "gap",
+  "canonicalId": 19,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 19"
+ },
+ {
+  "name": "close_pos",
+  "canonicalId": 20,
+  "outputType": "positive_scale",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 20"
+ },
+ {
+  "name": "upper_shadow",
+  "canonicalId": 21,
+  "outputType": "positive_scale",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 21"
+ },
+ {
+  "name": "lower_shadow",
+  "canonicalId": 22,
+  "outputType": "positive_scale",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 22"
+ },
+ {
+  "name": "body",
+  "canonicalId": 23,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 23"
+ },
+ {
+  "name": "ret60",
+  "canonicalId": 24,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 60,
+  "params": [],
+  "description": "v2 canonical feature id 24"
+ },
+ {
+  "name": "ma_diff60",
+  "canonicalId": 25,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 60,
+  "params": [],
+  "description": "v2 canonical feature id 25"
+ },
+ {
+  "name": "volat_ratio",
+  "canonicalId": 26,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 60,
+  "params": [],
+  "description": "v2 canonical feature id 26"
+ },
+ {
+  "name": "oi_pc",
+  "canonicalId": 27,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "open_interest",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 27"
+ },
+ {
+  "name": "oi_chg5",
+  "canonicalId": 28,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "open_interest",
+   "volume"
+  ],
+  "lookbackBars": 5,
+  "params": [],
+  "description": "v2 canonical feature id 28"
+ },
+ {
+  "name": "oi_chg20",
+  "canonicalId": 29,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "open_interest",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 29"
+ },
+ {
+  "name": "vol_oi_ma",
+  "canonicalId": 30,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "open_interest",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 30"
+ },
+ {
+  "name": "skew20",
+  "canonicalId": 31,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 31"
+ },
+ {
+  "name": "kurt20",
+  "canonicalId": 32,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 32"
+ },
+ {
+  "name": "dow",
+  "canonicalId": 33,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 33"
+ },
+ {
+  "name": "dom",
+  "canonicalId": 34,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 34"
+ },
+ {
+  "name": "strength",
+  "canonicalId": 35,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 14,
+  "params": [],
+  "description": "v2 canonical feature id 35"
+ },
+ {
+  "name": "streak",
+  "canonicalId": 36,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 12,
+  "params": [],
+  "description": "v2 canonical feature id 36"
+ },
+ {
+  "name": "vwap_dev",
+  "canonicalId": 37,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 37"
+ },
+ {
+  "name": "updown_vol_ratio",
+  "canonicalId": 38,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 38"
+ },
+ {
+  "name": "chan_pos",
+  "canonicalId": 39,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 39"
+ },
+ {
+  "name": "utc_hour_sin",
+  "canonicalId": 40,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 40"
+ },
+ {
+  "name": "utc_hour_cos",
+  "canonicalId": 41,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 41"
+ },
+ {
+  "name": "utc_week_sin",
+  "canonicalId": 42,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 42"
+ },
+ {
+  "name": "utc_week_cos",
+  "canonicalId": 43,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 43"
+ },
+ {
+  "name": "utc_weekend",
+  "canonicalId": 44,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 0,
+  "params": [],
+  "description": "v2 canonical feature id 44"
+ },
+ {
+  "name": "crypto_mom6",
+  "canonicalId": 45,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close"
+  ],
+  "lookbackBars": 6,
+  "params": [],
+  "description": "v2 canonical feature id 45"
+ },
+ {
+  "name": "crypto_mom24",
+  "canonicalId": 46,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close"
+  ],
+  "lookbackBars": 24,
+  "params": [],
+  "description": "v2 canonical feature id 46"
+ },
+ {
+  "name": "crypto_vol20",
+  "canonicalId": 47,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 47"
+ },
+ {
+  "name": "crypto_illiq20",
+  "canonicalId": 48,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 48"
+ },
+ {
+  "name": "crypto_flow20",
+  "canonicalId": 49,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 49"
+ },
+ {
+  "name": "crypto_tail20",
+  "canonicalId": 50,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 50"
+ },
+ {
+  "name": "crypto_range_pos20",
+  "canonicalId": 51,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "high",
+   "low",
+   "open",
+   "volume"
+  ],
+  "lookbackBars": 20,
+  "params": [],
+  "description": "v2 canonical feature id 51"
+ },
+ {
+  "name": "funding_rate",
+  "canonicalId": 52,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "funding_rate"
+  ],
+  "lookbackBars": 200,
+  "params": [],
+  "description": "v2 canonical feature id 52"
+ },
+ {
+  "name": "funding_delta",
+  "canonicalId": 53,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "funding_rate"
+  ],
+  "lookbackBars": 200,
+  "params": [],
+  "description": "v2 canonical feature id 53"
+ },
+ {
+  "name": "taker_imbalance",
+  "canonicalId": 54,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "taker_buy_volume",
+   "taker_imbalance",
+   "volume"
+  ],
+  "lookbackBars": 200,
+  "params": [],
+  "description": "v2 canonical feature id 54"
+ },
+ {
+  "name": "quote_illiq20",
+  "canonicalId": 55,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "close",
+   "quote_volume"
+  ],
+  "lookbackBars": 220,
+  "params": [],
+  "description": "v2 canonical feature id 55"
+ },
+ {
+  "name": "account_ls_ratio",
+  "canonicalId": 56,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "long_short_ratio"
+  ],
+  "lookbackBars": 200,
+  "params": [],
+  "description": "v2 canonical feature id 56"
+ },
+ {
+  "name": "liquidation_imbalance",
+  "canonicalId": 57,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "liquidation_imbalance"
+  ],
+  "lookbackBars": 200,
+  "params": [],
+  "description": "v2 canonical feature id 57"
+ },
+ {
+  "name": "avg_trade_quote",
+  "canonicalId": 58,
+  "outputType": "signed_signal",
+  "requiredFields": [
+   "quote_volume",
+   "trade_count"
+  ],
+  "lookbackBars": 220,
+  "params": [],
+  "description": "v2 canonical feature id 58"
+ }
+]
+
+export const OPERATORS: readonly RegistryOperator[] = [
+ {
+  "name": "add",
+  "arity": 2,
+  "outputType": "signed_signal",
+  "params": [],
+  "lookbackExpr": "0",
+  "cpu": true,
+  "gpu": true,
+  "description": "a + b"
+ },
+ {
+  "name": "sub",
+  "arity": 2,
+  "outputType": "signed_signal",
+  "params": [],
+  "lookbackExpr": "0",
+  "cpu": true,
+  "gpu": true,
+  "description": "a - b"
+ },
+ {
+  "name": "mul",
+  "arity": 2,
+  "outputType": "signed_signal",
+  "params": [],
+  "lookbackExpr": "0",
+  "cpu": true,
+  "gpu": true,
+  "description": "a × b"
+ },
+ {
+  "name": "div",
+  "arity": 2,
+  "outputType": "signed_signal",
+  "params": [],
+  "lookbackExpr": "0",
+  "cpu": true,
+  "gpu": true,
+  "description": "受保护除法(分母饱和)"
+ },
+ {
+  "name": "min",
+  "arity": 2,
+  "outputType": "signed_signal",
+  "params": [],
+  "lookbackExpr": "0",
+  "cpu": true,
+  "gpu": true,
+  "description": "逐点取小"
+ },
+ {
+  "name": "max",
+  "arity": 2,
+  "outputType": "signed_signal",
+  "params": [],
+  "lookbackExpr": "0",
+  "cpu": true,
+  "gpu": true,
+  "description": "逐点取大"
+ },
+ {
+  "name": "abs",
+  "arity": 1,
+  "outputType": "positive_scale",
+  "params": [],
+  "lookbackExpr": "0",
+  "cpu": true,
+  "gpu": true,
+  "description": "绝对值(恒正)"
+ },
+ {
+  "name": "neg",
+  "arity": 1,
+  "outputType": "signed_signal",
+  "params": [],
+  "lookbackExpr": "0",
+  "cpu": true,
+  "gpu": true,
+  "description": "取反"
+ },
+ {
+  "name": "sign",
+  "arity": 1,
+  "outputType": "signed_signal",
+  "params": [],
+  "lookbackExpr": "0",
+  "cpu": true,
+  "gpu": true,
+  "description": "符号"
+ },
+ {
+  "name": "sqrt",
+  "arity": 1,
+  "outputType": "signed_signal",
+  "params": [],
+  "lookbackExpr": "0",
+  "cpu": true,
+  "gpu": true,
+  "description": "保留符号开方"
+ },
+ {
+  "name": "signed_log",
+  "arity": 1,
+  "outputType": "signed_signal",
+  "params": [],
+  "lookbackExpr": "0",
+  "cpu": true,
+  "gpu": true,
+  "description": "sign(x)·log(1+|x|)"
+ },
+ {
+  "name": "sigmoid",
+  "arity": 1,
+  "outputType": "bounded_weight",
+  "params": [],
+  "lookbackExpr": "0",
+  "cpu": true,
+  "gpu": true,
+  "description": "映射到 (-1,1)"
+ },
+ {
+  "name": "tanh",
+  "arity": 1,
+  "outputType": "bounded_weight",
+  "params": [],
+  "lookbackExpr": "0",
+  "cpu": true,
+  "gpu": true,
+  "description": "压缩"
+ },
+ {
+  "name": "step",
+  "arity": 1,
+  "outputType": "positive_scale",
+  "params": [],
+  "lookbackExpr": "0",
+  "cpu": true,
+  "gpu": true,
+  "description": "阶跃 x>0→1"
+ },
+ {
+  "name": "atr_norm",
+  "arity": 1,
+  "outputType": "signed_signal",
+  "params": [],
+  "lookbackExpr": "0",
+  "cpu": true,
+  "gpu": true,
+  "description": "波动对数"
+ },
+ {
+  "name": "ts_mean",
+  "arity": 1,
+  "outputType": "signed_signal",
+  "params": [
+   {
+    "name": "windowBars",
+    "type": "int",
+    "enum": [
+     2,
+     4,
+     5,
+     10,
+     12,
+     20,
+     24,
+     60,
+     72,
+     168
+    ],
+    "required": true
+   }
+  ],
+  "lookbackExpr": "windowBars-1",
+  "cpu": true,
+  "gpu": true,
+  "description": "因果滚动均值"
+ },
+ {
+  "name": "ts_std",
+  "arity": 1,
+  "outputType": "signed_signal",
+  "params": [
+   {
+    "name": "windowBars",
+    "type": "int",
+    "enum": [
+     2,
+     4,
+     5,
+     10,
+     12,
+     20,
+     24,
+     60,
+     72,
+     168
+    ],
+    "required": true
+   }
+  ],
+  "lookbackExpr": "windowBars-1",
+  "cpu": true,
+  "gpu": true,
+  "description": "因果滚动标准差"
+ },
+ {
+  "name": "ts_zscore",
+  "arity": 1,
+  "outputType": "signed_signal",
+  "params": [
+   {
+    "name": "windowBars",
+    "type": "int",
+    "enum": [
+     2,
+     4,
+     5,
+     10,
+     12,
+     20,
+     24,
+     60,
+     72,
+     168
+    ],
+    "required": true
+   }
+  ],
+  "lookbackExpr": "windowBars-1",
+  "cpu": true,
+  "gpu": true,
+  "description": "因果滚动 zscore"
+ },
+ {
+  "name": "ts_rank",
+  "arity": 1,
+  "outputType": "positive_scale",
+  "params": [
+   {
+    "name": "windowBars",
+    "type": "int",
+    "enum": [
+     2,
+     4,
+     5,
+     10,
+     12,
+     20,
+     24,
+     60,
+     72,
+     168
+    ],
+    "required": true
+   }
+  ],
+  "lookbackExpr": "windowBars-1",
+  "cpu": true,
+  "gpu": true,
+  "description": "滚动分位 (0,1]"
+ },
+ {
+  "name": "ts_crank",
+  "arity": 1,
+  "outputType": "signed_signal",
+  "params": [
+   {
+    "name": "windowBars",
+    "type": "int",
+    "enum": [
+     20,
+     60
+    ],
+    "required": true
+   }
+  ],
+  "lookbackExpr": "windowBars-1",
+  "cpu": true,
+  "gpu": true,
+  "description": "居中中秩 [-1,1]"
+ },
+ {
+  "name": "ts_max",
+  "arity": 1,
+  "outputType": "positive_scale",
+  "params": [
+   {
+    "name": "windowBars",
+    "type": "int",
+    "enum": [
+     10,
+     20,
+     60
+    ],
+    "required": true
+   }
+  ],
+  "lookbackExpr": "windowBars-1",
+  "cpu": true,
+  "gpu": true,
+  "description": "滚动最高"
+ },
+ {
+  "name": "ts_min",
+  "arity": 1,
+  "outputType": "positive_scale",
+  "params": [
+   {
+    "name": "windowBars",
+    "type": "int",
+    "enum": [
+     10,
+     20,
+     60
+    ],
+    "required": true
+   }
+  ],
+  "lookbackExpr": "windowBars-1",
+  "cpu": true,
+  "gpu": true,
+  "description": "滚动最低"
+ },
+ {
+  "name": "demean",
+  "arity": 1,
+  "outputType": "signed_signal",
+  "params": [
+   {
+    "name": "windowBars",
+    "type": "int",
+    "enum": [
+     20,
+     60
+    ],
+    "required": true
+   }
+  ],
+  "lookbackExpr": "windowBars-1",
+  "cpu": true,
+  "gpu": true,
+  "description": "x - 滚动均值"
+ },
+ {
+  "name": "delta",
+  "arity": 1,
+  "outputType": "signed_signal",
+  "params": [
+   {
+    "name": "nBars",
+    "type": "int",
+    "enum": [
+     1,
+     5
+    ],
+    "required": true
+   }
+  ],
+  "lookbackExpr": "nBars",
+  "cpu": true,
+  "gpu": true,
+  "description": "n 阶差分"
+ },
+ {
+  "name": "lag",
+  "arity": 1,
+  "outputType": "signed_signal",
+  "params": [
+   {
+    "name": "nBars",
+    "type": "int",
+    "enum": [
+     1,
+     5
+    ],
+    "required": true
+   }
+  ],
+  "lookbackExpr": "nBars",
+  "cpu": true,
+  "gpu": true,
+  "description": "滞后 n 根"
+ },
+ {
+  "name": "decay_linear",
+  "arity": 1,
+  "outputType": "signed_signal",
+  "params": [
+   {
+    "name": "windowBars",
+    "type": "int",
+    "enum": [
+     10,
+     20,
+     60
+    ],
+    "required": true
+   }
+  ],
+  "lookbackExpr": "windowBars-1",
+  "cpu": true,
+  "gpu": true,
+  "description": "线性衰减加权"
+ },
+ {
+  "name": "ema",
+  "arity": 1,
+  "outputType": "signed_signal",
+  "params": [
+   {
+    "name": "windowBars",
+    "type": "int",
+    "enum": [
+     5,
+     20
+    ],
+    "required": true
+   }
+  ],
+  "lookbackExpr": "windowBars-1",
+  "cpu": true,
+  "gpu": false,
+  "description": "指数平滑(WGSL 串行递推不支持,首版 CPU)"
+ },
+ {
+  "name": "robust_zscore",
+  "arity": 1,
+  "outputType": "signed_signal",
+  "params": [
+   {
+    "name": "windowBars",
+    "type": "int",
+    "enum": [
+     20
+    ],
+    "required": true
+   }
+  ],
+  "lookbackExpr": "windowBars-1",
+  "cpu": true,
+  "gpu": false,
+  "description": "中位数/MAD 稳健 zscore(排序类,首版 CPU)"
+ },
+ {
+  "name": "winsor",
+  "arity": 1,
+  "outputType": "signed_signal",
+  "params": [
+   {
+    "name": "windowBars",
+    "type": "int",
+    "enum": [
+     20
+    ],
+    "required": true
+   }
+  ],
+  "lookbackExpr": "windowBars-1",
+  "cpu": true,
+  "gpu": false,
+  "description": "过去窗口分位缩尾(阈值截至 t-1,首版 CPU)"
+ },
+ {
+  "name": "ts_corr",
+  "arity": 2,
+  "outputType": "signed_signal",
+  "params": [
+   {
+    "name": "windowBars",
+    "type": "int",
+    "enum": [
+     20,
+     60
+    ],
+    "required": true
+   }
+  ],
+  "lookbackExpr": "windowBars-1",
+  "cpu": true,
+  "gpu": true,
+  "description": "因果滚动相关"
+ },
+ {
+  "name": "ts_beta",
+  "arity": 2,
+  "outputType": "signed_signal",
+  "params": [
+   {
+    "name": "windowBars",
+    "type": "int",
+    "enum": [
+     20,
+     60
+    ],
+    "required": true
+   }
+  ],
+  "lookbackExpr": "windowBars-1",
+  "cpu": true,
+  "gpu": true,
+  "description": "因果滚动回归 beta"
+ },
+ {
+  "name": "resid",
+  "arity": 2,
+  "outputType": "signed_signal",
+  "params": [
+   {
+    "name": "windowBars",
+    "type": "int",
+    "enum": [
+     20,
+     60
+    ],
+    "required": true
+   }
+  ],
+  "lookbackExpr": "windowBars-1",
+  "cpu": true,
+  "gpu": true,
+  "description": "因果滚动回归残差"
+ }
+]

@@ -84,6 +84,46 @@ Python: 3.10.9 (CPython 本地跑回归;Pyodide 路径由 vitest + verify-gpu-se
 **success**(12m46s),Release v0.2.23 产物齐全。最终回归: 13 个 verify
 脚本 + vitest 160(22 files) + typecheck + build 全绿。
 
+### B10 任务 6 §9.2 v3 表达式与参数化算子 2026-09-26
+
+新增:
+- `schemas/factor-registry-v3.json` —— 注册表静态元数据唯一来源:59 特征
+  (canonicalId=v2 id,requiredFields/lookback)+ 32 参数化算子(初等 +
+  滚动族带 windowBars 枚举;窗口并集含物理时长预置 4/12/24/72/168 bars,
+  突破 v2 固定窗口容量)+ 限额(深度 6/节点 32/累计 lookback 250)+ 输出
+  映射(rolling_zscore|preserve_signed_bounded);
+- `scripts/gen-factor-registry.mjs` —— 双端代码gen:registry_data.py +
+  registry-data.ts,同 registryHash(canonical SHA-256);`--check` 校验
+  无漂移(CI/verify 内置);
+- `factor_lab/registry.py` —— 白名单/有界参数/深度/节点/累计 lookback
+  (串联累加并联取最大)/required_fields/gpu_supported(v3 首版一律 CPU,
+  WGSL instruction buffer 未上线);
+- `factor_lab/expression_v3.py` —— 解析/规范化/canonical 序列化/哈希
+  (同文本异窗异哈希)/文本渲染/物理时长→bars 编译(不足 2 根显式拒绝,
+  不钳位变义)/CPU 执行(复用 ops.py,单一实现源)/to_v2_equivalent
+  (可映射公式给出 v2 tokens 供黄金对拍;不可映射返回 None 不伪造);
+- `src/lib/mining/expression-v3.ts` —— TS 镜像(校验/规范化/哈希/文本,
+  Web Crypto 异步哈希);
+- `scripts/verify-expression-v3.py`(16 tests)+ `expression-v3.test.ts`
+  (6 tests,含跨语言哈希黄金对拍 6193582e/7e766743)。
+
+修改: factor_local.run_backtest_factor 接受 factor_v3(显式版本,非法式/
+未知版本/数据字段缺失给明确报错,不回落 v2);v3 结果标 local_only+
+research_only(既有 factor-access 门禁拦截服务端挂载,空 tokens 不绕过)。
+内核版本 → 2026-09-25.5(三处同步)。
+
+验收对齐(方案 §9.2):v2 黄金公式不变(完整管线独立重推导对拍)✓;
+v3↔v2 等价公式逐位一致(10 组含 robust_zscore/winsor/corr/crank)✓;
+扩容窗口(4/12/24/72/168)可执行且无 v2 等价 ✓;序列化往返幂等 ✓;
+同文本异窗异哈希 ✓;缺字段/枚举外/深度超限/未知版本全部拒绝 ✓;
+未知版本不执行 ✓;注册表 py/ts 同 hash 且 gen --check 无漂移 ✓。
+
+未含(后续):GPU v3 instruction buffer(能力协商先全走 CPU);基于 v3 的
+GP 搜索(registry 感知变异,当前 v3 经 backtest/模板入口使用);v3 收藏/
+历史 UI(权限门禁已就位,UI 展示后续批次)。
+
+测试: 14 verify 脚本 + vitest 166(23 files)+ typecheck + build 全绿。
+
 ## 关键决策记录
 
 - 旧 profile(crypto_ohlcv_v1)行为保持逐位不变;新能力挂 crypto_local_v2 显式版本,未知版本拒绝执行。

@@ -298,6 +298,7 @@ def run_backtest_factor(payload: dict, bars: list) -> str:
     symbol = str(payload.get("symbol") or "")
     timeframe = str(payload.get("timeframe") or "1d")
     tokens = payload.get("factor_tokens") or []
+    expr_v3 = payload.get("factor_v3")
     initial_cash = float(payload.get("initial_cash") or 100000.0)
     cost_input = payload.get("cost")
     wf_folds = int(payload.get("walk_forward_folds") or 0)
@@ -306,7 +307,38 @@ def run_backtest_factor(payload: dict, bars: list) -> str:
     mat = feature_matrix(bars)
     from factor_lab.market import is_v2
 
-    if is_v2(bars):
+    v3_meta: dict | None = None
+    if expr_v3 is not None:
+        # v3 表达式回测(任务 6 §9.2):显式版本;非法式/未知版本给明确
+        # 报错,不静默回落 v2。v3 一律 local_only+research_only(服务端无
+        # v3 执行器,经 metrics 标记被既有门禁拦截)。
+        from factor_lab.expression_v3 import (
+            execute_v3_strict,
+            expression_hash,
+            to_text,
+        )
+        from factor_lab.registry import RegistryError, required_fields
+
+        missing = sorted(
+            f for f in required_fields(expr_v3)
+            if f not in ("open", "high", "low", "close", "volume")
+            and not any(b.get(f) is not None for b in bars[: max(len(bars) // 10, 10)])
+        )
+        if missing:
+            return json.dumps(
+                {"error": f"v3 公式依赖的数据字段缺失: {missing};请换区间或公式"},
+                ensure_ascii=False,
+            )
+        try:
+            factor = execute_v3_strict(expr_v3, mat, norm_window)
+        except RegistryError as e:
+            return json.dumps({"error": str(e)}, ensure_ascii=False)
+        v3_meta = {
+            "expression_version": 3,
+            "expression_hash": expression_hash(expr_v3),
+            "expression_text": to_text(expr_v3),
+        }
+    elif is_v2(bars):
         # v2:归一化窗口由研究契约持有(前缀不变推导),不取 legacy 默认 250
         factor = execute_for_bars(tokens, mat, bars)
     else:
@@ -372,6 +404,10 @@ def run_backtest_factor(payload: dict, bars: list) -> str:
         "live_metrics": _round_metrics(live_metrics),
         "equity_curve": curve,
     }
+    if v3_meta is not None:
+        # v3 门禁:服务端无 v3 执行器 → local_only;研究数据依赖 → research_only
+        result.update(v3_meta)
+        result["metrics"] = {**result["metrics"], "local_only": True, "research_only": True}
     if wf_detail is not None:
         result["walk_forward"] = {
             "folds": wf_detail["folds"],
@@ -546,6 +582,9 @@ def kernel_version() -> str:
     # 加密币口径(2026-09-25.1):加密 specs(multiplier=1/taker 万5/按币 tick)、
     # 符号别名归一(各所原生写法)、未知加密币显式报错、cost 省略与 null
     # 同路径自动推导(run_search/mine_start/shard/precise 四处)。
+    # 2026-09-25.5: v3 表达式(显式 AST/注册表/参数化窗口,CPU 首版;
+    # backtest_factor 接 factor_v3,local_only+research_only 门禁)。
+    # v2 token 路径逐位不变(黄金对拍覆盖)。
     # 2026-09-25.4: crypto_local_v2 研究契约(60/20/20 显式切分/前缀不变
     # 归一化/缺失掩码/样本充分性门/封存一次性揭示)+ funding 事件现金流
     # + perp_next_open 执行口径 + robust_zscore/winsor 算子(append-only,
@@ -553,7 +592,7 @@ def kernel_version() -> str:
     # 与空 profile)路径行为不变;v2 结果按本戳区分。
     # 更早:批次三口径变更(P0-2 因果归一化;P1-7 warmup 切片与
     # MIN_TEST_BARS=120);同因子在新旧内核下指标不同,历史/收藏按此戳区分
-    return "pykernel-factor-2026-09-25.4"
+    return "pykernel-factor-2026-09-25.5"
 
 
 # ── 分代步进挖掘会话(本地长程任务 M3) ─────────────────────────

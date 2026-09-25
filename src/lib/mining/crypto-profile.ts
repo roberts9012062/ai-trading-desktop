@@ -1,5 +1,5 @@
 /** Shared by both local mining entry points; saved with each new task. */
-export const LOCAL_MINING_KERNEL_VERSION = "pykernel-factor-2026-09-25.4"
+export const LOCAL_MINING_KERNEL_VERSION = "pykernel-factor-2026-09-25.5"
 export const CRYPTO_RESEARCH_PROFILE = "crypto_ohlcv_v1"
 export function isCryptoSymbol(symbol: string): boolean {
   const normalized = symbol.trim().toUpperCase().split(":")[0]
