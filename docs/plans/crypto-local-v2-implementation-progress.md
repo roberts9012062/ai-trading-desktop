@@ -108,5 +108,9 @@ MiningConfig/LocalFactorPayload 增 research_profile/execution_model/label_span;
 - [x] 相关测试与构建通过:12 个 verify 脚本 + vitest 156 passed + typecheck + vite build
 - [x] 发现的可修复 BUG 已处理(6 处,见各批日志)
 - [x] 实验与兼容结果有可复现记录(RESULTS.md + benchmark JSON + 进度文档)
-- [ ] GitHub 提交和构建状态(进行中,见下)
+- [x] GitHub 提交与构建: feat f9de5c2 + release a64f0cf(tag v0.2.22)已推送;
+      Actions run 36162897934 **success**(15m43s),Release v0.2.22 已发布
+      (setup.exe + .sig + latest.json):
+      https://github.com/roberts9012062/ai-trading-desktop/actions/runs/36162897934
+      https://github.com/roberts9012062/ai-trading-desktop/releases/tag/v0.2.22
 - [x] 受外部条件限制的事项已明确列出
