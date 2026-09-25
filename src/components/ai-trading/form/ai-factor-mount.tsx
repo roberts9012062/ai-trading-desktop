@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react"
 import { Label } from "@/components/ui/label"
+import { serverFactorBlockReason } from "@/lib/factor-access"
 import {
   listFactorFavorites,
   type FactorFavoriteItem,
@@ -78,14 +79,16 @@ export function AiFactorMount({
               value={selected?.id ?? ""}
               onChange={(e) => {
                 const it = favs.find((f) => f.id === e.target.value)
+                if (it && serverFactorBlockReason(it.tokens, it.metrics)) return
                 onChange(it ? it.tokens : [])
               }}
               className="w-full h-8 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] text-xs px-2"
             >
               <option value="">请选择…</option>
               {favs.map((f) => (
-                <option key={f.id} value={f.id}>
+                <option key={f.id} value={f.id} disabled={!!serverFactorBlockReason(f.tokens, f.metrics)}>
                   {f.name}
+                  {serverFactorBlockReason(f.tokens, f.metrics) ? "（不支持此处挂载）" : ""}
                   {f.symbol ? ` · ${f.symbol}` : ""}
                   {f.composite != null ? ` · ${f.composite.toFixed(2)}` : ""}
                 </option>
@@ -96,6 +99,9 @@ export function AiFactorMount({
             <div className="text-[10px] text-[var(--text-muted)] font-num break-all">
               {selected.text}
             </div>
+          )}
+          {selected && serverFactorBlockReason(selected.tokens, selected.metrics) && (
+            <p role="alert" className="text-[11px] text-amber-500">{serverFactorBlockReason(selected.tokens, selected.metrics)}，请重新选择或取消挂载。</p>
           )}
         </div>
       )}

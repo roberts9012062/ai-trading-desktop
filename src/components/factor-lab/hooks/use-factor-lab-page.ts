@@ -1,5 +1,7 @@
 "use client"
 
+import { isResearchOnlyFactor, RESEARCH_FACTOR_MESSAGE } from "@/lib/factor-access"
+
 /**
  * 因子实验室页面状态与操作
  */
@@ -418,7 +420,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
 
   async function handleBuildTask(): Promise<void> {
     if (!selected || !lastReq) return
-    if (selected.metrics?.research_only || selected.tokens.some((t) => t >= 52 && t < 64)) {
+    if (isResearchOnlyFactor(selected.tokens, selected.metrics)) {
       setError("该因子依赖新增直连历史数据，实盘行情尚未提供同源输入，暂仅支持本地研究")
       return
     }
@@ -461,7 +463,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
       setError("组合需勾选 2-5 个因子")
       return
     }
-    if (chosen.some((c) => c.metrics.research_only || c.tokens.some((t) => t >= 52 && t < 64))) {
+    if (chosen.some((c) => isResearchOnlyFactor(c.tokens, c.metrics))) {
       setError("组合含直连历史数据因子，暂仅支持本地研究")
       return
     }
@@ -498,8 +500,8 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     item: FavoriteInput,
     opts?: { name?: string; folderId?: string | null },
   ): Promise<void> {
-    if (item.metrics?.research_only) {
-      setError("该因子依赖本地直连历史数据，暂不支持同步到实盘收藏")
+    if (isResearchOnlyFactor(item.tokens, item.metrics)) {
+      setError(RESEARCH_FACTOR_MESSAGE)
       return
     }
     if (item.metrics?.overfit_warning) {
@@ -512,10 +514,6 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     }
     if (item.metrics?.stale_kernel) {
       setError("该记录为旧内核口径产出，请重新回测确认后再收藏")
-      return
-    }
-    if (isLocalOnly(item.tokens, item.metrics)) {
-      setError("该公式含本地专属特征，仅本机可执行，不支持收藏同步")
       return
     }
     // 默认名：品种中文名-年化收益:xx%

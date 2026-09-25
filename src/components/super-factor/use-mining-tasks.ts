@@ -22,9 +22,8 @@ import type {
 } from "@/lib/mining/types"
 import type { Champion } from "@/lib/factor-lab-api"
 
-// 仅本地 runner(服务端引擎已下线;createRunner 返回单例,模块级数组保证引用稳定,
-// 避免 useEffect 反复重订阅);列表按 updated_at 倒序合并展示
-const DEFAULT_RUNNERS: MiningRunner[] = [createRunner("local")]
+// 新任务仅本地创建；远端 runner 保留旧任务的查看、暂停、取消及删除。
+const DEFAULT_RUNNERS: MiningRunner[] = [createRunner("local"), createRunner("remote")]
 
 function sortKey(t: MiningTask): string {
   return t.updated_at ?? t.created_at ?? ""
@@ -113,14 +112,18 @@ export function useMiningTasks(runners: MiningRunner[] = DEFAULT_RUNNERS) {
 
   /** 按 origin 路由到归属 runner */
   const runnerFor = useCallback(
-    (origin: RunnerKind): MiningRunner =>
-      runners.find((r) => r.kind === origin) ?? runners[0],
+    (origin: RunnerKind): MiningRunner => {
+      const runner = runners.find((r) => r.kind === origin)
+      if (!runner) throw new Error(`未找到 ${origin} 任务引擎`)
+      return runner
+    },
     [runners],
   )
   const runnerForId = useCallback(
     (id: string): MiningRunner => {
       const t = tasksRef.current.find((x) => x.id === id)
-      return runnerFor(t?.origin ?? runners[0].kind)
+      if (!t) throw new Error("任务不存在，请刷新列表后重试")
+      return runnerFor(t.origin)
     },
     [runners, runnerFor],
   )
@@ -135,6 +138,7 @@ export function useMiningTasks(runners: MiningRunner[] = DEFAULT_RUNNERS) {
       setError(null)
       setStartingPhase("提交创建请求…")
       try {
+        if (origin !== "local") throw new Error("服务端挖掘已下线，新任务仅支持本地计算")
         await runnerFor(origin).create(config, {
           ...opts,
           onProgress: setStartingPhase,
@@ -168,7 +172,9 @@ export function useMiningTasks(runners: MiningRunner[] = DEFAULT_RUNNERS) {
   const resumeTask = useCallback(
     async (id: string) => {
       try {
-        await runnerForId(id).resume(id)
+        const runner = runnerForId(id)
+        if (runner.kind !== "local") throw new Error("旧服务端任务仅支持查看、暂停、取消和删除")
+        await runner.resume(id)
         await refresh()
       } catch (e) {
         setError(e instanceof Error ? e.message : "恢复失败")

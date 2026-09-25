@@ -5,6 +5,7 @@
  * 左：配置表单 + 任务列表；右：选中任务的进度/冠军结果
  */
 
+import { isResearchOnlyFactor, RESEARCH_FACTOR_MESSAGE } from "@/lib/factor-access"
 import { CRYPTO_RESEARCH_NOTE } from "@/lib/mining/crypto-profile"
 import { useEffect, useState } from "react"
 import { Loader2, Pause, Play, Plus, Square, Trash2, X } from "lucide-react"
@@ -911,7 +912,7 @@ function TaskListPanel(props: TaskListProps): React.JSX.Element {
                   <Pause className="w-2.5 h-2.5" /> 暂停
                 </button>
               )}
-              {t.status === "paused" && (
+              {t.status === "paused" && t.origin === "local" && (
                 <button
                   type="button"
                   onClick={() => onResume(t.id)}
@@ -993,6 +994,10 @@ function TaskDetailPanel(props: DetailProps): React.JSX.Element {
   // 本地专属公式同样可收藏:服务端引擎已下线,全部任务本地执行,本机可回放
   async function handleFavorite(c: Champion): Promise<void> {
     if (!task) return
+    if (isResearchOnlyFactor(c.tokens, c.metrics)) {
+      await showAlert({ title: "仅支持研究", description: RESEARCH_FACTOR_MESSAGE })
+      return
+    }
     const key = c.tokens.join(",")
     // 本地立即置灰，避免重复点击
     setFavoritedKeys((prev) => new Set(prev).add(key))

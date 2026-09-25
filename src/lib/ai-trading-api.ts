@@ -1,4 +1,6 @@
 /** AI 交易 API 客户端 */
+import { listFactorFavorites } from "./factor-lab-api"
+import { serverFactorBlockReason } from "./factor-access"
 export type Timeframe = "1m" | "5m" | "15m" | "30m" | "60m" | "1d"
 export type SideMode = "long_only" | "short_only" | "both"
 export type PositionMode = "full" | "half" | "fixed_qty" | "scale_in" | "fixed_margin"
@@ -328,9 +330,30 @@ export async function fetchFundingSource(): Promise<FundingSourceInfo> {
   return request<FundingSourceInfo>("/api/ai-trading/funding-source")
 }
 
+/** Recheck persisted favorites at submission: UI filtering cannot protect old task snapshots. */
+async function validateAiFactorMount(params: CreateTaskPayload["strategy_params"], symbol: string): Promise<void> {
+  if (!params || !("factor_tokens" in params)) return
+  const tokens = params.factor_tokens
+  if (tokens == null) return
+  if (!Array.isArray(tokens) || !tokens.length || !tokens.every((t) => Number.isInteger(t) && t >= 0)) {
+    throw new Error("请选择有效收藏因子，或取消因子挂载")
+  }
+  const tokenError = serverFactorBlockReason(tokens)
+  if (tokenError) throw new Error(tokenError)
+  const favorites = await listFactorFavorites(symbol)
+  const matching = favorites.filter((f) => JSON.stringify(f.tokens) === JSON.stringify(tokens))
+  if (!matching.length) throw new Error("未找到该币种的收藏因子，请重新选择后提交")
+  if (matching.every((f) => serverFactorBlockReason(f.tokens, f.metrics))) {
+    throw new Error(serverFactorBlockReason(matching[0].tokens, matching[0].metrics)!)
+  }
+}
+
 export async function createAITradingTask(
   payload: CreateTaskPayload,
 ): Promise<AITradingTask> {
+  if (!payload.strategy_type || payload.strategy_type === "ai") {
+    await validateAiFactorMount(payload.strategy_params, payload.symbol)
+  }
   return request("/api/ai-trading/tasks", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -361,6 +384,12 @@ export async function updateAITradingTask(
   id: string,
   payload: UpdateTaskPayload,
 ): Promise<AITradingTask> {
+  if (payload.strategy_params && "factor_tokens" in payload.strategy_params) {
+    const current = await getAITradingTask(id)
+    if (!current.strategy_type || current.strategy_type === "ai") {
+      await validateAiFactorMount(payload.strategy_params, payload.symbol ?? current.symbol)
+    }
+  }
   return request(`/api/ai-trading/tasks/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),

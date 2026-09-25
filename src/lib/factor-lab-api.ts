@@ -1,3 +1,4 @@
+import { isResearchOnlyFactor, RESEARCH_FACTOR_MESSAGE } from "./factor-access"
 /** 因子实验室 API 客户端 */
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
@@ -403,6 +404,7 @@ export async function addFactorFavorite(payload: {
   note?: string
   folder_id?: string | null
 }): Promise<FactorFavoriteItem> {
+  if (isResearchOnlyFactor(payload.tokens, payload.metrics)) throw new Error(RESEARCH_FACTOR_MESSAGE)
   return request<FactorFavoriteItem>("/api/factor-lab/favorites", {
     method: "POST",
     body: JSON.stringify(payload),
