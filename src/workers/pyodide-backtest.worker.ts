@@ -21,7 +21,10 @@
 const ctx = self as unknown as Worker
 
 const PYODIDE_VERSION = "0.26.4"
-const CDN = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full`
+/** Pyodide 运行时(pyodide.mjs/asm.wasm/stdlib/numpy whl)已内置安装包
+ *  (public/pyodide/),冷加载零下载、秒级启动;此前运行时从 CDN 拉
+ *  ~22MB(Pyodide core + numpy),国内网速下 1-2 分钟起步且挤占计算超时。 */
+const PYODIDE_BASE = "/pyodide"
 
 function errText(err: unknown): string {
   let msg = ""
@@ -108,17 +111,24 @@ async function writeFiles(files: string[]): Promise<void> {
   }
 }
 
+/** 内核加载阶段上报(供 UI 显示启动进度;单向广播,无需应答) */
+function stage(message: string): void {
+  ctx.postMessage({ type: "stage", message })
+}
+
 async function loadKernel(): Promise<Kernel> {
-  const { loadPyodide } = (await import(`${CDN}/pyodide.mjs`)) as {
+  stage("初始化本地计算内核（组件已内置安装包，无需下载）…")
+  const { loadPyodide } = (await import(/* @vite-ignore */ `${PYODIDE_BASE}/pyodide.mjs`)) as {
     loadPyodide: (opts: unknown) => Promise<PyodideInterface>
   }
-  const pyodide = await loadPyodide({ indexURL: `${CDN}/` })
+  const pyodide = await loadPyodide({ indexURL: `${PYODIDE_BASE}/` })
   pyodideInstance = pyodide
 
   const manifest = (await (await fetch("/pykernel/kernel-files.json")).json()) as {
     files: string[]
     factorFiles: string[]
   }
+  stage("写入因子内核代码…")
   await writeFiles(manifest.files)
   pyodide.runPython("import sys; sys.path.insert(0, '/pykernel')")
   // import 语句本身不返回值,需以模块对象作为最后表达式取回
@@ -132,6 +142,7 @@ async function loadKernel(): Promise<Kernel> {
 async function loadFactorKernel(): Promise<FactorKernel> {
   await ensureKernel()
   const pyodide = pyodideInstance!
+  stage("加载 numpy 计算库（已内置，秒级）…")
   await pyodide.loadPackage("numpy")
   const manifest = (await (await fetch("/pykernel/kernel-files.json")).json()) as {
     factorFiles: string[]

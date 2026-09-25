@@ -1,5 +1,7 @@
 "use client"
 
+import { onKernelStage } from "@/lib/py-worker"
+
 /**
  * 超级因子挖掘 —— 任务列表 + 进度更新 hook(M2 起面向 MiningRunner 编程)
  *
@@ -49,10 +51,15 @@ export function useMiningTasks(runners: MiningRunner[] = DEFAULT_RUNNERS) {
   const [tasks, setTasks] = useState<MiningTask[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** 创建/启动阶段文案(拉K线→内核准备;任务真正跑起来后清空) */
+  const [startingPhase, setStartingPhase] = useState<string | null>(null)
   const tasksRef = useRef<MiningTask[]>([])
   useEffect(() => {
     tasksRef.current = tasks
   }, [tasks])
+
+  // worker 内核加载阶段(初始化/numpy/写入内核文件)实时透传到启动显示
+  useEffect(() => onKernelStage(setStartingPhase), [])
 
   const refresh = useCallback(async () => {
     let firstErr: string | null = null
@@ -126,14 +133,21 @@ export function useMiningTasks(runners: MiningRunner[] = DEFAULT_RUNNERS) {
     ): Promise<void> => {
       setLoading(true)
       setError(null)
+      setStartingPhase("提交创建请求…")
       try {
-        await runnerFor(origin).create(config, opts)
+        await runnerFor(origin).create(config, {
+          ...opts,
+          onProgress: setStartingPhase,
+        })
+        setStartingPhase("等待本地引擎启动…")
         await refresh()
       } catch (e) {
         setError(e instanceof Error ? e.message : "创建任务失败")
         throw e
       } finally {
         setLoading(false)
+        // 阶段文案延迟清空:给"内核加载"广播留出时间,任务 running 后自然接管
+        setTimeout(() => setStartingPhase(null), 60_000)
       }
     },
     [runners, refresh, runnerFor],
@@ -191,6 +205,7 @@ export function useMiningTasks(runners: MiningRunner[] = DEFAULT_RUNNERS) {
     tasks,
     loading,
     error,
+    startingPhase,
     refresh,
     createTask,
     pauseTask,

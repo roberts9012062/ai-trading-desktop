@@ -89,6 +89,7 @@ export function SuperFactorPage(): React.JSX.Element {
     resumeTask,
     cancelTask,
     removeTask,
+    startingPhase,
   } = useMiningTasks()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [supported, setSupported] = useState<SupportedInfo | null>(null)
@@ -159,6 +160,7 @@ export function SuperFactorPage(): React.JSX.Element {
           <MiningConfigForm
             supported={supported}
             disabled={loading}
+            startingPhase={startingPhase}
             onSubmit={async (p) => {
               try {
                 await createTask(
@@ -249,13 +251,15 @@ interface ConfigFormProps {
     /** 数据渠道(okx/binance_spot/gate_spot;bars 快照与跨币种伙伴同渠道) */
     data_channel: string
   }) => Promise<void>
+  /** 创建/启动阶段文案(拉K线→内核准备→启动),提交期间展示 */
+  startingPhase?: string | null
 }
 
 /** 实盘开仓口径门槛:与实盘因子策略默认开仓阈值一致 */
 const LIVE_GATE_ENTRY = 0.3
 
 function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
-  const { supported, disabled, onSubmit } = props
+  const { supported, disabled, onSubmit, startingPhase } = props
   const [symbol, setSymbol] = useState("")
   const [dataChannel, setDataChannel] = useState<string>(DEFAULT_KLINE_CHANNEL)
   const [timeframe, setTimeframe] = useState("1d")
@@ -811,6 +815,12 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
         )}
         开始挖掘
       </Button>
+      {submitting && startingPhase && (
+        <p className="text-[11px] text-[var(--text-muted)] flex items-center gap-1.5">
+          <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+          {startingPhase}
+        </p>
+      )}
     </form>
   )
 }

@@ -115,13 +115,17 @@ export class LocalMiningRunner implements MiningRunner {
 
   async create(
     config: MiningConfig,
-    opts: { device: DeviceKind; name?: string },
+    opts: { device: DeviceKind; name?: string; onProgress?: (msg: string) => void },
   ): Promise<MiningTask> {
+    const progress = opts.onProgress
     await this.#ready()
     config = { ...config, kernel_version: LOCAL_MINING_KERNEL_VERSION, crypto_profile: config.crypto_profile ?? isCryptoSymbol(config.symbol) }
+    progress?.("检查本地算力（CPU/GPU）…")
     const resolution = await resolveDevice(opts.device)
 
-    // 历史K线一律从服务器拉取并冻结(M1 数据层);区间缺省用该周期推荐区间
+    // 历史 K 线按渠道直连拉取并冻结为本地快照;区间缺省用该周期推荐区间
+    const channelLabel = config.data_channel === "okx" ? "后端转发" : config.data_channel === "gate_usdt" || config.data_channel === "gate_spot" ? "Gate 直连" : "Binance 直连"
+    progress?.(`拉取 K 线（${channelLabel}，深历史可能需要一两分钟）…`)
     const range = config.data_channel === "gate_usdt" ? gateResearchRange(config.timeframe) : defaultFactorRangeFor(config.timeframe, new Date())
     const snapshot = await acquireBarsSnapshot({
       symbol: config.symbol,

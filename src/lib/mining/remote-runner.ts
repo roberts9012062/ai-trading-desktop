@@ -43,7 +43,7 @@ export class RemoteMiningRunner implements MiningRunner {
 
   async create(
     config: MiningConfig,
-    opts: { device: DeviceKind; name?: string },
+    opts: { device: DeviceKind; name?: string; onProgress?: (msg: string) => void },
   ): Promise<MiningTask> {
     const task = await createTask({
       symbol: config.symbol,

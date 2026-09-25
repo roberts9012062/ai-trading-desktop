@@ -70,7 +70,7 @@ describe("py-worker rpc 可靠性", () => {
     // 先挂 rejection 处理器再推进定时器,避免 reject 瞬间无人接管
     const expectTimeout = expect(p).rejects.toThrow("本地计算超时")
 
-    await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 10)
+    await vi.advanceTimersByTimeAsync(20 * 60 * 1000 + 10)
     await expectTimeout
     expect(w1.terminated).toBe(true)
 
@@ -112,7 +112,7 @@ describe("py-worker rpc 可靠性", () => {
     const reqId = w1.posted[0].reqId
     const expectTimeout = expect(p).rejects.toThrow("本地计算超时")
 
-    await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 10)
+    await vi.advanceTimersByTimeAsync(20 * 60 * 1000 + 10)
     await expectTimeout
     expect(() => w1.emit({ type: "result", reqId, report: 1 })).not.toThrow()
   })

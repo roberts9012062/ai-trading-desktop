@@ -14,6 +14,7 @@
 
 type WorkerMsg =
   | { type: "ready" }
+  | { type: "stage"; message: string }
   | { type: "result"; reqId: number; report: unknown }
   | { type: "error"; reqId: number; message: string }
 
@@ -29,11 +30,23 @@ interface PyWorkerRpc {
   mineDispose: (sessionId: string, timeoutMs?: number) => Promise<unknown>
 }
 
-/** 默认超时 10 分钟:pop100×gen50 的重搜索可达分钟级,取兜得住重负载又防永久挂起的值;传 0 表示不限 */
-const DEFAULT_RPC_TIMEOUT_MS = 10 * 60 * 1000
+/** 默认超时 20 分钟:深挖(pop600×80 代 CPU)可达十几分钟级,10 分钟曾被
+ *  冷加载下载挤占后误杀真实计算(Pyodide 已内置后冷载秒级,此值为纯计算兜底);传 0 表示不限 */
+const DEFAULT_RPC_TIMEOUT_MS = 20 * 60 * 1000
 
 let worker: Worker | null = null
 let reqSeq = 0
+
+/** 内核加载阶段订阅(单播,后注册覆盖;worker 冷加载期间的进度文案) */
+let stageListener: ((message: string) => void) | null = null
+
+/** 订阅内核加载阶段;返回退订函数 */
+export function onKernelStage(listener: (message: string) => void): () => void {
+  stageListener = listener
+  return () => {
+    stageListener = null
+  }
+}
 const pending = new Map<
   number,
   {
@@ -71,6 +84,10 @@ function ensureWorker(): Worker {
     const msg = ev.data
     if (msg.type === "ready") {
       return // 内核加载完成(worker 启动期广播,无对应请求)
+    }
+    if (msg.type === "stage") {
+      stageListener?.(msg.message)
+      return
     }
     if (msg.type === "result") {
       const p = pending.get(msg.reqId)

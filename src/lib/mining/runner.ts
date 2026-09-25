@@ -16,7 +16,7 @@ export interface MiningRunner {
   kind: RunnerKind
   create(
     config: MiningConfig,
-    opts: { device: DeviceKind; name?: string },
+    opts: { device: DeviceKind; name?: string; onProgress?: (msg: string) => void },
   ): Promise<MiningTask>
   list(): Promise<MiningTask[]>
   get(id: string): Promise<MiningTask | null>
