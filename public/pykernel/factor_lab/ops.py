@@ -358,6 +358,22 @@ def rolling_winsor(x: np.ndarray, w: int, q_lo: float = 0.05, q_hi: float = 0.95
     return out
 
 
+def vol_scale(x: np.ndarray, w: int) -> np.ndarray:
+    """波动率缩放:x / 滚动标准差(不去均值,保留趋势方向与幅度的相对强弱)。
+
+    加密货币波动率在牛熊/事件期差数倍,原始动量类信号的量级随之漂移,
+    tanh 仓位会在高波动期被动满仓;按自身滚动波动率缩放后量级跨行情可比。
+    """
+    x = np.asarray(x, dtype=float)
+    return x / np.maximum(ts_std(x, w), 1e-8)
+
+
+def ts_snr(x: np.ndarray, w: int) -> np.ndarray:
+    """滚动信噪比:ts_mean / ts_std(对收益类输入即滚动夏普,衡量趋势质量)"""
+    x = np.asarray(x, dtype=float)
+    return ts_mean(x, w) / np.maximum(ts_std(x, w), 1e-8)
+
+
 OPS_CONFIG: list[tuple[str, Any, int]] = [
     # 二元
     ("ADD", _add, 2),
@@ -413,6 +429,14 @@ OPS_CONFIG: list[tuple[str, Any, int]] = [
     ("ROBUST_ZSCORE_20", lambda a: robust_zscore(a, 20), 1),
     # rolling_winsor:按过去窗口分位数裁剪,阈值截至 t−1(方案 §11.1)
     ("WINSOR_20", lambda a: rolling_winsor(a, 20), 1),
+    # ── 扩容批次4(id 46 起,append-only;加密波动率自适应/长周期)──
+    ("VOL_SCALE_20", lambda a: vol_scale(a, 20), 1),
+    ("SNR_20", lambda a: ts_snr(a, 20), 1),
+    ("SNR_60", lambda a: ts_snr(a, 60), 1),
+    # 120 根:1h 线约 5 天、4h 线约 20 天——现有最长窗口 60 覆盖不到的周级结构
+    ("TS_ZSCORE_120", lambda a: ts_zscore(a, 120), 1),
+    # 24 根:1h 线的日周期差分(加密 7×24 交易,亚/欧/美时段轮动)
+    ("DELTA_24", lambda a: delta(a, 24), 1),
 ]
 
 OPS_NAMES: tuple[str, ...] = tuple(name for name, _, _ in OPS_CONFIG)

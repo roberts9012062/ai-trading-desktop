@@ -103,9 +103,9 @@ describe("rankPopulation", () => {
   it("代内重复与跨代重复只评估一次,分数跨代复用", async () => {
     const { createRankCache, rankPopulation } = await import("@/lib/mining/gpu/rank")
     mockedBatch.mockImplementation(async (_setup: unknown, list: number[][]) => {
-      const out = new Float32Array(list.length * 9)
+      const out = new Float32Array(list.length * 11)
       list.forEach((tokens, i) => {
-        out[i * 9 + 8] = tokens[0] / 10
+        out[i * 11 + 8] = tokens[0] / 10
       })
       return out
     })
@@ -136,7 +136,7 @@ describe("rankPopulation", () => {
   it("无效分(-999)不加罚分,保持 -999", async () => {
     const { createRankCache, rankPopulation } = await import("@/lib/mining/gpu/rank")
     mockedBatch.mockImplementation(async (_setup: unknown, list: number[][]) => {
-      const out = new Float32Array(list.length * 9)
+      const out = new Float32Array(list.length * 11)
       out[8] = -999
       return out
     })

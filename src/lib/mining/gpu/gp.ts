@@ -6,7 +6,7 @@
  * 对外暴露的一切数字都出自内核。RNG 用 mulberry32,行为独立于 Python。
  */
 
-import { FEAT_OFFSET, MAX_TOKENS, OPS, tokensGpuSupported } from "./tokens"
+import { FEAT_OFFSET, GPU_UNSUPPORTED_KINDS, MAX_TOKENS, OPS, tokensGpuSupported } from "./tokens"
 
 /** mulberry32 —— [0,1) 均匀分布,种子化可复现 */
 export class Rng {
@@ -210,12 +210,12 @@ export function mutateV2(
   return shrinkMutate(tree, featN, opOne, opTwo, rng)
 }
 
-/** GPU 路径的可用算子集(排除 EMA 等不支持算子) */
+/** GPU 路径的可用算子集(排除 EMA/稳健排序类等 WGSL 未实现的算子) */
 export function gpuOpSets(cryptoProfile = true): { opOne: number[]; opTwo: number[] } {
   const opOne: number[] = []
   const opTwo: number[] = []
   OPS.forEach((o, i) => {
-    if (o.kind === "ema" || (!cryptoProfile && i >= 40)) return
+    if (GPU_UNSUPPORTED_KINDS.has(o.kind) || (!cryptoProfile && i >= 40)) return
     ;(o.arity === 2 ? opTwo : opOne).push(i)
   })
   return { opOne, opTwo }

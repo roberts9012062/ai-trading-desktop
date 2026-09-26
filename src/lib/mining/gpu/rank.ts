@@ -12,6 +12,7 @@
 
 import { gpuEvalBatch, type GpuEvalSetup } from "./eval-gpu"
 import { treeToTokens, type Tree } from "./gp"
+import { METRIC_STRIDE } from "./tokens"
 
 /** 缓存条目上限(每条 ~100B,key 为 tokens join;100 万条 ≈ 100MB,
  *  覆盖 3 万种群 × 80 代的唯一公式规模,超限整体清空重建) */
@@ -27,6 +28,9 @@ export interface RankEntry {
   composite: number
   oos: number
   fp: number
+  /** 训练段分块稳健性(正 sortino 块占比 / 最差块 sortino) */
+  blockPos?: number
+  blockMin?: number
 }
 
 /**
@@ -73,6 +77,9 @@ export interface RankedCandidate {
   oos?: number
   /** 行为指纹(evolve_v2 克隆降权/精算漏斗去重用) */
   fp?: number
+  /** 训练段分块稳健性(evolve_v2 繁殖排序用,同 search.py _robust_key) */
+  blockPos?: number
+  blockMin?: number
 }
 
 /** 粗排统计(GPU 活动面板:吞吐/缓存命中/GPU 耗时) */
@@ -120,13 +127,16 @@ export async function rankPopulation(
   const written: [string, RankEntry][] = []
   let i = 0
   for (const [key] of pending) {
-    const b = i * 9
+    const b = i * METRIC_STRIDE
     const composite = raw[b + 8]
     written.push([
       key,
       composite <= -998
         ? { composite: -999, oos: 0, fp: 0 }
-        : { composite, oos: raw[b + 6], fp: metricFingerprint(raw[b], raw[b + 1], raw[b + 3]) },
+        : {
+            composite, oos: raw[b + 6], fp: metricFingerprint(raw[b], raw[b + 1], raw[b + 3]),
+            blockPos: raw[b + 9], blockMin: raw[b + 10],
+          },
     ])
     i++
   }
@@ -141,6 +151,8 @@ export async function rankPopulation(
       tokens: e.tokens,
       oos: hit.oos,
       fp: hit.fp,
+      blockPos: hit.blockPos,
+      blockMin: hit.blockMin,
     }
   })
   cache.putBatch(written)

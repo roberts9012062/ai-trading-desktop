@@ -105,6 +105,10 @@ class SearchConfig:
     execution_model: str = "signal_research"
     # label_span: 收益标签跨越的 bar 数(末尾不足的不补 0 参加统计)
     label_span: int = 1
+    # joint_training(本地增强):cross_peers 伙伴币种同时参与训练适应度
+    # (主币种 + 伙伴训练窗 composite 的 均值−0.5·标准差),伙伴验证改为只在
+    # 主币种训练段之后的时间窗上计分。需 cross_peers 非空,否则无效果。
+    joint_training: bool = False
 
 
 @dataclass
@@ -185,8 +189,46 @@ def _search_space(mat, cfg, rng):
             [i for i, (_, _, a) in enumerate(OPS_CONFIG[:limit]) if a == 2])
 
 
-def _training_evaluator(mat, close, cost, periods, trim: int = 0, bars: list | None = None):
+# 训练段分块稳健性(本地增强):训练段 K 等分,各块单独算 sortino。
+# 加密行情牛熊/震荡切换快,整段 composite 高的因子常是"某一段行情吃满、
+# 其余段亏"——这类因子验证/封存段基本必亏(冠军表测试年化/封存 Sortino 飘红
+# 的主因)。只用训练段数据,不触碰验证/封存段。
+ROBUST_BLOCKS = 4
+
+
+def _block_robustness(
+    factor: np.ndarray, close: np.ndarray, cost: float, periods: float
+) -> tuple[float, float]:
+    """返回 (正 sortino 块占比, 最差块 sortino);样本太短返回 (1.0, 0.0) 中性值"""
+    from .scoring.evaluate import _sortino
+
+    n = min(len(factor), len(close))
+    if n < ROBUST_BLOCKS * 20:
+        return 1.0, 0.0
+    pos = position_from_factor(np.asarray(factor[:n], dtype=float))
+    prev = np.roll(pos, 1)
+    prev[0] = 0.0
+    pnl = pos * next_ret(np.asarray(close[:n], dtype=float)) - np.abs(pos - prev) * cost
+    q = n // ROBUST_BLOCKS
+    sors = [
+        _sortino(pnl[k * q : (k + 1) * q if k < ROBUST_BLOCKS - 1 else n], periods)
+        for k in range(ROBUST_BLOCKS)
+    ]
+    return sum(1 for s in sors if s > 0) / ROBUST_BLOCKS, float(min(sors))
+
+
+def _robust_key(comp: float, pos_frac: float, min_sor: float) -> float:
+    """稳健排序键:正 composite 按正块占比打折(全块为正不打折,仅一块为正打到 ~0.44),
+    再以最差块 sortino 微调;只影响排序/选择压力,不改 composite 本身"""
+    key = comp * (0.25 + 0.75 * pos_frac) if comp > 0 else comp
+    return key + 0.02 * math.tanh(min_sor)
+
+
+def _training_evaluator(
+    mat, close, cost, periods, trim: int = 0, bars: list | None = None, robust: bool = False
+):
     # Only tokens/metrics are cached; no T-length series per candidate.
+    # robust(evolve_v2):metrics 追加 block_pos_frac/block_min_sortino 供繁殖排序
     from functools import lru_cache
     @lru_cache(maxsize=20000)
     def cached(tokens):
@@ -205,6 +247,14 @@ def _training_evaluator(mat, close, cost, periods, trim: int = 0, bars: list | N
                 metrics = evaluate_factor(factor[trim:], close[trim:], cost=cost, periods=periods)
             else:
                 metrics = evaluate_factor(factor, close, cost=cost, periods=periods)
+            if robust:
+                pf, ms = _block_robustness(
+                    factor[trim:] if trim else factor,
+                    close[trim:] if trim else close,
+                    cost, periods,
+                )
+                metrics["block_pos_frac"] = pf
+                metrics["block_min_sortino"] = ms
         except (ValueError, FloatingPointError, OverflowError):
             return None, None, -999.0
         comp = float(metrics["composite"]) - 0.02 * max(0, len(tokens) - 12)
@@ -423,6 +473,13 @@ def _rank_v2(
     for comp, tree, _tokens, metrics in scored:
         key = comp
         if metrics is not None:
+            if "block_pos_frac" in metrics:
+                # 分块稳健性:只在一段行情里赚钱的候选降低选择压力
+                key = _robust_key(
+                    key,
+                    float(metrics["block_pos_frac"]),
+                    float(metrics.get("block_min_sortino") or 0.0),
+                )
             if metrics.get("oos_negative"):
                 key += 0.02 * math.tanh(float(metrics.get("oos_sortino") or 0.0))
             fp = _metric_fingerprint(metrics)
@@ -547,8 +604,17 @@ def search(
     op_one, op_two = _search_space(feat_mat, cfg, rng)
     head_trim = _v2_head_trim(feat_mat, rng._active_features or []) if v2 else 0
     cached_eval = _training_evaluator(
-        feat_mat, close, cfg.cost, periods, trim=head_trim, bars=train_bars if v2 else None
+        feat_mat, close, cfg.cost, periods, trim=head_trim, bars=train_bars if v2 else None,
+        robust=cfg.evolve_v2,
     )
+    if cfg.joint_training and cfg.cross_peers:
+        from .joint_training import build_joint_context, wrap_evaluator
+
+        cached_eval = wrap_evaluator(
+            cached_eval,
+            build_joint_context(cfg.cross_peers, train_bars, timeframe, v2),
+            cfg.cost, v2,
+        )
     seeds = list(cfg.seed_tokens or [])
 
     def eval_tree(tree: list):
@@ -683,6 +749,7 @@ def search(
         plan=plan,
         head_trim=head_trim,
         execution_model=cfg.execution_model,
+        joint_training=cfg.joint_training,
     )
 
 
@@ -744,6 +811,7 @@ def _dedup_top(
     plan: SplitPlan | None = None,
     head_trim: int = 0,
     execution_model: str = "signal_research",
+    joint_training: bool = False,
 ) -> list[Champion]:
     """去重并取 top-N，可选叠加测试段验证与 walk-forward 淘汰
 
@@ -1030,11 +1098,20 @@ def _dedup_top(
             if not _executable_gate(tokens, cross_scores):
                 return False, cross_scores
         if cross_peers:
-            from factor_lab.cross_symbol import cross_validate_tokens
+            if joint_training and train_bars:
+                # 联合训练:伙伴训练窗已进适应度,只在其后的时间窗上验证
+                from factor_lab.joint_training import cross_validate_window
 
-            ok, cross_scores = cross_validate_tokens(
-                tokens, cross_peers, timeframe, cost
-            )
+                ok, cross_scores = cross_validate_window(
+                    tokens, cross_peers, timeframe, cost,
+                    str(train_bars[-1].get("time") or ""),
+                )
+            else:
+                from factor_lab.cross_symbol import cross_validate_tokens
+
+                ok, cross_scores = cross_validate_tokens(
+                    tokens, cross_peers, timeframe, cost
+                )
             if not ok:
                 return False, cross_scores
         return True, cross_scores
@@ -1085,22 +1162,42 @@ def _dedup_top(
         # 跳过、|corr|>0.9 的跳过，凑满 target 个互不相同的因子再去验证。
         target = max(3 * top_n, 30)
         distinct: list[tuple[float, list[int], dict]] = []
+        robust_of: dict[tuple[int, ...], float] = {}
+        train_close = (
+            np.array([float(b.get("close") or 0) for b in train_bars], dtype=float)[head_trim:]
+            if train_bars else None
+        )
+        periods_tr = bars_per_year(train_bars, timeframe) if train_bars else 0
         fps: set[tuple] = set()
-        scanned = 0
-        for item in uniq:
-            if len(distinct) >= target or scanned >= target * 10:
-                break
-            fp = _metric_fingerprint(item[2])
-            if fp is not None:
-                if fp in fps:
+        scan_pos = 0
+
+        def _fill_distinct(limit: int) -> list[tuple[float, list[int], dict]]:
+            """从 uniq 的 scan_pos 处继续扫描,凑 limit 个互不相同的因子"""
+            nonlocal scan_pos
+            got: list[tuple[float, list[int], dict]] = []
+            scanned = 0
+            while scan_pos < len(uniq) and len(got) < limit and scanned < limit * 10:
+                item = uniq[scan_pos]
+                scan_pos += 1
+                fp = _metric_fingerprint(item[2])
+                if fp is not None:
+                    if fp in fps:
+                        continue
+                    fps.add(fp)
+                scanned += 1
+                factor = _factor_series(item[1])
+                if factor is None or _corr_dup(factor):
                     continue
-                fps.add(fp)
-            scanned += 1
-            factor = _factor_series(item[1])
-            if factor is None or _corr_dup(factor):
-                continue
-            corr_factors.append(factor)
-            distinct.append(item)
+                corr_factors.append(factor)
+                if train_close is not None and periods_tr:
+                    pf, ms = _block_robustness(factor, train_close, cost, periods_tr)
+                    robust_of[tuple(item[1])] = _robust_key(item[0], pf, ms)
+                got.append(item)
+            # 分块稳健的候选先验证:n_cap 截断时优先保留"各段行情都赚"的因子
+            got.sort(key=lambda x: robust_of.get(tuple(x[1]), x[0]), reverse=True)
+            return got
+
+        distinct = _fill_distinct(target)
         shortlist = distinct
         pbo_pool = distinct
     strict_pool: list[tuple[float, list[int], dict, dict[str, float]]] = []
@@ -1109,18 +1206,33 @@ def _dedup_top(
     # 直接跳过严格轮,所有候选走探索路径,不得输出 validation_passed
     v2_insufficient = plan is not None and not plan.sufficient
     if not v2_insufficient:
-        for comp, tokens, metrics in pbo_pool:
-            ok, cross_scores = _passes_strict(tokens)
-            if not ok:
-                n_failed += 1
-                continue
-            if not selection_v2:  # v2 的池已行为去重
-                factor = _factor_series(tokens)
-                if _corr_dup(factor):
+        pool_iter = list(pbo_pool)
+        extensions = 0
+        while True:
+            for comp, tokens, metrics in pool_iter:
+                ok, cross_scores = _passes_strict(tokens)
+                if not ok:
+                    n_failed += 1
                     continue
-                if factor is not None:
-                    corr_factors.append(factor)
-            strict_pool.append((comp, tokens, metrics, cross_scores))
+                if not selection_v2:  # v2 的池已行为去重
+                    factor = _factor_series(tokens)
+                    if _corr_dup(factor):
+                        continue
+                    if factor is not None:
+                        corr_factors.append(factor)
+                strict_pool.append((comp, tokens, metrics, cross_scores))
+            # selection_v2 最终代:通过数不足 n_cap 时再往下扫最多 2 批不同因子
+            # (训练最优的头部常是最会拟合训练段的,真正稳健的因子可能排在后面)。
+            # 只多用验证区做筛选,封存段仍对筛选全程不可见,holdout 指标仍无偏;
+            # 被判定的候选全部计入 PBO 分母。中间代不扩展,避免每代双倍开销。
+            if not (selection_v2 and reveal_holdout and len(strict_pool) < n_cap and extensions < 2):
+                break
+            pool_iter = _fill_distinct(target)
+            if not pool_iter:
+                break
+            extensions += 1
+            pbo_pool = pbo_pool + pool_iter
+            shortlist = pbo_pool
 
     # PBO 代理（P5）：训练段最优 K 个候选中样本外失败的比例，
     # 即"训练赢家样本外翻车"的经验概率估计。
@@ -1247,8 +1359,17 @@ def search_stepwise(
     op_one, op_two = _search_space(feat_mat, cfg, rng)
     head_trim = _v2_head_trim(feat_mat, rng._active_features or []) if v2 else 0
     cached_eval = _training_evaluator(
-        feat_mat, close, cfg.cost, periods, trim=head_trim, bars=train_bars if v2 else None
+        feat_mat, close, cfg.cost, periods, trim=head_trim, bars=train_bars if v2 else None,
+        robust=cfg.evolve_v2,
     )
+    if cfg.joint_training and cfg.cross_peers:
+        from .joint_training import build_joint_context, wrap_evaluator
+
+        cached_eval = wrap_evaluator(
+            cached_eval,
+            build_joint_context(cfg.cross_peers, train_bars, timeframe, v2),
+            cfg.cost, v2,
+        )
 
     # 漏斗计数(任务1/10):旁路统计,不侵入任何评估数值
     from .scoring.research_report import SearchStats
@@ -1367,6 +1488,7 @@ def search_stepwise(
             plan=plan,
             head_trim=head_trim,
             execution_model=cfg.execution_model,
+            joint_training=cfg.joint_training,
         )
         best_comp = max((c.composite for c in cur_champions), default=-999.0)
         snap_stats = dict(stats.to_dict())

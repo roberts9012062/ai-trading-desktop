@@ -37,6 +37,9 @@ const OP_DMN20 = 34u; const OP_BETA = 35u; const OP_RESID = 36u; const OP_STEP =
 const OP_EMA5 = 38u; const OP_EMA20 = 39u;
 const OP_CRANK20 = 40u; const OP_CRANK60 = 41u;
 const OP_DECAY10 = 42u; const OP_DECAY20 = 43u;
+// 44/45(ROBUST_ZSCORE_20/WINSOR_20)GPU 不支持,由 tokensGpuSupported 挡在外面
+const OP_VS20 = 46u; const OP_SNR20 = 47u; const OP_SNR60 = 48u;
+const OP_ZS120 = 49u; const OP_D24 = 50u;
 
 struct Params {
   T: u32,        // 训练段长度
@@ -55,7 +58,7 @@ struct Params {
 @group(0) @binding(4) var<storage, read_write> stk: array<f32>;  // [P*9*T]
 @group(0) @binding(5) var<storage, read_write> factorOut: array<f32>; // [P*T] 原始(未归一)
 @group(0) @binding(6) var<storage, read_write> stats: array<f32>;     // [P*2] mean,std(<0=失败)
-@group(0) @binding(7) var<storage, read_write> metrics: array<f32>;   // [P*9] 末位=composite,-999=无效
+@group(0) @binding(7) var<storage, read_write> metrics: array<f32>;   // [P*11] 槽8=composite(-999=无效),槽9/10=分块稳健性
 
 var<workgroup> redA: array<f32, 256>;
 var<workgroup> redB: array<f32, 256>;
@@ -80,8 +83,9 @@ fn winOf(op: u32) -> u32 {
   if (op == OP_DECAY10) { return 10u; }
   if (op == OP_MA5) { return 5u; }
   if (op == OP_MA10 || op == OP_STD10 || op == OP_RANK10 || op == OP_MAX10 || op == OP_MIN10) { return 10u; }
-  if (op == OP_MA20 || op == OP_STD20 || op == OP_RANK20 || op == OP_ZS20 || op == OP_DMN20 || op == OP_MAX20) { return 20u; }
-  if (op == OP_MA60 || op == OP_STD60 || op == OP_RANK60 || op == OP_ZS60) { return 60u; }
+  if (op == OP_MA20 || op == OP_STD20 || op == OP_RANK20 || op == OP_ZS20 || op == OP_DMN20 || op == OP_MAX20 || op == OP_VS20 || op == OP_SNR20) { return 20u; }
+  if (op == OP_MA60 || op == OP_STD60 || op == OP_RANK60 || op == OP_ZS60 || op == OP_SNR60) { return 60u; }
+  if (op == OP_ZS120) { return 120u; }
   return 20u;
 }
 
@@ -189,8 +193,9 @@ fn evalVM(@builtin(workgroup_id) gid: vec3<u32>, @builtin(local_invocation_id) l
         else if (op == OP_TANH) { v = tanh(clamp(stk[src + t], -30.0, 30.0)); }
         else if (op == OP_ATR) { let m = max(abs(stk[src + t]), 1e-9); v = sgn(m) * log(1.0 + m); }
         else if (op == OP_STEP) { v = select(0.0, 1.0, stk[src + t] > 0.0); }
-        else if (op == OP_D1 || op == OP_D5) {
-          let n = select(5u, 1u, op == OP_D1);
+        else if (op == OP_D1 || op == OP_D5 || op == OP_D24) {
+          var n = select(5u, 1u, op == OP_D1);
+          if (op == OP_D24) { n = 24u; }
           v = 0.0;
           if (t >= n) { v = stk[src + t] - stk[src + t - n]; }
         }
@@ -246,6 +251,8 @@ fn evalVM(@builtin(workgroup_id) gid: vec3<u32>, @builtin(local_invocation_id) l
           if (op == OP_MA5 || op == OP_MA10 || op == OP_MA20 || op == OP_MA60) { v = m; }
           else if (op == OP_STD10 || op == OP_STD20 || op == OP_STD60) { v = sd; }
           else if (op == OP_DMN20) { v = stk[src + t] - m; }
+          else if (op == OP_VS20) { v = stk[src + t] / max(sd, 1e-8); }
+          else if (op == OP_SNR20 || op == OP_SNR60) { v = m / max(sd, 1e-8); }
           else { v = (stk[src + t] - m) / max(sd, 1e-8); }
         }
         stk[dst + t] = sane(v);
@@ -361,11 +368,11 @@ fn evalMetrics(@builtin(global_invocation_id) gid: vec3<u32>) {
   let cost = params.cost;
   let periods = params.periods;
   let std0 = stats[p * 2u + 1u];
-  let base = p * 9u;
+  let base = p * 11u;
 
   // 失败(Pass A 判非法)或近常数(std<1e-6):无效候选
   if (std0 < 0.0 || std0 < 1e-6) {
-    for (var i: u32 = 0u; i < 9u; i = i + 1u) { metrics[base + i] = 0.0; }
+    for (var i: u32 = 0u; i < 11u; i = i + 1u) { metrics[base + i] = 0.0; }
     metrics[base + 8u] = -999.0;
     return;
   }
@@ -462,5 +469,23 @@ fn evalMetrics(@builtin(global_invocation_id) gid: vec3<u32>) {
   metrics[base + 6u] = oosSor;
   metrics[base + 7u] = consist;
   metrics[base + 8u] = composite;
+
+  // 训练段 4 等分块 sortino(search.py _block_robustness 同式;过短给中性值)
+  var posFrac = 1.0;
+  var minSor = 0.0;
+  if (T >= 80u) {
+    let q = T / 4u;
+    var npos = 0.0;
+    minSor = 1e9;
+    for (var k: u32 = 0u; k < 4u; k = k + 1u) {
+      let hi = select((k + 1u) * q, T, k == 3u);
+      let sb = sortinoRange(p, T, k * q, hi, cost, periods);
+      if (sb > 0.0) { npos = npos + 1.0; }
+      minSor = min(minSor, sb);
+    }
+    posFrac = npos / 4.0;
+  }
+  metrics[base + 9u] = posFrac;
+  metrics[base + 10u] = minSor;
 }
 `

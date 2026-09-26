@@ -54,6 +54,11 @@ _OP_TEXT: dict[str, str] = {
     # 扩容批次3(crypto_local_v2 稳健变换)
     "ROBUST_ZSCORE_20": "20周期稳健Z值",
     "WINSOR_20": "20周期缩尾",
+    # 扩容批次4(加密波动率自适应/长周期)
+    "VOL_SCALE_20": "20周期波动率缩放",
+    "SNR_20": "20周期信噪比", "SNR_60": "60周期信噪比",
+    "TS_ZSCORE_120": "120周期Z值",
+    "DELTA_24": "24根差分",
 }
 
 # 中文特征名
@@ -111,6 +116,8 @@ _FEAT_TEXT: dict[str, str] = {
     "TAKER_IMBALANCE": "主动买卖量不平衡", "QUOTE_ILLIQ20": "真实成交额非流动性",
     "ACCOUNT_LS_RATIO": "多空账户比", "LIQUIDATION_IMBALANCE": "多空清算不平衡",
     "AVG_TRADE_QUOTE": "平均每笔成交额",
+    "FUNDING_MEAN24": "24根资金费率均值", "OI_TREND24": "24根持仓顺势度",
+    "TAKER_IMB24": "24根主动买卖均衡",
 }
 
 

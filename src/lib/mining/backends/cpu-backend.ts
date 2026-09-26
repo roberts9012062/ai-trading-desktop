@@ -59,6 +59,7 @@ function buildPayload(config: MiningConfig, req: EvalRequest): Record<string, un
     // 本地增强(默认关;开启即不再与服务端逐位一致,这是预期)
     ...(config.selection_v2 ? { selection_v2: true } : {}),
     ...(config.evolve_v2 ? { evolve_v2: true } : {}),
+    ...(config.joint_training && config.cross_peers?.length ? { joint_training: true } : {}),
     ...(config.live_entry_gate ? { live_entry_gate: config.live_entry_gate } : {}),
     // v2 研究契约(方案 §3):显式切分/因果归一化/执行模型贯通到内核
     ...(config.research_profile ? { research_profile: config.research_profile } : {}),

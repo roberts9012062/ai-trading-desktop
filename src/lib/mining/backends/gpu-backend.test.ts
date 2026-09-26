@@ -118,10 +118,10 @@ beforeEach(() => {
 
   // 粗排分 = 首个特征 id(确定性排序);EMA token(64+38) → -999
   mockedEvalBatch.mockImplementation(async (_setup, tokensList: number[][]) => {
-    const out = new Float32Array(tokensList.length * 9)
+    const out = new Float32Array(tokensList.length * 11)
     tokensList.forEach((tokens, i) => {
       const hasEma = tokens.some((t) => t === 64 + 38 || t === 64 + 39)
-      out[i * 9 + 8] = hasEma ? -999 : tokens[0]
+      out[i * 11 + 8] = hasEma ? -999 : tokens[0]
     })
     return out
   })

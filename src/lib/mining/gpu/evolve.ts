@@ -99,6 +99,8 @@ function evolveIsland(
  * evolve_v2 繁殖排序键(与 search.py _rank_v2 同构;不改粗排分本身):
  * - OOS 零平台细分:样本外为负的候选被 ×0 压成并列 0,加 0.02·tanh(oos)
  *   让"亏得少"的排前,给搜索指向样本外转正的梯度;
+ * - 分块稳健性:正 composite 按训练段正 sortino 块占比打折(0.25+0.75·占比),
+ *   再加 0.02·tanh(最差块 sortino)——只在一段行情里赚钱的个体降低选择压力;
  * - 行为克隆降权:与已出现者指纹相同的个体键 -1,不占精英/锦标赛名额。
  * 返回与入参同序的副本(岛切片仍按种群顺序)。
  */
@@ -109,6 +111,10 @@ export function rankKeysV2(scored: readonly RankedCandidate[]): RankedCandidate[
   for (const i of order) {
     const s = out[i]
     if (s.comp <= -998) continue
+    if (s.blockPos !== undefined) {
+      if (s.comp > 0) s.comp *= 0.25 + 0.75 * s.blockPos
+      s.comp += 0.02 * Math.tanh(s.blockMin ?? 0)
+    }
     if (s.oos !== undefined && s.oos <= 0) s.comp += 0.02 * Math.tanh(s.oos)
     if (s.fp !== undefined) {
       if (seen.has(s.fp)) s.comp -= 1

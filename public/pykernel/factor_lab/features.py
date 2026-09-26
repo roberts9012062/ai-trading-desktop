@@ -493,6 +493,24 @@ def _masked_zscore_causal(values: np.ndarray, w: int) -> np.ndarray:
     return out
 
 
+def _masked_mean(values: np.ndarray, w: int) -> np.ndarray:
+    """因果滚动均值;窗口内有缺失(含头部部分窗口)记 NaN。
+
+    不能直接用 ts_mean:cumsum 遇到一个 NaN 会把其后全部污染。
+    """
+    values = np.asarray(values, dtype=float)
+    n = len(values)
+    good = np.isfinite(values)
+    c = np.concatenate([[0.0], np.cumsum(np.where(good, values, 0.0))])
+    cnt = np.concatenate([[0], np.cumsum(good.astype(np.int64))])
+    idx = np.arange(n)
+    lo = np.maximum(0, idx - w + 1)
+    span = idx - lo + 1
+    out = (c[idx + 1] - c[lo]) / np.maximum(span, 1)
+    out[(cnt[idx + 1] - cnt[lo]) != span] = np.nan
+    return out
+
+
 def _direct_data_features(bars, returns):
     """Append-only real exchange inputs. Missing is never interpreted as observed zero.
 
@@ -533,6 +551,15 @@ def _direct_data_features(bars, returns):
     illiq[ts_mean(valid_quote.astype(float), 20) < 1] = np.nan
     average = np.divide(quote, count, out=np.full(n, np.nan), where=count > 0)
     average[(count == 0) & (quote == 0)] = 0
+    # 批次 59-61(append-only):永续合约持仓/资金费率的中周期结构。
+    # 缺失(现货无 OI/funding)经 ts_mean 传播为 NaN,特征自动不可用。
+    oi = series("open_interest")
+    with np.errstate(invalid="ignore", divide="ignore"):
+        log_oi = np.where(np.isfinite(oi) & (oi > 0), np.log(np.where(oi > 0, oi, 1.0)), np.nan)
+    oi_chg24 = np.full(n, np.nan)
+    if n > 24:
+        oi_chg24[24:] = log_oi[24:] - log_oi[:-24]
+    ret24 = _masked_mean(returns, 24) * 24
     return {
         "FUNDING_RATE": normalize(funding),
         "FUNDING_DELTA": normalize(funding - np.concatenate((funding[:1], funding[:-1]))),
@@ -541,6 +568,13 @@ def _direct_data_features(bars, returns):
         "ACCOUNT_LS_RATIO": normalize(series("long_short_ratio")),
         "LIQUIDATION_IMBALANCE": normalize(series("liquidation_imbalance")),
         "AVG_TRADE_QUOTE": normalize(average),
+        # 24 根资金费率均值:多头持续付费 = 拥挤,常见反转前兆
+        "FUNDING_MEAN24": normalize(_masked_mean(funding, 24)),
+        # 持仓变化 × 价格方向:同向 = 新资金顺势入场(趋势确认),
+        # 反向 = 空头回补/多头平仓驱动(趋势衰竭)
+        "OI_TREND24": normalize(oi_chg24 * np.sign(ret24)),
+        # 24 根主动买卖不平衡均值:持续性订单流
+        "TAKER_IMB24": normalize(_masked_mean(flow, 24)),
     }
 
 
@@ -639,6 +673,8 @@ FEATURE_NAMES: tuple[str, ...] = (
     # Direct exchange inputs, IDs 52-58. No historical order-book proxies.
     "FUNDING_RATE", "FUNDING_DELTA", "TAKER_IMBALANCE", "QUOTE_ILLIQ20",
     "ACCOUNT_LS_RATIO", "LIQUIDATION_IMBALANCE", "AVG_TRADE_QUOTE",
+    # Perp structure, IDs 59-61 (append-only; need gate_usdt funding/OI/taker).
+    "FUNDING_MEAN24", "OI_TREND24", "TAKER_IMB24",
 )
 
 

@@ -43,6 +43,7 @@ INFECTED_PROPAGATING_OPS = {
     "LAG_1", "LAG_5",  # 恒等传递，感染不灭
     "EMA_5", "EMA_20",  # 平滑传递，同 MA 族
     "WINSOR_20",  # 裁剪保号:恒正输入缩尾后仍恒正(批次3)
+    "VOL_SCALE_20", "SNR_20", "SNR_60",  # 批次4:除以正的标准差,保号
 }
 # 能恢复符号信息
 SIGN_RESTORE_OPS = {
@@ -52,6 +53,7 @@ SIGN_RESTORE_OPS = {
     "CORR_20",  # 输出 [-1,1] 对称，天然恢复符号
     "TS_DEMEAN_20", "BETA_20", "RESID_20",  # 去均值/回归残差族，恢复符号
     "ROBUST_ZSCORE_20",  # 有界对称标准化，恢复符号(批次3)
+    "TS_ZSCORE_120", "DELTA_24",  # 批次4:去均值/差分
 }
 
 

@@ -40,6 +40,9 @@ export interface MiningConfig {
   selection_v2?: boolean
   /** 本地进化增强(SearchConfig.evolve_v2):点/收缩变异、克隆降权、零平台细分、停滞重启 */
   evolve_v2?: boolean
+  /** 多币种联合训练(SearchConfig.joint_training):cross_peers 伙伴训练窗同时进适应度,
+   *  伙伴验证只在主币种训练段之后计分。需 cross_peers 非空 */
+  joint_training?: boolean
   /** 实盘离散口径门(SearchConfig.live_entry_gate):>0 时严格筛按该开仓阈值验证 */
   live_entry_gate?: number
   /** 研究契约版本(crypto_local_v2 = 60/20/20 显式切分+严格因果归一化+

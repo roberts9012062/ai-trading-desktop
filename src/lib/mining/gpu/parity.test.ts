@@ -22,7 +22,7 @@ import {
   nextRet,
 } from "@/lib/mining/gpu/eval-core"
 import { Rng, gpuOpSets, randomTreeGpuSafe, treeToTokens } from "@/lib/mining/gpu/gp"
-import { tokensGpuSupported } from "@/lib/mining/gpu/tokens"
+import { FEAT_OFFSET, tokensGpuSupported } from "@/lib/mining/gpu/tokens"
 import { createGpuEval, disposeGpuEval, gpuEvalBatch } from "@/lib/mining/gpu/eval-gpu"
 
 const execFileAsync = promisify(execFile)
@@ -81,6 +81,13 @@ function makeCandidates(n: number, featN: number, seed = 99): number[][] {
   const out: number[][] = []
   for (let i = 0; i < n; i++) {
     out.push(treeToTokens(randomTreeGpuSafe(4, featN, opOne, opTwo, rng)))
+  }
+  // 批次4 算子(VOL_SCALE_20/SNR_20/SNR_60/TS_ZSCORE_120/DELTA_24)定点覆盖,
+  // 不依赖随机树恰好抽中
+  for (let op = 46; op <= 50; op++) {
+    for (const f of [0, 1, 3]) {
+      if (f < featN) out.push([f, FEAT_OFFSET + op])
+    }
   }
   return out
 }
@@ -264,7 +271,7 @@ describe.skipIf(!hasWebGpu)("WGSL(f32) vs 内核(适配器门控)", () => {
     try {
       const metrics = await gpuEvalBatch(setup, candidates)
       gpuComps = candidates.map((tokens, i) => {
-        const comp = metrics[i * 9 + 8]
+        const comp = metrics[i * 11 + 8]
         return comp <= -998 ? -999 : comp - 0.02 * Math.max(0, tokens.length - 12)
       })
     } finally {

@@ -55,7 +55,7 @@ function mockDevice(compilationError = false) {
           const input = new Uint32Array(buffers[3].data).slice()
           copy = () => {
             const output = new Float32Array(dst.data)
-            for (let i = 0; i < bytes / 36; i++) output.fill(input[i * 32], i * 9, (i + 1) * 9)
+            for (let i = 0; i < bytes / 44; i++) output.fill(input[i * 32], i * 11, (i + 1) * 11)
           }
         },
         finish: () => copy,
@@ -98,7 +98,7 @@ describe("GPU buffer planning and readback", () => {
     const { device, raw, events, dispatch, buffers } = mockDevice()
     const setup = await createGpuEval(device, new Float32Array(200), new Float32Array(100), opts)
     const output = await gpuEvalBatch(setup, [[1], [2], [3], [4], [5], [6], [7]])
-    expect(Array.from(output).filter((_, i) => i % 9 === 0)).toEqual([1, 2, 3, 4, 5, 6, 7])
+    expect(Array.from(output).filter((_, i) => i % 11 === 0)).toEqual([1, 2, 3, 4, 5, 6, 7])
     expect(events.slice(0, 2)).toEqual(["submit", "submit"])
     expect(dispatch.mock.calls.map(([n]) => n)).toEqual([3, 1, 3, 1, 1, 1])
     const uploads = raw.queue.writeBuffer.mock.calls.filter(([b]) => (b as unknown) === setup.tokensBuf)

@@ -181,6 +181,9 @@ export function SuperFactorPage(): React.JSX.Element {
                       ? { selection_v2: true, evolve_v2: true }
                       : {}),
                     ...(p.origin === "local" && p.liveGate ? { live_entry_gate: LIVE_GATE_ENTRY } : {}),
+                    ...(p.origin === "local" && p.jointTraining && p.crossPeers?.length
+                      ? { joint_training: true }
+                      : {}),
                     data_channel: p.data_channel,
                   },
                   { device: p.device, name: p.name },
@@ -245,6 +248,8 @@ interface ConfigFormProps {
     llmSeedTokens?: number[][]
     /** 跨币种验证伙伴(表单提交前已预加载):[[币种代码, bars], ...] */
     crossPeers?: Array<[string, Array<Record<string, unknown>>]>
+    /** 多币种联合训练(伙伴币种同时进训练适应度,仅本地且需伙伴) */
+    jointTraining?: boolean
     /** 增强挖掘(selection_v2 + evolve_v2,仅本地) */
     enhanced: boolean
     /** 实盘开仓口径验证(live_entry_gate,仅本地) */
@@ -301,6 +306,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
   const [llmReady, setLlmReady] = useState<boolean | null>(null)
   // 跨币种验证(深挖强化):同板块 1-4 个伙伴币种联合验证冠军
   const [useCrossValidate, setUseCrossValidate] = useState(false)
+  const [jointTraining, setJointTraining] = useState(false)
   const [crossCount, setCrossCount] = useState(4)
   const [crossError, setCrossError] = useState<string | null>(null)
   const [crossStatus, setCrossStatus] = useState<string | null>(null)
@@ -415,7 +421,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
         device: origin === "local" ? device : "cpu",
         name: origin === "local" ? `本挖·${symbol}·${timeframe}` : `超挖·${symbol}·${timeframe}`,
         ...(llmSeedTokens?.length ? { llmSeedTokens } : {}),
-        ...(crossPeers?.length ? { crossPeers } : {}),
+        ...(crossPeers?.length ? { crossPeers, jointTraining } : {}),
         enhanced,
         liveGate,
         data_channel: dataChannel,
@@ -765,6 +771,23 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
             要求至少一半伙伴币种上因子不亏——只在单一币种上灵的公式大概率是巧合，
             联合验证显著压低过拟合，但冠军数也会减少。
           </p>
+          {useCrossValidate && (
+            <>
+              <label className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={jointTraining}
+                  onChange={(e) => setJointTraining(e.target.checked)}
+                />
+                多币种联合训练（实验）
+              </label>
+              <p className="text-[10px] text-[var(--text-muted)] leading-tight">
+                伙伴币种同一时间窗的训练段也参与进化打分（各币种综合分的均值减半个标准差），
+                只在单一币种上灵的公式在搜索阶段就被压低；伙伴验证随之只看主币种训练段之后的行情。
+                计算量约为 (1+伙伴数) 倍；GPU 算力下粗排仍按主币种，精算阶段联合重排。
+              </p>
+            </>
+          )}
         </div>
       )}
 

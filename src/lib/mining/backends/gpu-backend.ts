@@ -186,6 +186,8 @@ export class GpuBackend implements ComputeBackend {
             ...(cfg.cross_peers?.length ? { cross_peers: cfg.cross_peers } : {}),
             // 本地增强遴选/实盘离散口径门(内核 SearchConfig 字段,默认关)
             ...(cfg.selection_v2 ? { selection_v2: true } : {}),
+            // 联合训练:GPU 粗排单币种,精算按主币种+伙伴训练窗联合重排
+            ...(cfg.joint_training && cfg.cross_peers?.length ? { joint_training: true } : {}),
             ...(cfg.live_entry_gate ? { live_entry_gate: cfg.live_entry_gate } : {}),
             ...(cfg.research_profile ? { research_profile: cfg.research_profile } : {}),
             ...(cfg.execution_model ? { execution_model: cfg.execution_model } : {}),

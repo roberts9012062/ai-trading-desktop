@@ -2,7 +2,7 @@
  * Task-resident features and bounded, queued tiles. WebGPU exposes one queue,
  * not CUDA streams: independent staging buffers overlap readback with compute.
  */
-import { MAX_TOKENS, TOKEN_PAD } from "./tokens"
+import { MAX_TOKENS, METRIC_STRIDE, TOKEN_PAD } from "./tokens"
 import { EVAL_VM_WGSL } from "./wgsl/eval-vm.wgsl"
 
 const STACK_SLOTS = 9
@@ -49,7 +49,7 @@ export function planGpuTile(limits: GPUSupportedLimits, opts: GpuEvalOptions): n
   }
   const cap = Math.min(limits.maxStorageBufferBindingSize, limits.maxBufferSize)
   if (F * T * 4 > cap) throw new Error("GPU feature matrix exceeds device buffer limit")
-  const perCandidate = STACK_SLOTS * T * 4 + T * 4 + MAX_TOKENS * 4 + 8 + 36 * 3
+  const perCandidate = STACK_SLOTS * T * 4 + T * 4 + MAX_TOKENS * 4 + 8 + METRIC_STRIDE * 4 * 3
   const tile = Math.floor(Math.min(
     TILE_MAX, population, limits.maxComputeWorkgroupsPerDimension,
     cap / (STACK_SLOTS * T * 4), maxBatchBytes / perCandidate,
@@ -114,9 +114,9 @@ export async function createGpuEval(
     const stkBuf = mkBuf(tile * STACK_SLOTS * T * 4, GPUBufferUsage.STORAGE)
     const factorBuf = mkBuf(tile * T * 4, GPUBufferUsage.STORAGE)
     const statsBuf = mkBuf(tile * 8, GPUBufferUsage.STORAGE)
-    const metricsBuf = mkBuf(tile * 36, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC)
+    const metricsBuf = mkBuf(tile * METRIC_STRIDE * 4, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC)
     const staging = Array.from({ length: opts.readbackDepth ?? 2 }, () =>
-      mkBuf(tile * 36, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST))
+      mkBuf(tile * METRIC_STRIDE * 4, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST))
     const bindings = [paramsBuf, featBuf, tokensBuf, retBuf, stkBuf, factorBuf, statsBuf, metricsBuf]
     const bindGroup = device.createBindGroup({
       layout: pipelineVM.getBindGroupLayout(0),
@@ -145,7 +145,7 @@ export async function gpuEvalBatch(setup: GpuEvalSetup, tokensList: number[][]):
   if (!total) return new Float32Array(0)
   if (setup.busy) throw new Error("Concurrent evaluation on the same GPU setup is not supported")
   setup.busy = true
-  const out = new Float32Array(total * 9)
+  const out = new Float32Array(total * METRIC_STRIDE)
   const pad = new Uint32Array(Math.min(total, setup.tile) * MAX_TOKENS)
   const pending: Array<Promise<void> | undefined> = []
   let readError: unknown
@@ -179,10 +179,10 @@ export async function gpuEvalBatch(setup: GpuEvalSetup, tokensList: number[][]):
       pass.dispatchWorkgroups(Math.ceil(count / METRICS_WORKGROUP_SIZE))
       pass.end()
       const staging = setup.staging[slot]
-      const bytes = count * 36
+      const bytes = count * METRIC_STRIDE * 4
       enc.copyBufferToBuffer(setup.metricsBuf, 0, staging, 0, bytes)
       device.queue.submit([enc.finish()])
-      const offset = start * 9
+      const offset = start * METRIC_STRIDE
       pending[slot] = staging.mapAsync(GPUMapMode.READ, 0, bytes).then(() => {
         try {
           out.set(new Float32Array(staging.getMappedRange(0, bytes)), offset)

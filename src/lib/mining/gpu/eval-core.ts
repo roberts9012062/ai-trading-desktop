@@ -257,6 +257,17 @@ function applyOp(kind: string, a: Vec, b: Vec | null, win = 0, nn = 0): Vec {
       return out
     case "ema":
       return ema(a, win)
+    case "vol_scale": {
+      const sd = tsStd(a, win)
+      for (let i = 0; i < n; i++) out[i] = a[i] / Math.max(sd[i], 1e-8)
+      return out
+    }
+    case "snr": {
+      const m = tsMean(a, win)
+      const sd = tsStd(a, win)
+      for (let i = 0; i < n; i++) out[i] = m[i] / Math.max(sd[i], 1e-8)
+      return out
+    }
     default:
       throw new Error(`未知算子: ${kind}`)
   }

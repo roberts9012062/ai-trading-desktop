@@ -345,6 +345,9 @@ def run_backtest_factor(payload: dict, bars: list) -> str:
         factor = execute(tokens, mat, norm_window)
     if factor is None:
         return json.dumps({"error": "因子公式无效或无法执行"}, ensure_ascii=False)
+    # 直连特征(资金费率/持仓等)头部未采样段为 NaN:无数据 = 无信号 = 空仓。
+    # 不处理的话 NaN 经 pnl 均值传播,整次复测的年化/sortino 全变 NaN。
+    factor = np.where(np.isfinite(factor), factor, 0.0)
     close = np.array([float(b.get("close") or 0) for b in bars], dtype=float)
     cost = resolve_cost(symbol, bars, None if cost_input is None else float(cost_input))
     periods = bars_per_year(bars, timeframe)
@@ -582,6 +585,8 @@ def kernel_version() -> str:
     # 加密币口径(2026-09-25.1):加密 specs(multiplier=1/taker 万5/按币 tick)、
     # 符号别名归一(各所原生写法)、未知加密币显式报错、cost 省略与 null
     # 同路径自动推导(run_search/mine_start/shard/precise 四处)。
+    # 2026-09-26.1: 分块稳健性排序(CPU/GPU)、遴选扩展扫描、多币种联合训练、
+    #   算子批次4(46-50)、永续结构特征(59-61)、复测头部 NaN 按空仓处理。
     # 2026-09-25.5: v3 表达式(显式 AST/注册表/参数化窗口,CPU 首版;
     # backtest_factor 接 factor_v3,local_only+research_only 门禁)。
     # v2 token 路径逐位不变(黄金对拍覆盖)。
@@ -592,7 +597,7 @@ def kernel_version() -> str:
     # 与空 profile)路径行为不变;v2 结果按本戳区分。
     # 更早:批次三口径变更(P0-2 因果归一化;P1-7 warmup 切片与
     # MIN_TEST_BARS=120);同因子在新旧内核下指标不同,历史/收藏按此戳区分
-    return "pykernel-factor-2026-09-25.5"
+    return "pykernel-factor-2026-09-26.1"
 
 
 # ── 分代步进挖掘会话(本地长程任务 M3) ─────────────────────────
@@ -939,6 +944,12 @@ def run_mine_precise(payload: dict, bars: list) -> str:
     best_seen: list[tuple[float, list[int], dict]] = list(
         _decode_seed_best(payload.get("best_seen")) or []
     )
+    joint_ctx = []
+    if cfg.joint_training and cfg.cross_peers:
+        # 联合训练:GPU 粗排仍是单币种,精算在此按主币种+伙伴训练窗联合重排
+        from factor_lab.joint_training import build_joint_context, joint_score
+
+        joint_ctx = build_joint_context(cfg.cross_peers, train_bars, timeframe, v2)
     for raw in payload.get("candidates") or []:
         tokens = [int(t) for t in raw if isinstance(t, (int, float))]
         if not tokens:
@@ -960,6 +971,8 @@ def run_mine_precise(payload: dict, bars: list) -> str:
         except Exception:
             continue
         comp = float(metrics["composite"]) - 0.02 * max(0, len(tokens) - 12)
+        if joint_ctx:
+            comp, metrics = joint_score(tokens, comp, metrics, joint_ctx, cfg.cost, v2)
         best_seen.append((comp, tokens, metrics))
 
     # 分片 worker 已评估的候选直接并入(评估在 shard 池完成,此处零重复计算)
@@ -1001,6 +1014,7 @@ def run_mine_precise(payload: dict, bars: list) -> str:
         plan=plan,
         head_trim=head_trim,
         execution_model=cfg.execution_model,
+        joint_training=cfg.joint_training,
     )
     champion_out = [
         {

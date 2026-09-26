@@ -176,8 +176,13 @@ class RobustOpTests(unittest.TestCase):
 
     def test_new_ops_registered(self):
         """新算子 append-only 注册:token id 连续、文案/感染分类齐全。"""
-        self.assertEqual(OPS_NAMES[-2], "ROBUST_ZSCORE_20")
-        self.assertEqual(OPS_NAMES[-1], "WINSOR_20")
+        # append-only:批次3 的 id 冻结在 44/45,后续批次只能往后追加
+        self.assertEqual(OPS_NAMES[44], "ROBUST_ZSCORE_20")
+        self.assertEqual(OPS_NAMES[45], "WINSOR_20")
+        self.assertEqual(
+            OPS_NAMES[46:51],
+            ("VOL_SCALE_20", "SNR_20", "SNR_60", "TS_ZSCORE_120", "DELTA_24"),
+        )
         from factor_lab.express import _OP_TEXT
         from factor_lab.vm import INFECTED_PROPAGATING_OPS, SIGN_RESTORE_OPS
 

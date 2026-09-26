@@ -147,6 +147,19 @@ describe("rankKeysV2", () => {
     const keyed = rankKeysV2([{ ...base[0], comp: -999, oos: -3, fp: 1 }])
     expect(keyed[0].comp).toBe(-999)
   })
+
+  it("分块稳健性:只在少数块赚钱的候选被打折,与 search.py _robust_key 同式", () => {
+    const rng = new Rng(9)
+    const base = makeScored(2, rng)
+    const keyed = rankKeysV2([
+      { ...base[0], comp: 1.0, blockPos: 0.25, blockMin: -1 },
+      { ...base[1], comp: 0.6, blockPos: 1, blockMin: 0.5 },
+    ])
+    expect(keyed[0].comp).toBeCloseTo(1.0 * (0.25 + 0.75 * 0.25) + 0.02 * Math.tanh(-1))
+    expect(keyed[1].comp).toBeCloseTo(0.6 + 0.02 * Math.tanh(0.5))
+    // 训练分更高但只在一块行情里赚钱的,排到各段都赚钱的后面
+    expect(keyed[1].comp).toBeGreaterThan(keyed[0].comp)
+  })
 })
 
 describe("StagnationTracker", () => {

@@ -16,6 +16,9 @@ export const MAX_TOKENS = 32
 /** 栈式求值的最大栈深(树深 ≤ max_depth=6 → 栈深 ≤ 7,留 1 余量) */
 export const STACK_LEVELS = 8
 export const TOKEN_PAD = 0xffffffff
+/** GPU 每候选指标槽数:0-8 同 evaluate_factor(槽8=composite),9/10 = 训练段分块稳健性
+ * (正 sortino 块占比 / 最差块 sortino)。与 eval-vm.wgsl 的 base = p*11u 同步 */
+export const METRIC_STRIDE = 11
 
 export type OpKind =
   | "add" | "sub" | "mul" | "div" | "min" | "max"
@@ -25,6 +28,7 @@ export type OpKind =
   | "corr" | "beta" | "resid" | "demean"
   | "step" | "ema" | "ts_crank" | "decay_linear"
   | "robust_zscore" | "winsor"
+  | "vol_scale" | "snr"
 
 export interface OpDef {
   name: string
@@ -86,6 +90,12 @@ export const OPS: readonly OpDef[] = [
   // 含这些算子的候选由 GP 生成时排除/历史种子走 CPU 精算回落
   { name: "ROBUST_ZSCORE_20", arity: 1, kind: "robust_zscore", win: 20 },
   { name: "WINSOR_20", arity: 1, kind: "winsor", win: 20 },
+  // 批次4(加密波动率自适应/长周期):均为 MA/STD 族与差分的组合,WGSL 已实现
+  { name: "VOL_SCALE_20", arity: 1, kind: "vol_scale", win: 20 },
+  { name: "SNR_20", arity: 1, kind: "snr", win: 20 },
+  { name: "SNR_60", arity: 1, kind: "snr", win: 60 },
+  { name: "TS_ZSCORE_120", arity: 1, kind: "ts_zscore", win: 120 },
+  { name: "DELTA_24", arity: 1, kind: "delta", n: 24 },
 ] as const
 
 export const OP_INDEX: ReadonlyMap<string, number> = new Map(
