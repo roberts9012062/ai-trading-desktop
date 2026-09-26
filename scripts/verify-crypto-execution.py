@@ -136,6 +136,17 @@ class FundingHandCalcTests(unittest.TestCase):
 class ExecutionModelTests(unittest.TestCase):
     CFG = ExecutionConfig(fee_rate=0.001, slippage_bps=0.0, execution_model="perp_next_open")
 
+    def test_funding_enters_pnl_as_return_not_amount(self):
+        """高价币(7 万)上 0.01% 费率:pnl 里的资金费是 −持仓×费率(收益率),
+        不是 −持仓×标记价×费率(金额,会被放大 7 万倍)。"""
+        opens = [70000.0] * 6
+        # 结算时刻不与任何 bar 开盘重合,取 held[i-1]
+        bars = _mk_bars(opens, opens, funding=[(3.5 * 3600_000, 0.0001, 3)])
+        flows = executable_cashflows(_flat_factor(6, 3.0), bars, self.CFG)
+        held = flows["held"][2]
+        self.assertAlmostEqual(flows["funding_cf"][3], -held * 0.0001, places=12)
+        self.assertLess(abs(flows["funding_cf"]).max(), 1e-3)
+
     def test_next_open_return_attribution(self):
         """次根开盘成交:信号 bar 0 收盘 → bar 1 开盘进 → bar 2 开盘出。"""
         # 开盘价 100,101,102,...:每根 open→open 收益 1%

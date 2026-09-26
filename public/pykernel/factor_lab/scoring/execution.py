@@ -61,7 +61,8 @@ def executable_cashflows(
       held[0] = 0(首根收盘前无信号)
     - fee[k] = |sig[k-1] - sig[k-2]| × unit_cost(k=0 为 0;k=1 从空仓起算)
     - price_ret[k] = (open[k+1] - open[k]) / open[k](末根为 0,无完整区间)
-    - funding_cf[k]:结算事件现金流(见 funding.py;estimated 标注)
+    - funding_cf[k]:结算事件按名义本金折成的收益率(−持仓×费率,见 funding.py
+      returns;与 price_ret 同量纲。计价币金额不能直接加进收益率)
     """
     factor = np.asarray(factor, dtype=float)
     n = len(bars)
@@ -83,18 +84,18 @@ def executable_cashflows(
     fee = np.abs(delta) * cfg.unit_cost
     # funding:结算前持仓 = held(重合时上一根的持仓,保守排序)
     events = extract_funding_events(bars)
-    funding = {"cashflows": np.zeros(n), "n_events": 0, "estimated": 0, "missing": 0}
+    funding = {"returns": np.zeros(n), "n_events": 0, "estimated": 0, "missing": 0}
     if cfg.execution_model == MODEL_PERP_NEXT_OPEN and events:
         funding = funding_cashflows(bars, held, events, cfg.contract_multiplier)
     elif cfg.execution_model == MODEL_PERP_NEXT_OPEN:
-        funding = {"cashflows": np.zeros(n), "n_events": 0, "estimated": 0, "missing": 0,
+        funding = {"returns": np.zeros(n), "n_events": 0, "estimated": 0, "missing": 0,
                    "no_funding_data": True}
-    pnl = held * price_ret - fee + funding["cashflows"]
+    pnl = held * price_ret - fee + funding["returns"]
     return {
         "pnl": pnl,
         "held": held,
         "fee": fee,
-        "funding_cf": funding["cashflows"],
+        "funding_cf": funding["returns"],
         "funding_estimated": int(funding.get("estimated", 0)),
         "funding_missing": int(funding.get("missing", 0)),
         "n_funding_events": int(funding.get("n_events", 0)),

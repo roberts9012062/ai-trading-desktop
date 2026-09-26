@@ -83,10 +83,15 @@ def funding_cashflows(
     estimated=True(不得宣称精确)。attach_bar==0 时无已知前价,该事件
     记 NaN 并计入 missing。
 
-    返回:{cashflows[n], estimated, n_events, missing, total, rate_sum}
+    返回:{cashflows[n], returns[n], estimated, n_events, missing, total, rate_sum}
+    - cashflows:每单位持仓的计价币金额(−pos×乘数×标记价×费率),报告用;
+    - returns:同一事件折成收益率(−pos×乘数×费率),与价格收益同量纲,
+      执行口径 pnl 只能加它——直接加金额会把费率放大"标记价"倍
+      (BTC 约 7 万倍),可执行 sortino 被资金费率完全主导。
     """
     n = len(bars)
     cf = np.zeros(n, dtype=float)
+    cf_ret = np.zeros(n, dtype=float)
     estimated = 0
     missing = 0
     closes = np.array([float(b.get("close") or 0) for b in bars], dtype=float)
@@ -112,8 +117,10 @@ def funding_cashflows(
         # 估算口径:结算价用结算前最近收盘。真实标记价缺失 → estimated
         estimated += 1
         cf[i] += -pos * contract_multiplier * mark * float(ev.rate)
+        cf_ret[i] += -pos * contract_multiplier * float(ev.rate)
     return {
         "cashflows": cf,
+        "returns": cf_ret,
         "estimated": estimated,
         "missing": missing,
         "n_events": len(events),

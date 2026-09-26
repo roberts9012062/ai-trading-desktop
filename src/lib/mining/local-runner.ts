@@ -119,7 +119,17 @@ export class LocalMiningRunner implements MiningRunner {
   ): Promise<MiningTask> {
     const progress = opts.onProgress
     await this.#ready()
-    config = { ...config, kernel_version: LOCAL_MINING_KERNEL_VERSION, crypto_profile: config.crypto_profile ?? isCryptoSymbol(config.symbol) }
+    const isCrypto = config.crypto_profile ?? isCryptoSymbol(config.symbol)
+    config = {
+      ...config,
+      kernel_version: LOCAL_MINING_KERNEL_VERSION,
+      crypto_profile: isCrypto,
+      // 加密币增强挖掘:启用 crypto_local_v2 研究契约(60/20/20 切分+严格因果归一化+
+      // 可执行口径,见 factor_local.py);非加密币或未开启增强时不设置(内核用默认口径)
+      ...(isCrypto && (config.selection_v2 || config.evolve_v2)
+        ? { research_profile: "crypto_local_v2" }
+        : {})
+    }
     progress?.("检查本地算力（CPU/GPU）…")
     const resolution = await resolveDevice(opts.device)
 
