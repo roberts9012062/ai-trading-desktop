@@ -1026,13 +1026,24 @@ def _dedup_top(
                 from factor_lab.scoring.regime import (
                     regime_decompose,
                 )
+                from .scoring.walk_forward import _ctx_signature
 
                 lo_test = len(all_bars) - len(test_bars) if all_bars else 0
+                full_ctx = is_crypto(all_bars) or any(40 <= t < 64 or t >= 104 for t in tokens)
                 prefix = (
-                    all_bars[0 if is_crypto(all_bars) or any(40 <= t < 64 or t >= 104 for t in tokens) else max(0, lo_test - WARMUP_BARS) : lo_test] if all_bars else []
+                    all_bars[0 if full_ctx else max(0, lo_test - WARMUP_BARS) : lo_test] if all_bars else []
+                )
+                # regime 的 ctx = prefix+test 与 all_bars 的同内容切片:签名走
+                # 切片快键,免去每冠军对同一 ctx 的 O(N) 重复哈希
+                w_regime = lo_test if full_ctx else min(lo_test, WARMUP_BARS)
+                reg_sig = (
+                    _ctx_signature(all_bars, lo_test, len(all_bars), w_regime)[1]
+                    if all_bars and lo_test > 0
+                    else None
                 )
                 reg = regime_decompose(
-                    tokens, test_bars, timeframe, cost, prefix_bars=prefix
+                    tokens, test_bars, timeframe, cost, prefix_bars=prefix,
+                    _sig=reg_sig,
                 )
                 if reg is not None:
                     enriched["regime"] = reg

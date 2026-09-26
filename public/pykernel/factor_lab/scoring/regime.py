@@ -60,17 +60,21 @@ def regime_decompose(
     timeframe: str,
     cost: float,
     prefix_bars: list[dict[str, Any]] | None = None,
+    _sig: tuple | None = None,
 ) -> dict[str, Any] | None:
     """因子在测试段三种市场状态下的分项指标
 
     prefix_bars(P1-7):计算特征与因子时拼接的 warmup 前置段(只在
     feature_matrix/execute 中使用,指标仍只算 bars 段)。调用方
     (search._enrich)传入测试段之前的 K 线,消除段首预热区失真。
+    _sig:调用方已算好的 ctx(=prefix+bars)内容签名,免去此处 O(N)
+    重复哈希;须确为该 ctx 的 bars_signature(与 feature_matrix 的
+    _sig 参数同一约定)。
     返回 {状态: {"sortino", "ann_ret", "bars"}}；因子无效返回 None。
     """
     prefix = list(prefix_bars or [])
     ctx = prefix + list(bars)
-    mat = feature_matrix(ctx)
+    mat = feature_matrix(ctx, _sig=_sig)
     factor_all = execute_for_bars(tokens, mat, ctx)
     if factor_all is None:
         return None

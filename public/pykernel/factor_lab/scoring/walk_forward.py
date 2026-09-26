@@ -68,7 +68,9 @@ _CTX_CACHE_MAX = 32
 
 
 def _ctx_signature(all_bars: list[dict[str, Any]], lo: int, hi: int, w: int) -> tuple[list, list, tuple]:
-    key = (id(all_bars), lo, hi)
+    # w 必须进 key:full_context 候选(含扩展特征)与非 full 候选对同一
+    # (lo,hi) 会取不同 warmup 宽度,ctx 内容不同,签名不能串用
+    key = (id(all_bars), lo, hi, w)
     hit = _CTX_CACHE.get(key)
     if hit is not None:
         _CTX_CACHE.move_to_end(key)
