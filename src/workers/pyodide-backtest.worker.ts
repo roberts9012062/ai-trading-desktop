@@ -26,13 +26,13 @@ const PYODIDE_VERSION = "0.26.4"
  *  ~22MB(Pyodide core + numpy),国内网速下 1-2 分钟起步且挤占计算超时。 */
 const PYODIDE_BASE = "/pyodide"
 
-/** 资源 URL 转换:开发环境直接用相对路径,生产打包用 Tauri asset 协议 */
-async function assetUrl(path: string): Promise<string> {
-  // __TAURI_INTERNALS__ 由 Tauri 注入,开发环境不存在
+/** 资源 URL 转换:开发环境直接用相对路径,生产打包用 Tauri asset 协议。
+ * 打包后 __TAURI_INTERNALS__ 已在全局注入,直接用 convertFileSrc API。 */
+function assetUrl(path: string): string {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__) {
-    const { convertFileSrc } = await import("@tauri-apps/api/core")
-    return convertFileSrc(path)
+  const tauri = (globalThis as any).__TAURI_INTERNALS__
+  if (tauri?.convertFileSrc) {
+    return tauri.convertFileSrc(path)
   }
   return path
 }
@@ -120,7 +120,7 @@ async function writeFiles(files: string[]): Promise<void> {
   // 并行加载所有文件(开发/生产环境自适应 URL)
   const loads = await Promise.all(
     files.map(async (f) => {
-      const url = await assetUrl(`/pykernel/${f}`)
+      const url = assetUrl(`/pykernel/${f}`)
       const code = await (await fetch(url)).text()
       return { path: f, code }
     })
@@ -137,15 +137,15 @@ function stage(message: string): void {
 
 async function loadKernel(): Promise<Kernel> {
   stage("初始化本地计算内核（组件已内置安装包，无需下载）…")
-  const pyodideUrl = await assetUrl(`${PYODIDE_BASE}/pyodide.mjs`)
+  const pyodideUrl = assetUrl(`${PYODIDE_BASE}/pyodide.mjs`)
   const { loadPyodide } = (await import(/* @vite-ignore */ pyodideUrl)) as {
     loadPyodide: (opts: unknown) => Promise<PyodideInterface>
   }
-  const indexUrl = await assetUrl(`${PYODIDE_BASE}/`)
+  const indexUrl = assetUrl(`${PYODIDE_BASE}/`)
   const pyodide = await loadPyodide({ indexURL: indexUrl })
   pyodideInstance = pyodide
 
-  const manifestUrl = await assetUrl("/pykernel/kernel-files.json")
+  const manifestUrl = assetUrl("/pykernel/kernel-files.json")
   const manifest = (await (await fetch(manifestUrl)).json()) as {
     files: string[]
     factorFiles: string[]
@@ -166,7 +166,7 @@ async function loadFactorKernel(): Promise<FactorKernel> {
   const pyodide = pyodideInstance!
   stage("加载 numpy 计算库（已内置，秒级）…")
   await pyodide.loadPackage("numpy")
-  const manifestUrl = await assetUrl("/pykernel/kernel-files.json")
+  const manifestUrl = assetUrl("/pykernel/kernel-files.json")
   const manifest = (await (await fetch(manifestUrl)).json()) as {
     factorFiles: string[]
   }
