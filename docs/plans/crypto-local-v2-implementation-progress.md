@@ -128,6 +128,17 @@ GP 搜索(registry 感知变异,当前 v3 经 backtest/模板入口使用);v3 �
 [36201661111](https://github.com/roberts9012062/ai-trading-desktop/actions/runs/36201661111)
 **success**(16m29s),Release v0.2.24 产物齐全。
 
+### v0.2.25 加密挖掘稳健性优化(2026-09-26)
+
+分块稳健排序(CPU+GPU)、遴选扩展扫描、多币种联合训练(实验开关)、算子批次4
+(id 46-50)、永续结构特征(id 59-61)、复测头部 NaN 修复;内核 → 2026-09-26.1。
+实测:严格筛通过 28→60、平均封存 sortino −0.18→−0.03;联合训练/新算子/新特征
+在 ~20 天封存段上无显著差异。
+
+交付: feat b7d4677 + release dcb708b(tag v0.2.25);Actions run
+[36238776798](https://github.com/roberts9012062/ai-trading-desktop/actions/runs/36238776798)
+**success**(15m33s)。
+
 ## 关键决策记录
 
 - 旧 profile(crypto_ohlcv_v1)行为保持逐位不变;新能力挂 crypto_local_v2 显式版本,未知版本拒绝执行。
