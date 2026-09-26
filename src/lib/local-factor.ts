@@ -161,35 +161,60 @@ async function evaluatePortfolio(
   }
 }
 
-/** CPU 路径:分代会话逐代推进(真实进度;结果与一次性 search 逐位一致) */
+/** CPU 路径:多核并行(与超级因子挖掘同架构——JS 进化 + 分片池并行 f64
+ * 评估 + 主实例单点严格筛;池不可用自动降级单进程)。评估/严格筛与 GPU
+ * 路径同源同口径,对外数字全部出自内核 f64 */
 async function searchStepwiseCpu(
   payload: LocalFactorPayload,
   bars: KlineBar[],
   onProgress?: (msg: string) => void,
 ): Promise<SearchResult> {
-  onProgress?.("本地 GP 搜索中（首次需下载 numpy ~10MB，视网速约 1-2 分钟，期间安静属正常；仅首次，之后常驻秒启）…")
-  const { ensurePyWorker } = await import("@/lib/py-worker")
-  const py = ensurePyWorker()
-  const sessionId = `fl-${Date.now().toString(36)}`
-  const start = (await py.mineStart(
-    { ...payload, session_id: sessionId, start_generation: 0 },
+  const { CpuBackend } = await import("@/lib/mining/backends/cpu-backend")
+  const backend = new CpuBackend()
+  onProgress?.(
+    "本地多核引擎启动中：初始化本地计算内核（组件已内置安装包，通常秒级；多 worker 并行加载期间安静属正常）…",
+  )
+  const gen = backend.runDirect(
     bars,
-  )) as { session_id?: string }
-  const sid = start?.session_id ?? sessionId
+    {
+      snapshotId: "direct",
+      config: {
+        symbol: payload.symbol,
+        crypto_profile: payload.crypto_profile,
+        timeframe: payload.timeframe,
+        population: payload.population,
+        generations: payload.generations,
+        max_depth: payload.max_depth ?? 4,
+        train_ratio: payload.train_ratio ?? 0,
+        ...(payload.test_recent_bars != null ? { test_recent_bars: payload.test_recent_bars } : {}),
+        walk_forward_folds: payload.walk_forward_folds ?? 0,
+        top_n: payload.top_n,
+        seed: payload.seed,
+        cost: payload.cost ?? null,
+        ...(payload.seed_tokens?.length ? { seed_tokens: payload.seed_tokens } : {}),
+        ...(payload.selection_v2 ? { selection_v2: true } : {}),
+        ...(payload.evolve_v2 ? { evolve_v2: true } : {}),
+        ...(payload.live_entry_gate ? { live_entry_gate: payload.live_entry_gate } : {}),
+        ...(payload.research_profile ? { research_profile: payload.research_profile } : {}),
+        ...(payload.execution_model ? { execution_model: payload.execution_model } : {}),
+        ...(payload.label_span != null ? { label_span: payload.label_span } : {}),
+      },
+      startGeneration: 0,
+    },
+    new AbortController().signal,
+  )
   let champions: Champion[] = []
-  try {
-    while (true) {
-      const step = (await py.mineStep(sid)) as MineStepResult
-      if (step && step.error) throw new Error(step.error)
-      if (!step || step.done) break
-      champions = step.champions ?? []
-      onProgress?.(
-        `第 ${step.generation}/${step.total_generations} 代 · 当前最优 ` +
-          `${Number(step.best_composite ?? 0).toFixed(2)}(${bars.length} 根 K)`,
-      )
+  while (true) {
+    const r = await gen.next()
+    if (r.done) {
+      champions = r.value
+      break
     }
-  } finally {
-    await py.mineDispose(sid).catch(() => undefined)
+    champions = r.value.champions
+    onProgress?.(
+      `第 ${r.value.generation}/${r.value.totalGenerations} 代 · 当前最优 ` +
+        `${r.value.bestComposite.toFixed(2)}(多核并行,${bars.length} 根 K)`,
+    )
   }
   await stampKernelVersion(champions)
   const portfolio = await evaluatePortfolio(payload, bars, champions)

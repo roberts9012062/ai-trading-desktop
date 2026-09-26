@@ -170,25 +170,35 @@ export class CpuBackend implements ComputeBackend {
       throw new Error("K 线快照不存在或已被清理,请删除任务后重新创建")
     }
     if (signal.aborted) throw new Error("已取消")
+    return yield* this.runDirect(snapshot.bars, req, signal)
+  }
+
+  /** 直接给定 bars 的入口(因子实验室快速搜索已有 bars,无需 IDB 快照) */
+  async *runDirect(
+    bars: KlineBar[],
+    req: EvalRequest,
+    signal: AbortSignal,
+  ): AsyncGenerator<GenerationStep, Champion[], void> {
+    if (signal.aborted) throw new Error("已取消")
 
     // 主实例特征准备与池 init(内核冷加载+特征矩阵)并行发起:
     // 总启动时间 ≈ 两者较慢者,而不是相加
     const sessionId = crypto.randomUUID()
-    const featuresPromise = mineFeatures(req, snapshot.bars, sessionId)
+    const featuresPromise = mineFeatures(req, bars, sessionId)
 
     // 多核路径:池建不起来(核数不足/初始化全灭)→ 单进程降级
     const pool = await createShardPool({
-      bars: snapshot.bars,
+      bars,
       size: resolveShardCount(),
       payload: buildPayload(req.config, req),
     }).catch(() => null)
     if (!pool) {
       // 降级路径不消费 featuresPromise 的会话输入,显式释放避免泄漏
       await disposeGpuSession(sessionId)
-      return yield* runSingleProcess(req, snapshot.bars, signal)
+      return yield* runSingleProcess(req, bars, signal)
     }
     try {
-      return yield* runParallel(req, snapshot.bars, pool, signal, sessionId, featuresPromise)
+      return yield* runParallel(req, bars, pool, signal, sessionId, featuresPromise)
     } finally {
       pool.dispose()
     }
