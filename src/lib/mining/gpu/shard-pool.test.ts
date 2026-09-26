@@ -69,12 +69,14 @@ async function load() {
 }
 
 describe("resolveShardCount", () => {
-  it("按逻辑核数自适应,上限 4 下限 1", async () => {
+  it("按逻辑核数自适应,上限 8 下限 1", async () => {
     const { resolveShardCount } = await load()
     stubCores(8)
     expect(resolveShardCount()).toBe(3)
     stubCores(16)
-    expect(resolveShardCount()).toBe(4) // 钳上限
+    expect(resolveShardCount()).toBe(7)
+    stubCores(32)
+    expect(resolveShardCount()).toBe(8) // 钳上限
     stubCores(2)
     expect(resolveShardCount()).toBe(1)
     stubCores(undefined)

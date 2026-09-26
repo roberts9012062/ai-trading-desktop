@@ -27,6 +27,11 @@ import { acquireGpuDevice, probeGpu } from "../device"
 import { createGpuEval, disposeGpuEval, type GpuEvalSetup } from "../gpu/eval-gpu"
 import { nextRet } from "../gpu/eval-core"
 import {
+  createShardPool,
+  resolveShardCount,
+  type ShardPool,
+} from "../gpu/shard-pool"
+import {
   createRankCache,
   preciseTopK,
   rankPopulation,
@@ -150,6 +155,37 @@ export class GpuBackend implements ComputeBackend {
     let lastChampions: Champion[] = []
     let bestSeen: SerializedBest[] = req.seedBest ? [...req.seedBest] : []
 
+    // 精算分片池:每代 top-K 候选的 f64 评估分摊到 N 个 Pyodide worker
+    // 并行(内核 mine_eval_shard 评估 → mine_precise 的 evaluated 并入,
+    // 零重复计算)。joint_training 的联合重排依赖主实例上下文,开启时
+    // 不走池保语义;创建失败静默降级回主实例单进程(老路径)。
+    let shardPool: ShardPool | null = null
+    const wantShard = !cfg.joint_training
+    const shardReady = wantShard
+      ? createShardPool({
+          bars: bars as unknown,
+          size: resolveShardCount(),
+          payload: {
+            symbol: cfg.symbol,
+            crypto_profile: cfg.crypto_profile ?? false,
+            timeframe: cfg.timeframe,
+            population: cfg.population,
+            generations: cfg.generations,
+            max_depth: cfg.max_depth,
+            train_ratio: cfg.train_ratio,
+            ...(cfg.test_recent_bars != null ? { test_recent_bars: cfg.test_recent_bars } : {}),
+            walk_forward_folds: cfg.walk_forward_folds,
+            top_n: cfg.top_n ?? 10,
+            cost: cfg.cost ?? null,
+            ...(cfg.cross_peers?.length ? { cross_peers: cfg.cross_peers } : {}),
+            ...(cfg.selection_v2 ? { selection_v2: true } : {}),
+            ...(cfg.research_profile ? { research_profile: cfg.research_profile } : {}),
+            ...(cfg.execution_model ? { execution_model: cfg.execution_model } : {}),
+            ...(cfg.label_span != null ? { label_span: cfg.label_span } : {}),
+          },
+        }).catch(() => null)
+      : null
+
     try {
       setup = await createGpuEval(gpuDevice, featFlat, retF32, {
         F,
@@ -158,12 +194,27 @@ export class GpuBackend implements ComputeBackend {
         cost: features.cost,
         population: cfg.population,
       })
+      // 池就绪等待放在主流程(与 GPU 上下文创建并行完成);失败得 null 即降级
+      shardPool = shardReady ? await shardReady : null
 
       // 3) 精算入口(每代 top-K 与历史种子都走这里,f64 权威口径)。
       //    粗排只定漏斗名单,名单内全部由内核 f64 重算(GPU 数字只用于
       //    排序,绝不出数);漏斗宽度由 preciseTopK 按训练段长度钳住。
-      const precise = async (candidates: number[][], finalGeneration = false): Promise<MinePreciseResult> =>
-        (await py.factorRun(
+      //    分片池可用时,候选先在 N 个 worker 并行 f64 评估(mine_eval_shard),
+      //    结果经 evaluated 字段并入 mine_precise —— 同一套评估代码,
+      //    多核分摊,严格筛/_dedup_top/封存揭示仍在主实例单点权威。
+      const precise = async (candidates: number[][], finalGeneration = false): Promise<MinePreciseResult> => {
+        let evaluated: Array<{ composite: number; tokens: number[]; metrics: Record<string, unknown> }> | undefined
+        if (shardPool && candidates.length > 0) {
+          try {
+            evaluated = await shardPool.evalShards(candidates)
+          } catch {
+            // 池异常(超时/worker 崩):废弃并降级,本任务内不再重建
+            shardPool.dispose()
+            shardPool = null
+          }
+        }
+        return (await py.factorRun(
           {
             mode: "mine_precise",
             final_generation: finalGeneration,
@@ -179,7 +230,8 @@ export class GpuBackend implements ComputeBackend {
             walk_forward_folds: cfg.walk_forward_folds,
             top_n: cfg.top_n ?? 10,
             cost: cfg.cost ?? null,
-            candidates,
+            candidates: evaluated ? [] : candidates,
+            ...(evaluated ? { evaluated } : {}),
             best_seen: bestSeen,
             trials: cfg.population * cfg.generations,
             // 跨品种验证:JS 预加载的同板块伙伴 bars(_dedup_top 严格筛消费)
@@ -196,6 +248,7 @@ export class GpuBackend implements ComputeBackend {
           [],
           600_000,
         )) as MinePreciseResult
+      }
 
       // 4) GP 初始化(仅 GPU 支持的算子;种子注入种群,与 stepwise 同构)
       const islands = resolveIslands(cfg.population, cfg.islands)
@@ -305,8 +358,8 @@ export class GpuBackend implements ComputeBackend {
             gpuEvaluated: rankStats.gpuEvaluated,
             preciseMs: Math.round(preciseMs),
             gpuMemMB: Math.round(setup.bufferBytes / 1048576),
-            // 评估已并入 GPU 粗排,精算 = 内核对 shortlist 头部的 f64 验证
-            shardWorkers: 0,
+            // 精算分片并行度(0=本代池不可用,已降级主实例单进程)
+            shardWorkers: shardPool?.size ?? 0,
           },
         }
         if (signal.aborted) return lastChampions
@@ -315,6 +368,16 @@ export class GpuBackend implements ComputeBackend {
     } finally {
       // A cancelled generator may still own a speculative readback.
       if (prefetched) await prefetched
+      // 等待池初始化落定再销毁,避免悬挂的 createShardPool 泄漏 worker
+      if (shardReady) {
+        try {
+          const pool = await shardReady
+          pool?.dispose()
+        } catch {
+          // init 已失败,无池可泄
+        }
+      }
+      shardPool = null
       if (setup) disposeGpuEval(setup)
       gpuDevice.destroy()
     }

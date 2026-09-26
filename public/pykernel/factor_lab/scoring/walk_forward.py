@@ -58,6 +58,30 @@ _SEG_CACHE: OrderedDict[tuple, Any] = OrderedDict()
 # 浮点的小 dict,容量只影响命中率,不影响任何数值。
 _SEG_CACHE_MAX = 2048
 
+# ── 切片上下文快键 ──────────────────────────────────────────
+# evaluate_on_slice 的段签名是 O(N) 哈希(15m 深历史单次 0.1~0.3s):同一
+# (all_bars, lo, hi) 切片在一轮严格筛里被 ~30 个候选反复求签名,只为去查
+# 段级缓存。按 (id(all_bars), lo, hi) 直接缓存切片对象与其签名——值持有
+# bars/切片引用,宿主对象活着 id 即唯一,不存在复用歧义。纯加速,不改口径。
+_CTX_CACHE: OrderedDict[tuple, tuple] = OrderedDict()
+_CTX_CACHE_MAX = 32
+
+
+def _ctx_signature(all_bars: list[dict[str, Any]], lo: int, hi: int, w: int) -> tuple[list, list, tuple]:
+    key = (id(all_bars), lo, hi)
+    hit = _CTX_CACHE.get(key)
+    if hit is not None:
+        _CTX_CACHE.move_to_end(key)
+        bars_ref, ctx, sig = hit
+        if bars_ref is all_bars:
+            return ctx, sig
+    ctx = all_bars[lo - w : hi]
+    sig = bars_signature(ctx)
+    _CTX_CACHE[key] = (all_bars, ctx, sig)
+    while len(_CTX_CACHE) > _CTX_CACHE_MAX:
+        _CTX_CACHE.popitem(last=False)
+    return ctx, sig
+
 
 def _cache_get(key: tuple) -> Any:
     hit = _SEG_CACHE.get(key)
@@ -120,17 +144,17 @@ def evaluate_on_slice(
     from ..market import is_crypto
     full_context = is_crypto(all_bars) or any(40 <= t < 64 or t >= 104 for t in tokens)
     w = lo if full_context else min(lo, WARMUP_BARS)
-    ctx = all_bars[lo - w : hi]
+    ctx, sig = _ctx_signature(all_bars, lo, hi, w)
     key = (
         tuple(int(t) for t in tokens),
-        bars_signature(ctx),
+        sig,
         timeframe,
         round(float(cost), 10),
     )
     cached = _cache_get(key)
     if cached is not None:
         return dict(cached) if cached != "__none__" else None
-    mat = feature_matrix(ctx)
+    mat = feature_matrix(ctx, _sig=sig)
     factor = execute_for_bars(tokens, mat, ctx)
     if factor is None:
         _cache_put(key, "__none__")
@@ -189,11 +213,11 @@ def live_discrete_on_slice(
     from ..market import is_crypto
     full_context = is_crypto(all_bars) or any(40 <= t < 64 or t >= 104 for t in tokens)
     w = lo if full_context else min(lo, WARMUP_BARS)
-    ctx = all_bars[lo - w : hi]
+    ctx, sig = _ctx_signature(all_bars, lo, hi, w)
     key = (
         "live_discrete",
         tuple(int(t) for t in tokens),
-        bars_signature(ctx),
+        sig,
         timeframe,
         round(float(cost), 10),
         round(float(entry), 6),
@@ -201,7 +225,7 @@ def live_discrete_on_slice(
     cached = _cache_get(key)
     if cached is not None:
         return dict(cached) if cached != "__none__" else None
-    factor = execute_for_bars(tokens, feature_matrix(ctx), ctx)
+    factor = execute_for_bars(tokens, feature_matrix(ctx, _sig=sig), ctx)
     if factor is None:
         _cache_put(key, "__none__")
         return None

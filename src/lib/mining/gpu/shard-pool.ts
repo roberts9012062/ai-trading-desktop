@@ -35,17 +35,21 @@ interface ShardWorker {
   rpcSeq: number
 }
 
-const INIT_TIMEOUT_MS = 150_000 // 含 Pyodide+numpy 冷加载(CDN)
-const EVAL_TIMEOUT_MS = 120_000
+// 含 Pyodide+numpy 冷加载与 init 的特征矩阵计算:15m 深历史(1.7 万根
+// ×60+ 特征)单实例特征计算可达 1-2 分钟,深数据下 150s 会误杀真初始化
+const INIT_TIMEOUT_MS = 480_000
+// 15m 深历史(1.7 万根)单候选 f64 评估可达数秒;CPU 模式整种群全量评估,
+// 每片数百候选 × 数秒 —— 上限必须覆盖最重合法负载,超时才是真卡死
+const EVAL_TIMEOUT_MS = 900_000
 
 function shardCount(hardwareConcurrency: number | undefined): number {
   const hc = hardwareConcurrency && hardwareConcurrency > 0 ? hardwareConcurrency : 8
-  // 每个 Pyodide+numpy 实例常驻 ~150MB:上限 4 已足够吃满精算并行,
-  // 下限 1(单核机器退化为无池——由调用方按 size 判断降级)
-  return Math.max(1, Math.min(4, Math.floor(hc / 2) - 1))
+  // 每个 Pyodide+numpy 实例常驻 ~150MB:上限 8(8×150MB=1.2GB,主流 16 核+
+  // 32GB 机器安全);下限 1(单核机器退化为无池——由调用方按 size 判断降级)
+  return Math.max(1, Math.min(8, Math.floor(hc / 2) - 1))
 }
 
-/** 池 worker 数:按逻辑核数自适应(8 核→3,12 核+→4,4 核→1) */
+/** 池 worker 数:按逻辑核数自适应(6 核→2,8 核→3,18 核+→8) */
 export function resolveShardCount(): number {
   return shardCount(
     typeof navigator !== "undefined" ? navigator.hardwareConcurrency : undefined,

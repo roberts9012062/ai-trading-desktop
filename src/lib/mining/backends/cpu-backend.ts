@@ -1,15 +1,23 @@
 /**
- * CpuBackend —— 单 Pyodide Worker 分代步进挖掘(M3)
+ * CpuBackend —— 多核并行本地挖掘(原 M3 单进程内核改为多 worker 架构)
  *
- * M3 固定单 worker + islands=1:与服务端内核逐位一致(同一份 factor_lab
- * 代码、同 seed、同 bars → 相同结果)。多 worker 按岛并行是 M3.5。
+ * 架构(与 GPU 路径同构,粗排算力不同):
+ * - 进化(生成/交叉/变异/锦标赛/岛迁移):JS(主线程,毫秒级);
+ * - 全种群 f64 评估:分片到 N 个 Pyodide worker 并行(mine_eval_shard,
+ *   N=resolveShardCount 按逻辑核数自适应,每实例常驻 ~150MB);
+ * - 严格筛/_dedup_top/封存揭示:主实例单点(mine_precise 的 evaluated
+ *   并入协议,评估过的候选零重复计算)。
  *
- * 会话生命周期:mine_start(bars 一次传入)→ 循环 mine_step(每代返回)
- * → done 或中止时 mine_dispose。取消/暂停 = 不再发 mine_step + dispose,
- * 控制权在 JS,内核无需埋取消标志(文档 2.7)。
+ * 历史包袱说明:M3 曾固定单 worker + islands=1 换"与服务端逐位一致",
+ * 服务端挖掘下线后该约束已无意义;单核跑 15m 深历史(600 种群×80 代)
+ * 每代 4 分钟、全程近 6 小时只吃一个核,不可接受,故彻底多核化。
+ *
+ * 池不可用(逻辑核<6 等)时降级为原单进程 mine_start/mine_step 路径,
+ * 行为与旧版一致(单核,但永远可用)。
  */
 
 import type { Champion } from "@/lib/factor-lab-api"
+import type { KlineBar } from "@/types"
 import { ensurePyWorker } from "@/lib/py-worker"
 import { getBarsSnapshot } from "../data-source"
 import type { MiningConfig } from "../types"
@@ -18,8 +26,26 @@ import type {
   EvalRequest,
   GenerationStep,
 } from "./types"
+import { createShardPool, resolveShardCount, type ShardPool } from "../gpu/shard-pool"
+import {
+  metricFingerprint,
+  preciseTopK,
+  rankComp,
+  selectPreciseIndices,
+  selectPreciseIndicesQuota,
+  type RankedCandidate,
+} from "../gpu/rank"
+import {
+  Rng,
+  gpuOpSets,
+  randomTreeGpuSafe,
+  tokensToTree,
+  treeToTokens,
+  type Tree,
+} from "../gpu/gp"
+import { StagnationTracker, nextGeneration, resolveIslands } from "../gpu/evolve"
 
-/** mine_step 的返回契约(factor_local.mine_step) */
+/** mine_step 的返回契约(降级路径用;factor_local.mine_step) */
 interface MineStepResult {
   done?: boolean
   error?: string
@@ -29,13 +55,33 @@ interface MineStepResult {
   champions?: Champion[]
 }
 
+interface MineFeaturesResult {
+  feature_names: string[]
+  active_feature_ids?: number[]
+  periods: number
+  cost: number
+  train_len: number
+  total_len: number
+}
+
+interface EvaluatedEntry {
+  composite: number
+  tokens: number[]
+  metrics: Record<string, unknown>
+}
+
+interface MinePreciseResult {
+  champions: Champion[]
+  best_seen: EvaluatedEntry[]
+}
+
 let sessionSeq = 0
 function newSessionId(): string {
   sessionSeq += 1
   return `mine-${Date.now().toString(36)}-${sessionSeq}`
 }
 
-/** MiningConfig → SearchConfig 字段(只透传内核认识的键) */
+/** MiningConfig → 内核 SearchConfig 字段(只透传内核认识的键) */
 function buildPayload(config: MiningConfig, req: EvalRequest): Record<string, unknown> {
   return {
     symbol: config.symbol,
@@ -47,26 +93,57 @@ function buildPayload(config: MiningConfig, req: EvalRequest): Record<string, un
     train_ratio: config.train_ratio,
     ...(config.test_recent_bars != null ? { test_recent_bars: config.test_recent_bars } : {}),
     walk_forward_folds: config.walk_forward_folds,
-    // M3:与服务端逐位一致要求 islands=1(多 worker 并行 M3.5 再放开)
     islands: 1,
     ...(config.top_n != null ? { top_n: config.top_n } : {}),
     ...(config.seed != null ? { seed: config.seed } : {}),
     // cost=null 由内核按品种+滑点解析(factor-local cost 陷阱:绝不透传 null)
     cost: config.cost ?? null,
     ...(config.seed_tokens?.length ? { seed_tokens: config.seed_tokens } : {}),
-    // 跨品种验证:JS 预加载的同板块伙伴 bars(SearchConfig 白名单字段)
     ...(config.cross_peers?.length ? { cross_peers: config.cross_peers } : {}),
-    // 本地增强(默认关;开启即不再与服务端逐位一致,这是预期)
     ...(config.selection_v2 ? { selection_v2: true } : {}),
     ...(config.evolve_v2 ? { evolve_v2: true } : {}),
     ...(config.joint_training && config.cross_peers?.length ? { joint_training: true } : {}),
     ...(config.live_entry_gate ? { live_entry_gate: config.live_entry_gate } : {}),
-    // v2 研究契约(方案 §3):显式切分/因果归一化/执行模型贯通到内核
     ...(config.research_profile ? { research_profile: config.research_profile } : {}),
     ...(config.execution_model ? { execution_model: config.execution_model } : {}),
     ...(config.label_span != null ? { label_span: config.label_span } : {}),
     start_generation: req.startGeneration,
     ...(req.seedBest?.length ? { seed_best: req.seedBest } : {}),
+  }
+}
+
+/** 缓存条目须保 metrics:top-K 命中缓存时经 evaluated 并入需带完整 f64 指标
+ *  (内核护栏:缺 sortino 的条目直接丢弃) */
+interface EvalCacheEntry extends EvaluatedEntry {
+  /** rankComp 后的进化排序分(含 parsimony 罚分) */
+  rankedComp: number
+  /** 行为指纹(克隆降权) */
+  fp: number
+}
+
+/** 任务级评估缓存:相同 tokens 的 f64 结果跨代复用(精英克隆/收敛期占比高)。
+ *  条目自带 metrics(~500B/条),50 万条上限防内存无界,超限整体清空。 */
+const EVAL_CACHE_MAX = 500_000
+
+function createEvalCache() {
+  const map = new Map<string, EvalCacheEntry>()
+  return {
+    get: (key: string) => map.get(key),
+    put(entries: EvaluatedEntry[]): void {
+      if (map.size + entries.length > EVAL_CACHE_MAX) map.clear()
+      for (const e of entries) {
+        const m = e.metrics ?? {}
+        map.set(e.tokens.join(","), {
+          ...e,
+          rankedComp: rankComp(e.composite, e.tokens.length),
+          fp: metricFingerprint(
+            Number(m.ann_ret ?? 0),
+            Number(m.sortino ?? 0),
+            Number(m.ts_ic ?? 0),
+          ),
+        })
+      }
+    },
   }
 }
 
@@ -88,42 +165,294 @@ export class CpuBackend implements ComputeBackend {
     }
     if (signal.aborted) throw new Error("已取消")
 
-    const py = ensurePyWorker()
-    const sessionId = newSessionId()
-    const startResp = (await py.mineStart(
-      { ...buildPayload(req.config, req), session_id: sessionId },
-      snapshot.bars,
-    )) as { session_id?: string; error?: string }
-    if (startResp && startResp.error) {
-      throw new Error(startResp.error)
-    }
-    const sid = startResp?.session_id ?? sessionId
-    let lastChampions: Champion[] = []
+    // 主实例特征准备与池 init(内核冷加载+特征矩阵)并行发起:
+    // 总启动时间 ≈ 两者较慢者,而不是相加
+    const sessionId = crypto.randomUUID()
+    const featuresPromise = mineFeatures(req, snapshot.bars, sessionId)
 
+    // 多核路径:池建不起来(核数不足/初始化全灭)→ 单进程降级
+    const pool = await createShardPool({
+      bars: snapshot.bars,
+      size: resolveShardCount(),
+      payload: buildPayload(req.config, req),
+    }).catch(() => null)
+    if (!pool) {
+      // 降级路径不消费 featuresPromise 的会话输入,显式释放避免泄漏
+      await disposeGpuSession(sessionId)
+      return yield* runSingleProcess(req, snapshot.bars, signal)
+    }
     try {
-      while (true) {
-        // 取消/暂停点:每代之间检查,不再发 mine_step 即中止
-        if (signal.aborted) return lastChampions
-        const t0 = Date.now()
-        const step = (await py.mineStep(sid)) as MineStepResult
-        if (step && step.error) throw new Error(step.error)
-        if (!step || step.done) return lastChampions
-        lastChampions = step.champions ?? []
-        yield {
-          generation: Number(step.generation ?? 0),
-          totalGenerations: Number(step.total_generations ?? req.config.generations),
-          bestComposite: Number(step.best_composite ?? 0),
-          champions: lastChampions,
-          elapsedMs: Date.now() - t0,
-        }
-      }
+      return yield* runParallel(req, snapshot.bars, pool, signal, sessionId, featuresPromise)
     } finally {
-      // 中止/完成/异常都释放会话(内核侧只是丢弃生成器,幂等)
-      await py.mineDispose(sid).catch(() => undefined)
+      pool.dispose()
     }
   }
 
   async dispose(): Promise<void> {
-    // 会话在 run() 的 finally 中释放,这里无全局资源
+    // 资源在 run() 的 finally 中释放
+  }
+}
+
+/** 主实例特征准备(mine_features:特征/年化基数/成本率,与 GPU 路径同口径) */
+async function mineFeatures(req: EvalRequest, bars: KlineBar[], sessionId: string): Promise<MineFeaturesResult> {
+  const cfg = req.config
+  const py = ensurePyWorker()
+  return (await py.factorRun(
+    {
+      mode: "mine_features",
+      gpu_session_id: sessionId,
+      symbol: cfg.symbol,
+      crypto_profile: cfg.crypto_profile ?? false,
+      timeframe: cfg.timeframe,
+      train_ratio: cfg.train_ratio,
+      ...(cfg.test_recent_bars != null ? { test_recent_bars: cfg.test_recent_bars } : {}),
+      ...(cfg.research_profile ? { research_profile: cfg.research_profile } : {}),
+      ...(cfg.execution_model ? { execution_model: cfg.execution_model } : {}),
+      ...(cfg.label_span != null ? { label_span: cfg.label_span } : {}),
+      cost: cfg.cost ?? null,
+    },
+    bars,
+    300_000,
+  )) as MineFeaturesResult
+}
+
+/** 释放 mine_features 冻结在内核侧的会话输入(_GPU_INPUTS) */
+async function disposeGpuSession(sessionId: string): Promise<void> {
+  try {
+    await Promise.resolve(
+      ensurePyWorker().factorRun({ mode: "mine_gpu_dispose", gpu_session_id: sessionId }, [], 10_000),
+    ).catch(() => undefined)
+  } catch {
+    // 释放失败不阻断任务收尾
+  }
+}
+
+/** 多核主循环:每代全种群分片 f64 评估 → JS 进化 → top-K 严格筛 */
+async function* runParallel(
+  req: EvalRequest,
+  bars: KlineBar[],
+  pool: ShardPool,
+  signal: AbortSignal,
+  sessionId: string,
+  featuresPromise: Promise<MineFeaturesResult>,
+): AsyncGenerator<GenerationStep, Champion[], void> {
+  const cfg = req.config
+  if (signal.aborted) return []
+  const py = ensurePyWorker()
+
+  try {
+    // 1) 特征/年化基数/成本率(已与池 init 并行预热)
+    const features = await featuresPromise
+
+    const F = features.feature_names.length
+    const T = features.train_len
+
+    // 2) GP 初始化(与 GPU 路径同构:种子注入种群,历史最优先精算保不倒退)
+    const islands = resolveIslands(cfg.population, cfg.islands)
+    const active = features.active_feature_ids ?? Array.from({ length: F }, (_, i) => i)
+    if (!active.length) throw new Error("训练段没有可用特征")
+    const sampling = cfg.crypto_profile ? [...active, ...active.filter((i) => i >= 45)] : active
+    const rng = new Rng((cfg.seed ?? 42) + req.startGeneration, sampling)
+    const { opOne, opTwo } = gpuOpSets(cfg.crypto_profile ?? false)
+    const maxDepth = cfg.max_depth
+    const population: Tree[] = []
+    for (let i = 0; i < cfg.population; i++) {
+      population.push(randomTreeGpuSafe(maxDepth, F, opOne, opTwo, rng))
+    }
+    const seedTokens = cfg.seed_tokens ?? []
+    if (seedTokens.some((tokens) => tokens.some((t) => t < 64 && !active.includes(t)))) {
+      throw new Error("种子依赖当前训练数据不可用的特征")
+    }
+    for (let k = 0; k < seedTokens.length && k < population.length; k++) {
+      const tree = tokensToTree(seedTokens[k], F)
+      if (tree) population[k] = tree
+    }
+
+    let lastChampions: Champion[] = []
+    let bestSeen: EvaluatedEntry[] = req.seedBest ? [...req.seedBest] : []
+    const cache = createEvalCache()
+
+    // 3) 严格筛/权威排行:主实例单点(mine_precise),已评估候选经 evaluated 并入
+    const precise = async (evaluated: EvaluatedEntry[], finalGeneration: boolean): Promise<MinePreciseResult> =>
+      (await py.factorRun(
+        {
+          mode: "mine_precise",
+          final_generation: finalGeneration,
+          gpu_session_id: sessionId,
+          symbol: cfg.symbol,
+          crypto_profile: cfg.crypto_profile ?? false,
+          timeframe: cfg.timeframe,
+          population: cfg.population,
+          generations: cfg.generations,
+          max_depth: cfg.max_depth,
+          train_ratio: cfg.train_ratio,
+          ...(cfg.test_recent_bars != null ? { test_recent_bars: cfg.test_recent_bars } : {}),
+          walk_forward_folds: cfg.walk_forward_folds,
+          top_n: cfg.top_n ?? 10,
+          cost: cfg.cost ?? null,
+          candidates: [],
+          evaluated,
+          best_seen: bestSeen,
+          trials: cfg.population * cfg.generations,
+          ...(cfg.cross_peers?.length ? { cross_peers: cfg.cross_peers } : {}),
+          ...(cfg.selection_v2 ? { selection_v2: true } : {}),
+          ...(cfg.joint_training && cfg.cross_peers?.length ? { joint_training: true } : {}),
+          ...(cfg.live_entry_gate ? { live_entry_gate: cfg.live_entry_gate } : {}),
+          ...(cfg.research_profile ? { research_profile: cfg.research_profile } : {}),
+          ...(cfg.execution_model ? { execution_model: cfg.execution_model } : {}),
+          ...(cfg.label_span != null ? { label_span: cfg.label_span } : {}),
+        },
+        [],
+        600_000,
+      )) as MinePreciseResult
+
+    // 历史种子先精算一次:注入 best_seen,保证续训不倒退
+    if (bestSeen.length > 0 || seedTokens.length > 0) {
+      const evaluated = seedTokens.length > 0 ? await pool.evalShards(seedTokens) : []
+      const res = await precise(evaluated, false)
+      bestSeen = res.best_seen
+      lastChampions = res.champions
+    }
+
+    // 4) 分代主循环(全量 f64 评估[任务级缓存] → 进化 → top-K 严格筛)
+    const topK = preciseTopK(cfg.population, cfg.top_n ?? 10, T)
+    const evolveV2 = cfg.evolve_v2 === true
+    const stagnation = evolveV2 ? new StagnationTracker(islands) : undefined
+
+    for (let genIdx = req.startGeneration; genIdx < cfg.generations; genIdx++) {
+      if (signal.aborted) return lastChampions
+      const t0 = Date.now()
+
+      // 全种群评估:重复公式命中缓存(克隆/收敛期占比高),未评估的分片并行
+      const uncachedTokens: number[][] = []
+      const perGen: EvaluatedEntry[] = []
+      let cacheHits = 0
+      for (const tree of population) {
+        const tokens = treeToTokens(tree)
+        const hit = cache.get(tokens.join(","))
+        if (hit) {
+          cacheHits += 1
+          perGen.push(hit)
+        } else {
+          uncachedTokens.push(tokens)
+        }
+      }
+      const evalStart = performance.now()
+      const evaluated =
+        uncachedTokens.length > 0 ? await pool.evalShards(uncachedTokens) : []
+      const evalMs = performance.now() - evalStart
+      cache.put(evaluated)
+      perGen.push(...evaluated)
+
+      const byKey = new Map(perGen.map((e) => [e.tokens.join(","), e]))
+      const scored: RankedCandidate[] = population.map((tree) => {
+        const tokens = treeToTokens(tree)
+        const key = tokens.join(",")
+        const e = byKey.get(key)
+        if (!e) return { comp: -999, tree, tokens }
+        // cache.put 后必命中;防御性兜底 rankComp
+        const cached = cache.get(key)
+        return {
+          comp: cached ? cached.rankedComp : rankComp(e.composite, tokens.length),
+          tree,
+          tokens,
+          oos: Number.isFinite(Number(e.metrics?.oos_sortino))
+            ? Number(e.metrics.oos_sortino)
+            : undefined,
+          fp: cached?.fp,
+        }
+      })
+
+      // 精算漏斗与 GPU 路径同构:v2 配额探索 / 普通全局 top-K
+      const topCandidates = (evolveV2
+        ? selectPreciseIndicesQuota(scored, topK)
+        : selectPreciseIndices(scored, topK, evolveV2)
+      ).map((i) => scored[i].tokens)
+
+      // 进化下一代(只依赖 f64 分数)
+      const nextTrees = nextGeneration(
+        scored,
+        { population: cfg.population, islands, maxDepth, featN: F, opOne, opTwo, v2: evolveV2 },
+        rng,
+        genIdx + 1,
+        stagnation,
+      )
+      population.splice(0, population.length, ...nextTrees)
+
+      // top-K 的 f64 结果已产出,作为 evaluated 并入(零重复计算)
+      const preciseStart = performance.now()
+      const isFinal = genIdx + 1 === cfg.generations
+      if (topCandidates.length > 0 || isFinal) {
+        const keys = new Set(topCandidates.map((t) => t.join(",")))
+        const topEvaluated = perGen.filter((e) => keys.has(e.tokens.join(",")))
+        const res = await precise(topEvaluated, isFinal)
+        bestSeen = res.best_seen
+        lastChampions = res.champions
+      }
+      const preciseMs = performance.now() - preciseStart
+
+      const bestComposite = lastChampions.reduce((m, c) => Math.max(m, c.composite), -999)
+      yield {
+        generation: genIdx + 1,
+        totalGenerations: cfg.generations,
+        bestComposite,
+        champions: lastChampions,
+        elapsedMs: Date.now() - t0,
+        gpuStats: {
+          rankMs: Math.round(evalMs),
+          evaluated: population.length,
+          cacheHits,
+          gpuEvaluated: 0,
+          preciseMs: Math.round(preciseMs),
+          gpuMemMB: 0,
+          shardWorkers: pool.size,
+        },
+      }
+      if (signal.aborted) return lastChampions
+    }
+    return lastChampions
+  } finally {
+    await disposeGpuSession(sessionId)
+  }
+}
+
+/** 单进程降级路径(原 M3 行为:mine_start/mine_step 单 worker 单核) */
+async function* runSingleProcess(
+  req: EvalRequest,
+  bars: KlineBar[],
+  signal: AbortSignal,
+): AsyncGenerator<GenerationStep, Champion[], void> {
+  if (signal.aborted) throw new Error("已取消")
+
+  const py = ensurePyWorker()
+  const sessionId = newSessionId()
+  const startResp = (await py.mineStart(
+    { ...buildPayload(req.config, req), session_id: sessionId },
+    bars,
+  )) as { session_id?: string; error?: string }
+  if (startResp && startResp.error) {
+    throw new Error(startResp.error)
+  }
+  const sid = startResp?.session_id ?? sessionId
+  let lastChampions: Champion[] = []
+
+  try {
+    while (true) {
+      if (signal.aborted) return lastChampions
+      const t0 = Date.now()
+      const step = (await py.mineStep(sid)) as MineStepResult
+      if (step && step.error) throw new Error(step.error)
+      if (!step || step.done) return lastChampions
+      lastChampions = step.champions ?? []
+      yield {
+        generation: Number(step.generation ?? 0),
+        totalGenerations: Number(step.total_generations ?? req.config.generations),
+        bestComposite: Number(step.best_composite ?? 0),
+        champions: lastChampions,
+        elapsedMs: Date.now() - t0,
+      }
+    }
+  } finally {
+    await py.mineDispose(sid).catch(() => undefined)
   }
 }

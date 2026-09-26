@@ -1039,7 +1039,7 @@ def run_mine_precise(payload: dict, bars: list) -> str:
                 "champions": champion_out,
                 "best_seen": [
                     {"composite": c, "tokens": t, "metrics": _round_metrics(m)}
-                    for c, t, m in archive.to_payload()
+                    for c, t, m in archive.snapshot()
                 ],
             },
             ensure_ascii=False,

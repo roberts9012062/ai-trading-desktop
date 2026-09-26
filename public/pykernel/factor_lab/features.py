@@ -697,7 +697,11 @@ FEATURE_NAMES: tuple[str, ...] = (
 # 侧不受影响：挖掘每代都重复命中自己那十几个段，LRU 次序被持续刷新，
 # 驻留优先级高于只写一次的实盘条目；最坏情况也只是 32MB 上限内的浪费。
 _MATRIX_CACHE: OrderedDict[tuple, np.ndarray] = OrderedDict()
-_MATRIX_CACHE_MAX_ELEMENTS = 4_000_000
+# 64MB 元素预算:15m 深历史一条 [62, ~17k] f64 ≈ 8.5MB,严格筛/_enrich 一代
+# 要用 ~8 种切片上下文(全段/训练/测试/OOS 四分/WF 折),4M(32MB)只驻 3 条,
+# 跨代 LRU 抖动导致每代全量重算(实测占精算耗时 80%+);64MB 可驻 ~7 条,
+# 切片集合跨代稳定后基本全命中。池 worker 只用固定全段 1 条,不受影响。
+_MATRIX_CACHE_MAX_ELEMENTS = 8_000_000
 
 
 def bars_signature(bars: list[dict[str, Any]]) -> tuple:
@@ -730,13 +734,15 @@ def clear_feature_matrix_cache() -> None:
     _MATRIX_CACHE.clear()
 
 
-def feature_matrix(bars: list[dict[str, Any]]) -> np.ndarray:
+def feature_matrix(bars: list[dict[str, Any]], _sig: tuple | None = None) -> np.ndarray:
     """返回 [F, T] 特征矩阵，顺序与 FEATURE_NAMES 一致
 
     结果按段缓存，返回只读数组（调用方只按行取特征送入 StackVM，
     不写入矩阵；只读标记把将来的意外写入变成显式报错而非静默串数据）。
+    _sig:调用方已算好的 bars 签名(walk_forward 的切片快键),免去此处
+    对同一 ctx 的 O(N) 重复哈希;签名必须确为该 bars 的 bars_signature。
     """
-    key = bars_signature(bars)
+    key = _sig if _sig is not None else bars_signature(bars)
     hit = _MATRIX_CACHE.get(key)
     if hit is not None:
         _MATRIX_CACHE.move_to_end(key)
