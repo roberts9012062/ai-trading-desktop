@@ -80,6 +80,8 @@ def run(payload_json: str, bars_json: str) -> str:
         return run_mine_precise(payload, bars)
     if mode == "mine_eval_shard":
         return run_mine_shard(payload, bars)
+    if mode == "mine_strict_eval":
+        return run_mine_strict_eval(payload, bars)
     if mode == "mine_portfolio":
         return run_mine_portfolio(payload, bars)
     if mode == "llm_vocab":
@@ -876,6 +878,122 @@ def run_mine_shard(payload: dict, bars: list) -> str:
     return json.dumps({"evaluated": out}, ensure_ascii=False, default=str)
 
 
+def _strict_eval_context(payload: dict, bars: list) -> dict:
+    """构造与 run_mine_precise 严格筛段同构的判定上下文(单点语义)。
+
+    主实例与分片 worker(mine_strict_eval)都经本函数构造 ctx:同 bars 同
+    cfg → 确定性切分 → 同 test/train/plan/cross_peers(含 v2 封存裁剪口径:
+    bars 截到 validation_end,封存段对严格筛不可见)。verify-strict-shard
+    对拍锁定两条路径的 _strict_gate 结果逐位一致。
+    """
+    timeframe = str(payload.get("timeframe") or "1d")
+    cfg_kwargs = {k: payload[k] for k in _CFG_FIELDS if k in payload}
+    if cfg_kwargs.get("cost") is None:
+        cfg_kwargs["cost"] = resolve_search_cost(payload, bars)
+    cfg = SearchConfig(**cfg_kwargs)
+    if cfg.research_profile == "crypto_local_v2":
+        cfg.crypto_profile = True
+    if cfg.crypto_profile and cfg.cross_peers:
+        cfg.cross_peers = [(symbol, prepare_bars({**payload, "symbol": symbol}, peer))
+                           for symbol, peer in cfg.cross_peers]
+    v2 = cfg.research_profile == "crypto_local_v2"
+    plan = None
+    if v2:
+        from factor_lab.scoring.split_plan import build_split_plan
+
+        plan = build_split_plan(
+            len(bars), label_span=cfg.label_span, warmup=250, bars=bars
+        )
+        if plan.sufficient:
+            bars = list(bars[: plan.validation_end])
+        train_bars = list(bars[: plan.train_end]) if plan.sufficient else list(bars)
+        test_bars = list(bars[plan.train_end :]) if plan.sufficient else []
+        use_test = plan is not None and plan.sufficient
+    else:
+        train_bars, test_bars = _split_train_test(cfg, bars)
+        # use_test 先按裁剪前 test_bars 判定(与 mine_precise 的顺序一致)
+        use_test = bool(test_bars) and len(test_bars) >= MIN_TEST_BARS
+        if cfg.selection_v2 and use_test and test_bars:
+            # 与 _dedup_top 顶部的封存裁剪同口径(仅 selection_v2 且非 v2):
+            # 测试段尾部切走封存,伙伴品种同期数据同样不可见
+            from factor_lab.scoring.walk_forward import holdout_len
+
+            n_holdout = holdout_len(len(test_bars))
+            if n_holdout:
+                cut_time = str(bars[len(bars) - n_holdout].get("time") or "")
+                test_bars = test_bars[: len(test_bars) - n_holdout]
+                bars = list(bars[: len(bars) - n_holdout])
+                if cfg.cross_peers:
+                    cfg.cross_peers = [
+                        (peer, [b for b in pb if str(b.get("time") or "") < cut_time])
+                        for peer, pb in cfg.cross_peers
+                    ]
+    return {
+        "all_bars": bars,
+        "train_bars": train_bars,
+        "test_bars": test_bars,
+        "timeframe": timeframe,
+        "cost": cfg.cost,
+        "use_test": use_test,
+        "walk_forward_folds": cfg.walk_forward_folds,
+        "plan": plan,
+        "live_fill_gate": cfg.live_fill_gate,
+        "live_entry_gate": cfg.live_entry_gate,
+        "cross_peers": cfg.cross_peers,
+        "execution_model": cfg.execution_model,
+        "joint_training": cfg.joint_training,
+    }
+
+
+def run_mine_strict_eval(payload: dict, bars: list) -> str:
+    """分片严格筛预判:对候选 tokens 逐个跑 _strict_gate,返回可并入
+    mine_precise 的 prefetched_strict 表(每条 {tokens, pass, cross_scores})。
+
+    bars 非空时更新 _SHARD 缓存(与 run_mine_shard 共用);为空时用缓存
+    ——调用方首次带 bars 初始化,后续每代只传候选。
+    """
+    from factor_lab.search import _strict_gate
+
+    bars = prepare_bars(payload, bars)
+    if bars:
+        _SHARD["bars"] = bars
+        _SHARD["payload"] = payload
+    base = _SHARD.get("payload") or payload
+    shard_bars = _SHARD.get("bars") or []
+    if not shard_bars:
+        return json.dumps({"error": "strict shard not initialized"}, ensure_ascii=False)
+    ctx = _strict_eval_context(base, shard_bars)
+    out = []
+    for raw in payload.get("candidates") or []:
+        tokens = [int(t) for t in raw if isinstance(t, (int, float))]
+        if not tokens:
+            continue
+        ok, cross_scores = _strict_gate(tokens, ctx)
+        out.append({"tokens": tokens, "pass": bool(ok), "cross_scores": cross_scores})
+    return json.dumps({"strict": out}, ensure_ascii=False, default=str)
+
+
+def _decode_prefetched_strict(raw) -> dict:
+    """mine_precise 载荷里的 prefetched_strict → {tokens 键: (pass, scores)}
+
+    护栏:条目形状不对直接丢弃(_dedup_top 会退回本地判定,不改变结果)。
+    """
+    out: dict = {}
+    if not isinstance(raw, list):
+        return out
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        tokens = [int(t) for t in item.get("tokens") or [] if isinstance(t, (int, float))]
+        if not tokens:
+            continue
+        out[tuple(tokens)] = (
+            bool(item.get("pass")),
+            item.get("cross_scores") or {},
+        )
+    return out
+
+
 def run_mine_precise(payload: dict, bars: list) -> str:
     """GPU 粗排后的 f64 精算 + 权威排行(search() 同口径,粗排分数不进任何结果)"""
     bars = prepare_bars(payload, bars)
@@ -1015,6 +1133,7 @@ def run_mine_precise(payload: dict, bars: list) -> str:
         head_trim=head_trim,
         execution_model=cfg.execution_model,
         joint_training=cfg.joint_training,
+        prefetched=_decode_prefetched_strict(payload.get("prefetched_strict")),
     )
     champion_out = [
         {

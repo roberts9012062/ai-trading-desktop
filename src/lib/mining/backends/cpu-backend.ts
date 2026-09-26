@@ -125,6 +125,12 @@ interface EvalCacheEntry extends EvaluatedEntry {
  *  条目自带 metrics(~500B/条),50 万条上限防内存无界,超限整体清空。 */
 const EVAL_CACHE_MAX = 500_000
 
+/** 严格筛分片预取的候选头部数:覆盖 _dedup_top 的 pbo_pool 输入
+ *  (非 v2 shortlist = max(3·top_n, top_n+5);v2 distinct 目标 =
+ *  max(3·top_n, 30) + 最终代最多两档扩展),取 60 覆盖常规+一档扩展,
+ *  未覆盖者主实例回退本地判定(结果一致,只是慢) */
+const STRICT_PREFETCH_N = 60
+
 function createEvalCache() {
   const map = new Map<string, EvalCacheEntry>()
   return {
@@ -271,10 +277,35 @@ async function* runParallel(
     let lastChampions: Champion[] = []
     let bestSeen: EvaluatedEntry[] = req.seedBest ? [...req.seedBest] : []
     const cache = createEvalCache()
+    // 严格筛分片预取:联合训练的伙伴窗口判定依赖主实例上下文,不走分片
+    const strictShardable = !(cfg.joint_training && cfg.cross_peers?.length)
 
-    // 3) 严格筛/权威排行:主实例单点(mine_precise),已评估候选经 evaluated 并入
-    const precise = async (evaluated: EvaluatedEntry[], finalGeneration: boolean): Promise<MinePreciseResult> =>
-      (await py.factorRun(
+    // 3) 严格筛/权威排行:主实例单点(mine_precise),已评估候选经 evaluated 并入。
+    //    分片 worker 先对头部候选并行预判严格筛(mine_strict_eval,同构上下文,
+    //    verify-strict-shard 对拍保证与本地判定逐位一致),主实例查表零重算。
+    const precise = async (evaluated: EvaluatedEntry[], finalGeneration: boolean): Promise<MinePreciseResult> => {
+      let prefetchedStrict: Array<{ tokens: number[]; pass: boolean; cross_scores: Record<string, unknown> }> | undefined
+      if (strictShardable && evaluated.length > 0) {
+        // 预取集合 = _dedup_top 的 pbo_pool 输入超集:历史 best_seen + 当代
+        // evaluated 按 composite 降序去重的头部(覆盖非 v2 shortlist 与 v2
+        // distinct 目标 + 一档扩展;未覆盖的候选主实例自动回退本地判定)
+        const byTokens = new Map<string, EvaluatedEntry>()
+        for (const e of [...bestSeen, ...evaluated]) {
+          const k = e.tokens.join(",")
+          const cur = byTokens.get(k)
+          if (!cur || e.composite > cur.composite) byTokens.set(k, e)
+        }
+        const head = [...byTokens.values()]
+          .sort((a, b) => b.composite - a.composite)
+          .slice(0, STRICT_PREFETCH_N)
+          .map((e) => e.tokens)
+        try {
+          prefetchedStrict = await pool.evalStrict(head)
+        } catch {
+          // 预取失败(超时/worker 崩)不阻断:主实例回退本地判定,结果不变
+        }
+      }
+      return (await py.factorRun(
         {
           mode: "mine_precise",
           final_generation: finalGeneration,
@@ -301,10 +332,12 @@ async function* runParallel(
           ...(cfg.research_profile ? { research_profile: cfg.research_profile } : {}),
           ...(cfg.execution_model ? { execution_model: cfg.execution_model } : {}),
           ...(cfg.label_span != null ? { label_span: cfg.label_span } : {}),
+          ...(prefetchedStrict ? { prefetched_strict: prefetchedStrict } : {}),
         },
         [],
         600_000,
       )) as MinePreciseResult
+    }
 
     // 历史种子先精算一次:注入 best_seen,保证续训不倒退
     if (bestSeen.length > 0 || seedTokens.length > 0) {

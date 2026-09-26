@@ -21,7 +21,16 @@ export interface ShardPool {
   readonly size: number
   /** 候选均分成 size 片并行评估,返回扁平结果;任一失败抛错(调用方降级) */
   evalShards(candidates: number[][]): Promise<EvaluatedCandidate[]>
+  /** 严格筛预判分片并行(mine_strict_eval):返回 {tokens, pass, cross_scores};
+   *  结果并入 mine_precise 的 prefetched_strict,主实例查表零重复判定 */
+  evalStrict(tokensList: number[][]): Promise<StrictVerdict[]>
   dispose(): void
+}
+
+export interface StrictVerdict {
+  tokens: number[]
+  pass: boolean
+  cross_scores: Record<string, unknown>
 }
 
 type WorkerMsg =
@@ -147,6 +156,25 @@ export async function createShardPool(opts: {
           ),
         )
         return results.flatMap((r) => r.evaluated ?? [])
+      },
+      evalStrict: async (tokensList) => {
+        if (tokensList.length === 0) return []
+        const per = Array.from({ length: okWorkers.length }, () => [] as number[][])
+        tokensList.forEach((c, i) => per[i % okWorkers.length].push(c))
+        const results = await Promise.all(
+          per.map((shard, i) =>
+            shard.length === 0
+              ? Promise.resolve({ strict: [] })
+              : (rpcOnce(
+                  okWorkers[i],
+                  { mode: "mine_strict_eval", candidates: shard },
+                  [],
+                  EVAL_TIMEOUT_MS,
+                  `strict#${i}`,
+                ) as Promise<{ strict: StrictVerdict[] }>),
+          ),
+        )
+        return results.flatMap((r) => r.strict ?? [])
       },
       dispose: () => {
         for (const sw of okWorkers) sw.worker.terminate()

@@ -205,13 +205,29 @@ export class GpuBackend implements ComputeBackend {
       //    多核分摊,严格筛/_dedup_top/封存揭示仍在主实例单点权威。
       const precise = async (candidates: number[][], finalGeneration = false): Promise<MinePreciseResult> => {
         let evaluated: Array<{ composite: number; tokens: number[]; metrics: Record<string, unknown> }> | undefined
+        let prefetchedStrict: Array<{ tokens: number[]; pass: boolean; cross_scores: Record<string, unknown> }> | undefined
         if (shardPool && candidates.length > 0) {
           try {
             evaluated = await shardPool.evalShards(candidates)
+            // 严格筛分片预判:头部候选(评估结果+历史 best_seen 去重降序)
+            // 在池上并行判 pass/cross_scores,主实例查表零重复
+            const byTokens = new Map<string, { composite: number; tokens: number[] }>()
+            for (const e of [...bestSeen, ...evaluated]) {
+              const k = e.tokens.join(",")
+              const cur = byTokens.get(k)
+              if (!cur || e.composite > cur.composite) byTokens.set(k, { composite: e.composite, tokens: e.tokens })
+            }
+            const head = [...byTokens.values()]
+              .sort((a, b) => b.composite - a.composite)
+              .slice(0, 60)
+              .map((e) => e.tokens)
+            prefetchedStrict = await shardPool.evalStrict(head)
           } catch {
             // 池异常(超时/worker 崩):废弃并降级,本任务内不再重建
             shardPool.dispose()
             shardPool = null
+            evaluated = undefined
+            prefetchedStrict = undefined
           }
         }
         return (await py.factorRun(
@@ -232,6 +248,7 @@ export class GpuBackend implements ComputeBackend {
             cost: cfg.cost ?? null,
             candidates: evaluated ? [] : candidates,
             ...(evaluated ? { evaluated } : {}),
+            ...(prefetchedStrict ? { prefetched_strict: prefetchedStrict } : {}),
             best_seen: bestSeen,
             trials: cfg.population * cfg.generations,
             // 跨品种验证:JS 预加载的同板块伙伴 bars(_dedup_top 严格筛消费)

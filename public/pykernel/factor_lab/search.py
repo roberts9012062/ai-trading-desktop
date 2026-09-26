@@ -791,6 +791,138 @@ def _cached_series(
     return series
 
 
+def _executable_metrics_for_ctx(
+    tokens: list[int], ctx: dict, stress: float
+) -> dict | None:
+    """验证区可执行口径指标(v2;上下文含训练段,现金流连续推进后取验证段)"""
+    plan = ctx.get("plan")
+    train_bars = ctx.get("train_bars")
+    all_bars = ctx.get("all_bars")
+    test_bars = ctx.get("test_bars")
+    cost = ctx.get("cost", 0.0003)
+    timeframe = ctx.get("timeframe", "1d")
+    execution_model = ctx.get("execution_model", "signal_research")
+    if plan is None or not train_bars or all_bars is None:
+        return None
+    from factor_lab.scoring.execution import ExecutionConfig, executable_metrics
+
+    lo_test = len(all_bars) - len(test_bars) if test_bars else plan.train_end
+    if lo_test <= 0 or lo_test >= len(all_bars) - 2:
+        return None
+    ctx_bars = all_bars  # 已由调用方截到 validation_end;训练段作上下文
+    mat_ctx = feature_matrix(ctx_bars)
+    factor_ctx = execute_for_bars(tokens, mat_ctx, ctx_bars)
+    if factor_ctx is None:
+        return None
+    cfg_exec = ExecutionConfig(
+        fee_rate=cost, slippage_bps=0.0,
+        execution_model=execution_model, stress_multiplier=stress,
+    )
+    return executable_metrics(
+        factor_ctx, ctx_bars, timeframe, cfg_exec, lo=lo_test, hi=len(ctx_bars)
+    )
+
+
+def _executable_gate_ctx(tokens: list[int], ctx: dict, cross_scores: dict) -> bool:
+    if not (ctx.get("use_test") and ctx.get("test_bars")):
+        return True  # 无验证区(探索模式)时不拦截,由 insufficient 标记兜底
+    execution_model = ctx.get("execution_model", "signal_research")
+    for stress in (1.0, 2.0):
+        m = _executable_metrics_for_ctx(tokens, ctx, stress)
+        if m is None or m["sortino"] <= 0.0:
+            return False
+        if execution_model == "perp_next_open" and m.get("n_funding_events", 0) == 0:
+            # 关键成本未知(funding 缺失):不得默认通过
+            cross_scores["executable"] = "missing_funding_events"
+            return False
+    return True
+
+
+def _strict_gate(tokens: list[int], ctx: dict) -> tuple[bool, dict[str, float]]:
+    """严格筛(模块级,供主实例与分片 worker 单点共用):测试段 sortino>0
+    (成本 1×与 2×敏感性均须为正)且 WF 全折为正。
+
+    2×成本敏感性:线性成本模型低估高换手因子的真实代价,滑点按 2 tick
+    仍存活说明收益不是靠边际成本差刷出来的。
+    live_fill_gate:测试段"次根开盘成交"口径 sortino>0(模拟 vs 实盘缺口)。
+    cross_peers:≥⌈K/2⌉ 个同板块伙伴品种 sortino>0(跨品种迁移验证)。
+    返回 (是否通过, 跨品种得分明细供 metrics 记录)。
+    ctx 由调用方按同一切分口径构造(mine_precise 与分片入口共用语义,
+    verify-strict-shard 对拍锁定两处必须逐位一致)。
+    """
+    all_bars = ctx.get("all_bars")
+    test_bars = ctx.get("test_bars")
+    train_bars = ctx.get("train_bars")
+    plan = ctx.get("plan")
+    timeframe = ctx.get("timeframe", "1d")
+    cost = ctx.get("cost", 0.0003)
+    use_test = bool(ctx.get("use_test"))
+    walk_forward_folds = int(ctx.get("walk_forward_folds") or 0)
+    live_fill_gate = bool(ctx.get("live_fill_gate"))
+    live_entry_gate = float(ctx.get("live_entry_gate") or 0.0)
+    cross_peers = ctx.get("cross_peers")
+    joint_training = bool(ctx.get("joint_training"))
+    execution_model = ctx.get("execution_model", "signal_research")
+
+    cross_scores: dict[str, float] = {}
+    if use_test and test_bars:
+        lo_test = len(all_bars) - len(test_bars) if all_bars else 0
+        test_m = evaluate_on_slice(tokens, all_bars, lo_test, len(all_bars), timeframe, cost)
+        if test_m is None or test_m["sortino"] <= 0.0:
+            return False, cross_scores
+        test_m2 = evaluate_on_slice(
+            tokens, all_bars, lo_test, len(all_bars), timeframe, cost * 2.0
+        )
+        if test_m2 is None or test_m2["sortino"] <= 0.0:
+            return False, cross_scores
+        if live_fill_gate and test_m.get("live_fill_sortino", 0.0) <= 0.0:
+            return False, cross_scores
+        if live_entry_gate > 0:
+            lm = live_discrete_on_slice(
+                tokens, all_bars, lo_test, len(all_bars), timeframe, cost,
+                live_entry_gate,
+            )
+            if lm is None or lm["sortino"] <= 0.0:
+                return False, cross_scores
+    if walk_forward_folds > 0 and all_bars:
+        if plan is not None:
+            wf = walk_forward_eval_v2(
+                tokens, all_bars, timeframe, cost, plan, walk_forward_folds
+            )
+        else:
+            wf = walk_forward_eval(
+                tokens, all_bars, timeframe, cost, walk_forward_folds,
+                train_len=len(train_bars) if train_bars else None,
+            )
+        if wf is None or not wf["wf_stable"]:
+            return False, cross_scores
+    if plan is not None and execution_model in ("perp_next_open", "spot_long_flat"):
+        # v2(方案 §7):新合格状态统一以所选 executionModel 的净收益验证。
+        # 1×与 2×成本压力(仅放大交易费用/滑点,funding 按事件原值)下
+        # 验证区可执行净 sortino 均 >0。perp 无 funding 事件 = 关键成本
+        # 未知,不得默认通过。
+        if not _executable_gate_ctx(tokens, ctx, cross_scores):
+            return False, cross_scores
+    if cross_peers:
+        if joint_training and train_bars:
+            # 联合训练:伙伴训练窗已进适应度,只在其后的时间窗上验证
+            from factor_lab.joint_training import cross_validate_window
+
+            ok, cross_scores = cross_validate_window(
+                tokens, cross_peers, timeframe, cost,
+                str(train_bars[-1].get("time") or ""),
+            )
+        else:
+            from factor_lab.cross_symbol import cross_validate_tokens
+
+            ok, cross_scores = cross_validate_tokens(
+                tokens, cross_peers, timeframe, cost
+            )
+        if not ok:
+            return False, cross_scores
+    return True, cross_scores
+
+
 def _dedup_top(
     champions: list[tuple[float, list[int], dict]],
     top_n: int,
@@ -812,6 +944,7 @@ def _dedup_top(
     head_trim: int = 0,
     execution_model: str = "signal_research",
     joint_training: bool = False,
+    prefetched: dict[tuple[int, ...], tuple[bool, dict]] | None = None,
 ) -> list[Champion]:
     """去重并取 top-N，可选叠加测试段验证与 walk-forward 淘汰
 
@@ -862,6 +995,26 @@ def _dedup_top(
             continue
         seen.add(key)
         uniq.append((comp, tokens, metrics))
+
+    # 严格筛上下文:封存裁剪后的 bars/peers + 各验证门参数。模块级
+    # _strict_gate 消费同一 ctx——主实例与分片 worker(mine_strict_eval)
+    # 共用一份判定逻辑,verify-strict-shard 对拍锁定一致
+    strict_ctx: dict = {
+        "all_bars": all_bars,
+        "train_bars": train_bars,
+        "test_bars": test_bars,
+        "timeframe": timeframe,
+        "cost": cost,
+        "use_test": use_test,
+        "walk_forward_folds": walk_forward_folds,
+        "plan": plan,
+        "live_fill_gate": live_fill_gate,
+        "live_entry_gate": live_entry_gate,
+        "cross_peers": cross_peers,
+        "execution_model": execution_model,
+        "joint_training": joint_training,
+    }
+    _prefetched = prefetched or {}
 
     # shortlist：holdout 只暴露给有界候选集
     shortlist = uniq[: max(top_n * 3, top_n + 5)]
@@ -1015,7 +1168,7 @@ def _dedup_top(
                 k: round(v, 3) for k, v in cross_scores.items()
             }
         if plan is not None and execution_model in ("perp_next_open", "spot_long_flat"):
-            exec_m = _executable_metrics_for(tokens, 1.0)
+            exec_m = _executable_metrics_for_ctx(tokens, strict_ctx, 1.0)
             if exec_m is not None:
                 enriched["execution_metrics"] = exec_m
         cons = _conservative_oos(tokens)
@@ -1061,106 +1214,13 @@ def _dedup_top(
         )
 
     def _passes_strict(tokens: list[int]) -> tuple[bool, dict[str, float]]:
-        """严格筛：测试段 sortino>0（成本 1×与 2×敏感性均须为正）且 WF 全折为正
-
-        2×成本敏感性：线性成本模型低估高换手因子的真实代价，滑点按 2 tick
-        仍存活说明收益不是靠边际成本差刷出来的。
-        live_fill_gate：测试段"次根开盘成交"口径 sortino>0（模拟 vs 实盘缺口）。
-        cross_peers：≥⌈K/2⌉ 个同板块伙伴品种 sortino>0（跨品种迁移验证）。
-        返回 (是否通过, 跨品种得分明细供 metrics 记录)。
-        """
-        cross_scores: dict[str, float] = {}
-        if use_test and test_bars:
-            lo_test = len(all_bars) - len(test_bars) if all_bars else 0
-            test_m = evaluate_on_slice(tokens, all_bars, lo_test, len(all_bars), timeframe, cost)
-            if test_m is None or test_m["sortino"] <= 0.0:
-                return False, cross_scores
-            test_m2 = evaluate_on_slice(
-                tokens, all_bars, lo_test, len(all_bars), timeframe, cost * 2.0
-            )
-            if test_m2 is None or test_m2["sortino"] <= 0.0:
-                return False, cross_scores
-            if live_fill_gate and test_m.get("live_fill_sortino", 0.0) <= 0.0:
-                return False, cross_scores
-            if live_entry_gate > 0:
-                lm = live_discrete_on_slice(
-                    tokens, all_bars, lo_test, len(all_bars), timeframe, cost,
-                    live_entry_gate,
-                )
-                if lm is None or lm["sortino"] <= 0.0:
-                    return False, cross_scores
-        if walk_forward_folds > 0 and all_bars:
-            if plan is not None:
-                wf = walk_forward_eval_v2(
-                    tokens, all_bars, timeframe, cost, plan, walk_forward_folds
-                )
-            else:
-                wf = walk_forward_eval(
-                    tokens, all_bars, timeframe, cost, walk_forward_folds,
-                    train_len=len(train_bars) if train_bars else None,
-                )
-            if wf is None or not wf["wf_stable"]:
-                return False, cross_scores
-        if plan is not None and execution_model in ("perp_next_open", "spot_long_flat"):
-            # v2(方案 §7):新合格状态统一以所选 executionModel 的净收益验证。
-            # 1×与 2×成本压力(仅放大交易费用/滑点,funding 按事件原值)下
-            # 验证区可执行净 sortino 均 >0。perp 无 funding 事件 = 关键成本
-            # 未知,不得默认通过。
-            if not _executable_gate(tokens, cross_scores):
-                return False, cross_scores
-        if cross_peers:
-            if joint_training and train_bars:
-                # 联合训练:伙伴训练窗已进适应度,只在其后的时间窗上验证
-                from factor_lab.joint_training import cross_validate_window
-
-                ok, cross_scores = cross_validate_window(
-                    tokens, cross_peers, timeframe, cost,
-                    str(train_bars[-1].get("time") or ""),
-                )
-            else:
-                from factor_lab.cross_symbol import cross_validate_tokens
-
-                ok, cross_scores = cross_validate_tokens(
-                    tokens, cross_peers, timeframe, cost
-                )
-            if not ok:
-                return False, cross_scores
-        return True, cross_scores
-
-    def _executable_metrics_for(tokens: list[int], stress: float) -> dict | None:
-        """验证区可执行口径指标(v2;上下文含训练段,现金流连续推进后取验证段)"""
-        if plan is None or not train_bars or all_bars is None:
-            return None
-        from factor_lab.scoring.execution import ExecutionConfig, executable_metrics
-
-        lo_test = len(all_bars) - len(test_bars) if test_bars else plan.train_end
-        if lo_test <= 0 or lo_test >= len(all_bars) - 2:
-            return None
-        ctx_bars = all_bars  # 已由调用方截到 validation_end;训练段作上下文
-        mat_ctx = feature_matrix(ctx_bars)
-        factor_ctx = execute_for_bars(tokens, mat_ctx, ctx_bars)
-        if factor_ctx is None:
-            return None
-        cfg_exec = ExecutionConfig(
-            fee_rate=cost, slippage_bps=0.0,
-            execution_model=execution_model, stress_multiplier=stress,
-        )
-        return executable_metrics(
-            factor_ctx, ctx_bars, timeframe, cfg_exec, lo=lo_test, hi=len(ctx_bars)
-        )
-
-    def _executable_gate(tokens: list[int], cross_scores: dict) -> bool:
-        if not (use_test and test_bars):
-            return True  # 无验证区(探索模式)时不拦截,由 insufficient 标记兜底
-        for stress in (1.0, 2.0):
-            m = _executable_metrics_for(tokens, stress)
-            if m is None or m["sortino"] <= 0.0:
-                return False
-            if execution_model == "perp_next_open" and m.get("n_funding_events", 0) == 0:
-                # 关键成本未知(funding 缺失):不得默认通过
-                cross_scores["executable"] = "missing_funding_events"
-                return False
-        return True
+        """严格筛入口:分片 worker 预取的结果直接查表(mine_strict_eval 在
+        同构 ctx 上算出),miss 才本地执行模块级 _strict_gate——两条路径
+        同一份判定代码,verify-strict-shard 对拍锁定逐位一致。"""
+        hit = _prefetched.get(tuple(int(t) for t in tokens))
+        if hit is not None:
+            return hit
+        return _strict_gate(tokens, strict_ctx)
 
     # 第一轮：严格筛 + 相关性去重。PBO 分母限定在前 2×n_cap 个候选
     # （完整计数会显著拖慢搜索；前 2×n_cap 已是"训练最优"核心区，失败率
