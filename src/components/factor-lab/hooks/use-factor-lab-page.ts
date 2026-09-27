@@ -20,7 +20,7 @@ import {
   type SearchResult,
 } from "@/lib/factor-lab-api"
 import { createAITradingTask as createTask, switchTaskSite } from "@/lib/ai-trading-api"
-import { backtestFactorLocal, type LocalSearchStep } from "@/lib/local-factor"
+import { backtestFactorLocal, prepareSearchBars, type LocalSearchStep } from "@/lib/local-factor"
 import { factorLabRunner, type FactorSearchTask } from "@/lib/mining/factor-lab-runner"
 import { useFactorLabData } from "./use-factor-data"
 import {
@@ -405,10 +405,6 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
 
   async function handleBuildTask(): Promise<void> {
     if (!selected || !lastReq) return
-    if (isResearchOnlyFactor(selected.tokens, selected.metrics)) {
-      setError("该因子依赖新增直连历史数据，实盘行情尚未提供同源输入，暂仅支持本地研究")
-      return
-    }
     if (selected.metrics?.overfit_warning) {
       setError("该因子未通过样本外验证（测试段亏损），已禁止挂载实盘")
       return
@@ -421,8 +417,11 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
       setError("该记录为旧内核口径产出（指标与当前口径不一致），禁止直接挂载实盘；请重新回测确认")
       return
     }
-    // 本地专属特征公式:服务端无法计算信号 → 创建后自动切本地引擎执行
-    const localOnly = isLocalOnly(selected.tokens, selected.metrics)
+    // 本地专属/直连衍生特征公式:服务端无法计算信号(实测 backtest-factor
+    // 对 taker 类直连特征返回 400) → 创建后自动切本地引擎执行(需应用保持运行)
+    const localOnly =
+      isLocalOnly(selected.tokens, selected.metrics) ||
+      isResearchOnlyFactor(selected.tokens, selected.metrics)
     setBuilding(true)
     setBuildMsg(null)
     try {
@@ -448,17 +447,15 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
       setError("组合需勾选 2-5 个因子")
       return
     }
-    if (chosen.some((c) => isResearchOnlyFactor(c.tokens, c.metrics))) {
-      setError("组合含直连历史数据因子，暂仅支持本地研究")
-      return
-    }
     const bad = chosen.find((c) => c.metrics?.overfit_warning || c.metrics?.stale_kernel)
     if (bad) {
       setError("组合成员含未通过样本外验证的因子（测试段亏损），已禁止挂载")
       return
     }
-    // 任一成员含本地专属特征 → 整个组合只能本地引擎执行
-    const localOnly = chosen.some((c) => isLocalOnly(c.tokens, c.metrics))
+    // 任一成员含本地专属/直连衍生特征 → 整个组合只能本地引擎执行
+    const localOnly = chosen.some(
+      (c) => isLocalOnly(c.tokens, c.metrics) || isResearchOnlyFactor(c.tokens, c.metrics),
+    )
     setBuilding(true)
     setBuildMsg(null)
     try {
@@ -481,6 +478,63 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     }
   }
 
+  /** 旧口径记录的本地复测:单候选 mine_precise 与搜索同口径,
+   *  产出 test_metrics/overfit_warning;失败返回 null */
+  async function reverifyOosMetrics(item: FavoriteInput): Promise<FavoriteInput | null> {
+    const sym = (item.symbol || lastReq?.symbol || symbol).trim().toLowerCase()
+    const tf = item.timeframe || lastReq?.timeframe || "1d"
+    const channel = (item.metrics as Partial<FactorMetrics> & { data_channel?: string }).data_channel
+      ?? lastReq?.data_channel
+    try {
+      setProgressNote("该记录缺样本外信息，本地复测验证中（复用缓存，通常数秒）…")
+      const bars = await prepareSearchBars({
+        symbol: sym,
+        timeframe: tf,
+        population: 1,
+        generations: 1,
+        top_n: 1,
+        seed: 42,
+        cost: null,
+        ...(channel ? { data_channel: channel } : {}),
+        ...(lastReq?.train_ratio != null ? { train_ratio: lastReq.train_ratio } : { train_ratio: 0.7 }),
+        ...(lastReq?.walk_forward_folds != null ? { walk_forward_folds: lastReq.walk_forward_folds } : { walk_forward_folds: 3 }),
+      }, setProgressNote)
+      const { ensurePyWorker } = await import("@/lib/py-worker")
+      const res = (await ensurePyWorker().factorRun(
+        {
+          mode: "mine_precise",
+          symbol: sym,
+          timeframe: tf,
+          crypto_profile: (item.metrics.crypto_profile ?? true) as boolean,
+          population: 1,
+          generations: 1,
+          max_depth: 4,
+          train_ratio: lastReq?.train_ratio ?? 0.7,
+          walk_forward_folds: lastReq?.walk_forward_folds ?? 3,
+          top_n: 1,
+          cost: item.metrics.cost ?? null,
+          candidates: [item.tokens],
+          best_seen: [],
+          trials: 1,
+          final_generation: true,
+        },
+        bars,
+        120_000,
+      )) as { champions?: Array<{ tokens: number[]; composite: number; metrics: Record<string, unknown> }> }
+      const champ = res?.champions?.find((c) => c.tokens.join(",") === item.tokens.join(",")) ?? res?.champions?.[0]
+      if (!champ || (!champ.metrics?.test_metrics && !champ.metrics?.overfit_warning)) return null
+      return {
+        ...item,
+        composite: Number(champ.composite ?? item.composite),
+        metrics: { ...item.metrics, ...champ.metrics } as FavoriteInput["metrics"],
+      }
+    } catch {
+      return null
+    } finally {
+      setProgressNote(null)
+    }
+  }
+
   async function favoriteFrom(
     item: FavoriteInput,
     opts?: { name?: string; folderId?: string | null },
@@ -494,8 +548,15 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
       return
     }
     if (lacksOosInfo(item.metrics, lastReq?.train_ratio)) {
-      setError("该记录无样本外验证信息（旧口径历史），请重新搜索/回测后再收藏")
-      return
+      // 桌面端兜底:旧口径历史(或服务端历史往返丢失样本外字段)不再硬拦,
+      // 本地单候选 mine_precise 复测补齐 test_metrics/overfit_warning 后
+      // 继续收藏——测试段亏损会自然落入 overfit_warning 拦截,防线不弱化
+      const reverified = await reverifyOosMetrics(item)
+      if (!reverified) {
+        setError("该记录无法完成本地样本外复测（数据不可得），请重新搜索后再收藏")
+        return
+      }
+      item = reverified
     }
     if (item.metrics?.stale_kernel) {
       setError("该记录为旧内核口径产出，请重新回测确认后再收藏")
