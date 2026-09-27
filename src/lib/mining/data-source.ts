@@ -21,6 +21,7 @@ import { fetchBacktestBars, KLINE_MAX_PAGES } from "@/lib/local-backtest"
 import { normalizeChannel } from "@/lib/kline-channels"
 import { factorMaxDaysFor } from "@/components/factor-lab/factor-range-limits"
 import { openDb, idbGet, idbPut, idbGetAll, idbDelete, MINING_BARS_STORE } from "@/lib/idb"
+import { maxResearchBars } from "@/lib/device-profile"
 
 export interface BarsSnapshot {
   /** `${symbol}:${channel}:${timeframe}:${from}:${to}:${sourceHash}` */
@@ -149,6 +150,11 @@ export async function acquireBarsSnapshot(req: AcquireBarsRequest): Promise<Bars
     undefined,
     channel,
   )
+  if (raw.length > maxResearchBars()) {
+    throw new Error(
+      `区间过大(${raw.length.toLocaleString()} 根 K 线):本机内存档位上限 ${maxResearchBars().toLocaleString()} 根,请缩小区间后重试`,
+    )
+  }
   if (stopInfo.truncated) {
     throw new Error(
       `K 线拉取达到 ${req.maxPages ?? MAX_PAGES_DEFAULT} 页上限仍未能覆盖 ${start},请缩小区间后重试`,

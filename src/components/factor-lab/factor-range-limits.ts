@@ -1,23 +1,27 @@
-/** 因子评估专用区间上限 —— 与后端 FACTOR_TF_MAX_DAYS 镜像
- *
- * 不复用策略回测的 timeframe-limits（15m=30 天为策略运行时设计）：
- * 因子评估是向量化计算，负担得起更长历史；短区间会让 walk-forward
- * 每折样本不足，严格筛全军覆没（全部 ⚠）。 */
+import { memoryTier } from "@/lib/device-profile"
 
-export const FACTOR_TF_MAX_DAYS: Record<string, number> = {
-  "1d": 1825,
-  "60m": 365,
-  "30m": 240,
-  "15m": 180,
-  "5m": 90,
-  "1m": 30,
+/** 因子评估专用区间上限（默认区间与长历史滑杆共用此表）
+ *
+ * 分钟级按「因子实验室=短期」定位收紧并防爆（v0.2.39）:
+ * 15m/30m/60m 两年(≈3.5-7 万根,与实测安全规模 7.4 万根一致)、
+ * 5m 一年(≈10.5 万根)、1m 四个月(≈17.3 万根——用户想要的半年是
+ * 26.2 万根,超过 20 万根 OOM 护栏:8 个分片 worker 各持全量副本,
+ * 24.6 万根实测整页内存爆炸)。日线维持五年。
+ * 超级因子与本表共用默认区间,同样受防爆约束。 */
+
+/** 各内存档位的分钟级区间上限(天)——设备画像自适应,见 device-profile.ts */
+const TF_MAX_DAYS_BY_TIER: Record<string, Record<string, number>> = {
+  low: { "1d": 1825, "60m": 365, "30m": 365, "15m": 365, "5m": 183, "1m": 60 },
+  mid: { "1d": 1825, "60m": 730, "30m": 730, "15m": 730, "5m": 365, "1m": 120 },
+  high: { "1d": 1825, "60m": 1095, "30m": 1095, "15m": 730, "5m": 365, "1m": 182 },
 }
 
 const DEFAULT_MAX_DAYS = 30
 
-/** 周期 → 因子评估最大自然天数 */
+/** 周期 → 因子评估最大自然天数(按本机内存档位自适应;
+ *  探测一次缓存,同会话内滑杆/默认区间口径一致) */
 export function factorMaxDaysFor(timeframe: string): number {
-  return FACTOR_TF_MAX_DAYS[timeframe] ?? DEFAULT_MAX_DAYS
+  return TF_MAX_DAYS_BY_TIER[memoryTier()][timeframe] ?? DEFAULT_MAX_DAYS
 }
 
 /** 给定周期的推荐初始区间（最近可用） */

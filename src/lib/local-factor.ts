@@ -1,4 +1,6 @@
 import { gateResearchRange } from "@/lib/crypto-direct"
+import { defaultFactorRangeFor } from "@/components/factor-lab/factor-range-limits"
+import { maxResearchBars, memoryTierLabel } from "@/lib/device-profile"
 /**
  * 因子实验室本地引擎门面(Pyodide + numpy / WebGPU)
  *
@@ -242,7 +244,7 @@ export async function prepareSearchBars(
   const bars = await fetchBacktestBars(
     payload.symbol,
     payload.timeframe,
-    payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : "2005-01-01"),
+    payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : defaultFactorRangeFor(payload.timeframe, new Date()).start),
     payload.end_date || new Date().toISOString().slice(0, 10),
     KLINE_MAX_PAGES,
     undefined,
@@ -250,13 +252,21 @@ export async function prepareSearchBars(
     normalizeChannel(payload.data_channel),
   )
   if (bars.length < 60) throw new Error("该区间 K 线数据不足(至少 60 根)")
+  // 内存护栏:8 个分片 worker 各持全量 bars 的副本(Python 化后单 worker
+  // 可达数百 MB),超本机档位上限必然 OOM 整页崩溃——提前给出可行动的报错
+  const maxBars = maxResearchBars()
+  if (bars.length > maxBars) {
+    throw new Error(
+      `区间过大(${bars.length.toLocaleString()} 根 K 线):本机内存档位(${memoryTierLabel()})上限 ${maxBars.toLocaleString()} 根,请缩小区间后重试`,
+    )
+  }
   lastSearchSnapshot = {
     key: snapshotKey(payload.symbol, payload.timeframe, payload.data_channel),
     symbol: payload.symbol,
     timeframe: payload.timeframe,
     channel: payload.data_channel,
     bars,
-    startDate: payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : "2005-01-01"),
+    startDate: payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : defaultFactorRangeFor(payload.timeframe, new Date()).start),
     endDate: payload.end_date || new Date().toISOString().slice(0, 10),
     cost: payload.cost ?? null,
     researchProfile: payload.research_profile,
@@ -412,7 +422,7 @@ export async function backtestFactorLocal(
   const snap = reuseSnapshot ? lastSearchSnapshot : null
   // 复用条件:symbol/timeframe/channel 一致,且请求区间与搜索取数区间相同
   // (用户改了日期区间 → 不复用,按新区间重新取数)
-  const reqStart = payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : "2005-01-01")
+  const reqStart = payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : defaultFactorRangeFor(payload.timeframe, new Date()).start)
   const reqEnd = payload.end_date || new Date().toISOString().slice(0, 10)
   const snapUsable =
     snap !== null &&
@@ -433,7 +443,7 @@ export async function backtestFactorLocal(
     bars = await fetchBacktestBars(
       payload.symbol,
       payload.timeframe,
-      payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : "2005-01-01"),
+      payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : defaultFactorRangeFor(payload.timeframe, new Date()).start),
       payload.end_date || new Date().toISOString().slice(0, 10),
       KLINE_MAX_PAGES,
       undefined,
