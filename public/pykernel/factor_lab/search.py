@@ -20,7 +20,7 @@ from typing import Any
 import numpy as np
 
 from .express import to_text
-from .features import bars_signature, feature_matrix, active_feature_ids
+from .features import bars_signature, feature_matrix, active_feature_ids, signature_of, prefix_view_matrix
 from .ops import OPS_CONFIG
 from .scoring.evaluate import evaluate_factor, next_ret, position_from_factor
 from .scoring.periods import bars_per_year
@@ -30,6 +30,7 @@ from .scoring.walk_forward import (
     evaluate_on_slice,
     MIN_TEST_BARS,
     evaluate_on_segment,
+    frozen_view,
     live_discrete_on_slice,
     split_bars,
     walk_forward_eval,
@@ -976,7 +977,9 @@ def _dedup_top(
         n_holdout = holdout_len(len(test_bars))
         if n_holdout:
             test_bars = test_bars[: len(test_bars) - n_holdout]
-            all_bars = all_bars[: len(all_bars) - n_holdout]
+            # 冻结视图:同一份 bars 复用同一裁剪对象,id 稳定才能让
+            # _CTX_CACHE 的切片签名跨代命中(否则每代重做 O(N) 全量哈希)
+            all_bars = frozen_view(all_bars, len(all_bars) - n_holdout)
             if cross_peers:
                 # 伙伴品种同样不许看封存期（同期行情跨品种高度相关）
                 cut_time = str(full_bars[len(full_bars) - n_holdout].get("time") or "")
@@ -1029,8 +1032,10 @@ def _dedup_top(
     corr_sig: tuple = ()
     corr_factors: list[np.ndarray] = []
     if train_bars:
-        corr_mat = feature_matrix(train_bars)
-        corr_sig = bars_signature(train_bars)
+        # 前缀视图:train 恒为 all_bars 前缀,矩阵=全量矩阵列切片(零拷贝);
+        # 签名快键供 _cached_series 的段缓存键复用
+        corr_sig = signature_of(train_bars)
+        corr_mat = prefix_view_matrix(all_bars, len(train_bars)) if all_bars is not None else feature_matrix(train_bars, _sig=corr_sig)
 
     def _factor_series(tokens: list[int]) -> np.ndarray | None:
         if corr_mat is None:

@@ -19,7 +19,7 @@ from dataclasses import fields as dc_fields
 import numpy as np
 
 from factor_lab import execute
-from factor_lab.features import FEATURE_NAMES, feature_matrix, active_feature_ids
+from factor_lab.features import FEATURE_NAMES, feature_matrix, active_feature_ids, signature_of, prefix_view_matrix
 from factor_lab.market import prepare_bars
 from factor_lab.scoring.cost import DEFAULT_SLIPPAGE_TICKS, turnover_cost_rate
 from data.product_specs import normalize_crypto_symbol, CRYPTO_TICKS
@@ -30,7 +30,7 @@ from factor_lab.scoring.evaluate import (
     position_from_factor,
 )
 from factor_lab.scoring.periods import bars_per_year
-from factor_lab.scoring.walk_forward import MIN_TEST_BARS, split_bars
+from factor_lab.scoring.walk_forward import MIN_TEST_BARS, frozen_view, split_bars
 from factor_lab.search import (
     SearchConfig,
     _dedup_top,
@@ -773,7 +773,7 @@ def run_mine_features(payload: dict, bars: list) -> str:
         cfg.cross_peers = [(symbol, prepare_bars({**payload, "symbol": symbol}, peer))
                            for symbol, peer in cfg.cross_peers]
     train_bars, test_bars = _split_train_test(cfg, bars)
-    mat = feature_matrix(train_bars)
+    mat = prefix_view_matrix(bars, len(train_bars))
     periods = bars_per_year(train_bars, timeframe)
     cost_input = payload.get("cost")
     cost = resolve_search_cost(payload, bars)
@@ -836,7 +836,10 @@ def run_mine_shard(payload: dict, bars: list) -> str:
         cfg.cross_peers = [(symbol, prepare_bars({**payload, "symbol": symbol}, peer))
                            for symbol, peer in cfg.cross_peers]
     train_bars, _test = _split_train_test(cfg, shard_bars)
-    feat_mat = feature_matrix(train_bars)
+    # train 恒为 shard_bars 前缀:冻结视图 + 签名快键,特征矩阵跨调用命中
+    # (否则每次分片评估都对 ~全量 train 重做 O(N) 签名哈希)
+    train_bars = frozen_view(shard_bars, len(train_bars))
+    feat_mat = prefix_view_matrix(shard_bars, len(train_bars))
     close = np.array([float(b.get("close") or 0) for b in train_bars], dtype=float)
     periods = bars_per_year(train_bars, timeframe)
     v2 = cfg.research_profile == "crypto_local_v2"
@@ -905,7 +908,8 @@ def _strict_eval_context(payload: dict, bars: list) -> dict:
             len(bars), label_span=cfg.label_span, warmup=250, bars=bars
         )
         if plan.sufficient:
-            bars = list(bars[: plan.validation_end])
+            # 冻结视图:id 稳定 → 分片 worker 的切片签名跨调用命中
+            bars = frozen_view(bars, plan.validation_end)
         train_bars = list(bars[: plan.train_end]) if plan.sufficient else list(bars)
         test_bars = list(bars[plan.train_end :]) if plan.sufficient else []
         use_test = plan is not None and plan.sufficient
@@ -922,7 +926,7 @@ def _strict_eval_context(payload: dict, bars: list) -> dict:
             if n_holdout:
                 cut_time = str(bars[len(bars) - n_holdout].get("time") or "")
                 test_bars = test_bars[: len(test_bars) - n_holdout]
-                bars = list(bars[: len(bars) - n_holdout])
+                bars = frozen_view(bars, len(bars) - n_holdout)
                 if cfg.cross_peers:
                     cfg.cross_peers = [
                         (peer, [b for b in pb if str(b.get("time") or "") < cut_time])
@@ -1029,8 +1033,9 @@ def run_mine_precise(payload: dict, bars: list) -> str:
             len(bars), label_span=cfg.label_span, warmup=250, bars=bars
         )
         if plan.sufficient:
-            bars = list(bars[: plan.validation_end])
-        train_bars = list(bars[: plan.train_end]) if plan.sufficient else list(bars)
+            # 冻结视图:id 稳定 → _CTX_CACHE 切片签名跨代命中(见 walk_forward)
+            bars = frozen_view(bars, plan.validation_end)
+        train_bars = frozen_view(bars, plan.train_end) if plan.sufficient else bars
         test_bars = list(bars[plan.train_end :]) if plan.sufficient else []
     if prepared is not None:
         if prepared["key"] != _gpu_input_key(payload, cfg):
@@ -1042,11 +1047,13 @@ def run_mine_precise(payload: dict, bars: list) -> str:
         feat_mat, close, periods = prepared["matrix"], prepared["close"], prepared["periods"]
     elif not v2:
         train_bars, test_bars = _split_train_test(cfg, bars)
-        feat_mat = feature_matrix(train_bars)
+        train_bars = frozen_view(bars, len(train_bars))
+        feat_mat = prefix_view_matrix(bars, len(train_bars))
         close = np.array([float(b.get("close") or 0) for b in train_bars], dtype=float)
         periods = bars_per_year(train_bars, timeframe)
     else:
-        feat_mat = feature_matrix(train_bars)
+        train_bars = frozen_view(bars, len(train_bars))
+        feat_mat = prefix_view_matrix(bars, len(train_bars))
         close = np.array([float(b.get("close") or 0) for b in train_bars], dtype=float)
         periods = bars_per_year(train_bars, timeframe)
     if v2:

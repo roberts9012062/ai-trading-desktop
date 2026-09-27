@@ -702,6 +702,8 @@ _MATRIX_CACHE: OrderedDict[tuple, np.ndarray] = OrderedDict()
 # 跨代 LRU 抖动导致每代全量重算(实测占精算耗时 80%+);64MB 可驻 ~7 条,
 # 切片集合跨代稳定后基本全命中。池 worker 只用固定全段 1 条,不受影响。
 _MATRIX_CACHE_MAX_ELEMENTS = 8_000_000
+# 深数据自适应预算的硬顶(24M 元素 ≈ 192MB/实例):见 _evict_matrix_cache
+_MATRIX_CACHE_HARD_CAP = 24_000_000
 
 
 def bars_signature(bars: list[dict[str, Any]]) -> tuple:
@@ -720,11 +722,98 @@ def bars_signature(bars: list[dict[str, Any]]) -> tuple:
     return (len(bars), digest.digest())
 
 
+# ── 签名 id 快键 ────────────────────────────────────────────
+# O(N) 签名对冻结 bars(会话/任务快照,全内核只读约定)是确定性的:按
+# (id, len) 复用签名,值持 bars 引用防 id 复用。_dedup_top 的 corr 段与
+# feature_matrix 曾各哈希一次,分片评估的新鲜 train 前缀每调用再哈希一次
+# ——深数据单次 0.5-1s(原生),全部由本快键消除。
+_SIG_CACHE: OrderedDict[tuple, tuple] = OrderedDict()
+_SIG_CACHE_MAX = 32
 
-def _evict_matrix_cache() -> None:
-    """按元素预算淘汰最久未用的段（至少保留刚写入的一条）"""
+
+def signature_of(bars: list[dict[str, Any]]) -> tuple:
+    """bars_signature 的冻结对象快键:同一 list 跨调用零重算"""
+    key = (id(bars), len(bars))
+    hit = _SIG_CACHE.get(key)
+    if hit is not None:
+        _SIG_CACHE.move_to_end(key)
+        bars_ref, sig = hit
+        if bars_ref is bars:
+            return sig
+    sig = bars_signature(bars)
+    _SIG_CACHE[key] = (bars, sig)
+    while len(_SIG_CACHE) > _SIG_CACHE_MAX:
+        _SIG_CACHE.popitem(last=False)
+    return sig
+
+
+# ── 前缀矩阵快键 ────────────────────────────────────────────
+# 全上下文切片(crypto 恒为前缀 bars[:hi])的矩阵可由全量矩阵列视图零拷贝
+# 获得:特征全为因果(只用历史,scripts/verify-frozen-view 前缀验证逐位
+# 一致),matrix(bars[:n]) ≡ matrix(bars)[:, :n]。深数据一次搜索要用
+# ~8 种前缀切片(训练/测试/OOS 四分/WF 折),逐条 compute_features 实测
+# 每代 25s+(72k 根);走本快键后每份冻结 bars 只算一次全量矩阵。
+# 值持 bars 引用防 id 复用。
+_PREFIX_CACHE: OrderedDict[tuple, tuple] = OrderedDict()
+_PREFIX_CACHE_MAX = 4
+
+
+def prefix_matrix(bars: list[dict[str, Any]]) -> np.ndarray:
+    """冻结 bars 的全量特征矩阵(前缀视图的母体)"""
+    key = (id(bars), len(bars))
+    hit = _PREFIX_CACHE.get(key)
+    if hit is not None:
+        _PREFIX_CACHE.move_to_end(key)
+        bars_ref, mat = hit
+        if bars_ref is bars:
+            return mat
+    mat = feature_matrix(bars, _sig=signature_of(bars))
+    _PREFIX_CACHE[key] = (bars, mat)
+    while len(_PREFIX_CACHE) > _PREFIX_CACHE_MAX:
+        _PREFIX_CACHE.popitem(last=False)
+    return mat
+
+
+def prefix_view_matrix(bars: list[dict[str, Any]], n: int) -> np.ndarray:
+    """bars[:n] 的特征矩阵:全量矩阵的列视图(要求 bars 为冻结只读对象)"""
+    if n >= len(bars):
+        return prefix_matrix(bars)
+    full = prefix_matrix(bars)
+    if n > full.shape[1]:
+        return full
+    return full[:, :n]
+
+
+def seed_matrix(sig: tuple, mat: np.ndarray) -> None:
+    """把前缀视图产出的矩阵按内容签名登记进段缓存
+
+    regime_decompose 等按 (ctx 内容签名) 查 feature_matrix 的调用方,
+    与 evaluate_on_slice 的前缀路径算的是同一份内容:登记后互相命中,
+    不再各自重算。视图与母体共享缓冲,零额外内存。
+    """
+    if sig is None or _MATRIX_CACHE.get(sig) is not None:
+        return
+    _MATRIX_CACHE[sig] = mat
+    _MATRIX_CACHE.move_to_end(sig)
+    _evict_matrix_cache(int(mat.size))
+
+
+
+def _evict_matrix_cache(current_size: int = 0) -> None:
+    """按元素预算淘汰最久未用的段（至少保留刚写入的一条）
+
+    预算自适应:一代严格筛/_enrich 要用 ~8 种切片上下文(全段/训练/测试/
+    OOS 四分/WF 折),深数据单条矩阵 4M+ 元素时固定 8M 只驻 2 条,跨代
+    LRU 抖动导致每代重算 compute_features(72k 根实测每代多耗 25s+)。
+    预算按当前矩阵规模 ×5 放大(≈覆盖一代上下文集合),硬顶 24M(192MB)
+    防深历史内存无界;浅数据维持 8M 原行为不变。
+    """
+    budget = min(
+        _MATRIX_CACHE_HARD_CAP,
+        max(_MATRIX_CACHE_MAX_ELEMENTS, 5 * max(current_size, 1)),
+    )
     total = sum(int(m.size) for m in _MATRIX_CACHE.values())
-    while len(_MATRIX_CACHE) > 1 and total > _MATRIX_CACHE_MAX_ELEMENTS:
+    while len(_MATRIX_CACHE) > 1 and total > budget:
         _, dropped = _MATRIX_CACHE.popitem(last=False)
         total -= int(dropped.size)
 
@@ -752,5 +841,5 @@ def feature_matrix(bars: list[dict[str, Any]], _sig: tuple | None = None) -> np.
     matrix.flags.writeable = False
     _MATRIX_CACHE[key] = matrix
     _MATRIX_CACHE.move_to_end(key)
-    _evict_matrix_cache()
+    _evict_matrix_cache(int(matrix.size))
     return matrix

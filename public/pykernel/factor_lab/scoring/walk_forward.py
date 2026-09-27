@@ -21,7 +21,7 @@ from typing import Any
 
 import numpy as np
 
-from ..features import bars_signature, feature_matrix
+from ..features import bars_signature, feature_matrix, prefix_view_matrix, seed_matrix
 from ..vm import NORM_CAUSAL_V2, execute, execute_for_bars
 from .evaluate import (
     _calmar,
@@ -63,13 +63,19 @@ _SEG_CACHE_MAX = 2048
 # (all_bars, lo, hi) 切片在一轮严格筛里被 ~30 个候选反复求签名,只为去查
 # 段级缓存。按 (id(all_bars), lo, hi) 直接缓存切片对象与其签名——值持有
 # bars/切片引用,宿主对象活着 id 即唯一,不存在复用歧义。纯加速,不改口径。
+# 容量按条目数 128 + 切片元素总量 4M(~32MB 引用)双限制:深数据一次搜索
+# 的唯一 (lo,hi,w) 组合(WF 折/四等分/regime/严格筛双成本)可达 30+,
+# 条目预算内常驻,元素预算防深历史大切片内存无界。
 _CTX_CACHE: OrderedDict[tuple, tuple] = OrderedDict()
-_CTX_CACHE_MAX = 32
+_CTX_CACHE_MAX = 128
+_CTX_CACHE_ELEMENT_BUDGET = 4_000_000
+_ctx_cache_elements = 0
 
 
 def _ctx_signature(all_bars: list[dict[str, Any]], lo: int, hi: int, w: int) -> tuple[list, list, tuple]:
     # w 必须进 key:full_context 候选(含扩展特征)与非 full 候选对同一
     # (lo,hi) 会取不同 warmup 宽度,ctx 内容不同,签名不能串用
+    global _ctx_cache_elements
     key = (id(all_bars), lo, hi, w)
     hit = _CTX_CACHE.get(key)
     if hit is not None:
@@ -80,9 +86,42 @@ def _ctx_signature(all_bars: list[dict[str, Any]], lo: int, hi: int, w: int) -> 
     ctx = all_bars[lo - w : hi]
     sig = bars_signature(ctx)
     _CTX_CACHE[key] = (all_bars, ctx, sig)
-    while len(_CTX_CACHE) > _CTX_CACHE_MAX:
-        _CTX_CACHE.popitem(last=False)
+    _ctx_cache_elements += len(ctx)
+    while len(_CTX_CACHE) > _CTX_CACHE_MAX or _ctx_cache_elements > _CTX_CACHE_ELEMENT_BUDGET:
+        _, (bars_ref, old_ctx, _sig) = _CTX_CACHE.popitem(last=False)
+        _ctx_cache_elements -= len(old_ctx)
     return ctx, sig
+
+
+# ── 冻结视图缓存 ────────────────────────────────────────────
+# 封存裁剪(selection_v2/v2 的 bars[:N])每次调用都生成新 list → id 变 →
+# _CTX_CACHE 的 (id,lo,hi) 键跨调用全失效:裁剪位置对同一份 bars 是确定性
+# 的,却每代都对全部切片重做 O(N) bars_signature(72k 根深数据实测每代
+# 5-10s+,Pyodide 再放大 3-5 倍)。按 (id(bars), n) 复用同一视图对象,id
+# 稳定 → 切片签名整个搜索只算一次。值持 bars 引用防 id 复用。纯加速。
+_VIEW_CACHE: OrderedDict[tuple, tuple] = OrderedDict()
+_VIEW_CACHE_MAX = 16
+
+
+def frozen_view(bars: list, n: int) -> list:
+    """bars[:n] 的稳定视图:同一 bars 对象、同一长度的裁剪跨调用复用同一 list
+
+    调用方须把 bars 视为只读(全内核约定),视图共享才有安全前提。
+    """
+    if n >= len(bars):
+        return bars
+    key = (id(bars), n)
+    hit = _VIEW_CACHE.get(key)
+    if hit is not None:
+        _VIEW_CACHE.move_to_end(key)
+        bars_ref, view = hit
+        if bars_ref is bars:
+            return view
+    view = bars[:n]
+    _VIEW_CACHE[key] = (bars, view)
+    while len(_VIEW_CACHE) > _VIEW_CACHE_MAX:
+        _VIEW_CACHE.popitem(last=False)
+    return view
 
 
 def _cache_get(key: tuple) -> Any:
@@ -156,7 +195,14 @@ def evaluate_on_slice(
     cached = _cache_get(key)
     if cached is not None:
         return dict(cached) if cached != "__none__" else None
-    mat = feature_matrix(ctx, _sig=sig)
+    if lo - w == 0:
+        # 前缀 ctx:特征因果 ⇒ matrix(bars[:hi]) ≡ 全量矩阵列视图(零拷贝),
+        # 免去本条切片的 compute_features(深数据一次 5-7s)。按内容签名
+        # 登记进段缓存,regime 等按签名查 feature_matrix 的路径同步命中
+        mat = prefix_view_matrix(all_bars, hi)
+        seed_matrix(sig, mat)
+    else:
+        mat = feature_matrix(ctx, _sig=sig)
     factor = execute_for_bars(tokens, mat, ctx)
     if factor is None:
         _cache_put(key, "__none__")
