@@ -81,8 +81,18 @@ export function FactorSearchForm({
   const [symbol, setSymbol] = useState(defaultSymbol)
   const [timeframe, setTimeframe] = useState("1d")
   const [dataChannel, setDataChannel] = useState<string>(DEFAULT_KLINE_CHANNEL)
-  const [population, setPopulation] = useState(30)
-  const [generations, setGenerations] = useState(15)
+  // 数字输入按「文本态」持有,输入期不钳制——逐键 Math.max 会把用户正在敲的
+  // "1"(想输 15/100)立即改写成 "10"/"3",小数字根本打不进去;失焦/提交时
+  // 再统一收敛到合法区间
+  const [population, setPopulation] = useState("30")
+  const [generations, setGenerations] = useState("15")
+  const clampInt = (raw: string, min: number, max: number, dflt: number): number => {
+    const n = Math.round(Number(raw))
+    if (!raw.trim() || !Number.isFinite(n)) return dflt
+    return Math.max(min, Math.min(max, n))
+  }
+  const populationNum = (): number => clampInt(population, 10, 30000, 30)
+  const generationsNum = (): number => clampInt(generations, 3, 1000, 15)
   const [contracts, setContracts] = useState<ContractItem[]>([])
   const [useCoach, setUseCoach] = useState(false)
   useEffect(() => { if ((!localEngine || useCoach) && dataChannel === "gate_usdt") setDataChannel(DEFAULT_KLINE_CHANNEL) }, [localEngine, useCoach, dataChannel])
@@ -179,8 +189,8 @@ export function FactorSearchForm({
     onSearch({
       symbol: sym,
       timeframe,
-      population,
-      generations,
+      population: populationNum(),
+      generations: generationsNum(),
       top_n: 10,
       seed: 42,
       cost: null,
@@ -197,9 +207,9 @@ export function FactorSearchForm({
     <div className="space-y-3">
       <form
         onSubmit={handleSubmit}
-        className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end"
+        className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end"
       >
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 lg:col-span-2">
           <div className="flex items-center gap-1">
             <Label>合约</Label>
             <HelpTip text={FACTOR_HELP.symbol} side="bottom" align="center" className="" />
@@ -211,12 +221,12 @@ export function FactorSearchForm({
           />
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 lg:col-span-2">
           <div className="flex items-center gap-1">
             <Label>周期</Label>
             <HelpTip text={FACTOR_HELP.timeframe} side="bottom" align="center" className="" />
           </div>
-          <div className="flex flex-wrap gap-1">
+          <div className="grid grid-cols-6 gap-1">
             {TIMEFRAMES.map((tf) => (
               <button
                 key={tf.value}
@@ -234,7 +244,7 @@ export function FactorSearchForm({
           </div>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 lg:col-span-2">
           <Label>数据渠道</Label>
           <DataChannelSelect
             extraChannels={localEngine && !useCoach ? LOCAL_DERIVATIVE_CHANNELS : undefined}
@@ -252,7 +262,7 @@ export function FactorSearchForm({
           {localEngine && <CryptoDataPanel channel={dataChannel} symbol={symbol} />}
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 lg:col-span-2">
           <LabelWithHelp
             htmlFor="fl-pop"
             label="种群（10-30000）"
@@ -264,16 +274,13 @@ export function FactorSearchForm({
             min={10}
             max={30000}
             value={population}
-            onChange={(e) =>
-              setPopulation(
-                Math.max(10, Math.min(30000, Number(e.target.value) || 30)),
-              )
-            }
+            onChange={(e) => setPopulation(e.target.value)}
+            onBlur={() => setPopulation(String(populationNum()))}
             className="h-9"
           />
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 lg:col-span-2">
           <LabelWithHelp
             htmlFor="fl-gen"
             label="代数（3-1000）"
@@ -285,27 +292,28 @@ export function FactorSearchForm({
             min={3}
             max={1000}
             value={generations}
-            onChange={(e) =>
-              setGenerations(Math.max(3, Math.min(1000, Number(e.target.value) || 15)))
-            }
+            onChange={(e) => setGenerations(e.target.value)}
+            onBlur={() => setGenerations(String(generationsNum()))}
             className="h-9"
           />
         </div>
 
-        <Button
-          type="submit"
-          disabled={loading || (useCoach && !modelRowId)}
-          className="h-9"
-        >
-          <Search className="w-4 h-4 mr-1" />
-          {loading ? "搜索中…" : "开始搜索"}
-        </Button>
-        <p className="text-[10px] text-[var(--text-muted)] sm:col-span-2 lg:col-span-5">
+        <div className="lg:col-span-2">
+          <Button
+            type="submit"
+            disabled={loading || (useCoach && !modelRowId)}
+            className="h-9 w-full"
+          >
+            <Search className="w-4 h-4 mr-1" />
+            {loading ? "搜索中…" : "开始搜索"}
+          </Button>
+        </div>
+        <p className="text-[10px] text-[var(--text-muted)] sm:col-span-2 lg:col-span-6">
           超大参数（种群上千/代数百）建议选本地 GPU 引擎（粗排 390 万评估/秒 + 精算分片并行）；
           服务端引擎可能因服务器资源限制拒绝大规模请求。
         </p>
         {symbolError && (
-          <p className="text-[11px] text-down sm:col-span-2 lg:col-span-5">
+          <p className="text-[11px] text-down sm:col-span-2 lg:col-span-6">
             {symbolError}
           </p>
         )}
