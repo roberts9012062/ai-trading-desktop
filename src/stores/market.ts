@@ -501,12 +501,18 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     set((state) => {
       const updated = { ...state.quotes }
       const flash = { ...state.flashMap }
-      for (const quote of data) {
-        const prev = state.quotes[quote.symbol]
-        updated[quote.symbol] = quote
+      for (const raw of data) {
+        // 入库键统一小写:WS 推送常用大写 symbol,而 HTTP 快照/自选/任务
+        // 均为小写规范符号——不规范化会导致工作台自选行情等按小写查不到,
+        // 价格全部落空显示 "--"(各消费方的三种大小写兜底即此历史症状)
+        const symbol = String(raw.symbol ?? "").trim().toLowerCase()
+        if (!symbol) continue
+        const quote = { ...raw, symbol }
+        const prev = updated[symbol] ?? state.quotes[symbol]
+        updated[symbol] = quote
         if (prev && quote.last_price !== prev.last_price) {
           const direction: FlashDirection = quote.last_price > prev.last_price ? "up" : "down"
-          flash[quote.symbol] = { seq: (flash[quote.symbol]?.seq ?? 0) + 1, direction }
+          flash[symbol] = { seq: (flash[symbol]?.seq ?? 0) + 1, direction }
         }
       }
       return { quotes: updated, flashMap: flash }

@@ -19,6 +19,7 @@ export function WatchlistTable(): React.JSX.Element {
 
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -40,8 +41,10 @@ export function WatchlistTable(): React.JSX.Element {
       try {
         const items = await getWatchlistApi()
         setWatchlist(items)
-      } catch {
-        // 未登录或 API 不可用
+        setLoadError(null)
+      } catch (e) {
+        // 未登录或服务不可达:区分"空列表"与"加载失败",便于排查环境问题
+        setLoadError(e instanceof Error ? e.message : "自选服务不可达")
       } finally {
         setLoading(false)
       }
@@ -87,13 +90,20 @@ export function WatchlistTable(): React.JSX.Element {
   if (watchlist.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 gap-3">
-        <p className="text-xs text-[var(--text-muted)]">暂无自选合约</p>
+        <p className="text-xs text-[var(--text-muted)]">
+          {loadError ? `自选加载失败：${loadError}` : "暂无自选合约"}
+        </p>
+        {!loadError && (
+        <p className="text-[10px] text-[var(--text-muted)]">到行情页点☆添加，双击行可直接跳转</p>
+        )}
+        {!loadError && (
         <button
           onClick={() => router.push("/market")}
           className="text-xs text-[var(--primary)] hover:underline cursor-pointer"
         >
           前往行情页添加自选合约 →
         </button>
+        )}
       </div>
     )
   }
@@ -113,7 +123,8 @@ export function WatchlistTable(): React.JSX.Element {
       <TableBody>
         {watchlist.map((item) => {
           // 优先使用 WebSocket 实时行情，其次使用 API 返回的行情
-          const wsQuote = quotes[item.contract_symbol]
+          // (quotes 键已统一小写;contract_symbol 兜底小写防历史数据大小写不一)
+          const wsQuote = quotes[item.contract_symbol] ?? quotes[item.contract_symbol.toLowerCase()]
           const lastPrice = wsQuote?.last_price ?? item.last_price
           const change = wsQuote?.change ?? item.change
           const changePct = wsQuote?.change_pct ?? item.change_pct
