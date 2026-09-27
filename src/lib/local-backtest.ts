@@ -55,14 +55,29 @@ async function paginateBackward(
 ): Promise<{ bars: KlineBar[]; truncated: boolean }> {
   const all: KlineBar[] = []
   let endTime = untilEnd
+  let prevOldest = "" // okx 深探的进展标记(防同位置空转死循环)
   for (let page = 0; page < maxPages; page++) {
     const resp = await getChannelKlineApi(symbol, timeframe, { limit: 500, endTime }, channel)
     const bars = (resp.bars ?? []) as KlineBar[]
     if (bars.length === 0) return { bars: all, truncated: false }
     all.unshift(...bars)
     onProgress?.(`拉取 K 线数据…已 ${all.length} 根,回溯至 ${String(bars[0].time).slice(0, 10)}`)
-    if (!resp.has_more) return { bars: all, truncated: false }
     const oldest = bars[0].time
+    if (!resp.has_more) {
+      // okx 渠道后端首页 has_more 语义错误(实测 326 根即 false,但带
+      // end_time 深翻可达数千根以上):未覆盖 fromStart 且仍有进展时,
+      // 以最旧一根继续回探;空页/无进展才真正终止
+      if (
+        channel === "okx" &&
+        oldest.slice(0, 10) > fromStart &&
+        (!prevOldest || oldest < prevOldest)
+      ) {
+        prevOldest = oldest
+        endTime = oldest
+        continue
+      }
+      return { bars: all, truncated: false }
+    }
     if (oldest.slice(0, 10) <= fromStart) return { bars: all, truncated: false }
     endTime = oldest
   }
