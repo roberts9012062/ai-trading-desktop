@@ -182,6 +182,109 @@ async function evaluatePortfolio(
   }
 }
 
+/** LocalFactorPayload → MiningConfig(搜索引擎统一入口;runner 与一次性
+ * 搜索共用,保证两条路径同口径) */
+export function buildSearchConfig(payload: LocalFactorPayload) {
+  return {
+    symbol: payload.symbol,
+    crypto_profile: payload.crypto_profile,
+    timeframe: payload.timeframe,
+    population: payload.population,
+    generations: payload.generations,
+    max_depth: payload.max_depth ?? 4,
+    train_ratio: payload.train_ratio ?? 0,
+    ...(payload.test_recent_bars != null ? { test_recent_bars: payload.test_recent_bars } : {}),
+    walk_forward_folds: payload.walk_forward_folds ?? 0,
+    top_n: payload.top_n,
+    seed: payload.seed,
+    cost: payload.cost ?? null,
+    ...(payload.seed_tokens?.length ? { seed_tokens: payload.seed_tokens } : {}),
+    ...(payload.selection_v2 ? { selection_v2: true } : {}),
+    ...(payload.evolve_v2 ? { evolve_v2: true } : {}),
+    ...(payload.live_entry_gate ? { live_entry_gate: payload.live_entry_gate } : {}),
+    ...(payload.research_profile ? { research_profile: payload.research_profile } : {}),
+    ...(payload.execution_model ? { execution_model: payload.execution_model } : {}),
+    ...(payload.label_span != null ? { label_span: payload.label_span } : {}),
+  }
+}
+
+/** GenerationStep → 进度卡片摘要(CPU/GPU 两路径共用) */
+export function toLocalSearchStep(
+  value: {
+    generation: number
+    totalGenerations: number
+    bestComposite: number
+    elapsedMs: number
+    gpuStats?: { shardWorkers?: number; evaluated?: number; cacheHits?: number; rankMs?: number; preciseMs?: number } | undefined
+  },
+  engine: LocalSearchEngine,
+): LocalSearchStep {
+  return {
+    generation: value.generation,
+    totalGenerations: value.totalGenerations,
+    bestComposite: value.bestComposite,
+    elapsedMs: value.elapsedMs,
+    shardWorkers: value.gpuStats?.shardWorkers ?? 0,
+    evaluated: value.gpuStats?.evaluated ?? 0,
+    cacheHits: value.gpuStats?.cacheHits ?? 0,
+    rankMs: value.gpuStats?.rankMs ?? 0,
+    preciseMs: value.gpuStats?.preciseMs ?? 0,
+    engine,
+  }
+}
+
+/** 搜索取数 + 冻结复测快照(searchFactorsLocal 的取数段;后台 runner 复用) */
+export async function prepareSearchBars(
+  payload: LocalFactorPayload,
+  onProgress?: (msg: string) => void,
+): Promise<KlineBar[]> {
+  onProgress?.("拉取 K 线数据…")
+  const bars = await fetchBacktestBars(
+    payload.symbol,
+    payload.timeframe,
+    payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : "2005-01-01"),
+    payload.end_date || new Date().toISOString().slice(0, 10),
+    KLINE_MAX_PAGES,
+    undefined,
+    onProgress,
+    normalizeChannel(payload.data_channel),
+  )
+  if (bars.length < 60) throw new Error("该区间 K 线数据不足(至少 60 根)")
+  lastSearchSnapshot = {
+    key: snapshotKey(payload.symbol, payload.timeframe, payload.data_channel),
+    symbol: payload.symbol,
+    timeframe: payload.timeframe,
+    channel: payload.data_channel,
+    bars,
+    startDate: payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : "2005-01-01"),
+    endDate: payload.end_date || new Date().toISOString().slice(0, 10),
+    cost: payload.cost ?? null,
+    researchProfile: payload.research_profile,
+  }
+  return bars
+}
+
+/** 冠军收尾:内核版本戳 + 组合评估 + SearchResult 组装(后台 runner 复用) */
+export async function finalizeSearchResult(
+  payload: LocalFactorPayload,
+  bars: KlineBar[],
+  champions: Champion[],
+): Promise<SearchResult> {
+  await stampKernelVersion(champions)
+  const portfolio = await evaluatePortfolio(payload, bars, champions)
+  return toSearchResult(payload, bars, champions, portfolio)
+}
+
+/** 按引擎构造后端(后台 runner 复用;GPU 实例化失败由调用方降级) */
+export async function createSearchBackend(engine: LocalSearchEngine) {
+  if (engine === "gpu") {
+    const { GpuBackend } = await import("@/lib/mining/backends/gpu-backend")
+    return new GpuBackend()
+  }
+  const { CpuBackend } = await import("@/lib/mining/backends/cpu-backend")
+  return new CpuBackend()
+}
+
 /** CPU 路径:多核并行(与超级因子挖掘同架构——JS 进化 + 分片池并行 f64
  * 评估 + 主实例单点严格筛;池不可用自动降级单进程)。评估/严格筛与 GPU
  * 路径同源同口径,对外数字全部出自内核 f64 */
@@ -191,8 +294,7 @@ async function searchStepwiseCpu(
   onProgress?: (msg: string) => void,
   onStep?: (step: LocalSearchStep) => void,
 ): Promise<SearchResult> {
-  const { CpuBackend } = await import("@/lib/mining/backends/cpu-backend")
-  const backend = new CpuBackend()
+  const backend = await createSearchBackend("cpu")
   onProgress?.(
     "本地多核引擎启动中：初始化本地计算内核（组件已内置安装包，通常秒级；多 worker 并行加载期间安静属正常）…",
   )
@@ -200,27 +302,7 @@ async function searchStepwiseCpu(
     bars,
     {
       snapshotId: "direct",
-      config: {
-        symbol: payload.symbol,
-        crypto_profile: payload.crypto_profile,
-        timeframe: payload.timeframe,
-        population: payload.population,
-        generations: payload.generations,
-        max_depth: payload.max_depth ?? 4,
-        train_ratio: payload.train_ratio ?? 0,
-        ...(payload.test_recent_bars != null ? { test_recent_bars: payload.test_recent_bars } : {}),
-        walk_forward_folds: payload.walk_forward_folds ?? 0,
-        top_n: payload.top_n,
-        seed: payload.seed,
-        cost: payload.cost ?? null,
-        ...(payload.seed_tokens?.length ? { seed_tokens: payload.seed_tokens } : {}),
-        ...(payload.selection_v2 ? { selection_v2: true } : {}),
-        ...(payload.evolve_v2 ? { evolve_v2: true } : {}),
-        ...(payload.live_entry_gate ? { live_entry_gate: payload.live_entry_gate } : {}),
-        ...(payload.research_profile ? { research_profile: payload.research_profile } : {}),
-        ...(payload.execution_model ? { execution_model: payload.execution_model } : {}),
-        ...(payload.label_span != null ? { label_span: payload.label_span } : {}),
-      },
+      config: buildSearchConfig(payload),
       startGeneration: 0,
     },
     new AbortController().signal,
@@ -237,22 +319,9 @@ async function searchStepwiseCpu(
       `第 ${r.value.generation}/${r.value.totalGenerations} 代 · 当前最优 ` +
         `${r.value.bestComposite.toFixed(2)}(多核并行,${bars.length} 根 K)`,
     )
-    onStep?.({
-      generation: r.value.generation,
-      totalGenerations: r.value.totalGenerations,
-      bestComposite: r.value.bestComposite,
-      elapsedMs: r.value.elapsedMs,
-      shardWorkers: r.value.gpuStats?.shardWorkers ?? 0,
-      evaluated: r.value.gpuStats?.evaluated ?? 0,
-      cacheHits: r.value.gpuStats?.cacheHits ?? 0,
-      rankMs: r.value.gpuStats?.rankMs ?? 0,
-      preciseMs: r.value.gpuStats?.preciseMs ?? 0,
-      engine: "cpu",
-    })
+    onStep?.(toLocalSearchStep(r.value, "cpu"))
   }
-  await stampKernelVersion(champions)
-  const portfolio = await evaluatePortfolio(payload, bars, champions)
-  return toSearchResult(payload, bars, champions, portfolio)
+  return await finalizeSearchResult(payload, bars, champions)
 }
 
 /** GPU 路径:WGSL 粗排 + Pyodide 精算(对外数字全部出自内核 f64) */
@@ -262,8 +331,7 @@ async function searchGpu(
   onProgress?: (msg: string) => void,
   onStep?: (step: LocalSearchStep) => void,
 ): Promise<SearchResult> {
-  const { GpuBackend } = await import("@/lib/mining/backends/gpu-backend")
-  const backend = new GpuBackend()
+  const backend = (await createSearchBackend("gpu")) as import("@/lib/mining/backends/gpu-backend").GpuBackend
   // 冷加载提示:首次运行需下载 Pyodide+numpy(主内核 + 精算分片 worker 并发,
   // 慢网下可达数分钟),期间 CPU/GPU 均安静属正常——没有这句用户会以为卡死
   onProgress?.(
@@ -273,27 +341,7 @@ async function searchGpu(
     bars,
     {
       snapshotId: "direct",
-      config: {
-        symbol: payload.symbol,
-        crypto_profile: payload.crypto_profile,
-        timeframe: payload.timeframe,
-        population: payload.population,
-        generations: payload.generations,
-        max_depth: payload.max_depth ?? 4,
-        train_ratio: payload.train_ratio ?? 0,
-        ...(payload.test_recent_bars != null ? { test_recent_bars: payload.test_recent_bars } : {}),
-        walk_forward_folds: payload.walk_forward_folds ?? 0,
-        top_n: payload.top_n,
-        seed: payload.seed,
-        cost: payload.cost ?? null,
-        ...(payload.seed_tokens?.length ? { seed_tokens: payload.seed_tokens } : {}),
-        ...(payload.selection_v2 ? { selection_v2: true } : {}),
-        ...(payload.evolve_v2 ? { evolve_v2: true } : {}),
-        ...(payload.live_entry_gate ? { live_entry_gate: payload.live_entry_gate } : {}),
-        ...(payload.research_profile ? { research_profile: payload.research_profile } : {}),
-        ...(payload.execution_model ? { execution_model: payload.execution_model } : {}),
-        ...(payload.label_span != null ? { label_span: payload.label_span } : {}),
-      },
+      config: buildSearchConfig(payload),
       startGeneration: 0,
     },
     new AbortController().signal,
@@ -310,22 +358,9 @@ async function searchGpu(
       `第 ${r.value.generation}/${r.value.totalGenerations} 代 · 当前最优 ` +
         `${r.value.bestComposite.toFixed(2)}(GPU 粗排 + 本地精算,${bars.length} 根 K)`,
     )
-    onStep?.({
-      generation: r.value.generation,
-      totalGenerations: r.value.totalGenerations,
-      bestComposite: r.value.bestComposite,
-      elapsedMs: r.value.elapsedMs,
-      shardWorkers: r.value.gpuStats?.shardWorkers ?? 0,
-      evaluated: r.value.gpuStats?.evaluated ?? 0,
-      cacheHits: r.value.gpuStats?.cacheHits ?? 0,
-      rankMs: r.value.gpuStats?.rankMs ?? 0,
-      preciseMs: r.value.gpuStats?.preciseMs ?? 0,
-      engine: "gpu",
-    })
+    onStep?.(toLocalSearchStep(r.value, "gpu"))
   }
-  await stampKernelVersion(champions)
-  const portfolio = await evaluatePortfolio(payload, bars, champions)
-  return toSearchResult(payload, bars, champions, portfolio)
+  return await finalizeSearchResult(payload, bars, champions)
 }
 
 export async function searchFactorsLocal(
@@ -335,32 +370,7 @@ export async function searchFactorsLocal(
   onStep?: (step: LocalSearchStep) => void,
 ): Promise<SearchResult> {
   payload = { ...payload, crypto_profile: payload.crypto_profile ?? isCryptoSymbol(payload.symbol) }
-  onProgress?.("拉取 K 线数据…")
-  // 深历史(start_date 默认 2005)在服务端修复连续合约回溯后可达,
-  // 页数上限须覆盖 15m 全量(rb≈134 页),否则长区间被静默截断
-  const bars = await fetchBacktestBars(
-    payload.symbol,
-    payload.timeframe,
-    payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : "2005-01-01"),
-    payload.end_date || new Date().toISOString().slice(0, 10),
-    KLINE_MAX_PAGES,
-    undefined,
-    onProgress,
-    normalizeChannel(payload.data_channel),
-  )
-  if (bars.length < 60) throw new Error("该区间 K 线数据不足(至少 60 根)")
-  // 冻结本次搜索的行情与口径:复测复用(方案任务 3 验收)
-  lastSearchSnapshot = {
-    key: snapshotKey(payload.symbol, payload.timeframe, payload.data_channel),
-    symbol: payload.symbol,
-    timeframe: payload.timeframe,
-    channel: payload.data_channel,
-    bars,
-    startDate: payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : "2005-01-01"),
-    endDate: payload.end_date || new Date().toISOString().slice(0, 10),
-    cost: payload.cost ?? null,
-    researchProfile: payload.research_profile,
-  }
+  const bars = await prepareSearchBars(payload, onProgress)
   if (engine === "gpu") {
     try {
       return await searchGpu(payload, bars, onProgress, onStep)

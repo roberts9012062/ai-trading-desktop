@@ -6,7 +6,7 @@ import { isResearchOnlyFactor, RESEARCH_FACTOR_MESSAGE } from "@/lib/factor-acce
  * 因子实验室页面状态与操作
  */
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { SearchFormPayload } from "../factor-search-form"
 import {
   addFactorFavorite,
@@ -14,15 +14,14 @@ import {
   deleteFactorFavorite,
   deleteFactorHistory,
   llmGenerateFactors,
-  saveFactorHistory,
-  searchFactors,
   type Champion,
   type FactorBacktestResult,
   type FactorMetrics,
   type SearchResult,
 } from "@/lib/factor-lab-api"
 import { createAITradingTask as createTask, switchTaskSite } from "@/lib/ai-trading-api"
-import { searchFactorsLocal, backtestFactorLocal, type LocalSearchStep } from "@/lib/local-factor"
+import { backtestFactorLocal, type LocalSearchStep } from "@/lib/local-factor"
+import { factorLabRunner, type FactorSearchTask } from "@/lib/mining/factor-lab-runner"
 import { useFactorLabData } from "./use-factor-data"
 import {
   buildComboTaskPayload,
@@ -79,8 +78,16 @@ export interface FactorLabPageState {
   progressNote: string | null
   /** 本地挖掘结构化进度(与超级因子任务面板同款:代数/最优/并行度);非搜索期为 null */
   searchStep: LocalSearchStep | null
-  /** 搜索累计耗时 ms(searchStep.elapsedMs 逐代累加) */
+  /** 搜索累计耗时 ms(后台任务口径,切页回来仍准确) */
   searchElapsedMs: number
+  /** 后台搜索任务(页面切走仍在跑;null=无任务) */
+  bgTask: FactorSearchTask | null
+  /** 搜索进行中(取数/计算) */
+  searchActive: boolean
+  /** 暂停/继续/停止(代边界生效) */
+  pauseSearch: () => void
+  resumeSearch: () => void
+  stopSearch: () => void
   /** 取消本地搜索/回测(terminate 本地计算 worker;服务端请求无法客户端取消) */
   cancelLocalSearch: () => void
   handleGenerate: (payload: {
@@ -105,6 +112,34 @@ export interface FactorLabPageState {
 
 function errOf(e: unknown, fallback: string): string {
   return e instanceof Error ? e.message : fallback
+}
+
+/** 已采纳过结果的搜索任务 id(模块级:切页回来不重复采纳) */
+let lastAdoptedSearchId: string | null = null
+
+/** 结果采纳时还原表单载荷:优先任务冻结的原文,缺失时按搜索载荷拼 */
+function formOfPayload(
+  p: NonNullable<FactorSearchTask["payload"]>,
+  fallback: SearchFormPayload | null,
+): SearchFormPayload {
+  if (fallback) return fallback
+  return {
+    symbol: p.symbol,
+    timeframe: p.timeframe,
+    population: p.population,
+    generations: p.generations,
+    top_n: p.top_n,
+    seed: p.seed,
+    cost: p.cost ?? null,
+    use_llm_coach: false,
+    model_row_id: null,
+    ...(p.train_ratio != null ? { train_ratio: p.train_ratio } : {}),
+    ...(p.test_recent_bars != null ? { test_recent_bars: p.test_recent_bars } : {}),
+    ...(p.walk_forward_folds != null ? { walk_forward_folds: p.walk_forward_folds } : {}),
+    ...(p.selection_v2 ? { enhanced: true } : {}),
+    ...(p.start_date && p.end_date ? { start_date: p.start_date, end_date: p.end_date } : {}),
+    ...(p.data_channel ? { data_channel: p.data_channel } : {}),
+  }
 }
 
 /** P1-5 防御:防过拟合开启的口径下,无样本外验证信息的记录不得直接挂载/收藏
@@ -133,17 +168,29 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
   // 计算引擎三态;持久化用户选择(qh_factor_engine,自旧键一次性迁移)
   const [engine, setEngineState] = useState<FactorEngine>(readEngine)
   const [progressNote, setProgressNote] = useState<string | null>(null)
-  // 本地挖掘结构化进度(每代更新;GPU 回退 CPU 时引擎字段随 step 更新)
-  const [searchStep, setSearchStep] = useState<LocalSearchStep | null>(null)
-  const searchElapsedRef = useRef(0)
-  const onSearchStep = useCallback((step: LocalSearchStep) => {
-    searchElapsedRef.current += step.elapsedMs
-    setSearchStep(step)
-  }, [])
-  const resetSearchStep = useCallback(() => {
-    setSearchStep(null)
-    searchElapsedRef.current = 0
-  }, [])
+  // 后台搜索任务:module 级 runner 驱动,页面切走/回来搜索不断
+  const [bgTask, setBgTask] = useState<FactorSearchTask | null>(factorLabRunner.current)
+  useEffect(() => factorLabRunner.subscribe(setBgTask), [])
+  const searchActive = bgTask != null && (bgTask.status === "running" || bgTask.status === "fetching")
+  const searchStep: LocalSearchStep | null = bgTask?.lastStep ?? null
+  const searchElapsedMs = bgTask?.elapsedMs ?? 0
+  const pauseSearch = useCallback(() => factorLabRunner.pause(), [])
+  const resumeSearch = useCallback(() => void factorLabRunner.resume(), [])
+  const stopSearch = useCallback(() => factorLabRunner.stop(), [])
+  // 任务状态 → 既有 UI 状态;完成时把结果采纳进页面(一次)
+  useEffect(() => {
+    if (!bgTask) return
+    const st = bgTask.status
+    setProgressNote(
+      st === "completed" || st === "cancelled" || st === "failed" ? null : bgTask.phase,
+    )
+    setLoading(st === "running" || st === "fetching")
+    if (st === "failed" && bgTask.error) setError(bgTask.error)
+    if (st === "completed" && bgTask.result && lastAdoptedSearchId !== bgTask.id) {
+      lastAdoptedSearchId = bgTask.id
+      void applySearchResult(bgTask.result, formOfPayload(bgTask.payload, bgTask.form))
+    }
+  }, [bgTask])
   const setEngine = useCallback((v: FactorEngine) => {
     setEngineState(v)
     try {
@@ -230,114 +277,53 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     void refreshHistory(p.symbol)
   }
 
-  /**
-   * 本地搜索结果 best-effort 落服务端历史(配套服务端 POST /api/factor-lab/history,
-   * source="local"):端点未上线(404)/网络失败时静默跳过,不影响本地结果展示。
-   */
-  async function persistLocalHistory(
-    r: SearchResult,
-    p: SearchFormPayload,
-    seedCount: number,
-  ): Promise<void> {
-    if (!r.champions.length) return
-    try {
-      const saved = await saveFactorHistory({
-        symbol: p.symbol,
-        timeframe: p.timeframe,
-        champions: r.champions.slice(0, 20).map((c) => ({
-          tokens: c.tokens,
-          text: c.text,
-          composite: c.composite,
-          metrics: c.metrics,
-        })),
-        trials: p.population * p.generations + seedCount,
-        bars: r.bars,
-        config: {
-          data_channel: p.data_channel,
-          population: p.population,
-          generations: p.generations,
-          train_ratio: p.train_ratio,
-          test_recent_bars: p.test_recent_bars,
-          walk_forward_folds: p.walk_forward_folds,
-          cost: p.cost,
-          seed: p.seed,
-          seed_count: seedCount,
-          start_date: p.start_date ?? null,
-          end_date: p.end_date ?? null,
-        },
-      })
-      if (saved > 0) void refreshHistory(p.symbol)
-    } catch {
-      // 静默降级:历史面板只是少了本地条目,搜索本身已成功
-    }
-  }
-
   async function handleSearch(p: SearchFormPayload): Promise<void> {
-    setLoading(true)
     setError(null)
     setProgressNote(null)
-    resetSearchStep()
     setResult(null)
     setSelected(null)
     setBt(null)
     setLastReq(p)
     setSymbol(p.symbol)
+    if (p.data_channel === "gate_usdt" && p.use_llm_coach) {
+      setError("Gate 永续直连仅支持本地 CPU/GPU 搜索，请关闭服务端教练")
+      return
+    }
+    // 服务端引擎已下线:一律本地计算(CPU/GPU,engine 读取时已回退)。
+    // LLM 教练依赖服务端搜索,入口已隐藏;此处再兜底忽略误传的 coach 标记
+    if (p.use_llm_coach) {
+      p = { ...p, use_llm_coach: false }
+    }
+    // 后台 runner 接管全生命周期:切页不断,暂停/停止落在代边界,
+    // 完成时经订阅流采纳结果并落历史(runner 内 best-effort)
+    if (!factorLabRunner.canStart()) {
+      setError("已有搜索在后台运行，请先暂停或停止后再发起新搜索")
+      return
+    }
+    setLoading(true)
     try {
-      if (p.data_channel === "gate_usdt" && p.use_llm_coach) throw new Error("Gate 永续直连仅支持本地 CPU/GPU 搜索，请关闭服务端教练")
-      // 服务端引擎已下线:一律本地计算(CPU/GPU,engine 读取时已回退)。
-      // LLM 教练依赖服务端搜索,入口已隐藏;此处再兜底忽略误传的 coach 标记
-      if (p.use_llm_coach) {
-        p = { ...p, use_llm_coach: false }
-      }
-      {
-        const r = await searchFactorsLocal(
-          {
-            symbol: p.symbol,
-            data_channel: p.data_channel,
-            timeframe: p.timeframe,
-            population: p.population,
-            generations: p.generations,
-            top_n: p.top_n,
-            seed: p.seed,
-            cost: p.cost,
-            train_ratio: p.train_ratio,
-            test_recent_bars: p.test_recent_bars,
-            walk_forward_folds: p.walk_forward_folds,
-            ...(p.enhanced ? { selection_v2: true, evolve_v2: true } : {}),
-            ...(p.start_date && p.end_date ? { start_date: p.start_date, end_date: p.end_date } : {}),
-          },
-          setProgressNote,
-          engine === "gpu" ? "gpu" : "cpu",
-          onSearchStep,
-        )
-        await applySearchResult(r, p)
-        void persistLocalHistory(r, p, 0)
-        return
-      }
-      const r = await searchFactors({
-        symbol: p.symbol,
-        timeframe: p.timeframe,
-        population: p.population,
-        generations: p.generations,
-        top_n: p.top_n,
-        seed: p.seed,
-        cost: p.cost,
-        use_llm_coach: p.use_llm_coach,
-        model_row_id: p.model_row_id,
-        train_ratio: p.train_ratio,
-        test_recent_bars: p.test_recent_bars,
-        walk_forward_folds: p.walk_forward_folds,
-        ...(p.start_date && p.end_date
-          ? { start_date: p.start_date, end_date: p.end_date }
-          : {}),
-      })
-      await applySearchResult(r, p)
+      await factorLabRunner.start(
+        {
+          symbol: p.symbol,
+          data_channel: p.data_channel,
+          timeframe: p.timeframe,
+          population: p.population,
+          generations: p.generations,
+          top_n: p.top_n,
+          seed: p.seed,
+          cost: p.cost,
+          train_ratio: p.train_ratio,
+          test_recent_bars: p.test_recent_bars,
+          walk_forward_folds: p.walk_forward_folds,
+          ...(p.enhanced ? { selection_v2: true, evolve_v2: true } : {}),
+          ...(p.start_date && p.end_date ? { start_date: p.start_date, end_date: p.end_date } : {}),
+        },
+        engine === "gpu" ? "gpu" : "cpu",
+        p,
+      )
     } catch (e) {
-      setError(errOf(e, "搜索失败"))
-    } finally {
+      setError(errOf(e, "搜索启动失败"))
       setLoading(false)
-      setProgressNote(null)
-      resetSearchStep()
     }
   }
 
@@ -345,15 +331,18 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     if (!lastReq || !result?.champions.length) return
     const seeds = result.champions.slice(0, 5).map((c) => c.tokens)
     const p = { ...lastReq }
-    setLoading(true)
     setError(null)
     setProgressNote(null)
-    resetSearchStep()
     try {
       if (p.data_channel === "gate_usdt" && (engine === "server" || p.use_llm_coach)) throw new Error("Gate 永续直连仅支持本地 CPU/GPU 搜索")
-      // 本地引擎再进化:种子 token 直接透传,seed+1
+      // 本地引擎再进化:种子 token 直接透传,seed+1(同样走后台 runner)
       if (engine !== "server" && !p.use_llm_coach) {
-        const r = await searchFactorsLocal(
+        if (!factorLabRunner.canStart()) {
+          setError("已有搜索在后台运行，请先暂停或停止后再进化")
+          return
+        }
+        setLoading(true)
+        await factorLabRunner.start(
           {
             symbol: p.symbol,
             data_channel: p.data_channel,
@@ -370,39 +359,14 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
             ...(p.enhanced ? { selection_v2: true, evolve_v2: true } : {}),
             ...(p.start_date && p.end_date ? { start_date: p.start_date, end_date: p.end_date } : {}),
           },
-          setProgressNote,
-          engine,
-          onSearchStep,
+          engine === "gpu" ? "gpu" : "cpu",
+          { ...p, seed: p.seed + 1 },
         )
-        await applySearchResult(r, { ...p, seed: p.seed + 1 })
-        void persistLocalHistory(r, { ...p, seed: p.seed + 1 }, seeds.length)
         return
       }
-      const r = await searchFactors({
-        symbol: p.symbol,
-        timeframe: p.timeframe,
-        population: p.population,
-        generations: p.generations,
-        top_n: p.top_n,
-        seed: p.seed + 1,
-        cost: p.cost,
-        seed_tokens: seeds,
-        use_llm_coach: p.use_llm_coach,
-        model_row_id: p.model_row_id,
-        train_ratio: p.train_ratio,
-        test_recent_bars: p.test_recent_bars,
-        walk_forward_folds: p.walk_forward_folds,
-        ...(p.start_date && p.end_date
-          ? { start_date: p.start_date, end_date: p.end_date }
-          : {}),
-      })
-      await applySearchResult(r, { ...p, seed: p.seed + 1 })
     } catch (e) {
       setError(errOf(e, "进化失败"))
-    } finally {
       setLoading(false)
-      setProgressNote(null)
-      resetSearchStep()
     }
   }
 
@@ -603,7 +567,12 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     setEngine,
     progressNote,
     searchStep,
-    searchElapsedMs: searchElapsedRef.current,
+    searchElapsedMs,
+    bgTask,
+    searchActive,
+    pauseSearch,
+    resumeSearch,
+    stopSearch,
     cancelLocalSearch,
     handleGenerate,
     selectFactor,

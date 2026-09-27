@@ -42,13 +42,17 @@ function fmtMs(ms: number): string {
   return ms >= 10_000 ? `${(ms / 1000).toFixed(0)}s` : `${(ms / 1000).toFixed(1)}s`
 }
 
-/** 本地挖掘进度卡片 —— 与超级因子任务卡同款信息(代数进度条 + 最优分 + 算力并行度),
- *  数据同源 GenerationStep;仅本地搜索运行期显示 */
+/** 本地挖掘进度卡片 —— 与超级因子任务卡同款信息(代数进度条 + 最优分 + 算力并行度)
+ *  + 暂停/继续/停止控制(代边界生效;搜索在后台 runner 里跑,切页不断) */
 function SearchProgressCard(props: {
   step: LocalSearchStep
   elapsedMs: number
+  paused: boolean
+  onPause: () => void
+  onResume: () => void
+  onStop: () => void
 }): React.JSX.Element {
-  const { step, elapsedMs } = props
+  const { step, elapsedMs, paused, onPause, onResume, onStop } = props
   const pct = Math.min(
     100,
     Math.round((step.generation / Math.max(1, step.totalGenerations)) * 100),
@@ -66,6 +70,11 @@ function SearchProgressCard(props: {
           >
             {step.engine === "gpu" ? "GPU 粗排+精算" : "CPU 多核"}
           </span>
+          {paused && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] shrink-0 bg-amber-500/15 text-amber-400">
+              已暂停 · 后台保留
+            </span>
+          )}
           <span className="font-medium text-[var(--text-primary)]">
             第 {step.generation}/{step.totalGenerations} 代
           </span>
@@ -93,6 +102,39 @@ function SearchProgressCard(props: {
         <span>
           并行评估 {fmtMs(step.rankMs)} · 单点精算 {fmtMs(step.preciseMs)} ·
           本代 {fmtMs(step.elapsedMs)} · 累计 {fmtMs(elapsedMs)}
+        </span>
+      </div>
+      {/* 控制:暂停/继续/停止(代边界生效;切页后台继续) */}
+      <div className="flex items-center gap-1.5 pt-0.5">
+        {paused ? (
+          <button
+            type="button"
+            onClick={onResume}
+            title="从第 N 代继续，历史最优因子作为种子进入新种群"
+            className="px-2 py-0.5 rounded text-[11px] border border-[var(--border)] hover:bg-[var(--bg-tertiary)] transition-colors"
+          >
+            继续
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onPause}
+            title="当前代算完后暂停；切到其他页面挖掘也在后台继续"
+            className="px-2 py-0.5 rounded text-[11px] border border-[var(--border)] hover:bg-[var(--bg-tertiary)] transition-colors"
+          >
+            暂停
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onStop}
+          title="当前代算完后停止；已完成代的最优结果保留"
+          className="px-2 py-0.5 rounded text-[11px] border border-[var(--border)] text-[var(--text-secondary)] hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 transition-colors"
+        >
+          停止
+        </button>
+        <span className="text-[10px] text-[var(--text-muted)]">
+          切换页面不中断，后台持续挖掘
         </span>
       </div>
     </div>
@@ -189,16 +231,26 @@ export function FactorLabPage(): React.JSX.Element {
           B）。结果自动进历史，可收藏后在 AI 交易选用。本地 GPU = WebGPU
           粗排 + 内核精算，对外指标与 CPU 同源。
         </p>
-        {(s.progressNote || (s.loading && s.engine !== "server")) && (
+        {(s.progressNote || s.searchActive || s.btLoading) && (
           <div className="flex items-center gap-2 mt-1">
             {s.progressNote && (
               <p className="text-xs text-emerald-400">{s.progressNote}</p>
             )}
-            {s.loading && s.engine !== "server" && (
+            {s.searchActive && (
+              <button
+                type="button"
+                onClick={s.stopSearch}
+                title="当前代算完后停止；已完成代的最优结果保留"
+                className="text-xs px-2 py-0.5 rounded border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+              >
+                停止
+              </button>
+            )}
+            {s.btLoading && (
               <button
                 type="button"
                 onClick={s.cancelLocalSearch}
-                title="立即中止本地搜索/回测(终止本地计算线程,下次计算需重新加载内核)"
+                title="立即中止本地回测(终止本地计算线程,下次计算需重新加载内核)"
                 className="text-xs px-2 py-0.5 rounded border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
               >
                 取消
@@ -210,9 +262,17 @@ export function FactorLabPage(): React.JSX.Element {
 
       <FactorLabGuide />
 
-      {/* 本地挖掘进度(与超级因子同款:代数/进度条/并行度;冷启动阶段只有上方文字提示) */}
-      {s.loading && s.searchStep && (
-        <SearchProgressCard step={s.searchStep} elapsedMs={s.searchElapsedMs} />
+      {/* 本地挖掘进度(与超级因子同款:代数/进度条/并行度 + 暂停/停止;
+          后台 runner 驱动,切页不断;冷启动阶段只有上方文字提示) */}
+      {(s.searchActive || s.bgTask?.status === "paused") && s.searchStep && (
+        <SearchProgressCard
+          step={s.searchStep}
+          elapsedMs={s.searchElapsedMs}
+          paused={s.bgTask?.status === "paused"}
+          onPause={s.pauseSearch}
+          onResume={s.resumeSearch}
+          onStop={s.stopSearch}
+        />
       )}
 
       <FactorSearchForm
