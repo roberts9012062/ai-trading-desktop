@@ -112,7 +112,7 @@ export function PositionContractList(): React.JSX.Element {
                   </span>
                   <span className="text-[10px] text-[var(--text-secondary)] shrink-0">
                     {q?.last_price
-                      ? formatPrice(q.last_price, q.decimal_places ?? 0)
+                      ? formatPrice(q.last_price, q.decimal_places ?? undefined)
                       : "--"}
                   </span>
                 </div>

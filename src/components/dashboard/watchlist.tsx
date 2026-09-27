@@ -130,6 +130,8 @@ export function WatchlistTable(): React.JSX.Element {
           const changePct = wsQuote?.change_pct ?? item.change_pct
           const bidPrice = wsQuote?.bid_price ?? item.bid_price
           const askPrice = wsQuote?.ask_price ?? item.ask_price
+          // WS 行情带合约精度;自选 API 快照无精度字段,缺省走 formatPrice 数量级自适应
+          const dp = wsQuote?.decimal_places
 
           const isUp = (change ?? 0) >= 0
           const isDeleting = confirmDelete === item.id
@@ -146,7 +148,7 @@ export function WatchlistTable(): React.JSX.Element {
               </TableCell>
               <TableCell>
                 <span className={cn("font-num text-sm", isUp ? "text-up" : "text-down")}>
-                  {lastPrice != null ? formatPrice(lastPrice) : "--"}
+                  {lastPrice != null ? formatPrice(lastPrice, dp) : "--"}
                 </span>
               </TableCell>
               <TableCell>
@@ -156,12 +158,12 @@ export function WatchlistTable(): React.JSX.Element {
               </TableCell>
               <TableCell className="hidden md:table-cell">
                 <span className="font-num text-sm text-up">
-                  {bidPrice != null ? formatPrice(bidPrice) : "--"}
+                  {bidPrice != null ? formatPrice(bidPrice, dp) : "--"}
                 </span>
               </TableCell>
               <TableCell className="hidden md:table-cell">
                 <span className="font-num text-sm text-down">
-                  {askPrice != null ? formatPrice(askPrice) : "--"}
+                  {askPrice != null ? formatPrice(askPrice, dp) : "--"}
                 </span>
               </TableCell>
               <TableCell>

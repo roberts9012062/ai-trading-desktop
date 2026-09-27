@@ -10,9 +10,21 @@ export function cn(...inputs: ClassValue[]): string {
  *  formatPrice(3147, 0) → "3147"
  *  formatPrice(679.1, 1) → "679.1"
  *  formatPrice(676.66, 2) → "676.66"
+ *  未传精度时按数量级自适应：≥1 保留 2 位小数，<1 保留 4 位有效数字，
+ *  微价格合约（如 0.00002145）固定取整会显示成 0
  */
-export function formatPrice(price: number, decimalPlaces: number = 0): string {
-  return Number(price.toFixed(decimalPlaces)).toString()
+export function formatPrice(price: number, decimalPlaces?: number): string {
+  if (decimalPlaces == null) {
+    const abs = Math.abs(price)
+    if (abs === 0) return "0"
+    decimalPlaces =
+      abs >= 1 ? 2 : Math.min(10, Math.max(2, 3 - Math.floor(Math.log10(abs))))
+  }
+  const fixed = price.toFixed(decimalPlaces)
+  // 去尾零不走 Number 回转，避免 1e-7 级微价格被 toString 成 "1e-7"
+  return decimalPlaces > 0
+    ? fixed.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "")
+    : fixed
 }
 
 const SHANGHAI_TZ = "Asia/Shanghai"
