@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { User, Shield, Sliders, Bell, Wallet, Edit3, Type, Volume2 } from "lucide-react"
+import { User, Shield, Sliders, Bell, Wallet, Edit3, Type, Volume2, Database } from "lucide-react"
+import { DataCachePanel } from "@/components/profile/data-cache-panel"
 import { VirtualFundsPanel } from "@/components/portfolio/virtual-funds-panel"
 import { TradeSettingsPanel } from "@/components/portfolio/trade-settings-panel"
 import { SecurityPanel } from "@/components/profile/security-panel"
@@ -32,6 +33,7 @@ export default function ProfilePage(): React.JSX.Element {
           { value: "trading", icon: Sliders, label: "交易设置" },
           { value: "alerts", icon: Bell, label: "提醒设置" },
           { value: "voice", icon: Volume2, label: "语音播报" },
+          { value: "cache", icon: Database, label: "数据缓存" },
         ].map((tab) => (
           <button
             key={tab.value}
@@ -58,6 +60,7 @@ export default function ProfilePage(): React.JSX.Element {
         {activeTab === "trading" && <TradeSettingsPanel />}
         {activeTab === "alerts" && <AlertSettingsPanel />}
         {activeTab === "voice" && <VoiceBroadcastPanel />}
+        {activeTab === "cache" && <DataCachePanel />}
       </div>
     </div>
   )
