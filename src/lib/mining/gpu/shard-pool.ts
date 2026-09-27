@@ -80,6 +80,13 @@ function rpcOnce(
     }, timeoutMs)
     const onMessage = (ev: MessageEvent<WorkerMsg>) => {
       const msg = ev.data
+      // 内核级错误必须立即 reject:不处理会挂到超时才降级,表现为
+      // 「进度停在启动文案、无任何动静」的静默假死(实测 ImportError 即此)
+      if (msg.type === "error" && msg.reqId === reqId) {
+        cleanup()
+        reject(new Error(`分片 worker ${label}: ${msg.message}`))
+        return
+      }
       if (msg.type !== "result" || msg.reqId !== reqId) return
       cleanup()
       resolve(msg.report)

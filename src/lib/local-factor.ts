@@ -48,6 +48,27 @@ export interface LocalFactorPayload {
 
 export type LocalSearchEngine = "cpu" | "gpu"
 
+/** 本地搜索的结构化进度(GenerationStep 摘要;与超级因子任务面板同源数据) */
+export interface LocalSearchStep {
+  /** 已完成代数(1-based) */
+  generation: number
+  totalGenerations: number
+  bestComposite: number
+  /** 本代耗时 ms */
+  elapsedMs: number
+  /** 精算分片并行 worker 数;0=单进程降级(单核) */
+  shardWorkers: number
+  /** 本代评估候选数(整个种群) */
+  evaluated: number
+  /** 其中任务级缓存命中数(未重算) */
+  cacheHits: number
+  /** 本代并行评估耗时 ms(分片池墙钟) */
+  rankMs: number
+  /** 本代主实例单点精算耗时 ms(严格筛合并/walk-forward/权威排行,单核段) */
+  preciseMs: number
+  engine: LocalSearchEngine
+}
+
 /**
  * 搜索时冻结的行情快照(方案任务 3 / 问题 H):单因子复测复用同一份 bars
  * 与已解析成本,不按新拉行情或末端价格重算——搜索后网络原始数据被修订,
@@ -168,6 +189,7 @@ async function searchStepwiseCpu(
   payload: LocalFactorPayload,
   bars: KlineBar[],
   onProgress?: (msg: string) => void,
+  onStep?: (step: LocalSearchStep) => void,
 ): Promise<SearchResult> {
   const { CpuBackend } = await import("@/lib/mining/backends/cpu-backend")
   const backend = new CpuBackend()
@@ -215,6 +237,18 @@ async function searchStepwiseCpu(
       `第 ${r.value.generation}/${r.value.totalGenerations} 代 · 当前最优 ` +
         `${r.value.bestComposite.toFixed(2)}(多核并行,${bars.length} 根 K)`,
     )
+    onStep?.({
+      generation: r.value.generation,
+      totalGenerations: r.value.totalGenerations,
+      bestComposite: r.value.bestComposite,
+      elapsedMs: r.value.elapsedMs,
+      shardWorkers: r.value.gpuStats?.shardWorkers ?? 0,
+      evaluated: r.value.gpuStats?.evaluated ?? 0,
+      cacheHits: r.value.gpuStats?.cacheHits ?? 0,
+      rankMs: r.value.gpuStats?.rankMs ?? 0,
+      preciseMs: r.value.gpuStats?.preciseMs ?? 0,
+      engine: "cpu",
+    })
   }
   await stampKernelVersion(champions)
   const portfolio = await evaluatePortfolio(payload, bars, champions)
@@ -226,6 +260,7 @@ async function searchGpu(
   payload: LocalFactorPayload,
   bars: KlineBar[],
   onProgress?: (msg: string) => void,
+  onStep?: (step: LocalSearchStep) => void,
 ): Promise<SearchResult> {
   const { GpuBackend } = await import("@/lib/mining/backends/gpu-backend")
   const backend = new GpuBackend()
@@ -275,6 +310,18 @@ async function searchGpu(
       `第 ${r.value.generation}/${r.value.totalGenerations} 代 · 当前最优 ` +
         `${r.value.bestComposite.toFixed(2)}(GPU 粗排 + 本地精算,${bars.length} 根 K)`,
     )
+    onStep?.({
+      generation: r.value.generation,
+      totalGenerations: r.value.totalGenerations,
+      bestComposite: r.value.bestComposite,
+      elapsedMs: r.value.elapsedMs,
+      shardWorkers: r.value.gpuStats?.shardWorkers ?? 0,
+      evaluated: r.value.gpuStats?.evaluated ?? 0,
+      cacheHits: r.value.gpuStats?.cacheHits ?? 0,
+      rankMs: r.value.gpuStats?.rankMs ?? 0,
+      preciseMs: r.value.gpuStats?.preciseMs ?? 0,
+      engine: "gpu",
+    })
   }
   await stampKernelVersion(champions)
   const portfolio = await evaluatePortfolio(payload, bars, champions)
@@ -285,6 +332,7 @@ export async function searchFactorsLocal(
   payload: LocalFactorPayload,
   onProgress?: (msg: string) => void,
   engine: LocalSearchEngine = "cpu",
+  onStep?: (step: LocalSearchStep) => void,
 ): Promise<SearchResult> {
   payload = { ...payload, crypto_profile: payload.crypto_profile ?? isCryptoSymbol(payload.symbol) }
   onProgress?.("拉取 K 线数据…")
@@ -315,15 +363,15 @@ export async function searchFactorsLocal(
   }
   if (engine === "gpu") {
     try {
-      return await searchGpu(payload, bars, onProgress)
+      return await searchGpu(payload, bars, onProgress, onStep)
     } catch (e) {
       // GPU 不可用:回退 CPU 会话(静默降级并提示原因)
       const reason = e instanceof Error ? e.message : String(e)
       onProgress?.(`GPU 不可用(${reason}),已回退本地 CPU…`)
-      return await searchStepwiseCpu(payload, bars, onProgress)
+      return await searchStepwiseCpu(payload, bars, onProgress, onStep)
     }
   }
-  return await searchStepwiseCpu(payload, bars, onProgress)
+  return await searchStepwiseCpu(payload, bars, onProgress, onStep)
 }
 
 /** 单因子资金曲线回测(本地):与 /api/factor-lab/backtest-factor 同构。

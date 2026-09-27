@@ -25,6 +25,7 @@ import {
   championFromFavorite,
   championFromHistory,
 } from "./hooks/factor-helpers"
+import type { LocalSearchStep } from "@/lib/local-factor"
 
 /** 已收藏 tokens_key 集合（用于 Champion 表/详情/历史置灰） */
 function buildFavoritedKeys(
@@ -35,6 +36,67 @@ function buildFavoritedKeys(
     if (f.tokens?.length) set.add(f.tokens.join(","))
   }
   return set
+}
+
+function fmtMs(ms: number): string {
+  return ms >= 10_000 ? `${(ms / 1000).toFixed(0)}s` : `${(ms / 1000).toFixed(1)}s`
+}
+
+/** 本地挖掘进度卡片 —— 与超级因子任务卡同款信息(代数进度条 + 最优分 + 算力并行度),
+ *  数据同源 GenerationStep;仅本地搜索运行期显示 */
+function SearchProgressCard(props: {
+  step: LocalSearchStep
+  elapsedMs: number
+}): React.JSX.Element {
+  const { step, elapsedMs } = props
+  const pct = Math.min(
+    100,
+    Math.round((step.generation / Math.max(1, step.totalGenerations)) * 100),
+  )
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span
+            className={`px-1.5 py-0.5 rounded text-[10px] shrink-0 ${
+              step.engine === "gpu"
+                ? "bg-amber-500/15 text-amber-400"
+                : "bg-emerald-600/15 text-emerald-400"
+            }`}
+          >
+            {step.engine === "gpu" ? "GPU 粗排+精算" : "CPU 多核"}
+          </span>
+          <span className="font-medium text-[var(--text-primary)]">
+            第 {step.generation}/{step.totalGenerations} 代
+          </span>
+          <span className="text-[var(--text-muted)] font-num truncate">
+            当前最优 {step.bestComposite.toFixed(2)}
+          </span>
+        </div>
+        <span className="text-[var(--text-muted)] font-num shrink-0">{pct}%</span>
+      </div>
+      {/* 进度条(与超级因子任务卡同款) */}
+      <div className="h-1.5 rounded-full bg-[var(--bg-tertiary)] overflow-hidden">
+        <div
+          className="h-full bg-[var(--primary)] transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between gap-2 text-[10px] text-[var(--text-muted)] font-num flex-wrap">
+        <span>
+          {step.shardWorkers > 0
+            ? `${step.shardWorkers} 核并行评估`
+            : "单进程(池不可用,已降级)"}
+          {step.cacheHits > 0 &&
+            ` · 缓存命中 ${step.cacheHits}/${step.evaluated}`}
+        </span>
+        <span>
+          并行评估 {fmtMs(step.rankMs)} · 单点精算 {fmtMs(step.preciseMs)} ·
+          本代 {fmtMs(step.elapsedMs)} · 累计 {fmtMs(elapsedMs)}
+        </span>
+      </div>
+    </div>
+  )
 }
 
 /** 因子实验室（client） */
@@ -147,6 +209,11 @@ export function FactorLabPage(): React.JSX.Element {
       </div>
 
       <FactorLabGuide />
+
+      {/* 本地挖掘进度(与超级因子同款:代数/进度条/并行度;冷启动阶段只有上方文字提示) */}
+      {s.loading && s.searchStep && (
+        <SearchProgressCard step={s.searchStep} elapsedMs={s.searchElapsedMs} />
+      )}
 
       <FactorSearchForm
         localEngine={s.engine !== "server"}

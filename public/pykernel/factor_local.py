@@ -916,7 +916,7 @@ def _strict_eval_context(payload: dict, bars: list) -> dict:
         if cfg.selection_v2 and use_test and test_bars:
             # 与 _dedup_top 顶部的封存裁剪同口径(仅 selection_v2 且非 v2):
             # 测试段尾部切走封存,伙伴品种同期数据同样不可见
-            from factor_lab.scoring.walk_forward import holdout_len
+            from factor_lab.search import holdout_len
 
             n_holdout = holdout_len(len(test_bars))
             if n_holdout:

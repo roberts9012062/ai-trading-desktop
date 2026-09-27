@@ -22,7 +22,7 @@ import {
   type SearchResult,
 } from "@/lib/factor-lab-api"
 import { createAITradingTask as createTask, switchTaskSite } from "@/lib/ai-trading-api"
-import { searchFactorsLocal, backtestFactorLocal } from "@/lib/local-factor"
+import { searchFactorsLocal, backtestFactorLocal, type LocalSearchStep } from "@/lib/local-factor"
 import { useFactorLabData } from "./use-factor-data"
 import {
   buildComboTaskPayload,
@@ -77,6 +77,10 @@ export interface FactorLabPageState {
   engine: FactorEngine
   setEngine: (v: FactorEngine) => void
   progressNote: string | null
+  /** 本地挖掘结构化进度(与超级因子任务面板同款:代数/最优/并行度);非搜索期为 null */
+  searchStep: LocalSearchStep | null
+  /** 搜索累计耗时 ms(searchStep.elapsedMs 逐代累加) */
+  searchElapsedMs: number
   /** 取消本地搜索/回测(terminate 本地计算 worker;服务端请求无法客户端取消) */
   cancelLocalSearch: () => void
   handleGenerate: (payload: {
@@ -129,6 +133,17 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
   // 计算引擎三态;持久化用户选择(qh_factor_engine,自旧键一次性迁移)
   const [engine, setEngineState] = useState<FactorEngine>(readEngine)
   const [progressNote, setProgressNote] = useState<string | null>(null)
+  // 本地挖掘结构化进度(每代更新;GPU 回退 CPU 时引擎字段随 step 更新)
+  const [searchStep, setSearchStep] = useState<LocalSearchStep | null>(null)
+  const searchElapsedRef = useRef(0)
+  const onSearchStep = useCallback((step: LocalSearchStep) => {
+    searchElapsedRef.current += step.elapsedMs
+    setSearchStep(step)
+  }, [])
+  const resetSearchStep = useCallback(() => {
+    setSearchStep(null)
+    searchElapsedRef.current = 0
+  }, [])
   const setEngine = useCallback((v: FactorEngine) => {
     setEngineState(v)
     try {
@@ -261,6 +276,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     setLoading(true)
     setError(null)
     setProgressNote(null)
+    resetSearchStep()
     setResult(null)
     setSelected(null)
     setBt(null)
@@ -292,6 +308,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
           },
           setProgressNote,
           engine === "gpu" ? "gpu" : "cpu",
+          onSearchStep,
         )
         await applySearchResult(r, p)
         void persistLocalHistory(r, p, 0)
@@ -320,6 +337,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     } finally {
       setLoading(false)
       setProgressNote(null)
+      resetSearchStep()
     }
   }
 
@@ -330,6 +348,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     setLoading(true)
     setError(null)
     setProgressNote(null)
+    resetSearchStep()
     try {
       if (p.data_channel === "gate_usdt" && (engine === "server" || p.use_llm_coach)) throw new Error("Gate 永续直连仅支持本地 CPU/GPU 搜索")
       // 本地引擎再进化:种子 token 直接透传,seed+1
@@ -353,6 +372,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
           },
           setProgressNote,
           engine,
+          onSearchStep,
         )
         await applySearchResult(r, { ...p, seed: p.seed + 1 })
         void persistLocalHistory(r, { ...p, seed: p.seed + 1 }, seeds.length)
@@ -382,6 +402,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     } finally {
       setLoading(false)
       setProgressNote(null)
+      resetSearchStep()
     }
   }
 
@@ -581,6 +602,8 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     engine,
     setEngine,
     progressNote,
+    searchStep,
+    searchElapsedMs: searchElapsedRef.current,
     cancelLocalSearch,
     handleGenerate,
     selectFactor,
