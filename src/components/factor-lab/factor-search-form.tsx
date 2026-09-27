@@ -95,7 +95,7 @@ export function FactorSearchForm({
   const generationsNum = (): number => clampInt(generations, 3, 1000, 15)
   const [contracts, setContracts] = useState<ContractItem[]>([])
   const [useCoach, setUseCoach] = useState(false)
-  useEffect(() => { if ((!localEngine || useCoach) && dataChannel === "gate_usdt") setDataChannel(DEFAULT_KLINE_CHANNEL) }, [localEngine, useCoach, dataChannel])
+  useEffect(() => { if ((!localEngine || useCoach) && (dataChannel === "gate_usdt" || dataChannel === "binance_usdt")) setDataChannel(DEFAULT_KLINE_CHANNEL) }, [localEngine, useCoach, dataChannel])
   const [modelRowId, setModelRowId] = useState("")
   const [models, setModels] = useState<AIModel[]>([])
   const [modelsLoading, setModelsLoading] = useState(false)

@@ -55,6 +55,7 @@ export function CryptoDataPanel({ channel, symbol }: { channel: string; symbol: 
     <div className="space-y-1 text-[11px] text-[var(--text-muted)]">
       <p>{channel === "gate_usdt"
         ? "历史输入：已结算资金费率、持仓量、主动买卖统计、多空账户比、清算不平衡和成交额。接口仅近180天，预留对齐窗口后支持最近175天；默认日线120天、其他周期30天。资金费率仅作因子输入，收益尚未扣除资金费用。"
+        : (channel as string) === "binance_usdt" ? "历史输入：Binance USDT-M 永续本尊K线（成交额/主动买卖/笔数随线附带）+ 归档资金费率（2019-09 起，近端滞后 1-2 天）。持仓量类特征该渠道不提供。资金费率仅作因子输入，收益尚未扣除资金费用。"
         : channel === "binance_spot" ? "历史输入：成交额、主动买入量及成交笔数随K线直连获取。现货不混入其他交易所的资金费率。" : "历史输入：成交额随K线直连获取。"}</p>
       <div className="flex items-center gap-2 flex-wrap">
         <button type="button" disabled={!symbol.trim()} onClick={() => setRunning((v) => !v)} className="rounded border border-[var(--border)] px-2 py-1 disabled:opacity-40">

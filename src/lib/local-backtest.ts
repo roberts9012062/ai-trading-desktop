@@ -10,6 +10,7 @@
 
 import { getChannelKlineApi, normalizeChannel, DEFAULT_KLINE_CHANNEL, type KlineChannelId } from "@/lib/kline-channels"
 import { enrichGateBars } from "@/lib/gate-futures"
+import { enrichBinanceFuturesBars } from "@/lib/binance-futures"
 import { ensurePyWorker } from "@/lib/py-worker"
 import type { KlineBar, KlinePeriod } from "@/types"
 
@@ -96,6 +97,10 @@ export async function fetchBacktestBars(
   if (channel === "gate_usdt") {
     onProgress?.("直连 Gate 补充历史资金费率与持仓统计…")
     return enrichGateBars(symbol, timeframe, selected)
+  }
+  if (channel === "binance_usdt") {
+    onProgress?.("直连 Binance 补充永续资金费率…")
+    return enrichBinanceFuturesBars(symbol, selected, onProgress)
   }
   return selected
 }
