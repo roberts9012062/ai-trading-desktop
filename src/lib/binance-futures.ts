@@ -19,7 +19,12 @@ import { barTimeToMs, msToBarTime, normalizeInterval, toBinanceSymbol } from "@/
 
 import { unzipSync } from "fflate"
 
-const UM_BASE = "https://data.binance.vision/data/futures/um"
+// dev/preview 浏览器走 vite 同源代理(静态域无 CORS);桌面端与 node 测试直连
+const VISION_BASE =
+  import.meta.env.DEV && typeof window !== "undefined"
+    ? "/__vision__"
+    : "https://data.binance.vision"
+const UM_BASE = `${VISION_BASE}/data/futures/um`
 /** Binance USDT-M 永续全所上线(2019-09);更早的月包请求会 404 */
 const UM_INCEPTION = Date.UTC(2019, 8, 2)
 
@@ -249,7 +254,11 @@ export function joinFunding(bars: KlineBar[], funding: FundingEvent[]): KlineBar
   })
 }
 
-/** 取数后补齐资金费率(fetchBacktestBars 的 binance_usdt 收尾步骤) */
+/** 取数后补齐资金费率(fetchBacktestBars 的 binance_usdt 收尾步骤)。
+ *
+ * fundingRate 归档只有月包(次月发布,klines 的日包对它不适用):当月费率
+ * 缺失是常态而非异常。不做零值/延续臆造——把资金费率覆盖不到的首尾 bar
+ * 裁除(通常只有近端几天),全量对齐后再并入。 */
 export async function enrichBinanceFuturesBars(
   symbol: string,
   bars: KlineBar[],
@@ -260,5 +269,20 @@ export async function enrichBinanceFuturesBars(
   const to = bars[bars.length - 1].open_time ?? 0
   const funding = await fetchFundingHistory(symbol, from, to, onProgress)
   if (!funding.length) throw new Error("Binance 永续资金费率归档为空，请检查品种或缩小区间")
-  return joinFunding(bars, funding)
+  const f0 = funding[0].t
+  const fEnd = funding[funding.length - 1].t
+  // 有效窗:bar 开盘时刻落在 [f0, fEnd+86400s] 内必有 ≤86400s 的已结算事件
+  const trimmed = bars.filter((b) => {
+    const at = b.open_time ?? 0
+    return at >= f0 && at <= fEnd + 86400000
+  })
+  if (!trimmed.length) {
+    throw new Error("Binance 永续资金费率与 K 线区间无交集，请调整日期区间")
+  }
+  if (trimmed.length < bars.length) {
+    onProgress?.(
+      `资金费率归档尚未覆盖近端 ${bars.length - trimmed.length} 根 K 线（当月月包次月发布），已裁除后再挖掘`,
+    )
+  }
+  return joinFunding(trimmed, funding)
 }

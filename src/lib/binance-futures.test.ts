@@ -41,7 +41,7 @@ describe("binance-futures 归档渠道(网络实测)", () => {
     const ok = joinFunding(bars, [{ t: 1704067200000, r: 0.0001 }])
     expect(ok[0].funding_rate).toBe(0.0001)
     expect(ok[1].funding_rate).toBe(0.0001)
-    // 首根早于任何结算 → 报错
+    // 首根早于任何结算 → joinFunding 仍报错(enrich 层负责先裁剪)
     expect(() => joinFunding(bars, [{ t: 1704096000000, r: 0.0001 }])).toThrow(/覆盖不足/)
   })
 

@@ -48,6 +48,13 @@ export default defineConfig({
         changeOrigin: true,
         ws: true,
       },
+      // vision 归档域无 CORS 头:dev/preview 浏览器经同源代理访问
+      // (桌面端不受影响——desktop-boot 已把 fetch 换成 plugin-http)
+      "/__vision__": {
+        target: "https://data.binance.vision",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/__vision__/, ""),
+      },
     },
   },
   build: {
