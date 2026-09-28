@@ -17,6 +17,7 @@
     "@dnd-kit/sortable": "10.0.0",
     "@dnd-kit/utilities": "3.0.0",
     "@hookform/resolvers": "5.4.0",
+    "@msgpack/msgpack": "3.1.2",
     "@radix-ui/react-avatar": "1.1.11",
     "@radix-ui/react-collapsible": "1.1.12",
     "@radix-ui/react-dialog": "1.1.15",

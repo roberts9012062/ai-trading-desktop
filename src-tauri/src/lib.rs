@@ -1,3 +1,6 @@
+use tauri::Manager;
+mod native_engine;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Rust panic 落盘(release 为 panic=abort,hook 内同步写日志后退出)
@@ -8,6 +11,18 @@ pub fn run() {
     }));
 
     tauri::Builder::default()
+        .manage(native_engine::NativeEngineState::default())
+        .plugin(tauri_plugin_shell::init())
+        .invoke_handler(tauri::generate_handler![
+            native_engine::native_engine_spawn,
+            native_engine::native_engine_status,
+            native_engine::native_engine_kill,
+        ])
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                let _ = native_engine::shutdown(window.app_handle());
+            }
+        })
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
