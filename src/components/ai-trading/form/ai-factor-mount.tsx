@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from "react"
 import { Label } from "@/components/ui/label"
-import { serverFactorBlockReason } from "@/lib/factor-access"
+import { desktopTokensToServerV3, serverFactorBlockReason } from "@/lib/factor-access"
 import {
   listFactorFavorites,
   type FactorFavoriteItem,
@@ -48,8 +48,11 @@ export function AiFactorMount({
     }
   }, [symbol])
 
+  // 收藏里是桌面编码；value 持有的是服务器 v3 编码 —— 匹配前统一转换
   const selected = favs.find(
-    (f) => JSON.stringify(f.tokens) === JSON.stringify(value || []),
+    (f) =>
+      JSON.stringify(desktopTokensToServerV3(f.tokens ?? [])) ===
+      JSON.stringify(value || []),
   )
 
   return (
@@ -80,7 +83,7 @@ export function AiFactorMount({
               onChange={(e) => {
                 const it = favs.find((f) => f.id === e.target.value)
                 if (it && serverFactorBlockReason(it.tokens, it.metrics)) return
-                onChange(it ? it.tokens : [])
+                onChange(it ? desktopTokensToServerV3(it.tokens) : [])
               }}
               className="w-full h-8 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] text-xs px-2"
             >

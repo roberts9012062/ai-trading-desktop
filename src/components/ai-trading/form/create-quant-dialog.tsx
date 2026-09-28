@@ -1,5 +1,6 @@
 "use client"
 
+import { desktopTokensToServerV3 } from "@/lib/factor-access"
 import { useEffect, useState } from "react"
 import {
   Dialog,
@@ -226,6 +227,14 @@ export function CreateQuantDialog({
       }
     }
 
+    /** factor 策略参数里的 token 是桌面谱系编码 —— 提交服务器前转 v3 */
+    function withServerFactorTokens(params: Record<string, unknown>): Record<string, unknown> {
+      if (Array.isArray(params?.factor_tokens)) {
+        return { ...params, factor_tokens: desktopTokensToServerV3(params.factor_tokens as number[]) }
+      }
+      return params
+    }
+
     const closeRules = buildCloseRulesPayload(
       rules,
       decisionEnabled ? rules.modelExit : false,
@@ -244,8 +253,13 @@ export function CreateQuantDialog({
       model_row_id: decisionEnabled ? decisionModelRowId : null,
       strategy_type: decisionEnabled ? "decision" : quant.quantKind,
       strategy_params: decisionEnabled
-        ? { decision_strategy: { kind: quant.quantKind, params: buildStrategyParams(quant) } }
-        : buildStrategyParams(quant),
+        ? {
+            decision_strategy: {
+              kind: quant.quantKind,
+              params: withServerFactorTokens(buildStrategyParams(quant)),
+            },
+          }
+        : withServerFactorTokens(buildStrategyParams(quant)),
       decision_interval_sec: decisionEnabled ? decisionIntervalSec : undefined,
       // 量化分析间隔：等于周期（默认）发 null=按K线收盘；决策模型忽略
       eval_interval_sec:

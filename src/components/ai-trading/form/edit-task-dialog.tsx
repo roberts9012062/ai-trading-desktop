@@ -1,5 +1,6 @@
 "use client"
 
+import { desktopTokensToServerV3 } from "@/lib/factor-access"
 import { useEffect, useState } from "react"
 import {
   FundingSourceBadge,
@@ -93,6 +94,14 @@ function isFactorStrategy(strategyType: string | null | undefined): boolean {
 }
 
 /** 修改 AI/量化交易任务（仅 can_edit） */
+/** factor 策略参数里的 token 是桌面谱系编码 —— 提交服务器前转 v3（幂等） */
+function withServerFactorTokens(params: Record<string, unknown>): Record<string, unknown> {
+  if (Array.isArray(params?.factor_tokens)) {
+    return { ...params, factor_tokens: desktopTokensToServerV3(params.factor_tokens as number[]) }
+  }
+  return params
+}
+
 export function EditTaskDialog({
   open,
   task,
@@ -321,7 +330,7 @@ export function EditTaskDialog({
         ? factorMode
           ? {
               ...(factorTokens && factorTokens.length
-                ? { factor_tokens: factorTokens }
+                ? { factor_tokens: desktopTokensToServerV3(factorTokens) }
                 : {}),
               ...(refStrategies.length ? { ref_strategies: refStrategies } : {}),
             }
@@ -329,11 +338,11 @@ export function EditTaskDialog({
             ? {
                 decision_strategy: {
                   kind: quantParams.quantKind,
-                  params: buildStrategyParams(quantParams),
+                  params: withServerFactorTokens(buildStrategyParams(quantParams)),
                 },
                 ...(refStrategies.length ? { ref_strategies: refStrategies } : {}),
               }
-            : buildStrategyParams(quantParams)
+            : withServerFactorTokens(buildStrategyParams(quantParams))
         : refStrategies.length
           ? { ref_strategies: refStrategies }
           : undefined,
