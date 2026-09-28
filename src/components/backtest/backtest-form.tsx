@@ -271,6 +271,7 @@ export function BacktestForm({
               symbol={symbol.trim().toLowerCase() || null}
               timeframe={timeframe}
               onRange={setChannelRange}
+              kinds={["swap"]}
               className="w-56"
             />
             {timeframe !== "1d" && (

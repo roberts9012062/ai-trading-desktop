@@ -27,6 +27,9 @@ export function DataChannelSelect(props: {
   onRange?: (range: ChannelRange | null) => void
   /** 追加的额外渠道（如超级因子的 future 期货库） */
   extraChannels?: HistoryChannel[]
+  /** 只展示这些数据口径（kind：swap=USDT 永续 / spot=现货）。
+   *  回测与合约撮合口径绑定，须传 ["swap"] 过滤掉现货渠道 */
+  kinds?: string[]
   label?: string
   className?: string
 }): React.JSX.Element {
@@ -37,6 +40,7 @@ export function DataChannelSelect(props: {
     timeframe,
     onRange,
     extraChannels,
+    kinds,
     label = "数据渠道",
     className,
   } = props
@@ -115,11 +119,13 @@ export function DataChannelSelect(props: {
         className="w-full h-8 mt-1 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-sm"
       >
         {channels.length === 0 && <option value={value}>{value}</option>}
-        {channels.map((c) => (
-          <option key={c.id} value={c.id} title={c.note}>
-            {c.name}
-          </option>
-        ))}
+        {channels
+          .filter((c) => !kinds?.length || kinds.includes(c.kind))
+          .map((c) => (
+            <option key={c.id} value={c.id} title={c.note}>
+              {c.name}
+            </option>
+          ))}
       </select>
       {error && (
         <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{error}</p>
