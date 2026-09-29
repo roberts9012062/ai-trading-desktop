@@ -321,6 +321,14 @@ export class LocalMiningRunner implements MiningRunner {
     if (backend instanceof NativeRecoveryBackend) backend.setStageHandler(message => {
       if (rec.status === "running") { rec.nativePhase = message; this.#emit(toMiningTask(rec)) }
     })
+    // 冷启动 JIT 期间 stage 通道尚未建立(连接成功后才上报),先给出与因子
+    // 实验室一致的启动预期,避免几分钟静默被误判为"没有运行"。
+    if (native && rec.status === "running") {
+      rec.nativePhase = rec.config.native_precision === "f64"
+        ? "原生 GPU（Float64 严格模式）启动中：正在验证 CUDA 和 20 条确定性自检，首次编译约需 3–6 分钟，期间 CPU 满载属正常…"
+        : "原生 GPU 启动中：正在验证 CUDA 和 20 条确定性自检，首次编译约需 2–4 分钟…"
+      this.#emit(toMiningTask(rec))
+    }
     if (backend instanceof NativeRecoveryBackend) backend.setRecoveryHandler(async state => {
       if ((rec.actualEngine ?? "native-gpu") !== state.engine) {
         rec.latest_champions = []; rec.champions_count = 0; rec.portfolio = null
