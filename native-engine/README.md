@@ -1,11 +1,42 @@
-# Native GPU engine (M2 in progress)
+# Native GPU engine (M3 shipped, M4 packaging)
 
 This implements `docs/native-gpu-engine-plan.md`, with product approval
 for GPU f32 coarse ranking + GPU f64 authoritative recomputation. All precision
 thresholds are retained. The original design file,
-CPU/WebGPU engines and Python oracle are unchanged. M1 passed in commit
-`2ae7e33`. M2's full G2 and default-mixed G3 core now pass; M3 integration,
-failure/soak gates and distributable release remain outstanding.
+CPU/WebGPU engines and Python oracle are unchanged. M1 `2ae7e33`, M2 `ea26018`
+and M3 `32ddba6` are complete: all acceptance gates passed at engine version
+`native-gpu-v1-m3.2` (see docs/plans/2026-09-29-native-gpu-m3-verification.md;
+G5 soak and G3 absolute-time are product-amended, recorded in that report).
+
+## Packaged runtime (M4)
+
+The installer embeds a self-contained runtime next to the app executable:
+`native-engine/{python,site-packages,engine,VERSION}` plus the shared
+`public/pykernel` modules. `python/python311._pth` pins the interpreter's
+sys.path inside the package, so no system Python, PYTHONPATH or PYTHONHOME can
+interfere. First launch compiles GPU kernels for ~2-4 minutes (G1 selfcheck);
+the engine refuses to serve before the selfcheck passes and the desktop falls
+back to the existing WebGPU/CPU engines with an explanatory message.
+
+- Size: ~266MB unpacked / ~70MB installer (LZMA).
+- Dependencies are frozen with hashes in `requirements-native.lock`; CI
+  assembles via `scripts/assemble-native-engine.py` and writes MANIFEST.sha256.
+- NVIDIA driver: validated on driver 617.14 (RTX 4050 Laptop). Non-NVIDIA or
+  driver-less machines fall back automatically; a 2-3 driver version matrix
+  could not be covered on this single machine and remains a stated limitation.
+- Signing: the updater artifacts are minisign-signed (TAURI_SIGNING_PRIVATE_KEY
+  in CI). The embedded python.exe is NOT Authenticode code-signed (no
+  certificate available to this project); antivirus false positives on the
+  sidecar are possible and documented in the release notes.
+
+## User-visible behaviour
+
+- Zero qualified champions is a legal outcome: only candidates passing the
+  frozen strict/OOS-WF/sealed-holdout gates are published, with reasons shown.
+- Sealed holdout is revealed once at the final generation; it never feeds
+  evolution, backfill or reranking.
+- Process loss retries automatically up to 3 times (D-1 token seeding), then
+  pauses with a recoverable checkpoint; budgets survive pause/resume.
 
 ## Development setup (Windows PowerShell)
 

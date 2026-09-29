@@ -16,3 +16,4 @@ scripts/.bench-data/
 
 # 本地基准行情缓存(可再生的数据文件,不入库)
 .local-data/
+resources/
