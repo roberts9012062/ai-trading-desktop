@@ -22,8 +22,11 @@ it("GPU initialization and point mutations keep original active feature IDs", ()
   }
   expect(gpuOpSets(false).opOne.every((i) => i < 40)).toBe(true)
   expect(EVAL_VM_WGSL).toContain(`if (op >= ${OPS.length}u)`)
-  expect(isLocalOnly([0, 104])).toBe(true)
-  expect(isLocalOnly([0, 103])).toBe(false)
+  // 0.2.44 起 isLocalOnly 按 SERVER_MISSING_FEATS={55,57,58} 判定(服务端 v3
+  // 已供给 funding/taker/lsr/OI 族),旧的 104 区间启发式不再成立。
+  expect(isLocalOnly([0, 55])).toBe(true)
+  expect(isLocalOnly([0, 54])).toBe(false)
+  expect(isLocalOnly([0, 104])).toBe(false)
 })
 
 it("real Python crypto profile: causality, calendar, availability, cached eval and sealed holdout", async () => {
