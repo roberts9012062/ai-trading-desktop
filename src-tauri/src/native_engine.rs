@@ -273,8 +273,10 @@ async fn spawn_process(
             }
         }
     });
-    // Full deterministic CUDA startup includes cold JIT: measured at 213s.
-    tauri::async_runtime::spawn_blocking(move || rx.recv_timeout(Duration::from_secs(300)))
+    // Full deterministic CUDA startup includes cold JIT: measured at 213s (mixed)
+    // and ~270-300s (f64 strict mode, 2026-09-29 real install), so the deadline
+    // must leave headroom for f64 on busy machines before any kill/re-JIT retry.
+    tauri::async_runtime::spawn_blocking(move || rx.recv_timeout(Duration::from_secs(480)))
         .await
         .map_err(|e| e.to_string())?
         .map_err(|_| "原生引擎启动握手超时".to_string())?

@@ -251,7 +251,9 @@ export class FactorLabSearchRunner {
     this.#patch({
       status: task.status === "fetching" ? "running" : this.#task!.status,
       phase:
-        native ? "原生 GPU 启动中：正在验证 CUDA 和 20 条确定性自检，首次编译约需 2–4 分钟…" : engine === "gpu"
+        native ? (task.payload.native_precision === "f64"
+          ? "原生 GPU（Float64 严格模式）启动中：正在验证 CUDA 和 20 条确定性自检，首次编译约需 3–6 分钟，期间 CPU 满载属正常…"
+          : "原生 GPU 启动中：正在验证 CUDA 和 20 条确定性自检，首次编译约需 2–4 分钟…") : engine === "gpu"
           ? "GPU 引擎启动中：初始化本地计算内核（组件已内置安装包；多 worker 并行加载期间安静属正常）…"
           : "本地多核引擎启动中：初始化本地计算内核（组件已内置安装包，通常秒级；多 worker 并行加载期间安静属正常）…",
     })
