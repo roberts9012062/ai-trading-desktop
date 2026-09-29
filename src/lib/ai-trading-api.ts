@@ -1,6 +1,6 @@
 /** AI 交易 API 客户端 */
 
-import { isResearchOnlyFactor, RESEARCH_FACTOR_MESSAGE } from "@/lib/factor-access"
+import { desktopTokensToServerV3, isResearchOnlyFactor, RESEARCH_FACTOR_MESSAGE } from "@/lib/factor-access"
 import { listFactorFavorites } from "@/lib/factor-lab-api"
 
 /** AI 任务的因子守卫:服务端因子信号回放不了直连衍生数据特征(research-only)。
@@ -364,6 +364,11 @@ export async function createAITradingTask(
   payload: CreateTaskPayload,
 ): Promise<AITradingTask> {
   await guardAiFactorTokens(aiFactorTokensOf(payload))
+  // 桌面谱系 token → 服务器 v3 编码（守卫按桌面编码判，转换幂等）
+  const params = payload.strategy_params as { factor_tokens?: number[] } | null | undefined
+  if (payload.strategy_type === "ai" && Array.isArray(params?.factor_tokens)) {
+    params.factor_tokens = desktopTokensToServerV3(params.factor_tokens)
+  }
   return request("/api/ai-trading/tasks", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -399,7 +404,11 @@ export async function updateAITradingTask(
     ?.factor_tokens
   if (Array.isArray(tokens) && tokens.length > 0) {
     const task = await request<AITradingTask>(`/api/ai-trading/tasks/${id}`)
-    if (task?.strategy_type === "ai") await guardAiFactorTokens(tokens)
+    if (task?.strategy_type === "ai") {
+      await guardAiFactorTokens(tokens)
+      ;(payload.strategy_params as { factor_tokens?: number[] }).factor_tokens =
+        desktopTokensToServerV3(tokens)
+    }
   }
   return request(`/api/ai-trading/tasks/${id}`, {
     method: "PATCH",

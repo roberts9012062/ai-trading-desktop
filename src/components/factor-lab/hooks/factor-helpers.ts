@@ -1,5 +1,7 @@
 /** 因子实验室纯辅助函数 —— 不含 React 状态 */
 
+import { SERVER_MISSING_FEATS, desktopTokensToServerV3 } from "@/lib/factor-access"
+
 import type {
   Champion,
   FactorFavoriteItem,
@@ -66,7 +68,8 @@ export function buildFactorTaskPayload(
     name: `因子·${symbol}·${timeframe}`,
     model_row_id: null,
     strategy_type: "factor",
-    strategy_params: { factor_tokens: tokens },
+    // 提交服务器：桌面谱系 token 转 v3 编码（本地回放/收藏不转换）
+    strategy_params: { factor_tokens: desktopTokensToServerV3(tokens) },
     symbol,
     symbol_name: "",
     timeframe,
@@ -98,7 +101,7 @@ export function buildComboTaskPayload(
     ...base,
     name: `组合(${tokenGroups.length})·${symbol}·${timeframe}`,
     // factor_tokens 传 list of lists = 组合形态；省略 factor_weights = 等权
-    strategy_params: { factor_tokens: tokenGroups },
+    strategy_params: { factor_tokens: tokenGroups.map(desktopTokensToServerV3) },
   }
 }
 
@@ -119,11 +122,12 @@ function deriveStaleKernel(metrics: unknown): boolean {
 export const STANDARD_FEAT_COUNT = 36
 const FEAT_OFFSET = 64
 
-/** 本地专属公式判定:优先看内核打的 local_only 标,兜底按特征 token 区间判
- *  (历史/收藏等未带标的场景也能拦住)。本地引擎 AI 任务可用(客户端算信号)。 */
-export function isLocalOnly(tokens: number[] | null | undefined, metrics?: unknown): boolean {
-  if ((metrics as { local_only?: boolean } | undefined)?.local_only === true) return true
-  return !!tokens?.some((t) => (t >= STANDARD_FEAT_COUNT && t < FEAT_OFFSET) || t >= FEAT_OFFSET + 40)
+/** 本地专属公式判定:2026-09-28 起服务器 v3 已补齐桌面谱系算子/特征,
+ *  仅服务器无数据源的直连特征(逐笔/强平类,SERVER_MISSING_FEATS)仍需
+ *  本地引擎执行。metrics.local_only 是按旧服务器能力打的存量标,不再
+ *  作为依据(内核按旧口径打的标会把已支持的特征也拦成 local_only)。 */
+export function isLocalOnly(tokens: number[] | null | undefined, _metrics?: unknown): boolean {
+  return !!tokens?.some((t) => SERVER_MISSING_FEATS.has(t))
 }
 
 /** 默认空指标（补齐字段用） */
