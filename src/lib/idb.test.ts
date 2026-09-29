@@ -45,7 +45,7 @@ function openV1AndSeed(): Promise<void> {
 }
 
 describe("idb 公共入口", () => {
-  it("v1→v4 升级:旧 kline-history 记录仍可读,新增 mining-bars/mining-tasks/volume-profile store", async () => {
+  it("v1→v5 升级:旧 kline-history 记录仍可读,新增 mining-bars/mining-tasks/volume-profile store", async () => {
     await openV1AndSeed()
 
     const {
@@ -57,7 +57,7 @@ describe("idb 公共入口", () => {
     } = await import("@/lib/idb")
     const db = await openDb()
     expect(db).not.toBeNull()
-    expect(db!.version).toBe(4)
+    expect(db!.version).toBe(5)
     expect(db!.version).toBe(DB_VERSION)
     expect(db!.objectStoreNames.contains("kline-history")).toBe(true)
     expect(db!.objectStoreNames.contains(MINING_BARS_STORE)).toBe(true)
@@ -79,7 +79,7 @@ describe("idb 公共入口", () => {
     expect(entry!.bars[0].time).toBe("2020-01-06T00:00:00")
   })
 
-  it("全新环境直接以 v4 建库,四个 store 齐备", async () => {
+  it("全新环境直接以 v5 建库,已有 store 齐备", async () => {
     const {
       openDb,
       MINING_BARS_STORE,
@@ -87,7 +87,7 @@ describe("idb 公共入口", () => {
       VOLUME_PROFILE_STORE,
     } = await import("@/lib/idb")
     const db = await openDb()
-    expect(db!.version).toBe(4)
+    expect(db!.version).toBe(5)
     expect(db!.objectStoreNames.contains("kline-history")).toBe(true)
     expect(db!.objectStoreNames.contains(MINING_BARS_STORE)).toBe(true)
     expect(db!.objectStoreNames.contains(MINING_TASKS_STORE)).toBe(true)

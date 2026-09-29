@@ -31,6 +31,23 @@ class ProtocolTests(unittest.TestCase):
         with self.assertRaises(ProtocolError):
             decode_columns({}, 2, 400_000)
 
+    def test_bar_string_metadata_keeps_original_clock_and_data_channel(self):
+        from engine.session import NativeSession
+        count = 3
+        columns = {"time_idx": np.arange(count, dtype="<f8") * 3600000 + 1735689600000,
+                   "close": np.array([100, 101, 102], dtype="<f8")}
+        metadata = {"count": count, "max_bars": 100_000,
+                    "string_columns": {"time": ["2025-01-01 08:00:00", "2025-01-01 09:00:00", "2025-01-01 10:00:00"],
+                                       "market_source": ["gate_usdt"] * count}}
+        session = NativeSession("clock", {}, "f64")
+        session.load_bars({k: v.tobytes() for k, v in columns.items()}, metadata)
+        self.assertEqual(session.bars[0]["time"], metadata["string_columns"]["time"][0])
+        self.assertEqual(session.bars[1]["market_source"], "gate_usdt")
+        with self.assertRaises(ValueError):
+            other = NativeSession("bad-clock", {}, "f64")
+            other.load_bars({k: v.tobytes() for k, v in columns.items()},
+                            {**metadata, "string_columns": {"time": ["short"]}})
+
 
 if __name__ == "__main__":
     unittest.main()

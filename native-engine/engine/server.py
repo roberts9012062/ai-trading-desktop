@@ -1,5 +1,6 @@
 """Single numerical executor keeps CUDA calls ordered; WS heartbeat stays live."""
 import asyncio
+import gc
 import json
 import secrets
 import sys
@@ -19,6 +20,7 @@ class EngineServer:
         self.sessions = {}
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="native-gpu")
         self.hello = None
+        self.cuda_context = None
 
     def startup(self, inject_failure=False):
         from .runtime import initialize_runtime
@@ -26,6 +28,8 @@ class EngineServer:
         runtime = initialize_runtime(self.precision)
         if runtime["backend"] != "cuda":
             raise RuntimeError("Native CUDA unavailable; use existing WebGPU/CPU engine")
+        from .cuda_context import capture_cuda_context
+        self.cuda_context = capture_cuda_context()
         check = run_startup_selfcheck(self.precision, inject_failure=inject_failure)
         if not check["passed"]:
             raise RuntimeError("G1 deterministic selfcheck failed; native engine refused")
@@ -63,7 +67,18 @@ class EngineServer:
             if payload.get("coarse") is True:
                 return {"ranked": session.rank_shards(candidates)}
             return {"evaluated": session.eval_shards(candidates)}
-        raise ProtocolError("Mode not implemented by M1", "UNSUPPORTED_MODE")
+        if kind == "strict_eval":
+            candidates = payload.get("candidates")
+            if not isinstance(candidates, list) or len(candidates) > 100_000:
+                raise ProtocolError("Invalid strict candidate population")
+            return {"strict": session.strict_eval(candidates)}
+        if kind == "precise":
+            for name in ("candidates", "evaluated", "best_seen", "prefetched_strict"):
+                values = payload.get(name, [])
+                if not isinstance(values, list) or len(values) > 100_000:
+                    raise ProtocolError("Invalid precise candidate payload")
+            return session.precise(payload)
+        raise ProtocolError("Mode not implemented", "UNSUPPORTED_MODE")
 
     def dispose_owned(self, ids):
         for session_id in ids:
@@ -126,16 +141,40 @@ class EngineServer:
 
     async def run(self, *, inject_failure=False):
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(self.executor, self.startup, inject_failure)
-        async with serve(self.handle, "127.0.0.1", 0, max_size=MAX_FRAME_BYTES,
-                         ping_interval=1, ping_timeout=10, compression=None) as server:
-            port = server.sockets[0].getsockname()[1]
-            print(json.dumps({"type": "native_engine_ready", "port": port, "token": self.token,
-                              "hello": self.hello}), flush=True)
-            try:
+        from .cuda_context import CudaContextLease
+        previous_gc, lease = gc.isenabled(), None
+        # No GC may free worker-owned arrays on the event-loop thread until
+        # its borrowed CUDA context is current. Restore normal GC after bind.
+        gc.disable()
+        try:
+            await loop.run_in_executor(self.executor, self.startup, inject_failure)
+            await loop.run_in_executor(self.executor, gc.collect)
+            lease = CudaContextLease(self.cuda_context)
+            if previous_gc:
+                gc.enable()
+            async with serve(self.handle, "127.0.0.1", 0, max_size=MAX_FRAME_BYTES,
+                             ping_interval=1, ping_timeout=10, compression=None) as server:
+                port = server.sockets[0].getsockname()[1]
+                print(json.dumps({"type": "native_engine_ready", "port": port, "token": self.token,
+                                  "hello": self.hello}), flush=True)
                 await asyncio.Future()
-            finally:
+        finally:
+            gc.disable()
+            try:
                 await loop.run_in_executor(self.executor, self.dispose_owned, set(self.sessions))
+                await loop.run_in_executor(self.executor, gc.collect)
+                if lease is not None:
+                    lease.close()
+            finally:
+                try:
+                    if self.cuda_context is not None:
+                        # Pop the WS lease before destroying its borrowed
+                        # context. Runtime teardown must run on the CUDA owner.
+                        import taichi as ti
+                        await loop.run_in_executor(self.executor, ti.reset)
+                finally:
+                    if previous_gc:
+                        gc.enable()
 
 
 def main():

@@ -1,10 +1,11 @@
-# Native GPU M1 PoC
+# Native GPU engine (M2 in progress)
 
-This implements M1 of `docs/native-gpu-engine-plan.md`, with product approval
+This implements `docs/native-gpu-engine-plan.md`, with product approval
 for GPU f32 coarse ranking + GPU f64 authoritative recomputation. All precision
 thresholds are retained. The original design file,
-CPU/WebGPU engines and Python oracle are unchanged. Do not certify full G2 or
-start M2 until G1 and the M1 real eight-worker performance gate pass.
+CPU/WebGPU engines and Python oracle are unchanged. M1 passed in commit
+`2ae7e33`. M2's full G2 and default-mixed G3 core now pass; M3 integration,
+failure/soak gates and distributable release remain outstanding.
 
 ## Development setup (Windows PowerShell)
 
@@ -29,7 +30,7 @@ Regenerate dependencies reproducibly with:
 uv pip compile --generate-hashes --python-version 3.11 --python-platform windows native-engine/requirements.in -o requirements-native.lock
 ```
 
-## M1 implementation
+## Implementation
 
 - `protocol.py`: authenticated JSON/msgpack envelopes and little-endian f64 bars.
 - `server.py`: loopback random port, one ordered numerical executor, live heartbeat.
@@ -45,16 +46,28 @@ uv pip compile --generate-hashes --python-version 3.11 --python-platform windows
 - Mixed sessions use a separate f32 ranking VM and f64 authoritative VM. Coarse
   results contain scores only; authoritative metrics always identify f64 evaluation.
 - `metrics_ti.py` / `reductions_ti.py`: training metrics on CUDA, f64/Kahan and
-  fixed reduction trees. Host code formats result dictionaries and scalar penalties.
+  fixed reduction trees. Startup-warmed programs take lengths, head trim, costs
+  and annualization as runtime arguments. Host code formats result dictionaries
+  and scalar penalties.
 - `selfcheck.py`: 20 fixed tokens; normalized factors and raw metrics must repeat
   byte for byte. Failure prevents a ready handshake.
 - `poc_features.py`: unchanged CPU feature oracle **only for M1 setup**.
+- `series_ti.py` / `features_ti.py`: all 62 feature rows on GPU, availability,
+  leading-missing masks and frozen resident prefixes.
+- `libm_ti.py`: GPU f64 exp/log1p compatible with the pinned desktop WASM libm;
+  exact reference vectors and source/license attribution are included. This
+  fixes the two frozen M1 composite regressions without relaxing the 1e-9 gate.
+- `wf_ti.py` / `strict_ti.py`: validation slices, execution/funding reports,
+  walk-forward, live and cross-peer gates on resident GPU data.
+- `selection_ti.py` / `precise_ti.py` / `joint_ti.py`: correlation dedup,
+  robustness, DSR moments, regime reports, joint training, archives and sealed
+  final holdout. Array arithmetic is GPU; original scalar sorting, threshold,
+  metadata and formatting helpers are reused without changing the CPU oracle.
 
-M1 supports one resident CUDA session. Native CPU evaluation, the four WGSL
-unsupported operators, leading missing direct-data admission, joint training,
-features on GPU, WF/strict/precise, backend/UI wiring and distribution are later
-milestone work. Unsupported modes return explicit errors. This is not a released
-engine and does not replace existing mining engines.
+The sidecar supports one resident CUDA session. Native CPU evaluation and the
+four WGSL unsupported operators remain unavailable. Backend/UI wiring and
+distribution are later milestone work. This is not a released engine and does
+not replace existing mining engines.
 
 Bars retain the existing device-profile limits: 100,000 / 200,000 / 300,000.
 Allocation planning caps candidate tiles and reports an actionable error when
@@ -72,10 +85,117 @@ cargo test --manifest-path src-tauri/Cargo.toml native_engine
 ```
 
 `verify-native-gpu-parity.py --stage eval` compares raw training composites to
-the unchanged CPU oracle. Reports explicitly mark full G2 incomplete. M2 must
-extend this same script to 7 symbols × 4 frames, champions and strict verdicts;
+the unchanged CPU oracle. Reports explicitly mark full G2 incomplete. The full
+stage requires 7 symbols × 4 frames, both precisions, champions and strict verdicts;
 zero-valued smoke composites do not certify mixed full G2. Mixed startup G1
 checks both the coarse and authoritative passes.
+
+Cold CUDA compilation can take 3–4 minutes on the benchmark machine. Native
+startup has a bounded 300-second handshake window; G1 still computes all
+mandatory double runs before availability. Startup time is recorded separately
+from the product-approved 5-second full-generation performance gate.
+
+`fetch-native-gpu-suite.py` freezes seven perpetual histories for supported
+15m/30m/60m/1d frames. `export-native-gpu-reference.py` uses the unchanged
+production desktop worker and eight-worker pool on the dedicated reference
+page, verifying served CPU source hashes and frozen input/dependency identity.
+`verify-native-gpu-parity.py --stage full --suite <manifest> --precision both`
+certifies only a complete 56-record pass. Repeated `--case SYMBOL/FRAME` flags
+allow early full-pipeline diagnostics and always leave `G2_complete` false.
+The precise input order matches the frozen reference's eight-way round-robin
+worker merge, so zero-composite ties use identical candidate order. Reports
+stamp both CPU input/dependency identity and native numerical source hashes.
+
+Frozen bundled-WASM math vectors cover exp/log1p, expm1/tanh and third/fourth
+central-moment powers. These ports retain rank ties and zero signs in long
+expressions; all numerical evaluation still runs on CUDA. The permissive source
+licenses and pinned source coordinates are in `THIRD_PARTY_LIBM.txt`.
+`export-native-gpu-training-reference.mjs` regenerates the real XRP plateau
+cashflow fixtures using the unchanged bundled CPU scoring module. These tests
+lock downside membership at zero, including signed zero, for training/reports;
+source and WASM hashes prevent silently using another numerical reference.
+
+`bench-native-gpu-generations.py` measures the full JS evolution + GPU coarse
+ranking/f64 authority + strict/precise loop through real IPC. It records every
+generation and weights nvidia-smi utilization over all mining wall time,
+including CPU/IPC gaps. A shortened `--generations` run cannot certify G3.
+
+Private coarse normalization uses the design's f32 two-sum compensation option:
+each f64 square is computed once and represented by two f32 components, then
+window terms are accumulated in ascending order. Extreme-value overflow uses
+the retained f64 window implementation. Published metrics always use the
+separate f64 authoritative VM. Startup double-runs both coarse paths; temporary
+expansion buffers are included in the device tile budget.
+
+Private coarse positions use f32 tanh before the fixed f64 statistics. The
+metrics API rejects this option for authoritative evaluation. Published
+positions, cashflows and reports retain the f64 libm path. Selected champions'
+frozen slices are batched without writing segment-cache entries; original
+scalar calls still determine cache aliases, insertion and LRU order.
+
+Private rolling expression moments and regression use ascending f32 two-sum
+with Dekker product expansions. Extreme/subnormal/nonfinite inputs fall back
+to the original f64 intermediate implementation. This is a private ranking
+option: the authoritative f64 program ignores it. Startup also double-runs
+the retained original coarse program as a numerical oracle.
+
+The approved M2.20 instruction layout is selectable internally with
+`StackVM(..., execution_layout="candidate_time_block")`. It decodes only token
+control metadata on the host, dispatches each instruction over candidate/time
+blocks, then copies rolling scratch after the instruction completes. Ordered
+f64 prefix scans and the original 256-lane raw statistic trees are retained.
+Startup double-runs both layouts and checks their factor bytes; all five new
+kernels are included in the compiled-IR atomic audit. Direct byte tests pass
+and the instruction layout is the M2.20 default for performance measurement.
+The original layout remains selectable as `candidate_block`.
+
+Full M2.19 G2 passes all 56 records (seven symbols, four periods, both modes),
+with source hashes rechecked at completion. This certifies the M2.19 snapshot.
+M2.25 also passes full G2, 56/56, with hashes rechecked at completion.
+M2.28 passes complete two-layer G2, 56/56, with source hashes rechecked.
+Both engines yield 14 qualified champions; raw/qualified overlaps and strict
+agreement are 100%. All composite gates retain true relative error <1e-9.
+The 130-test native suite and both-mode G1/40-kernel atomic audit also pass.
+M2.28 also passes the real 100-generation mixed G3: max 4.5971s, median
+1.54435s, mean 1.885782s, sampled GPU utilization 76.394%, coverage 100%,
+VRAM peak 2,539/6,141 MiB (41.35%). Final generation takes 1.6464s.
+The final research candidate fails strict/WF/holdout qualification; zero
+qualified champions are published. Numeric workload is still executed.
+Report: `.local-data/native-gpu-reports/g3-mixed-m2.28-100-r1.json`.
+
+M2.21 retains the same numerical layout and fixes CUDA resource lifetime.
+The WS thread borrows the numerical executor's context so CPython GC can
+release Taichi ndarrays safely. Runtime teardown runs on the numerical owner
+after disposal, collection and WS-context unbinding. Automatic GC is suspended
+only across context transitions; normal mining retains normal GC.
+
+M2.22 replays those exact kernels through Taichi's native sequential graph.
+The adapter uses already-compiled class kernels from pinned Taichi 1.7.4,
+without modifying the SDK. Graph and direct submissions match factor bytes
+across operators, profiles, batch counts and frozen prefixes.
+
+M2.23 retains batch scratch only within the existing frozen-context budget.
+Input identity and width must match; scoring/cache admission order is untouched.
+M2.24 packs active original row ids so completed candidates consume no further
+instruction work. Both additions require fresh G2/G3 verification.
+
+Product amendments confirmed on 2026-09-29: G3 is now <=5 seconds for every
+one of 100 generations; sustained GPU utilization remains >=60%. G2 still
+requires composite relative error <1e-9 and strict agreement >=99.9%.
+The qualification amendment retains original research candidates for parity
+and publishes only qualified champions. G2 compares both the research set and
+the qualified set (same gate on both engines) at >=99% overlap.
+
+M2.26 submits unchanged continuous-report kernels through a native sequential
+graph; six direct/graph report tests pass. M2.27 adds task-dependent champion
+qualification and task-owned strict proofs. Failed, exploratory, missing OOS
+WF evidence, and failed final holdout candidates cannot become qualified
+champions. No DSR/PBO/turnover threshold is invented. Pending final holdout
+is separate from public champions. Qualification never reranks or backfills
+against sealed data, and `best_seen` remains a training-only archive.
+M2.28 records exact native engine versions and excludes stale or non-f64
+inputs from seed archives. The new two-layer G2 must include actual
+qualified reference candidates; an entirely empty qualified suite cannot pass.
 
 Fetch the real 70,174-bar ETHUSDT 15m perpetual fixture with
 `python scripts/fetch-native-gpu-benchmark.py`. Archives are checked against

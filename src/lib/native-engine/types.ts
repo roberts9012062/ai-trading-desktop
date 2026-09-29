@@ -9,11 +9,27 @@ export interface NativeHello {
   sm_count: number
   vram_mb: number
   precision: string
-  selfcheck: { passed: boolean; token_count: number; eval_precision: "f64"; coarse_passed: boolean | null; sha256?: string }
+  selfcheck: { passed: boolean; token_count: number; eval_precision: "f64"; coarse_passed: boolean | null;
+    features_passed: boolean; reports_passed: boolean; selection_passed: boolean; sha256?: string }
 }
 export interface NativeEndpoint { port: number; token: string; pid: number; hello?: NativeHello }
 export interface NativeEvaluatedCandidate { tokens: number[]; composite: number; metrics: Record<string, unknown> }
 export interface NativeRankedCandidate { tokens: number[]; score: number }
+export interface NativeStrictVerdict { tokens: number[]; pass: boolean; cross_scores: Record<string, unknown> }
+export interface NativeChampion extends NativeEvaluatedCandidate { text: string }
+export interface NativePrecisePayload {
+  candidates?: number[][]; evaluated?: NativeEvaluatedCandidate[]; best_seen?: NativeEvaluatedCandidate[]
+  prefetched_strict?: NativeStrictVerdict[]; trials?: number; final_generation?: boolean
+}
+export interface NativeQualifiedCandidate extends NativeChampion {
+  qualification: { status: "qualified" | "pending" | "rejected"; reasons: string[] }
+}
+export interface NativePreciseResult {
+  champions: NativeQualifiedCandidate[]; best_seen: NativeEvaluatedCandidate[]
+  research_candidates: NativeChampion[]
+  pending_candidates: NativeQualifiedCandidate[]; rejected_candidates: NativeQualifiedCandidate[]
+  qualification_requirements: Record<string, unknown>
+}
 export interface BarsMetadata { count: number; max_bars: 100000 | 200000 | 300000; snapshot_id?: string; [key: string]: unknown }
 export type BarsColumns = Record<string, Float64Array>
 export interface NativeFeatureInfo {

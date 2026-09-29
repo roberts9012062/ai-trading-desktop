@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+STARTUP_TIMEOUT_SECONDS = 300
 
 
 def ready_record(process):
@@ -53,7 +54,7 @@ def main():
             sidecar = subprocess.Popen([str(args.native_python), "-u", "-m", "engine", "--precision", args.precision],
                 cwd=ROOT, env={**os.environ, "PYTHONPATH": str(ROOT / "native-engine")},
                 stdout=subprocess.PIPE, stderr=error_log, text=True, encoding="utf-8", **kwargs)
-            endpoint = reader.submit(ready_record, sidecar).result(timeout=180)
+            endpoint = reader.submit(ready_record, sidecar).result(timeout=STARTUP_TIMEOUT_SECONDS)
             endpoint["pid"] = sidecar.pid
             print("native G1 passed; starting browser benchmark", flush=True)
             sampler = subprocess.Popen(["nvidia-smi", "--query-gpu=timestamp,index,utilization.gpu,memory.used,memory.total",

@@ -2,6 +2,7 @@ import sys
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 
@@ -14,6 +15,39 @@ from factor_lab.scoring.evaluate import evaluate_factor
 
 
 class SessionTests(unittest.TestCase):
+    def test_setup_freezes_metadata_without_candidate_or_holdout_evaluation(self):
+        from factor_lab.features import bars_signature
+        from engine.wf_ti import _SEG_RESULTS
+        from engine.strict_ti import StrictContext
+        from test_features import feature_bars
+        runtime = initialize_runtime('f64', require_cuda=True)
+        session = NativeSession('metadata', runtime, 'f64')
+        session.load_records(feature_bars(2001), {'max_bars': 100000})
+        before = list(_SEG_RESULTS.items())
+        with patch('engine.vm_ti.StackVM.dispatch', side_effect=AssertionError('Candidate evaluation during setup')), \
+             patch('engine.metrics_ti.TrainingMetrics.evaluate', side_effect=AssertionError('Training scores during setup')), \
+             patch('engine.metrics_ti.NumericalReports.evaluate', side_effect=AssertionError('Holdout scores during setup')):
+            session.prepare_features({'symbol': 'ETHUSDT', 'timeframe': '15m', 'crypto_profile': True,
+                'train_ratio': .7, 'selection_v2': True, 'walk_forward_folds': 3, 'population': 2})
+        self.assertEqual(before, list(_SEG_RESULTS.items()))
+        self.assertIsNotNone(session.strict_context)
+        self.assertTrue(all(data['last_tokens'] is None for data in session.strict_context.research.contexts.values()))
+        self.assertLessEqual(sum(data['bytes'] for data in session.strict_context.research.contexts.values()), 256*1024*1024)
+        self.assertTrue(all(hi <= len(session.strict_metadata['all_bars'])
+                            for _, hi, _, _ in session.strict_context.research.contexts))
+        self.assertIsNone(session.dedup_context)
+        for (start, end), value in session.prefix_signatures.items():
+            self.assertEqual(value, bars_signature(session.prepared['bars'][start:end]))
+        context = StrictContext(session.prepared['bars'], session.config,
+            resident=session.prepared['resident_full'], metadata=session.strict_metadata,
+            signatures=session.prefix_signatures)
+        with patch('engine.wf_ti.bars_signature', side_effect=AssertionError('Repeated prefix encoding')):
+            for start, end in context.research.signatures:
+                self.assertEqual(context.research.signature(start, end), session.prefix_signatures[start, end])
+        context.dispose()
+        session.dispose()
+        self.assertEqual(session.prefix_signatures, {})
+
     def test_scheduled_tiles_preserve_original_order_duplicates_and_rejections(self):
         runtime = initialize_runtime("f64", require_cuda=True)
         start = datetime(2025, 1, 1, tzinfo=timezone.utc)
@@ -70,14 +104,16 @@ class SessionTests(unittest.TestCase):
         self.assertNotEqual(session.bars[0]["close"], 999)
         with self.assertRaises(ValueError):
             session.load_records(bars, {"max_bars": 100_000})
-        session.prepare_features(cfg)
+        with patch("factor_lab.features.compute_features", side_effect=AssertionError("CPU feature execution")):
+            info = session.prepare_features(cfg)
+        self.assertEqual(info["features_source"], "gpu-taichi")
         with self.assertRaises(ValueError):
             session.prepare_features({**cfg, "cost": .001})
         candidates = [[0], [1], [0, 1, 65], [0, 102], []]
         actual = session.eval_shards(candidates)
         self.assertTrue(actual)
         for item in actual:
-            factor = execute(item["tokens"], session.prepared["matrix"])
+            factor = execute(item["tokens"], session.prepared["matrix"].to_numpy())
             expected = evaluate_factor(factor, session.prepared["close"], .0003, session.prepared["periods"])
             self.assertEqual(item["metrics"]["kernel_version"], "native-gpu-v1")
             self.assertAlmostEqual(item["composite"], expected["composite"], delta=1e-8)

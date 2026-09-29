@@ -1,6 +1,6 @@
 import { decode, encode } from "@msgpack/msgpack"
 import type { MiningConfig } from "@/lib/mining/types"
-import type { BarsColumns, BarsMetadata, NativeEndpoint, NativeEvaluatedCandidate, NativeRankedCandidate, NativeFeatureInfo, NativeHello } from "./types"
+import type { BarsColumns, BarsMetadata, NativeEndpoint, NativeEvaluatedCandidate, NativeRankedCandidate, NativeFeatureInfo, NativeHello, NativeStrictVerdict, NativePrecisePayload, NativePreciseResult } from "./types"
 
 interface Envelope {
   type: string; request_id: string; session_id: string; Authorization: string
@@ -63,6 +63,7 @@ export class NativeEngineClient {
       })
       const hello = await this.#request<NativeHello>("hello", "", {}, false, signal, 30_000)
       if (hello.backend !== "cuda" || !hello.fp64_supported || !hello.selfcheck?.passed || hello.selfcheck.token_count !== 20 ||
+          hello.selfcheck.features_passed !== true || hello.selfcheck.reports_passed !== true || hello.selfcheck.selection_passed !== true ||
           hello.selfcheck.eval_precision !== "f64" || (hello.precision === "mixed" && hello.selfcheck.coarse_passed !== true) ||
           !hello.engine_version.startsWith("native-gpu-v1-")) {
         throw new NativeEngineError("原生引擎能力或确定性自检未通过", "SELF_CHECK_FAILED")
@@ -97,6 +98,40 @@ export class NativeEngineClient {
 
   rankShards(session: string, candidates: number[][], signal?: AbortSignal): Promise<{ ranked: NativeRankedCandidate[] }> {
     return this.#request("eval_shards", session, { candidates, coarse: true }, false, signal, 900_000)
+  }
+
+  strictEval(session: string, candidates: number[][], signal?: AbortSignal): Promise<{ strict: NativeStrictVerdict[] }> {
+    return this.#request("strict_eval", session, { candidates }, false, signal, 900_000)
+  }
+
+  async precise(session: string, payload: NativePrecisePayload, signal?: AbortSignal): Promise<NativePreciseResult> {
+    const result = await this.#request<NativePreciseResult>("precise", session, { ...payload }, false, signal, 900_000)
+    const invalid = () => new NativeEngineError("原生引擎返回的冠军缺少合格证明", "INVALID_QUALIFICATION")
+    if (!result || ![result.champions, result.research_candidates, result.pending_candidates,
+      result.rejected_candidates, result.best_seen].every(Array.isArray) ||
+      !result.qualification_requirements || typeof result.qualification_requirements !== "object" ||
+      result.champions.length + result.pending_candidates.length + result.rejected_candidates.length !== result.research_candidates.length) {
+      throw invalid()
+    }
+    const remaining = new Map<string, number>()
+    for (const candidate of result.research_candidates) {
+      if (!Array.isArray(candidate.tokens)) throw invalid()
+      const key = candidate.tokens.join(",")
+      remaining.set(key, (remaining.get(key) ?? 0) + 1)
+    }
+    for (const candidate of [...result.champions, ...result.pending_candidates, ...result.rejected_candidates]) {
+      if (!Array.isArray(candidate.tokens)) throw invalid()
+      const key = candidate.tokens.join(","), count = remaining.get(key) ?? 0
+      if (count < 1) throw invalid()
+      remaining.set(key, count - 1)
+    }
+    for (const candidate of result.champions) {
+      if (candidate.qualification?.status !== "qualified" || !Array.isArray(candidate.qualification.reasons) ||
+        candidate.qualification.reasons.length !== 0 || !Number.isFinite(candidate.composite) ||
+        candidate.metrics?.native_strict_passed !== true || candidate.metrics?.native_eval_precision !== "f64" ||
+        candidate.metrics?.kernel_version !== "native-gpu-v1") throw invalid()
+    }
+    return result
   }
 
   disposeSession(session: string): Promise<void> { return this.#request("dispose_session", session, {}, false, undefined, 30_000) }

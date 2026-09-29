@@ -7,6 +7,15 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class DeterminismContractTests(unittest.TestCase):
+    def test_gpu_augmented_assignments_do_not_enter_atomic_ir(self):
+        for path in (ROOT / "native-engine/engine").glob("*_ti.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for function in ast.walk(tree):
+                if isinstance(function, ast.FunctionDef) and any(ast.unparse(d) in ("ti.func", "ti.kernel") for d in function.decorator_list):
+                    for node in ast.walk(function):
+                        self.assertNotIsInstance(node, ast.AugAssign,
+                            f"{path.name}:{function.name}: use explicit assignment to avoid atomic IR")
+
     def test_kernel_source_forbids_random_shuffle_atomic_and_shared_augassign(self):
         files = list((ROOT / "native-engine/engine").glob("*_ti.py"))
         self.assertGreaterEqual(len(files), 3)

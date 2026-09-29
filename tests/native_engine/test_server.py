@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import threading
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -26,7 +27,7 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                                                   env=env, cwd=ROOT, stdout=asyncio.subprocess.PIPE,
                                                   stderr=asyncio.subprocess.PIPE)
         try:
-            out, err = await asyncio.wait_for(proc.communicate(), 180)
+            out, err = await asyncio.wait_for(proc.communicate(), 300)
             self.assertNotEqual(proc.returncode, 0)
             self.assertNotIn(b'native_engine_ready', out)
             self.assertIn(b'G1 deterministic selfcheck failed', err)
@@ -70,8 +71,11 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                                                   stderr=asyncio.subprocess.DEVNULL)
         try:
             endpoint = None
+            # Match the launcher's 300s total cold-JIT deadline.
+            # M2 now compiles GPU features and report programs before ready.
+            deadline = time.monotonic() + 300
             for _ in range(50):
-                line = await asyncio.wait_for(proc.stdout.readline(), 90)
+                line = await asyncio.wait_for(proc.stdout.readline(), max(.01, deadline-time.monotonic()))
                 if not line:
                     self.fail("Sidecar exited before ready")
                 try:
@@ -106,10 +110,18 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
                            "close": 100 + np.sin(x / 13), "volume": 1000 + x % 19}
                 await rpc("load_bars", {"columns": {k: np.asarray(v, dtype="<f8").tobytes() for k, v in columns.items()},
                                         "metadata": {"count": count, "max_bars": 100_000}}, True)
-                await rpc("mine_features", {"config": {"symbol": "ETHUSDT", "timeframe": "60m", "crypto_profile": True,
+                features = await rpc("mine_features", {"config": {"symbol": "ETHUSDT", "timeframe": "60m", "crypto_profile": True,
                                                         "cost": .0003, "train_ratio": .7}})
+                self.assertEqual(features["features_source"], "gpu-taichi")
                 result = await rpc("eval_shards", {"candidates": [[0], [1], [0, 1, 65]]})
                 self.assertTrue(result["evaluated"])
+                strict = await rpc("strict_eval", {"candidates": [[0], [1]]})
+                self.assertEqual([x["tokens"] for x in strict["strict"]], [[0], [1]])
+                self.assertTrue(all(type(x["pass"]) is bool for x in strict["strict"]))
+                precise = await rpc("precise", {"evaluated": result["evaluated"], "trials": 3000,
+                                               "final_generation": False})
+                self.assertTrue(precise["champions"])
+                self.assertTrue(all(x["metrics"]["kernel_version"] == "native-gpu-v1" for x in precise["champions"]))
                 await rpc("dispose_session", {})
                 await rpc("dispose_session", {})
         finally:

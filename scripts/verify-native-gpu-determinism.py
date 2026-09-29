@@ -2,6 +2,7 @@
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "native-engine"))
@@ -17,7 +18,12 @@ def main():
     from engine.selfcheck import run_startup_selfcheck
     runtime = initialize_runtime(require_cuda=True)
     modes = ("mixed", "f64") if args.precision == "both" else (args.precision,)
-    checks = [run_startup_selfcheck(mode, inject_failure=args.inject_failure) for mode in modes]
+    checks = []
+    for mode in modes:
+        started = time.monotonic()
+        check = run_startup_selfcheck(mode, inject_failure=args.inject_failure)
+        check["startup_seconds"] = time.monotonic()-started
+        checks.append(check)
     report = {"gate": "G1", "runtime": runtime, "checks": checks, "passed": all(c["passed"] for c in checks)}
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)

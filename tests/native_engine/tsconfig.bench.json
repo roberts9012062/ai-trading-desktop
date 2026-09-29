@@ -1,5 +1,5 @@
 {
   "extends": "../../tsconfig.json",
-  "include": ["../../src/**/*.ts", "../../src/**/*.tsx", "../../scripts/native-gpu-benchmark.ts"],
+  "include": ["../../src/**/*.ts", "../../src/**/*.tsx", "../../scripts/native-gpu-benchmark.ts", "../../scripts/native-gpu-reference.ts", "../../scripts/native-gpu-generations.ts"],
   "compilerOptions": { "incremental": false }
 }

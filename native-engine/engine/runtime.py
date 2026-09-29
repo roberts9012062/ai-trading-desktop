@@ -56,7 +56,9 @@ def plan_tile(T, F, population, precision, vram_mb, *, static_bytes=0):
     # reserves a separate f32 stack 9 + f64 factor and feature matrix.
     # Metric position/PnL/turnover cache plus close/input overhead.
     coarse = precision == "mixed"
-    per = T * (14 * 8 + 4 * 8 + (9 * 4 + 8 if coarse else 0)) + 32 * 4 + 8192
+    per = T * (14 * 8 + 4 * 8 + (9 * 4 + 8 + 2 * 4 if coarse else 0)) + 32 * 4 + 8192
+    # Approved instruction grid metadata/statistics for both resident VMs.
+    per += (32 * 7 * 4 + 2 * 8) * (2 if coarse else 1)
     feature_bytes = F * T * (8 + (4 if coarse else 0))
     budget = int(vram_mb * 1024 * 1024 * .60) - static_bytes - feature_bytes
     tile = min(population, 128, budget // per)

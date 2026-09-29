@@ -2,9 +2,10 @@ import { decode, encode } from "@msgpack/msgpack"
 import { describe, expect, it, vi } from "vitest"
 import { NativeEngineClient } from "./ipc"
 
-const hello = { engine_version: "native-gpu-v1-m1.1", backend: "cuda", fp64_supported: true,
+const hello = { engine_version: "native-gpu-v1-m2.5", backend: "cuda", fp64_supported: true,
   device_name: "fixture", sm_count: 20, vram_mb: 6140,
-  selfcheck: { passed: true, token_count: 20, eval_precision: "f64" as const, coarse_passed: null }, precision: "f64" }
+  selfcheck: { passed: true, token_count: 20, eval_precision: "f64" as const, coarse_passed: null,
+    features_passed: true, reports_passed: true, selection_passed: true }, precision: "f64" }
 const endpoint = { port: 12345, token: "test-secret-32-characters-long", pid: 1, hello }
 
 class Socket extends EventTarget {
@@ -34,6 +35,59 @@ async function connected() {
 }
 
 describe("Native IPC", () => {
+  it.each(["features_passed", "reports_passed", "selection_passed"])("refuses failed or missing %s startup checks", async (key) => {
+    for (const value of [false, undefined]) {
+      const socket = new Socket()
+      socket.send = (frame) => {
+        const message = typeof frame === "string" ? JSON.parse(frame) : decode(frame)
+        socket.sent.push(message)
+        queueMicrotask(() => socket.reply(message, { ...hello, selfcheck: { ...hello.selfcheck, [key]: value } }))
+      }
+      const client = new NativeEngineClient({ heartbeatMs: 0, socketFactory: () => {
+        queueMicrotask(() => socket.dispatchEvent(new Event("open")))
+        return socket as unknown as WebSocket
+      } })
+      await expect(client.connect(endpoint)).rejects.toMatchObject({ code: "SELF_CHECK_FAILED" })
+      expect(socket.readyState).toBe(3)
+    }
+  })
+
+  it("preserves precise authority, strict prefetch and sealed-generation control", async () => {
+    const { client, socket } = await connected()
+    const strict = client.strictEval("frozen", [[0], [1]])
+    const strictRequest = socket.sent.at(-1)!
+    expect(strictRequest.type).toBe("strict_eval")
+    const verdicts = [{ tokens: [0], pass: true, cross_scores: {} }]
+    socket.reply(strictRequest, { strict: verdicts })
+    expect((await strict).strict).toEqual(verdicts)
+    const evaluated = [{ tokens: [0], composite: .1, metrics: { sortino: 1, kernel_version: "native-gpu-v1", native_eval_precision: "f64" } }]
+    const payload = { evaluated, best_seen: [], prefetched_strict: verdicts, trials: 3000, final_generation: false }
+    const precise = client.precise("frozen", payload)
+    const request = socket.sent.at(-1)!
+    expect(request.type).toBe("precise")
+    expect(request.session_id).toBe("frozen")
+    expect(request.payload).toEqual(payload)
+    socket.reply(request, { champions: [], best_seen: evaluated, research_candidates: [],
+      pending_candidates: [], rejected_candidates: [], qualification_requirements: {} }, true)
+    expect((await precise).best_seen).toEqual(evaluated)
+    client.close()
+  })
+
+  it("refuses research or pending factors labeled as public champions", async () => {
+    for (const status of [undefined, "pending", "rejected", "qualified"]) {
+      const { client, socket } = await connected()
+      const pending = client.precise("frozen", { final_generation: true })
+      const check = expect(pending).rejects.toMatchObject({ code: "INVALID_QUALIFICATION" })
+      const candidate = { tokens: [0], composite: 1, text: "f", metrics: {
+        kernel_version: "native-gpu-v1", native_eval_precision: "f64", native_strict_passed: false },
+        qualification: { status, reasons: [] } }
+      socket.reply(socket.sent.at(-1)!, { champions: [candidate], best_seen: [], research_candidates: [candidate],
+        pending_candidates: [], rejected_candidates: [], qualification_requirements: {} })
+      await check
+      client.close()
+    }
+  })
+
   it("keeps coarse ranking distinct from authoritative metrics", async () => {
     const { client, socket } = await connected()
     const pending = client.rankShards("s", [[0]])
