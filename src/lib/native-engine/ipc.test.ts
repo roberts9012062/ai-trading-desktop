@@ -1,11 +1,12 @@
 import { decode, encode } from "@msgpack/msgpack"
 import { describe, expect, it, vi } from "vitest"
 import { NativeEngineClient } from "./ipc"
+import { NATIVE_ENGINE_VERSION } from "./version"
 
-const hello = { engine_version: "native-gpu-v1-m2.5", backend: "cuda", fp64_supported: true,
+const hello = { engine_version: NATIVE_ENGINE_VERSION, backend: "cuda", fp64_supported: true,
   device_name: "fixture", sm_count: 20, vram_mb: 6140,
   selfcheck: { passed: true, token_count: 20, eval_precision: "f64" as const, coarse_passed: null,
-    features_passed: true, reports_passed: true, selection_passed: true }, precision: "f64" }
+    features_passed: true, reports_passed: true, selection_passed: true, portfolio_passed: true }, precision: "f64" }
 const endpoint = { port: 12345, token: "test-secret-32-characters-long", pid: 1, hello }
 
 class Socket extends EventTarget {
@@ -35,7 +36,7 @@ async function connected() {
 }
 
 describe("Native IPC", () => {
-  it.each(["features_passed", "reports_passed", "selection_passed"])("refuses failed or missing %s startup checks", async (key) => {
+  it.each(["features_passed", "reports_passed", "selection_passed", "portfolio_passed"])("refuses failed or missing %s startup checks", async (key) => {
     for (const value of [false, undefined]) {
       const socket = new Socket()
       socket.send = (frame) => {

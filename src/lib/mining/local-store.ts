@@ -20,6 +20,13 @@ export type LocalTaskStatus =
 
 /** 本地任务持久化记录(内部字段不进对外 MiningTask 视图) */
 export interface LocalTaskRecord {
+  engineTag?: string
+  engineVersion?: string
+  actualEngine?: "cpu" | "gpu" | "native-gpu"
+  nativeRestarts?: number
+  qualificationCounts?: import("./backends/types").GenerationStep["qualificationCounts"]
+  qualificationReasons?: string[]
+  nativePhase?: string | null
   id: string
   name: string
   config: MiningConfig
@@ -55,6 +62,9 @@ export interface LocalTaskRecord {
 
 export function toMiningTask(r: LocalTaskRecord): MiningTask {
   return {
+    ...(r.deviceWanted === "native-gpu" ? { engineTag: r.engineTag, engineVersion: r.engineVersion,
+      actualEngine: r.actualEngine, nativeRestarts: r.nativeRestarts, qualificationCounts: r.qualificationCounts,
+      qualificationReasons: r.qualificationReasons, nativePhase: r.nativePhase } : {}),
     id: r.id,
     origin: "local",
     device: r.deviceWanted,

@@ -402,6 +402,13 @@ class GpuDedup:
 
 def precise(session, payload):
     session._alive()
+    # Resident-buffer estimate is UI metadata only. The pure-Python walk over
+    # the accumulated dedup/strict caches costs hundreds of milliseconds, so
+    # the session cache is filled before this generation populates them and
+    # refreshed only after the final portfolio really allocated new buffers.
+    if getattr(session, 'gpu_buffer_mb', None) is None:
+        from .memory import session_buffer_mb
+        session.gpu_buffer_mb = session_buffer_mb(session)
     if session.prepared is None:
         raise ValueError('Features not prepared')
     if session.strict_context is None:
@@ -443,8 +450,17 @@ def precise(session, payload):
         best = sorted(best, key=lambda x:x[0], reverse=True)[:60]
     requirements = requirements_for_context(session.strict_context.metadata, len(session.prepared['bars']))
     qualified = qualify_candidates(champions, requirements, final_generation=final)
-    return {'champions': qualified['champions'], 'research_candidates': champions,
+    result = {'champions': qualified['champions'], 'research_candidates': champions,
             'pending_candidates': qualified['pending'], 'rejected_candidates': qualified['rejected'],
             'qualification_requirements': requirements,
             'best_seen': [{'composite': comp, 'tokens': tokens, 'metrics': _round_metrics(metrics)}
                                                 for comp, tokens, metrics in best]}
+    if payload.get('include_portfolio'):
+        from .portfolio_ti import evaluate_portfolio
+        portfolio = evaluate_portfolio(session, qualified['champions']) if final else None
+        result['portfolio'] = portfolio
+        if portfolio is not None:
+            from .memory import session_buffer_mb
+            session.gpu_buffer_mb = session_buffer_mb(session)
+    result['gpu_buffer_mb'] = session.gpu_buffer_mb
+    return result

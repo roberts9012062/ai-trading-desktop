@@ -32,13 +32,13 @@ import {
 
 /** 本地引擎类型:本地 CPU(Pyodide) / 本地 GPU(WebGPU 粗排+内核精算)。
  *  服务端引擎已下线:类型保留 "server" 以兼容旧持久化值,读取时回退 cpu。 */
-export type FactorEngine = "server" | "cpu" | "gpu"
+export type FactorEngine = "server" | "cpu" | "gpu" | "native-gpu"
 
 function readEngine(): FactorEngine {
   if (typeof window === "undefined") return "cpu"
   try {
     const v = localStorage.getItem("qh_factor_engine")
-    if (v === "cpu" || v === "gpu") return v
+    if (v === "cpu" || v === "gpu" || v === "native-gpu") return v
     // 旧值 "server"(含旧键迁移值)一律回退本地 CPU
   } catch {
     // 忽略存储异常
@@ -75,6 +75,8 @@ export interface FactorLabPageState {
   /** 计算引擎三态与进度提示 */
   engine: FactorEngine
   setEngine: (v: FactorEngine) => void
+  nativePrecision: "mixed" | "f64"
+  setNativePrecision: (value: "mixed" | "f64") => void
   progressNote: string | null
   /** 本地挖掘结构化进度(与超级因子任务面板同款:代数/最优/并行度);非搜索期为 null */
   searchStep: LocalSearchStep | null
@@ -167,6 +169,13 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
   const [symbol, setSymbol] = useState("")
   // 计算引擎三态;持久化用户选择(qh_factor_engine,自旧键一次性迁移)
   const [engine, setEngineState] = useState<FactorEngine>(readEngine)
+  const [nativePrecision, setNativePrecisionState] = useState<"mixed" | "f64">(() => {
+    try { return localStorage.getItem("qh_native_precision") === "f64" ? "f64" : "mixed" } catch { return "mixed" }
+  })
+  const setNativePrecision = useCallback((value: "mixed" | "f64") => {
+    setNativePrecisionState(value)
+    try { localStorage.setItem("qh_native_precision", value) } catch { /* Preference storage is optional. */ }
+  }, [])
   const [progressNote, setProgressNote] = useState<string | null>(null)
   // 后台搜索任务:module 级 runner 驱动,页面切走/回来搜索不断
   const [bgTask, setBgTask] = useState<FactorSearchTask | null>(factorLabRunner.current)
@@ -201,6 +210,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     }
   }, [])
   const cancelLocalSearch = useCallback(() => {
+    if (factorLabRunner.current?.nativeRequested) { factorLabRunner.stop(); return }
     void import("@/lib/py-worker").then(({ cancelPyWorker }) =>
       cancelPyWorker("已取消本地搜索"),
     )
@@ -305,6 +315,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
       await factorLabRunner.start(
         {
           symbol: p.symbol,
+          ...(engine === "native-gpu" ? { native_precision: nativePrecision } : {}),
           data_channel: p.data_channel,
           timeframe: p.timeframe,
           population: p.population,
@@ -318,7 +329,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
           ...(p.enhanced ? { selection_v2: true, evolve_v2: true } : {}),
           ...(p.start_date && p.end_date ? { start_date: p.start_date, end_date: p.end_date } : {}),
         },
-        engine === "gpu" ? "gpu" : "cpu",
+        engine === "native-gpu" ? "native-gpu" : engine === "gpu" ? "gpu" : "cpu",
         p,
       )
     } catch (e) {
@@ -345,6 +356,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
         await factorLabRunner.start(
           {
             symbol: p.symbol,
+            ...(engine === "native-gpu" ? { native_precision: nativePrecision } : {}),
             data_channel: p.data_channel,
             timeframe: p.timeframe,
             population: p.population,
@@ -359,7 +371,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
             ...(p.enhanced ? { selection_v2: true, evolve_v2: true } : {}),
             ...(p.start_date && p.end_date ? { start_date: p.start_date, end_date: p.end_date } : {}),
           },
-          engine === "gpu" ? "gpu" : "cpu",
+          engine === "native-gpu" ? "native-gpu" : engine === "gpu" ? "gpu" : "cpu",
           { ...p, seed: p.seed + 1 },
         )
         return
@@ -625,6 +637,8 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     handleSearch,
     handleEvolve,
     engine,
+    nativePrecision,
+    setNativePrecision,
     setEngine,
     progressNote,
     searchStep,

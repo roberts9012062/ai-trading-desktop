@@ -21,6 +21,8 @@ export interface EvalRequest {
   config: MiningConfig
   startGeneration: number
   seedBest?: SerializedBest[]
+  nativeRestarts?: number
+  actualEngine?: "cpu" | "gpu" | "native-gpu"
 }
 
 /** GPU 路径的代级活动统计(「GPU 在干活」的可见证据;local-runner 透传到 UI) */
@@ -42,6 +44,7 @@ export interface GpuStepStats {
 }
 
 export interface GenerationStep {
+  nativePortfolio?: import("@/lib/factor-lab-api").PortfolioResult | null
   /** 已完成代数(1-based) */
   generation: number
   totalGenerations: number
@@ -52,6 +55,14 @@ export interface GenerationStep {
   elapsedMs: number
   /** GPU 路径才有:粗排吞吐/缓存/显存/精算并行度 */
   gpuStats?: GpuStepStats
+  engineTag?: string
+  engineVersion?: string
+  actualEngine?: "cpu" | "gpu" | "native-gpu"
+  bestSeen?: SerializedBest[]
+  nativeRestarts?: number
+  qualificationCounts?: { research: number; qualified: number; pending: number; rejected: number }
+  qualificationReasons?: string[]
+  recoveryReason?: string
 }
 
 export interface ComputeBackend {

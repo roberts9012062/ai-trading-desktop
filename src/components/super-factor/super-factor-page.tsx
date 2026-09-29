@@ -31,6 +31,8 @@ import { DataChannelSelect } from "@/components/common/data-channel-select"
 import { DEFAULT_KLINE_CHANNEL } from "@/lib/kline-channels"
 import { PresetPicker, type MiningPreset } from "./mining-presets"
 import { useMiningTasks, useTaskChampions } from "./use-mining-tasks"
+import { useNativeAvailability } from "@/lib/native-engine/use-native-availability"
+import { qualificationReasonLabel } from "@/lib/native-engine/progress"
 
 const STATUS_STYLE: Record<string, string> = {
   pending: "bg-yellow-500/15 text-yellow-500",
@@ -173,6 +175,7 @@ export function SuperFactorPage(): React.JSX.Element {
                     max_depth: p.max_depth,
                     train_ratio: p.train_ratio,
                     walk_forward_folds: p.walk_forward_folds,
+                    ...(p.device === "native-gpu" ? { native_precision: p.nativePrecision } : {}),
                     ...(p.origin === "local" && p.islands > 1 ? { islands: p.islands } : {}),
                     ...(p.llmSeedTokens?.length ? { seed_tokens: p.llmSeedTokens } : {}),
                     ...(p.crossPeers?.length ? { cross_peers: p.crossPeers } : {}),
@@ -243,6 +246,7 @@ interface ConfigFormProps {
     islands: number
     origin: RunnerKind
     device: DeviceKind
+    nativePrecision?: "mixed" | "f64"
     name: string
     /** LLM 生成的种子候选(表单提交前已生成并校验) */
     llmSeedTokens?: number[][]
@@ -274,6 +278,8 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
   const [origin, setOrigin] = useState<RunnerKind>("local")
   useEffect(() => { if (origin !== "local" && dataChannel === "gate_usdt") setDataChannel("binance_spot") }, [origin, dataChannel])
   const [device, setDevice] = useState<DeviceKind>("auto")
+  const [nativePrecision, setNativePrecision] = useState<"mixed" | "f64">("mixed")
+  const native = useNativeAvailability(device === "native-gpu", nativePrecision)
   // GPU 可用性探测(置灰 GPU 选项并给出原因)
   const [gpuAvailable, setGpuAvailable] = useState<boolean | null>(null)
   const [gpuReason, setGpuReason] = useState<string | null>(null)
@@ -419,6 +425,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
         islands: clampInt(islands, 1, 8, 1),
         origin,
         device: origin === "local" ? device : "cpu",
+        ...(device === "native-gpu" ? { nativePrecision } : {}),
         name: origin === "local" ? `本挖·${symbol}·${timeframe}` : `超挖·${symbol}·${timeframe}`,
         ...(llmSeedTokens?.length ? { llmSeedTokens } : {}),
         ...(crossPeers?.length ? { crossPeers, jointTraining } : {}),
@@ -533,10 +540,11 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
                 { value: "auto", label: "自动" },
                 { value: "cpu", label: "CPU" },
                 { value: "gpu", label: "GPU" },
+                { value: "native-gpu", label: "本地 GPU（原生）" },
               ] as const
             ).map((o) => {
               const on = device === o.value
-              const disabled = o.value === "gpu" && gpuAvailable === false
+              const disabled = (o.value === "gpu" && gpuAvailable === false) || (o.value === "native-gpu" && native.available === false)
               return (
                 <button
                   key={o.value}
@@ -544,7 +552,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
                   disabled={disabled}
                   onClick={() => setDevice(o.value)}
                   title={
-                    o.value === "gpu"
+                    o.value === "native-gpu" ? native.reason ?? native.detail ?? "CUDA 全管线与 f64 权威精算，首次启动运行自检" : o.value === "gpu"
                       ? disabled
                         ? `GPU 不可用：${gpuReason ?? "未探测到 WebGPU"}`
                         : "WebGPU(f32)粗排 + 本地内核(f64)精算；冠军指标与 CPU 口径一致"
@@ -564,6 +572,16 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
               )
             })}
           </div>
+          {device === "native-gpu" && <details className="text-[11px] text-[var(--text-muted)]">
+            <summary>原生精度选项</summary>
+            <label className="flex items-center gap-2 mt-2">
+              <input type="checkbox" checked={nativePrecision === "f64"}
+                onChange={event => setNativePrecision(event.target.checked ? "f64" : "mixed")} />
+              Float64 严格模式（默认混合，两者均用 GPU f64 权威精算）
+            </label>
+            <p>{native.reason ?? native.detail ?? "首次启动需进行 GPU 自检与编译"}</p>
+            {native.available === false && <button type="button" onClick={native.retry}>重新探测</button>}
+          </details>}
         </div>
       )}
 
@@ -1112,7 +1130,7 @@ function TaskDetailPanel(props: DetailProps): React.JSX.Element {
           : null
         return (
           <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-2 text-[11px] font-num flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span className="text-[var(--text-secondary)] font-medium">GPU 活动</span>
+            <span className="text-[var(--text-secondary)] font-medium">{task.actualEngine === "native-gpu" ? `原生 GPU · ${g.shardWorkers} SM` : "GPU 活动"}</span>
             <span title="唯一候选的提交与读回墙钟耗时,不是 GPU 硬件忙碌时间或利用率">
               GPU 实算 <span className="text-emerald-500">{g.gpuEvaluated ?? Math.max(0, g.evaluated - g.cacheHits)}</span> 条/代
               （缓存命中 {g.cacheHits}）· 提交及读回 {g.rankMs}ms
@@ -1120,8 +1138,8 @@ function TaskDetailPanel(props: DetailProps): React.JSX.Element {
             <span title="批缓冲(tile×栈层×T)估算;系统监控里的总显存还包括 WebView2 基础占用">
               显存 ~{g.gpuMemMB}MB
             </span>
-            <span title="精算名单内的候选全部由内核 f64 重算;GPU 只负责排序选名单,其数字不出现在任何结果里">
-              精算 内核 f64 验证{g.preciseMs != null ? ` ${g.preciseMs}ms` : ""}
+            <span title={task.actualEngine === "native-gpu" ? "权威评估、严格筛和指标均来自 CUDA f64" : "精算名单内的候选全部由内核 f64 重算;GPU 只负责排序选名单,其数字不出现在任何结果里"}>
+              {task.actualEngine === "native-gpu" ? "GPU f64 精算" : "精算 内核 f64 验证"}{g.preciseMs != null ? ` ${g.preciseMs}ms` : ""}
             </span>
             {perGen != null && (
               <span>每代均耗 {perGen < 1000 ? `${Math.round(perGen)}ms` : `${(perGen / 1000).toFixed(2)}s`}</span>
@@ -1129,6 +1147,12 @@ function TaskDetailPanel(props: DetailProps): React.JSX.Element {
           </div>
         )
       })()}
+      {task.qualificationCounts && <p className="text-xs text-[var(--text-muted)]">
+        合格 {task.qualificationCounts.qualified} · 待封存揭示 {task.qualificationCounts.pending} · 未通过 {task.qualificationCounts.rejected}
+        {task.engineTag && ` · ${task.engineTag}`} · 自动重启 {task.nativeRestarts ?? 0}/3
+      </p>}
+      {task.nativePhase && <p className="text-xs text-emerald-500">{task.nativePhase}</p>}
+      {task.qualificationReasons?.length ? <p className="text-xs text-[var(--text-muted)]">{task.qualificationReasons.map(qualificationReasonLabel).join("；")}</p> : null}
 
       {/* 错误信息 */}
       {task.error_msg && (

@@ -53,6 +53,14 @@ export async function probeGpu(): Promise<GpuProbeResult> {
 }
 
 export async function resolveDevice(want: DeviceKind): Promise<DeviceResolution> {
+  if (want === "native-gpu") {
+    const { isTauri } = await import("@tauri-apps/api/core")
+    // Capability/G1 is checked by the backend at launch, without reserving
+    // a second resident session here. A browser cannot launch the sidecar.
+    if (isTauri()) return { device: "gpu", degraded: false }
+    const fallback = await resolveDevice("gpu")
+    return { ...fallback, degraded: true, reason: "原生 GPU 仅在桌面端可用，将按 WebGPU → CPU 降级" }
+  }
   if (want === "cpu") return { device: "cpu", degraded: false }
   const probe = await probeGpu()
   if (probe.available) return { device: "gpu", degraded: false }

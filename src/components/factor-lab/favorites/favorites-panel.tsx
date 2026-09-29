@@ -5,6 +5,7 @@
  */
 
 import { useState } from "react"
+import { groupNativeOrigins, nativeOrigin } from "@/lib/native-engine/origin"
 import {
   patchFactorFavorite,
   type FactorFavoriteItem,
@@ -73,7 +74,9 @@ export function FavoritesPanel(
         </div>
       ) : (
         <ul className="space-y-1.5 max-h-56 overflow-y-auto">
-          {items.map((it) => (
+          {groupNativeOrigins(items).flatMap(group => [
+            ...(group.label ? [<li key={`origin-${group.label}`} className="text-[10px] text-[var(--text-muted)] pt-1">{group.label}</li>] : []),
+            ...group.items.map((it) => (
             <li
               key={it.id}
               className="rounded-md border border-[var(--border)] bg-[var(--bg-tertiary)]/40 px-2 py-1.5 text-[11px]"
@@ -122,6 +125,7 @@ export function FavoritesPanel(
                   </button>
                   <div className="flex gap-2 mt-1 text-[var(--text-muted)]">
                     {it.symbol && <span>{it.symbol}</span>}
+                    {nativeOrigin(it.metrics) && <span title={nativeOrigin(it.metrics) ?? undefined}>原生 GPU · f64</span>}
                     {it.composite != null && (
                       <span className="font-num">{it.composite.toFixed(2)}</span>
                     )}
@@ -143,7 +147,7 @@ export function FavoritesPanel(
                 </>
               )}
             </li>
-          ))}
+          ))])}
         </ul>
       )}
     </div>

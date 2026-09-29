@@ -69,7 +69,8 @@ def acceptance(result, sampling):
                    and result.get('rejected_candidates') == expected['rejected'])
     return {'complete_scenario': complete, 'every_generation_le_5000ms': timings,
             'sustained_gpu_ge_60pct': utilization, 'champion_qualification_valid': quality,
-            'passed': complete and timings and utilization and quality}
+            'vram_peak_below_70pct': sampling['vram_peak_fraction'] < .7,
+            'passed': complete and timings and utilization and quality and sampling['vram_peak_fraction'] < .7}
 
 
 def main():

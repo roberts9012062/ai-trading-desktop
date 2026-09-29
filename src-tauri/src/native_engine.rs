@@ -80,10 +80,14 @@ fn parse_ready(line: &str, pid: u32) -> Result<Option<NativeEndpoint>, String> {
         || hello["selfcheck"]["passed"] != true
         || hello["selfcheck"]["token_count"] != 20
         || hello["selfcheck"]["eval_precision"] != "f64"
+        || hello["selfcheck"]["features_passed"] != true
+        || hello["selfcheck"]["reports_passed"] != true
+        || hello["selfcheck"]["selection_passed"] != true
+        || hello["selfcheck"]["portfolio_passed"] != true
         || (hello["precision"] == "mixed" && hello["selfcheck"]["coarse_passed"] != true)
         || !hello["engine_version"]
             .as_str()
-            .is_some_and(|s| s.starts_with("native-gpu-v1-"))
+            .is_some_and(|s| s == include_str!("../../native-engine/VERSION").trim())
     {
         return Err("Native CUDA capabilities / G1 selfcheck failed".into());
     }
@@ -297,8 +301,9 @@ mod tests {
 
     fn ready() -> serde_json::Value {
         serde_json::json!({"type":"native_engine_ready", "port":12345, "token":"a".repeat(32),
-          "hello":{"engine_version":"native-gpu-v1-m1.1", "backend":"cuda", "fp64_supported":true,
-                   "precision":"f64", "selfcheck":{"passed":true,"token_count":20,"eval_precision":"f64"}}})
+          "hello":{"engine_version":include_str!("../../native-engine/VERSION").trim(), "backend":"cuda", "fp64_supported":true,
+                   "precision":"f64", "selfcheck":{"passed":true,"token_count":20,"eval_precision":"f64",
+                     "features_passed":true,"reports_passed":true,"selection_passed":true,"portfolio_passed":true}}})
     }
 
     #[test]

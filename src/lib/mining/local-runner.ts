@@ -23,6 +23,9 @@ import type { MiningRunner } from "./runner"
 import type { DeviceKind, MiningConfig, MiningTask, RunnerKind } from "./types"
 import { CpuBackend } from "./backends/cpu-backend"
 import { GpuBackend } from "./backends/gpu-backend"
+import { NativeRecoveryBackend } from "./backends/native-recovery-backend"
+import { NativeRecoveryPaused } from "@/lib/native-engine/recovery"
+import { NATIVE_ENGINE_TAG, NATIVE_ENGINE_VERSION } from "@/lib/native-engine/version"
 import type { ComputeBackend } from "./backends/types"
 import {
   acquireBarsSnapshot,
@@ -50,7 +53,7 @@ let taskSeq = 0
 
 export interface LocalRunnerOptions {
   /** 按任务实际算力构造后端;默认 CPU→CpuBackend、GPU→GpuBackend */
-  backendFactory?: (device: "cpu" | "gpu") => ComputeBackend
+  backendFactory?: (device: "cpu" | "gpu" | "native-gpu", config?: MiningConfig) => ComputeBackend
 }
 
 export class LocalMiningRunner implements MiningRunner {
@@ -61,11 +64,11 @@ export class LocalMiningRunner implements MiningRunner {
   #runningId: string | null = null
   #listeners = new Set<(t: MiningTask) => void>()
   #bootPromise: Promise<void>
-  #backendFactory: (device: "cpu" | "gpu") => ComputeBackend
+  #backendFactory: NonNullable<LocalRunnerOptions["backendFactory"]>
 
   constructor(opts: LocalRunnerOptions = {}) {
     this.#backendFactory =
-      opts.backendFactory ?? ((d) => (d === "gpu" ? new GpuBackend() : new CpuBackend()))
+      opts.backendFactory ?? ((d, config) => d === "native-gpu" ? new NativeRecoveryBackend({ precision: config?.native_precision }) : (d === "gpu" ? new GpuBackend() : new CpuBackend()))
     this.#bootPromise = this.#boot()
   }
 
@@ -122,7 +125,8 @@ export class LocalMiningRunner implements MiningRunner {
     const isCrypto = config.crypto_profile ?? isCryptoSymbol(config.symbol)
     config = {
       ...config,
-      kernel_version: LOCAL_MINING_KERNEL_VERSION,
+      kernel_version: opts.device === "native-gpu" ? NATIVE_ENGINE_TAG : LOCAL_MINING_KERNEL_VERSION,
+      ...(opts.device === "native-gpu" ? { native_engine_version: NATIVE_ENGINE_VERSION } : {}),
       crypto_profile: isCrypto,
       // 加密币增强挖掘:启用 crypto_local_v2 研究契约(60/20/20 切分+严格因果归一化+
       // 可执行口径,见 factor_local.py);非加密币或未开启增强时不设置(内核用默认口径)
@@ -215,7 +219,10 @@ export class LocalMiningRunner implements MiningRunner {
     await this.#ready()
     const rec = this.#records.get(id)
     if (!rec || rec.status !== "paused") return
-    if (rec.config.crypto_profile && rec.config.kernel_version !== LOCAL_MINING_KERNEL_VERSION) {
+    if (rec.deviceWanted === "native-gpu" && rec.config.native_engine_version !== NATIVE_ENGINE_VERSION) {
+      throw new Error("该任务使用旧版原生引擎，请新建任务，避免混用历史评分")
+    }
+    if (rec.deviceWanted !== "native-gpu" && rec.config.crypto_profile && rec.config.kernel_version !== LOCAL_MINING_KERNEL_VERSION) {
       throw new Error("该任务使用旧版加密挖掘内核，请新建任务，避免混用历史评分")
     }
     rec.status = "pending"
@@ -273,6 +280,7 @@ export class LocalMiningRunner implements MiningRunner {
 
   /** 冠军组合评估(mine_portfolio 内核模式;<2 个冠军或失败返回 null) */
   async #evalPortfolio(rec: LocalTaskRecord): Promise<PortfolioResult | null> {
+    if (rec.actualEngine === "native-gpu") return rec.portfolio ?? null
     if (rec.latest_champions.length < 2) return null
     try {
       const snapshot = await getBarsSnapshot(rec.snapshotId)
@@ -308,7 +316,23 @@ export class LocalMiningRunner implements MiningRunner {
     let hadProgress = false
     const controller = new AbortController()
     this.#controllers.set(id, controller)
-    const backend = this.#backendFactory(rec.effectiveDevice)
+    const native = rec.deviceWanted === "native-gpu"
+    const backend = native ? this.#backendFactory("native-gpu", rec.config) : this.#backendFactory(rec.effectiveDevice)
+    if (backend instanceof NativeRecoveryBackend) backend.setStageHandler(message => {
+      if (rec.status === "running") { rec.nativePhase = message; this.#emit(toMiningTask(rec)) }
+    })
+    if (backend instanceof NativeRecoveryBackend) backend.setRecoveryHandler(async state => {
+      if ((rec.actualEngine ?? "native-gpu") !== state.engine) {
+        rec.latest_champions = []; rec.champions_count = 0; rec.portfolio = null
+        rec.engineTag = undefined; rec.engineVersion = undefined
+      }
+      rec.nativeRestarts = state.restarts
+      rec.actualEngine = state.engine
+      rec.pause_reason = state.reason
+      rec.updated_at = nowIso()
+      await putLocalTask(rec)
+      this.#emit(toMiningTask(rec))
+    })
     try {
       const gen = backend.run(
         {
@@ -316,6 +340,7 @@ export class LocalMiningRunner implements MiningRunner {
           config: rec.config,
           startGeneration: startGen,
           ...(rec.best_seen.length ? { seedBest: rec.best_seen } : {}),
+          ...(native ? { nativeRestarts: rec.nativeRestarts, actualEngine: rec.actualEngine } : {}),
         },
         controller.signal,
       )
@@ -332,12 +357,23 @@ export class LocalMiningRunner implements MiningRunner {
         rec.best_composite = step.bestComposite
         rec.latest_champions = step.champions
         // 续训种子:截至本代的去重 top-N 摘要(D-1 语义)
-        rec.best_seen = step.champions.map((c) => ({
+        rec.best_seen = (native && step.bestSeen) ? step.bestSeen : step.champions.map((c) => ({
           composite: c.composite,
           tokens: c.tokens,
           metrics: c.metrics as unknown as Record<string, unknown>,
         }))
         rec.champions_count = step.champions.length
+        if (native) {
+          rec.engineTag = step.engineTag; rec.engineVersion = step.engineVersion
+          rec.actualEngine = step.actualEngine ?? "native-gpu"
+          rec.effectiveDevice = rec.actualEngine === "cpu" ? "cpu" : "gpu"
+          rec.nativeRestarts = step.nativeRestarts ?? rec.nativeRestarts
+          rec.qualificationCounts = step.qualificationCounts
+          rec.qualificationReasons = step.qualificationReasons
+          rec.nativePhase = null
+          if (step.actualEngine === "native-gpu") rec.portfolio = step.nativePortfolio ?? null
+          rec.pause_reason = step.recoveryReason ?? null
+        }
         rec.elapsed_ms += step.elapsedMs
         // GPU 活动统计(每代覆盖,UI 详情面板消费)
         if (step.gpuStats) rec.gpu_stats = step.gpuStats
@@ -349,6 +385,7 @@ export class LocalMiningRunner implements MiningRunner {
       rec.updated_at = nowIso()
       if (rec.status === "running") {
         rec.status = "completed"
+        if (native) rec.nativePhase = null
         rec.progress_pct = 100
         rec.completed_at = nowIso()
         // 深挖强化 M4:完成时对冠军做组合评估(等权/IC 加权 vs 最优单因子;
@@ -360,10 +397,11 @@ export class LocalMiningRunner implements MiningRunner {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       if (rec.status === "running") {
-        if (hadProgress) {
+        if (hadProgress || (native && e instanceof NativeRecoveryPaused)) {
           // 中途断掉(如共享 worker 被 terminate):有进度,转暂停可恢复
           rec.status = "paused"
           rec.pause_reason = `本地计算中断(${msg}),已自动暂停,可手动恢复`
+          if (e instanceof NativeRecoveryPaused) rec.nativeRestarts = e.restarts
         } else {
           // 一开始就失败(快照失效/参数非法等):failed
           rec.status = "failed"

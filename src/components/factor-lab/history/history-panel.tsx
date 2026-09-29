@@ -5,6 +5,7 @@
  */
 
 import type { FactorHistoryItem } from "@/lib/factor-lab-api"
+import { groupNativeOrigins, nativeOrigin } from "@/lib/native-engine/origin"
 
 /** 历史来源标签(与服务端 FactorHistory.source 枚举对应;未知值原样展示) */
 const SOURCE_LABELS: Record<string, string> = {
@@ -64,7 +65,9 @@ export function HistoryPanel(props: HistoryPanelProps): React.JSX.Element {
         </div>
       ) : (
         <ul className="space-y-1.5 max-h-56 overflow-y-auto">
-          {items.map((it) => {
+          {groupNativeOrigins(items).flatMap(group => [
+            ...(group.label ? [<li key={`origin-${group.label}`} className="text-[10px] text-[var(--text-muted)] pt-1">{group.label}</li>] : []),
+            ...group.items.map((it) => {
             const favorited = Boolean(
               it.tokens?.length && favoritedKeys?.has(it.tokens.join(",")),
             )
@@ -89,6 +92,7 @@ export function HistoryPanel(props: HistoryPanelProps): React.JSX.Element {
                   </span>
                   <span>{it.timeframe}</span>
                   <span>{SOURCE_LABELS[it.source] ?? it.source}</span>
+                  {nativeOrigin(it.metrics) && <span title={nativeOrigin(it.metrics) ?? undefined}>原生 GPU · f64</span>}
                   <button
                     type="button"
                     disabled={favorited}
@@ -114,7 +118,7 @@ export function HistoryPanel(props: HistoryPanelProps): React.JSX.Element {
                 </div>
               </li>
             )
-          })}
+          })])}
         </ul>
       )}
     </div>

@@ -28,6 +28,9 @@ import {
 } from "@/lib/local-factor"
 import { isCryptoSymbol } from "@/lib/mining/crypto-profile"
 import type { KlineBar } from "@/types"
+import type { SerializedBest } from "./backends/types"
+import { NativeRecoveryPaused } from "@/lib/native-engine/recovery"
+import { NATIVE_ENGINE_VERSION } from "@/lib/native-engine/version"
 
 export type FactorSearchStatus =
   | "fetching"
@@ -38,6 +41,11 @@ export type FactorSearchStatus =
   | "failed"
 
 export interface FactorSearchTask {
+  nativePortfolio?: SearchResult["portfolio"]
+  nativeRequested?: boolean
+  nativeRestarts?: number
+  nativeEngineVersion?: string
+  bestSeen?: SerializedBest[]
   id: string
   status: FactorSearchStatus
   /** 提交时的搜索载荷(历史落库/结果采纳/恢复重跑用) */
@@ -68,11 +76,13 @@ const TERMINAL = new Set<FactorSearchStatus>(["completed", "cancelled", "failed"
 
 let seq = 0
 
-class FactorLabSearchRunner {
+export class FactorLabSearchRunner {
   #task: FactorSearchTask | null = null
   #bars: KlineBar[] | null = null
   #controller: AbortController | null = null
   #listeners = new Set<Listener>()
+  #nativePending: Promise<void> | null = null
+  constructor(private options: { prepareNativeBars?: typeof prepareSearchBars } = {}) {}
 
   get current(): FactorSearchTask | null {
     return this.#task
@@ -120,6 +130,8 @@ class FactorLabSearchRunner {
       payload: { ...payload },
       form,
       engine,
+      ...(engine === "native-gpu" ? { nativeRequested: true, nativeRestarts: 0,
+        nativeEngineVersion: NATIVE_ENGINE_VERSION, bestSeen: [] } : {}),
       generation: 0,
       totalGenerations: payload.generations,
       bestComposite: 0,
@@ -134,7 +146,11 @@ class FactorLabSearchRunner {
       phase: "拉取 K 线数据…",
     }
     this.#emit()
-    await this.#dispatch(id)
+    if (engine === "native-gpu") {
+      const pending = this.#dispatch(id)
+      this.#nativePending = pending
+      try { await pending } finally { if (this.#nativePending === pending) this.#nativePending = null }
+    } else await this.#dispatch(id)
   }
 
   /** 代边界暂停:当前这代会算完,之后停在已完成代数上 */
@@ -149,9 +165,18 @@ class FactorLabSearchRunner {
   async resume(): Promise<void> {
     const t = this.#task
     if (!t || t.status !== "paused") return
+    if (t.nativeRequested) {
+      await this.#nativePending
+      if (this.#task !== t || t.status !== "paused") return
+      if (t.nativeEngineVersion !== NATIVE_ENGINE_VERSION) throw new Error("原生引擎版本已改变，请新建任务")
+    }
     this.#controller = new AbortController()
     this.#patch({ status: "running", phase: null })
-    await this.#dispatch(t.id)
+    if (t.nativeRequested) {
+      const pending = this.#dispatch(t.id)
+      this.#nativePending = pending
+      try { await pending } finally { if (this.#nativePending === pending) this.#nativePending = null }
+    } else await this.#dispatch(t.id)
   }
 
   /** 停止:代边界中止并定格为 cancelled(保留已完成代的最优,不再继续) */
@@ -170,6 +195,14 @@ class FactorLabSearchRunner {
         return
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
+        if (this.#task.nativeRequested) {
+          if (!controller.signal.aborted && !TERMINAL.has(this.#task.status)) {
+            this.#patch(e instanceof NativeRecoveryPaused
+              ? { status: "paused", nativeRestarts: e.restarts, error: null, phase: msg }
+              : { status: "failed", error: msg, phase: null })
+          }
+          return
+        }
         const paused = this.#task.status === "paused"
         if (
           this.#task.engine === "gpu" &&
@@ -197,7 +230,8 @@ class FactorLabSearchRunner {
     if (!task || task.id !== id) return
 
     if (this.#bars === null) {
-      const bars = await prepareSearchBars(task.payload, (msg) => this.#patch({ phase: msg }))
+      const prepare = task.nativeRequested ? this.options.prepareNativeBars ?? prepareSearchBars : prepareSearchBars
+      const bars = await prepare(task.payload, (msg) => this.#patch({ phase: msg }))
       if (controller.signal.aborted || this.#task !== task) return
       this.#bars = bars
       this.#patch({ bars: bars.length })
@@ -205,16 +239,24 @@ class FactorLabSearchRunner {
     const bars = this.#bars
     // 引擎取任务当前值(GPU 失败回退时 #patch 已把同一任务对象的 engine 改为 cpu)
     const engine: LocalSearchEngine = task.engine
-    const backend = await createSearchBackend(engine)
+    const native = task.nativeRequested === true
+    const backend = await createSearchBackend(native ? "native-gpu" : engine, native ? {
+      precision: task.payload.native_precision,
+      onStage: message => { if (this.#task === task && !controller.signal.aborted) this.#patch({ phase: message }) },
+      onRecovery: state => {
+        if (this.#task === task) this.#patch({ nativeRestarts: state.restarts, engine: state.engine, phase: state.reason,
+          ...(task.engine !== state.engine ? { champions: [], lastStep: null, nativePortfolio: null } : {}) })
+      },
+    } : undefined)
     this.#patch({
       status: task.status === "fetching" ? "running" : this.#task!.status,
       phase:
-        engine === "gpu"
+        native ? "原生 GPU 启动中：正在验证 CUDA 和 20 条确定性自检，首次编译约需 2–4 分钟…" : engine === "gpu"
           ? "GPU 引擎启动中：初始化本地计算内核（组件已内置安装包；多 worker 并行加载期间安静属正常）…"
           : "本地多核引擎启动中：初始化本地计算内核（组件已内置安装包，通常秒级；多 worker 并行加载期间安静属正常）…",
     })
 
-    const seedBest = task.champions.length
+    const seedBest = native ? task.bestSeen : task.champions.length
       ? task.champions.map((c) => ({
           composite: c.composite,
           tokens: c.tokens,
@@ -228,12 +270,14 @@ class FactorLabSearchRunner {
         config: buildSearchConfig(task.payload),
         startGeneration: task.generation,
         ...(seedBest ? { seedBest } : {}),
+        ...(native ? { nativeRestarts: task.nativeRestarts, actualEngine: task.engine } : {}),
       },
       controller.signal,
     )
 
     let champions: Champion[] = task.champions
     let elapsedBase = task.elapsedMs
+    try {
     while (true) {
       const r = await gen.next()
       if (r.done) {
@@ -241,7 +285,8 @@ class FactorLabSearchRunner {
         break
       }
       champions = r.value.champions
-      const step = toLocalSearchStep(r.value, engine)
+      if (native && this.#task !== task) return
+      const step = toLocalSearchStep(r.value, native ? "native-gpu" : engine)
       elapsedBase += step.elapsedMs
       // 暂停/停止落在代边界:pause()/stop() 已把状态置好,本代 patch 只记录
       // 进度(代数/最优/耗时),不得把状态强制拉回 running(否则 resume 静默失效)
@@ -253,20 +298,31 @@ class FactorLabSearchRunner {
         bestComposite: step.bestComposite,
         elapsedMs: elapsedBase,
         champions,
+        ...(native ? { bestSeen: r.value.bestSeen, nativeRestarts: r.value.nativeRestarts,
+          engine: r.value.actualEngine ?? task.engine, nativePortfolio: r.value.nativePortfolio } : {}),
         lastStep: step,
-        phase: `第 ${step.generation}/${step.totalGenerations} 代 · 当前最优 ${step.bestComposite.toFixed(2)}（${step.shardWorkers > 0 ? `${step.shardWorkers} 核并行` : "单进程"}，${bars.length} 根 K）`,
+        phase: native
+          ? `第 ${step.generation}/${step.totalGenerations} 代 · 合格 ${champions.length} · ${step.engine === "native-gpu" ? `${step.shardWorkers} SM` : step.engine === "gpu" ? "WebGPU" : "CPU 多核"}，${bars.length} 根 K`
+          : `第 ${step.generation}/${step.totalGenerations} 代 · 当前最优 ${step.bestComposite.toFixed(2)}（${step.shardWorkers > 0 ? `${step.shardWorkers} 核并行` : "单进程"}，${bars.length} 根 K）`,
       })
       if (controller.signal.aborted) {
         // pause()/stop() 在代边界触发:进度已保留,状态由调用方置好
         return
       }
     }
+    if (native && controller.signal.aborted) return
     if (this.#task !== task || TERMINAL.has(this.#task.status)) return
     this.#patch({ phase: "冠军组合评估…", champions })
-    const result = await finalizeSearchResult(task.payload, bars, champions)
+    const result = await finalizeSearchResult(task.payload, bars, champions, native ? task.engine : undefined, task.nativePortfolio)
     if (this.#task !== task || TERMINAL.has(this.#task.status)) return
     this.#patch({ status: "completed", result, champions: result.champions, phase: null })
     void this.#persistHistory(task.payload, result)
+    } finally {
+      if (native) {
+        await gen.return([]).catch(() => undefined)
+        await backend.dispose().catch(() => undefined)
+      }
+    }
   }
 
   /** 完成后 best-effort 落服务端历史(404/网络失败静默跳过) */

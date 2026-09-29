@@ -1,4 +1,5 @@
 import { decode, encode } from "@msgpack/msgpack"
+import { NATIVE_ENGINE_VERSION } from "./version"
 import type { MiningConfig } from "@/lib/mining/types"
 import type { BarsColumns, BarsMetadata, NativeEndpoint, NativeEvaluatedCandidate, NativeRankedCandidate, NativeFeatureInfo, NativeHello, NativeStrictVerdict, NativePrecisePayload, NativePreciseResult } from "./types"
 
@@ -53,7 +54,7 @@ export class NativeEngineClient {
           signal?.removeEventListener("abort", abort)
         }
         const open = () => { cleanup(); resolve() }
-        const closed = () => { cleanup(); reject(new NativeEngineError("原生引擎连接断开")) }
+        const closed = () => { cleanup(); reject(new NativeEngineError("原生引擎连接断开", "DISCONNECTED")) }
         const abort = () => { cleanup(); reject(new DOMException("已取消", "AbortError")) }
         const timer = setTimeout(() => { cleanup(); reject(new NativeEngineError("原生引擎连接超时", "TIMEOUT")) }, 30_000)
         ws.addEventListener("open", open)
@@ -62,8 +63,10 @@ export class NativeEngineClient {
         signal?.addEventListener("abort", abort, { once: true })
       })
       const hello = await this.#request<NativeHello>("hello", "", {}, false, signal, 30_000)
+      if (hello.engine_version !== NATIVE_ENGINE_VERSION) throw new NativeEngineError("原生引擎与桌面端版本不匹配，请更新完整安装包", "ENGINE_VERSION_MISMATCH")
       if (hello.backend !== "cuda" || !hello.fp64_supported || !hello.selfcheck?.passed || hello.selfcheck.token_count !== 20 ||
           hello.selfcheck.features_passed !== true || hello.selfcheck.reports_passed !== true || hello.selfcheck.selection_passed !== true ||
+          hello.selfcheck.portfolio_passed !== true ||
           hello.selfcheck.eval_precision !== "f64" || (hello.precision === "mixed" && hello.selfcheck.coarse_passed !== true) ||
           !hello.engine_version.startsWith("native-gpu-v1-")) {
         throw new NativeEngineError("原生引擎能力或确定性自检未通过", "SELF_CHECK_FAILED")
@@ -130,6 +133,16 @@ export class NativeEngineClient {
         candidate.qualification.reasons.length !== 0 || !Number.isFinite(candidate.composite) ||
         candidate.metrics?.native_strict_passed !== true || candidate.metrics?.native_eval_precision !== "f64" ||
         candidate.metrics?.kernel_version !== "native-gpu-v1") throw invalid()
+    }
+    if (result.portfolio != null) {
+      if (payload.final_generation !== true || !payload.include_portfolio || result.champions.length < 2) throw invalid()
+      const numeric = (value: unknown): boolean => {
+        if (typeof value === "number") return Number.isFinite(value)
+        if (Array.isArray(value)) return value.every(numeric)
+        if (value && typeof value === "object") return Object.values(value).every(numeric)
+        return true
+      }
+      if (!numeric(result.portfolio) || result.portfolio.n_factors !== result.champions.length) throw invalid()
     }
     return result
   }

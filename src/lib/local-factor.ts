@@ -16,8 +16,12 @@ import { fetchBacktestBars, KLINE_MAX_PAGES } from "@/lib/local-backtest"
 import { normalizeChannel } from "@/lib/kline-channels"
 import type { Champion, FactorBacktestResult, SearchResult } from "@/lib/factor-lab-api"
 import type { KlineBar } from "@/types"
+import type { NativeRecoveryBackendOptions } from "@/lib/mining/backends/native-recovery-backend"
+import { finalizeNativeSearch } from "@/lib/native-engine/finalize"
+import type { GenerationStep } from "@/lib/mining/backends/types"
 
 export interface LocalFactorPayload {
+  native_precision?: "mixed" | "f64"
   crypto_profile?: boolean
   symbol: string
   timeframe: string
@@ -48,10 +52,15 @@ export interface LocalFactorPayload {
   end_date?: string
 }
 
-export type LocalSearchEngine = "cpu" | "gpu"
+export type LocalSearchEngine = "cpu" | "gpu" | "native-gpu"
 
 /** 本地搜索的结构化进度(GenerationStep 摘要;与超级因子任务面板同源数据) */
 export interface LocalSearchStep {
+  engineTag?: string
+  engineVersion?: string
+  nativeRestarts?: number
+  qualificationCounts?: GenerationStep["qualificationCounts"]
+  qualificationReasons?: string[]
   /** 已完成代数(1-based) */
   generation: number
   totalGenerations: number
@@ -188,6 +197,7 @@ async function evaluatePortfolio(
  * 搜索共用,保证两条路径同口径) */
 export function buildSearchConfig(payload: LocalFactorPayload) {
   return {
+    ...(payload.native_precision ? { native_precision: payload.native_precision } : {}),
     symbol: payload.symbol,
     crypto_profile: payload.crypto_profile,
     timeframe: payload.timeframe,
@@ -218,6 +228,9 @@ export function toLocalSearchStep(
     bestComposite: number
     elapsedMs: number
     gpuStats?: { shardWorkers?: number; evaluated?: number; cacheHits?: number; rankMs?: number; preciseMs?: number } | undefined
+    engineTag?: string; engineVersion?: string; nativeRestarts?: number
+    actualEngine?: LocalSearchEngine; qualificationCounts?: GenerationStep["qualificationCounts"]
+    qualificationReasons?: string[]
   },
   engine: LocalSearchEngine,
 ): LocalSearchStep {
@@ -231,7 +244,10 @@ export function toLocalSearchStep(
     cacheHits: value.gpuStats?.cacheHits ?? 0,
     rankMs: value.gpuStats?.rankMs ?? 0,
     preciseMs: value.gpuStats?.preciseMs ?? 0,
-    engine,
+    engine: value.actualEngine ?? engine,
+    ...(engine === "native-gpu" ? { engineTag: value.engineTag, engineVersion: value.engineVersion,
+      nativeRestarts: value.nativeRestarts, qualificationCounts: value.qualificationCounts,
+      qualificationReasons: value.qualificationReasons } : {}),
   }
 }
 
@@ -279,14 +295,21 @@ export async function finalizeSearchResult(
   payload: LocalFactorPayload,
   bars: KlineBar[],
   champions: Champion[],
+  engine?: LocalSearchEngine,
+  nativePortfolio: SearchResult["portfolio"] = null,
 ): Promise<SearchResult> {
+  if (engine === "native-gpu") return finalizeNativeSearch(payload, bars, champions, nativePortfolio ?? null)
   await stampKernelVersion(champions)
   const portfolio = await evaluatePortfolio(payload, bars, champions)
   return toSearchResult(payload, bars, champions, portfolio)
 }
 
 /** 按引擎构造后端(后台 runner 复用;GPU 实例化失败由调用方降级) */
-export async function createSearchBackend(engine: LocalSearchEngine) {
+export async function createSearchBackend(engine: LocalSearchEngine, options?: NativeRecoveryBackendOptions) {
+  if (engine === "native-gpu") {
+    const { NativeRecoveryBackend } = await import("@/lib/mining/backends/native-recovery-backend")
+    return new NativeRecoveryBackend(options)
+  }
   if (engine === "gpu") {
     const { GpuBackend } = await import("@/lib/mining/backends/gpu-backend")
     return new GpuBackend()
@@ -381,6 +404,25 @@ export async function searchFactorsLocal(
 ): Promise<SearchResult> {
   payload = { ...payload, crypto_profile: payload.crypto_profile ?? isCryptoSymbol(payload.symbol) }
   const bars = await prepareSearchBars(payload, onProgress)
+  if (engine === "native-gpu") {
+    const backend = await createSearchBackend(engine, { precision: payload.native_precision,
+      onStage: onProgress, onRecovery: state => { onProgress?.(state.reason) } })
+    const gen = backend.runDirect(bars, { snapshotId: "direct", config: buildSearchConfig(payload), startGeneration: 0 }, new AbortController().signal)
+    let champions: Champion[] = [], actual: LocalSearchEngine = engine
+    let portfolio: SearchResult["portfolio"] = null
+    try {
+      while (true) {
+        const row = await gen.next()
+        if (row.done) { champions = row.value; break }
+        champions = row.value.champions
+        actual = row.value.actualEngine ?? actual
+        portfolio = row.value.nativePortfolio ?? null
+        onStep?.(toLocalSearchStep(row.value, engine))
+        onProgress?.(`第 ${row.value.generation}/${row.value.totalGenerations} 代 · 合格冠军 ${champions.length}`)
+      }
+      return await finalizeSearchResult(payload, bars, champions, actual, portfolio)
+    } finally { await gen.return([]); await backend.dispose() }
+  }
   if (engine === "gpu") {
     try {
       return await searchGpu(payload, bars, onProgress, onStep)

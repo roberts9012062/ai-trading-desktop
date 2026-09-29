@@ -89,10 +89,15 @@ class NativeSession:
         from .vm_ti import StackVM
         from .metrics_ti import TrainingMetrics
         frozen_config = copy.deepcopy(config)
+        from .memory import reserved_static_bytes
+        # Preflight before constructing a feature graph; low-memory cards get
+        # an actionable error rather than partial resident allocations.
+        plan_tile(len(self.bars), 62, max(1, int(config.get('population') or 3000)),
+                  self.precision, self.runtime['vram_mb'], static_bytes=reserved_static_bytes(len(self.bars)))
         prepared = prepare_features(self.bars, frozen_config)
         F, T = prepared["matrix"].shape
         tile = plan_tile(T, F, max(1, int(config.get("population") or 3000)),
-                         self.precision, self.runtime["vram_mb"])
+                         self.precision, self.runtime["vram_mb"], static_bytes=reserved_static_bytes(len(self.bars), F))
         # Preserve the missing-data mask for token admission. The CPU oracle
         # retains leading NaNs; they must not be turned into fabricated signals.
         vm = StackVM(prepared["matrix"], "f64", tile=tile,

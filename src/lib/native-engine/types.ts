@@ -1,4 +1,5 @@
 import type { MiningConfig } from "@/lib/mining/types"
+import type { PortfolioResult } from "@/lib/factor-lab-api"
 
 export type NativePrecision = "mixed" | "f64"
 export interface NativeHello {
@@ -10,7 +11,7 @@ export interface NativeHello {
   vram_mb: number
   precision: string
   selfcheck: { passed: boolean; token_count: number; eval_precision: "f64"; coarse_passed: boolean | null;
-    features_passed: boolean; reports_passed: boolean; selection_passed: boolean; sha256?: string }
+    features_passed: boolean; reports_passed: boolean; selection_passed: boolean; portfolio_passed?: boolean; sha256?: string }
 }
 export interface NativeEndpoint { port: number; token: string; pid: number; hello?: NativeHello }
 export interface NativeEvaluatedCandidate { tokens: number[]; composite: number; metrics: Record<string, unknown> }
@@ -20,11 +21,14 @@ export interface NativeChampion extends NativeEvaluatedCandidate { text: string 
 export interface NativePrecisePayload {
   candidates?: number[][]; evaluated?: NativeEvaluatedCandidate[]; best_seen?: NativeEvaluatedCandidate[]
   prefetched_strict?: NativeStrictVerdict[]; trials?: number; final_generation?: boolean
+  include_portfolio?: boolean
 }
 export interface NativeQualifiedCandidate extends NativeChampion {
   qualification: { status: "qualified" | "pending" | "rejected"; reasons: string[] }
 }
 export interface NativePreciseResult {
+  gpu_buffer_mb?: number
+  portfolio?: PortfolioResult | null
   champions: NativeQualifiedCandidate[]; best_seen: NativeEvaluatedCandidate[]
   research_candidates: NativeChampion[]
   pending_candidates: NativeQualifiedCandidate[]; rejected_candidates: NativeQualifiedCandidate[]

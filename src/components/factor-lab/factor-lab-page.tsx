@@ -26,6 +26,8 @@ import {
   championFromHistory,
 } from "./hooks/factor-helpers"
 import type { LocalSearchStep } from "@/lib/local-factor"
+import { useNativeAvailability } from "@/lib/native-engine/use-native-availability"
+import { qualificationReasonLabel } from "@/lib/native-engine/progress"
 
 /** 已收藏 tokens_key 集合（用于 Champion 表/详情/历史置灰） */
 function buildFavoritedKeys(
@@ -68,7 +70,7 @@ function SearchProgressCard(props: {
                 : "bg-emerald-600/15 text-emerald-400"
             }`}
           >
-            {step.engine === "gpu" ? "GPU 粗排+精算" : "CPU 多核"}
+            {step.engine === "native-gpu" ? "原生 GPU · f64" : step.engine === "gpu" ? "GPU 粗排+精算" : "CPU 多核"}
           </span>
           {paused && (
             <span className="px-1.5 py-0.5 rounded text-[10px] shrink-0 bg-amber-500/15 text-amber-400">
@@ -93,17 +95,20 @@ function SearchProgressCard(props: {
       </div>
       <div className="flex items-center justify-between gap-2 text-[10px] text-[var(--text-muted)] font-num flex-wrap">
         <span>
-          {step.shardWorkers > 0
+          {step.engine === "native-gpu" ? `${step.shardWorkers} SM · GPU 评估与精算` : step.shardWorkers > 0
             ? `${step.shardWorkers} 核并行评估`
             : "单进程(池不可用,已降级)"}
           {step.cacheHits > 0 &&
             ` · 缓存命中 ${step.cacheHits}/${step.evaluated}`}
         </span>
         <span>
-          并行评估 {fmtMs(step.rankMs)} · 单点精算 {fmtMs(step.preciseMs)} ·
+          并行评估 {fmtMs(step.rankMs)} · {step.engine === "native-gpu" ? "GPU 精算" : "单点精算"} {fmtMs(step.preciseMs)} ·
           本代 {fmtMs(step.elapsedMs)} · 累计 {fmtMs(elapsedMs)}
         </span>
       </div>
+      {step.qualificationCounts && <div className="text-[10px] text-[var(--text-muted)]">
+        合格 {step.qualificationCounts.qualified} · 待封存揭示 {step.qualificationCounts.pending} · 未通过 {step.qualificationCounts.rejected}
+      </div>}
       {/* 控制:暂停/继续/停止(代边界生效;切页后台继续) */}
       <div className="flex items-center gap-1.5 pt-0.5">
         {paused ? (
@@ -144,6 +149,7 @@ function SearchProgressCard(props: {
 /** 因子实验室（client） */
 export function FactorLabPage(): React.JSX.Element {
   const s = useFactorLabPage()
+  const native = useNativeAvailability(s.engine === "native-gpu", s.nativePrecision)
   const favoritedKeys = useMemo(
     () => buildFavoritedKeys(s.favorites),
     [s.favorites],
@@ -202,17 +208,18 @@ export function FactorLabPage(): React.JSX.Element {
               [
                 { value: "cpu", label: "本地 CPU", tip: "GP 搜索在本机运行(内核与 numpy 已内置,秒级启动)" },
                 { value: "gpu", label: "本地 GPU", tip: gpuTip },
+                { value: "native-gpu", label: "本地 GPU（原生）", tip: native.reason ?? native.detail ?? "CUDA GPU 计算与 f64 权威精算；首次启动运行确定性自检" },
               ] as const
             ).map((o) => {
               const on = s.engine === o.value
-              const disabled = o.value === "gpu" && gpuAvailable === false
+              const disabled = (o.value === "gpu" && gpuAvailable === false) || (o.value === "native-gpu" && native.available === false)
               return (
                 <button
                   key={o.value}
                   type="button"
                   disabled={disabled}
                   onClick={() => s.setEngine(o.value)}
-                  title={disabled ? `GPU 不可用:${gpuReason ?? "未探测到 WebGPU"}` : o.tip}
+                  title={o.value === "native-gpu" ? o.tip : disabled ? `GPU 不可用:${gpuReason ?? "未探测到 WebGPU"}` : o.tip}
                   className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
                     on
                       ? "bg-emerald-600 text-white"
@@ -225,6 +232,16 @@ export function FactorLabPage(): React.JSX.Element {
               )
             })}
           </div>
+          {s.engine === "native-gpu" && <details className="text-xs text-[var(--text-secondary)]">
+            <summary>原生精度选项</summary>
+            <label className="flex items-center gap-2 mt-2">
+              <input type="checkbox" checked={s.nativePrecision === "f64"} disabled={s.searchActive}
+                onChange={event => s.setNativePrecision(event.target.checked ? "f64" : "mixed")} />
+              Float64 严格模式（默认混合模式，两者均用 GPU f64 权威精算）
+            </label>
+            <p>{native.reason ?? native.detail ?? "首次启动需进行 GPU 自检与编译"}</p>
+            {native.available === false && <button type="button" onClick={native.retry}>重新探测</button>}
+          </details>}
         </div>
         <p className="text-xs text-[var(--text-muted)] mt-1">
           遗传规划挖因子；可选 LLM 教练进化（路线 A）或 LLM 直接生成（路线
@@ -274,6 +291,11 @@ export function FactorLabPage(): React.JSX.Element {
           onStop={s.stopSearch}
         />
       )}
+      {s.bgTask?.nativeRequested && s.bgTask.status === "completed" && s.searchStep?.qualificationCounts &&
+        <div className="text-xs text-[var(--text-muted)] rounded border border-[var(--border)] p-3">
+          合格冠军 {s.searchStep.qualificationCounts.qualified} · 未通过 {s.searchStep.qualificationCounts.rejected}
+          {s.searchStep.qualificationReasons?.length ? <p className="mt-1">{s.searchStep.qualificationReasons.map(qualificationReasonLabel).join("；")}</p> : null}
+        </div>}
 
       <FactorSearchForm
         localEngine={s.engine !== "server"}

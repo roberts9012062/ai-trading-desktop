@@ -62,6 +62,8 @@ def main():
                 "_finite_count", "_copy_row", "_copy_prefix", "_deviation", "_std", "_pnl_stats", "_copy_factor", "_as_factor", "_copy_flow", "_dot_mean", "_dot_many", "_copy_center_row")
     required += ("_phase_instruction", "_phase_copy_scratch", "_phase_prefix",
                  "_phase_statistics", "_phase_output")
+    required += ("_portfolio_copy", "_portfolio_weights", "_portfolio_combine", "_portfolio_flows",
+                 "_portfolio_means", "_portfolio_correlations", "_portfolio_corr_summary")
     compiled = dict.fromkeys(required, False)
     atomic, digest = [], hashlib.sha256()
     with log_path.open("rb") as log:

@@ -9,11 +9,13 @@ import type { Champion, PortfolioResult } from "@/lib/factor-lab-api"
 import type { GpuStepStats } from "./backends/types"
 
 export type RunnerKind = "local" | "remote"
-export type DeviceKind = "auto" | "cpu" | "gpu"
+export type DeviceKind = "auto" | "cpu" | "gpu" | "native-gpu"
 
 /** 挖掘配置(两种执行位置共用)。islands/top_n/seed/cost 仅本地路径消费,
  *  缺省由 local-runner 填默认值;服务端 CreateTaskPayload 不含这些字段。 */
 export interface MiningConfig {
+  native_precision?: "mixed" | "f64"
+  native_engine_version?: string
   crypto_profile?: boolean
   kernel_version?: string
   symbol: string
@@ -58,6 +60,13 @@ export interface MiningConfig {
 }
 
 export interface MiningTask {
+  engineTag?: string
+  engineVersion?: string
+  actualEngine?: "cpu" | "gpu" | "native-gpu"
+  nativeRestarts?: number
+  qualificationCounts?: import("./backends/types").GenerationStep["qualificationCounts"]
+  qualificationReasons?: string[]
+  nativePhase?: string | null
   id: string
   /** 任务归属的执行位置(UI 据此打「本机/服务器」标签并路由操作) */
   origin: RunnerKind

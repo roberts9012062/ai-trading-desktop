@@ -7,6 +7,7 @@ import type {
 } from "@/lib/factor-lab-api"
 import type { CreateTaskPayload } from "@/lib/ai-trading-api"
 import { CURRENT_KERNEL_VERSION } from "@/lib/kernel-version"
+import { isCurrentNativeMetrics } from "@/lib/native-engine/version"
 import type { SearchFormPayload } from "../factor-search-form"
 
 /** 默认搜索请求（回退用）
@@ -105,6 +106,7 @@ export function buildComboTaskPayload(
  *  只对历史/收藏恢复的记录生效;当次搜索的冠军是现行口径,不打标。 */
 function deriveStaleKernel(metrics: unknown): boolean {
   const v = (metrics as { kernel_version?: string } | undefined)?.kernel_version
+  if (v === "native-gpu-v1") return !isCurrentNativeMetrics(metrics as Record<string, unknown>)
   return v !== CURRENT_KERNEL_VERSION
 }
 

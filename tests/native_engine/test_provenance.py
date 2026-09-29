@@ -25,7 +25,9 @@ class ProvenanceTests(unittest.TestCase):
                    'final_generation': True}
         original = copy.deepcopy(payload)
         session = SimpleNamespace(_alive=Mock(), runtime={'engine_version': current},
-            prepared={'bars': [{}] * 10, 'cfg': SimpleNamespace(research_profile='crypto_ohlcv_v1')},
+            prepared={'bars': [{}] * 10, 'cfg': SimpleNamespace(research_profile='crypto_ohlcv_v1'),
+                      'resident_full': None, 'matrix': None},
+            vm=Mock(), coarse_vm=Mock(), metrics=Mock(), joint_context=Mock(), regime_inputs=None,
             strict_context=SimpleNamespace(verdicts={}, metadata={
                 'train_bars': [{}] * 5, 'all_bars': [{}] * 10, 'use_test': True}),
             dedup_context=SimpleNamespace(dedup=Mock(return_value=[])),

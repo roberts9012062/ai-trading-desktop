@@ -21,7 +21,7 @@ class PerformanceGateTests(unittest.TestCase):
             'sortino': 1., 'ann_ret': .1, 'native_strict_passed': True, 'test_metrics': {'sortino': 1., 'bars': 200}}}]
         qualified = qualify_candidates(result['research_candidates'], result['qualification_requirements'], final_generation=True)
         result.update(champions=qualified['champions'], pending_candidates=qualified['pending'], rejected_candidates=qualified['rejected'])
-        sampling = {'coverage': 1.0, 'sample_count': 100, 'utilization_time_weighted_percent': 60}
+        sampling = {'coverage': 1.0, 'sample_count': 100, 'utilization_time_weighted_percent': 60, 'vram_peak_fraction': .69}
         self.assertTrue(BENCH.acceptance(result, sampling)['passed'])
         result['generations'][0]['elapsedMs'] = 5000.01
         self.assertFalse(BENCH.acceptance(result, sampling)['passed'])
@@ -30,6 +30,7 @@ class PerformanceGateTests(unittest.TestCase):
         self.assertFalse(BENCH.acceptance({**result, 'generations': result['generations'][:3]}, sampling)['passed'])
         self.assertFalse(BENCH.acceptance(result, {**sampling, 'coverage': .98})['passed'])
         self.assertFalse(BENCH.acceptance({**result, 'champions': result['research_candidates']}, sampling)['passed'])
+        self.assertFalse(BENCH.acceptance(result, {**sampling, 'vram_peak_fraction': .7})['passed'])
 
     def test_sampling_weights_all_wall_time_and_excludes_startup(self):
         with tempfile.TemporaryDirectory() as tmp:

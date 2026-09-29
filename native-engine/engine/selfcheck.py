@@ -100,15 +100,35 @@ def run_startup_selfcheck(precision="mixed", *, inject_failure=False):
     selection_first, selection_second = selection_check(), selection_check()
     selection_bytes = msgpack.packb(selection_first, use_bin_type=True)
     selection_passed = selection_bytes == msgpack.packb(selection_second, use_bin_type=True)
+    # Warm final portfolio kernels on the same twenty token programs. The
+    # sealed suffix is scored once per double-run and never sets the weights.
+    from types import SimpleNamespace
+    from .portfolio_ti import evaluate_portfolio
+    portfolio_session = SimpleNamespace(
+        config={'timeframe': '15m'},
+        prepared={'bars': legacy_bars, 'resident_full': gpu_features(legacy_bars), 'cost': .0003},
+        strict_metadata={'train_bars': legacy_bars[:700], 'all_bars': legacy_bars[:900], 'use_test': True, 'plan': None})
+    portfolio_tokens = [{'tokens': tokens} for tokens in candidates]
+    portfolio_first = evaluate_portfolio(portfolio_session, portfolio_tokens, diagnostics=True)
+    portfolio_second = evaluate_portfolio(portfolio_session, portfolio_tokens, diagnostics=True)
+    portfolio_bytes = msgpack.packb(portfolio_first, use_bin_type=True)
+    def finite_report(value):
+        if isinstance(value, dict):
+            return all(finite_report(item) for item in value.values())
+        if isinstance(value, list):
+            return all(finite_report(item) for item in value)
+        return not isinstance(value, float) or np.isfinite(value)
+    portfolio_passed = bool(finite_report(portfolio_first) and portfolio_bytes == msgpack.packb(portfolio_second, use_bin_type=True))
     if inject_failure:
         second_metrics.view(np.uint64)[0, 0] ^= np.uint64(1)
-    passed = layouts_passed and features_passed and reports_passed and selection_passed and compare_bytes(first_factor, second_factor) and compare_bytes(first_metrics, second_metrics)
+    passed = layouts_passed and features_passed and reports_passed and selection_passed and portfolio_passed and compare_bytes(first_factor, second_factor) and compare_bytes(first_metrics, second_metrics)
     digest = hashlib.sha256(first_factor.tobytes() + first_metrics.tobytes())
     digest.update(feature_first.tobytes())
     digest.update(report_first.tobytes())
     digest.update(discrete_first.tobytes())
     digest.update(graph_triplet_first.tobytes())
     digest.update(selection_bytes)
+    digest.update(portfolio_bytes)
     coarse_passed = None
     if precision == "mixed":
         coarse = StackVM(matrix, "mixed", tile=20, execution_layout="candidate_block")
@@ -133,4 +153,5 @@ def run_startup_selfcheck(precision="mixed", *, inject_failure=False):
     return {"passed": bool(passed), "token_count": 20, "precision": precision,
             "eval_precision": "f64", "features_passed": features_passed, "reports_passed": reports_passed,
             "selection_passed": selection_passed, "layouts_passed": bool(layouts_passed),
+            "portfolio_passed": portfolio_passed,
             "coarse_passed": coarse_passed, "sha256": digest.hexdigest()}
