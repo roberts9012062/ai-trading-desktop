@@ -506,10 +506,27 @@ export default function ShortlineLabPage() {
         <div className="flex items-center gap-2">
           <button onClick={onCreateTask} disabled={creating || Boolean(activeTask)}
             className="px-3 py-1.5 rounded-md bg-[var(--primary)] text-white text-xs disabled:opacity-40">
-            {activeTask ? "已有任务运行中" : creating ? "创建中…" : "创建挖掘任务"}
+            {activeTask ? "已有任务运行中" : creating ? "准备任务中…" : "创建挖掘任务"}
           </button>
-          {createMsg && <span className="text-[10px] text-[var(--text-muted)] truncate">{createMsg}</span>}
+          {createMsg && !creating && <span className="text-[10px] text-[var(--text-muted)] truncate">{createMsg}</span>}
         </div>
+        {/* 任务准备进度卡:拉K线/v4注入等长步骤无逐包进度——动画条+阶段文案防误判卡死 */}
+        {creating && (
+          <div className="space-y-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)]/50 p-3">
+            <div className="flex items-center justify-between text-[10px]">
+              <span className="text-[var(--text-primary)]">任务准备中（检查算力 → 拉取 K 线 → 注入 v4 特征列 → 排队启动）</span>
+              <span className="text-emerald-400 animate-pulse">进行中…</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-[var(--bg-tertiary)] overflow-hidden">
+              <div className="shortline-prep-bar rounded-full bg-[var(--primary)]" />
+            </div>
+            <p className="text-[10px] text-[var(--text-muted)] leading-4">{createMsg ?? "启动中…"}</p>
+            <p className="text-[10px] text-[var(--text-muted)]">
+              深历史 K 线要下载数十个月包（国内链路约 100-250KB/s），可能持续数分钟——动画条在动即未卡死；
+              同币种同区间二次创建走缓存秒建。
+            </p>
+          </div>
+        )}
         {activeTask && (
           <div className="space-y-1">
             <div className="h-1.5 rounded-full bg-[var(--bg-tertiary)] overflow-hidden">

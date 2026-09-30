@@ -34,7 +34,7 @@ import {
   releaseBarsSnapshot,
 } from "./data-source"
 import { resolveDevice } from "./device"
-import { defaultFactorRangeFor } from "@/components/factor-lab/factor-range-limits"
+import { defaultFactorRangeFor, factorMaxDaysFor } from "@/components/factor-lab/factor-range-limits"
 import {
   deleteLocalTask,
   listLocalTasks,
@@ -139,7 +139,8 @@ export class LocalMiningRunner implements MiningRunner {
 
     // 历史 K 线按渠道直连拉取并冻结为本地快照;区间缺省用该周期推荐区间
     const channelLabel = config.data_channel === "okx" ? "后端转发" : config.data_channel === "gate_usdt" || config.data_channel === "gate_spot" ? "Gate 直连" : "Binance 直连"
-    progress?.(`拉取 K 线（${channelLabel}，深历史可能需要一两分钟）…`)
+    const months = Math.max(1, Math.ceil(factorMaxDaysFor(config.timeframe) / 30))
+    progress?.(`拉取 K 线（${channelLabel}，约 ${months} 个月归档包——国内链路 100-250KB/s，预计 ${months < 12 ? "1-5" : "3-10"} 分钟；本阶段无逐包进度，页面动画条在动即未卡死；同区间二次创建走缓存秒建`)
     const range = config.data_channel === "gate_usdt" ? gateResearchRange(config.timeframe) : defaultFactorRangeFor(config.timeframe, new Date())
     const snapshot = await acquireBarsSnapshot({
       symbol: config.symbol,

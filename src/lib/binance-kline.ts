@@ -81,7 +81,7 @@ export async function getBinanceKlineApi(
   })
   if (options?.endTime) params.set("endTime", String(barTimeToMs(options.endTime)))
 
-  const resp = await fetch(`${REST_BASE}/klines?${params.toString()}`)
+  const resp = await fetch(`${REST_BASE}/klines?${params.toString()}`, { signal: AbortSignal.timeout(60_000) })
   if (!resp.ok) {
     const body = (await resp.json().catch(() => null)) as { msg?: string } | null
     throw new Error(`Binance K线拉取失败(${resp.status}${body?.msg ? `: ${body.msg}` : ""})`)
@@ -128,7 +128,7 @@ export async function fetchAggTrades(
     limit: String(limit),
   })
   if (options?.endTime) params.set("endTime", String(barTimeToMs(options.endTime)))
-  const resp = await fetch(`${REST_BASE}/aggTrades?${params.toString()}`)
+  const resp = await fetch(`${REST_BASE}/aggTrades?${params.toString()}`, { signal: AbortSignal.timeout(60_000) })
   if (!resp.ok) throw new Error(`Binance aggTrades 拉取失败(${resp.status})`)
   const rows = (await resp.json()) as Array<{
     a: number

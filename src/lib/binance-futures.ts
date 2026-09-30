@@ -53,12 +53,18 @@ function fundingZipUrl(symbol: string, daily: boolean, key: string): string {
 /** 下载并解包 zip 的首个 CSV(文本)。404 返回 null;网络层错误退避重试
  * (桌面端实测 CDN 连续翻包偶发连接重置——"error sending request",
  * 一次抖动不应让整轮搜索失败),重试耗尽才抛错。 */
-async function fetchZipCsv(url: string, retries = 3): Promise<string | null> {
+/** 单次尝试硬超时:国内到 data.binance.vision 仅 100-250KB/s 且偶发连接挂起,
+ *  无超时的 fetch 会无限等待(与短线回填管线同款修复) */
+const ZIP_ATTEMPT_TIMEOUT_MS = 180_000
+
+async function fetchZipCsv(url: string, retries = 4): Promise<string | null> {
   let lastErr: unknown = null
   for (let attempt = 0; attempt <= retries; attempt++) {
-    if (attempt > 0) await new Promise((r) => setTimeout(r, 700 * attempt))
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 1000 * attempt))
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), ZIP_ATTEMPT_TIMEOUT_MS)
     try {
-      const resp = await fetch(url)
+      const resp = await fetch(url, { signal: controller.signal })
       if (resp.status === 404) return null
       if (!resp.ok) throw new Error(`Binance 归档下载失败(${resp.status}: ${url.slice(-60)})`)
       const buf = new Uint8Array(await resp.arrayBuffer())
@@ -68,9 +74,14 @@ async function fetchZipCsv(url: string, retries = 3): Promise<string | null> {
       return new TextDecoder().decode(files[name])
     } catch (e) {
       lastErr = e
+    } finally {
+      clearTimeout(timer)
     }
   }
-  throw lastErr instanceof Error ? lastErr : new Error(`Binance 归档下载失败: ${url.slice(-60)}`)
+  const tail = url.slice(-60)
+  throw lastErr instanceof Error
+    ? new Error(`${lastErr.message}（重试 ${retries} 次仍失败: ${tail}）`)
+    : new Error(`Binance 归档下载失败（重试 ${retries} 次）: ${tail}`)
 }
 
 function csvRows(text: string): string[][] {
