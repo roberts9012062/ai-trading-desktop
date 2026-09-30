@@ -257,7 +257,8 @@ class _SeriesProgram:
             elif op == 2:
                 value = ti.sqrt(x)
             elif op == 3:
-                value = ti.log(x)
+                # 特征层 log 与桌面 WASM musl 位级对齐(Arm log 移植,libm_ti.log)
+                value = self.math.libm.log(x, guard)
             elif op == 4:
                 value = ti.sin(x)
             elif op == 5:

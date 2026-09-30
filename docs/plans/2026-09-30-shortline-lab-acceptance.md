@@ -164,9 +164,13 @@ LiveScoringEngine（页面所用同一实例），逐步分数与组合分**逐�
   /api/shortline 端点（桌面按红线 #9 未触碰服务器仓库）。挂载按钮在服务器
   未就绪时报明确错误。联调门保持开放，待服务器 AI 交付后执行。
 
-### M-D2 附录：G2 重冻结执行记录（重要偏差，需用户裁决）
+### M-D2 附录 I：G2 重冻结执行记录（偏差已修复闭环，最终 56/56 通过）
 
-**结果：54/56 通过（未达 56/56 门槛）**。唯一失败 = ETHUSDT/15m 的 mixed 与 f64
+> 首轮结果曾为 54/56（下述根因链保留了当时的调查记录）；按附录 II 修复
+> （特征层 log 的 WASM 位级对拍）后全量复跑 **56/56 通过，G2_complete=true**
+> （.local-data/native-gpu-reports/g2.json）。
+
+**首轮结果：54/56 通过（未达 56/56 门槛）**。唯一失败 = ETHUSDT/15m 的 mixed 与 f64
 两记录，各仅 **1 个候选** `[48,6,66,42,71,68,111,73]` composite 相对误差
 1.66e-4 > 1e-9；两记录的冠军重合 1.0 / 严格筛一致率 1.0 / 研究重合 1.0，
 其余 54 记录全过（7 币 × 4 周期 × 双精度全覆盖）。
@@ -200,3 +204,36 @@ LiveScoringEngine（页面所用同一实例），逐步分数与组合分**逐�
 - 选项 C：投入专项修复该 ULP 边界（对齐 pyodide 超越函数/求和顺序，
   工作量与风险另估）。
 - 复现工具：`scripts/shortline-diag-mixed.py <worktree>`（位级对照）。
+
+### M-D2 附录 II：G2 偏差修复记录（闭环）
+
+**根因（逐步定位）**：时钟 sin/cos 假设被证伪（1447 个相位值三环境一致）→
+pyodide vs CPython 全特征矩阵位级 diff → 分歧行 = SKEW20/KURT20/CRYPTO_ILLIQ20/
+QUOTE_ILLIQ20 → 分步归因 → **np.log 恰在 idx=240 差 1 ULP**（与特征行首差
+bar 完全吻合）；SKEW20 差 1 处来自 `d**3` 幂。即：**pyodide(WASM musl) 与
+CUDA/Windows libm 在 log/pow 上差 ULP**。VM 层的 tanh/exp/pow 当年做过 WASM
+对拍（libm_ti），**特征层的 log 用裸 `ti.log`（CUDA libm）从没对拍**——失败
+候选 [48,6,66,42,71,68,111,73] 含 CRYPTO_ILLIQ20(token 48)，1423 个 bar 的
+ULP 级因子差经 |tanh|<0.05 仓位地板放大为 composite 1.66e-4。
+
+**修复**：
+- `native-engine/engine/log_table.json`：musl(Arm optimized-routines 2018,
+  MIT) log 数据表 128×2×2 + 多项式（与既有 exp_table/pow_table 同模式）
+- `libm_ti.py`：移植 Arm log（近 1 域源序多项式 + hi/lo 拆分；主路径表驱动
+  归约 + 次正规规格化；负数→负静默 NaN、NaN 输入原样传播，全部对齐 musl
+  位模式）；diagnostic mode 5
+- `series_ti.py`：特征层 op3 `ti.log` → `self.math.libm.log`（位级对拍 WASM）
+
+**验证**：
+- 16 万全域值（对数均匀 1e-320~1e308 + 近 1 域密集 + 边界/次正规/特殊值）
+  pyodide 位级对拍 **160018/160018 一致**（对 CPython/Windows 恰差已知 ULP
+  点——对齐目标正确）
+- 提交夹具 `libm-log-pyodide-{in,expected}.json`（3219 值）+
+  `test_libm_log.py`（位级一致 + 双跑确定性）
+- G1 重过（mixed/f64 SHA 与修复前相同——20 自检 token 不含 ILLIQ20）
+- ETH/15m 单 case G2：**mixed 与 f64 均通过**（此前失败的两记录）
+- **全量 G2 复跑：56/56 通过，G2_complete=true，零失败**
+  （qualified_reference_count=14；同轮全量 native 套件 151 测试仅剩 2 个
+  与 HEAD 一致的存量 DSR 错误，libm 位拍测试 6/6 绿）
+- 重冻结链完整闭环：VERSION bump → G1 两过 → 套件 fetch → 参考 28/28 导出
+  → parity 56/56。红线 #3（引擎改动必须 56/56）满足。

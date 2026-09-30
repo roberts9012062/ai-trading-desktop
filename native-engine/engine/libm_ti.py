@@ -1,6 +1,6 @@
 """CUDA port of the bundled desktop's Emscripten 3.1.58 musl math.
 
-exp/pow: Copyright (c) 2018, Arm Limited. SPDX-License-Identifier: MIT.
+exp/pow/log: Copyright (c) 2018, Arm Limited. SPDX-License-Identifier: MIT.
 log1p/expm1: Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
 Developed at SunPro, a Sun Microsystems, Inc. business. Permission to use,
 copy, modify, and distribute this software is freely granted, provided that
@@ -35,6 +35,17 @@ class NativeLibm:
         rows = json.loads(Path(__file__).with_name('pow_table.json').read_text())
         self.pow_table = ti.field(ti.f64, shape=(128, 3))
         self.pow_table.from_numpy(np.array([[float.fromhex(x) for x in row] for row in rows], dtype=np.float64))
+        logdata = json.loads(Path(__file__).with_name('log_table.json').read_text())
+        self.log_tab = ti.field(ti.f64, shape=(128, 2))
+        self.log_tab.from_numpy(np.array([[float.fromhex(x) for x in row] for row in logdata['tab']], dtype=np.float64))
+        self.log_tab2 = ti.field(ti.f64, shape=(128, 2))
+        self.log_tab2.from_numpy(np.array([[float.fromhex(x) for x in row] for row in logdata['tab2']], dtype=np.float64))
+        self.log_poly = ti.field(ti.f64, shape=5)
+        self.log_poly.from_numpy(np.array([float.fromhex(x) for x in logdata['poly']], dtype=np.float64))
+        self.log_poly1 = ti.field(ti.f64, shape=11)
+        self.log_poly1.from_numpy(np.array([float.fromhex(x) for x in logdata['poly1']], dtype=np.float64))
+        self.log_ln2hi = float.fromhex(logdata['ln2hi'])
+        self.log_ln2lo = float.fromhex(logdata['ln2lo'])
         self.pow_poly = tuple(float.fromhex(x)*scale for x, scale in (
             ('-0x1p-1', 1), ('0x1.555555555556p-2', -2), ('-0x1.0000000000006p-2', -2),
             ('0x1.999999959554ep-3', 4), ('-0x1.555555529a47ap-3', 4),
@@ -103,6 +114,104 @@ class NativeLibm:
         return result
 
     @ti.func
+    def log(self, x, guard):
+        # Arm optimized-routines log: 与桌面 Emscripten 3.1.58 的 musl log
+        # 位级同源移植(N=128, LOG_TABLE_BITS=7, OFF=0x3fe6000000000000)。
+        # 特征层 CRYPTO_ILLIQ20/QUOTE_ILLIQ20 的 np.log 由此获得跨端(WASM↔
+        # CUDA)逐位一致——此前 ti.log 用 CUDA libm,与 WASM 差 ULP,在 G2
+        # 重冻结中被仓位地板放大为 composite 偏差(验收报告 M-D2 附录)。
+        ix = ti.bit_cast(x, ti.u64)
+        top = ti.cast(ix >> 48, ti.u32)
+        result = x
+        LO = ti.u64(0x3fee000000000000)
+        HI = ti.u64(0x3ff1090000000000)
+        if ix == ti.u64(0x3ff0000000000000):
+            result = ti.cast(0.0, ti.f64)
+        elif ix - LO < HI - LO:
+            # 近 1 快速域(源序多项式 + hi/lo 拆分)
+            r = self.sub(x, 1.0, guard)
+            r2 = self.mul(r, r, guard)
+            r3 = self.mul(r2, r, guard)
+            b7 = self.log_poly1[7]
+            b8 = self.log_poly1[8]
+            b9 = self.log_poly1[9]
+            b10 = self.log_poly1[10]
+            b4 = self.log_poly1[4]
+            b5 = self.log_poly1[5]
+            b6 = self.log_poly1[6]
+            b1 = self.log_poly1[1]
+            b2 = self.log_poly1[2]
+            b3 = self.log_poly1[3]
+            b0 = self.log_poly1[0]
+            inner = self.add(b7, self.mul(r, b8, guard), guard)
+            inner = self.add(inner, self.mul(r2, b9, guard), guard)
+            inner = self.add(inner, self.mul(r3, b10, guard), guard)
+            outer = self.add(b4, self.mul(r, b5, guard), guard)
+            outer = self.add(outer, self.mul(r2, b6, guard), guard)
+            outer = self.add(outer, self.mul(r3, inner, guard), guard)
+            # C 源: y = r3 * (B1 + r*B2 + r2*B3 + r3*outer) —— r3 乘整个括号和
+            y = self.add(b1, self.mul(r, b2, guard), guard)
+            y = self.add(y, self.mul(r2, b3, guard), guard)
+            y = self.add(y, self.mul(r3, outer, guard), guard)
+            y = self.mul(r3, y, guard)
+            w = self.mul(r, 134217728.0, guard)
+            rhi = self.sub(self.add(r, w, guard), w, guard)
+            rlo = self.sub(r, rhi, guard)
+            w = self.mul(self.mul(rhi, rhi, guard), b0, guard)
+            hi = self.add(r, w, guard)
+            lo = self.add(self.sub(r, hi, guard), w, guard)
+            lo = self.add(lo, self.mul(self.mul(b0, rlo, guard), self.add(rhi, r, guard), guard), guard)
+            y = self.add(y, lo, guard)
+            result = self.add(y, hi, guard)
+        elif top - ti.u32(0x0010) >= ti.u32(0x7fe0):
+            # x < 0x1p-1022 / inf / nan
+            if ix * 2 == 0:
+                result = ti.cast(float('-inf'), ti.f64)
+            elif ix == ti.u64(0x7ff0000000000000):
+                result = x
+            elif (top & ti.u32(0x7ff0)) == ti.u32(0x7ff0):
+                # NaN 输入原样传播(musl __math_invalid 的 (x-x)/(x-x) 传播输入)
+                result = x
+            elif (top & ti.u32(0x8000)) != 0:
+                # 负数: musl 0/0 的负静默 NaN(与 WASM 位模式一致)
+                result = ti.bit_cast(ti.u64(0xfff8000000000000), ti.f64)
+            else:
+                # 次正规:乘 2^52 规格化(精确)后走主路径
+                nx = ti.bit_cast(self.mul(x, 4503599627370496.0, guard), ti.u64) - ti.u64(52) * ti.u64(4503599627370496)
+                result = self.log_main(nx, guard)
+        else:
+            result = self.log_main(ix, guard)
+        return result
+
+    @ti.func
+    def log_main(self, ix, guard):
+        OFF = ti.u64(0x3fe6000000000000)
+        tmp = ix - OFF
+        i = ti.cast((tmp >> 45) % ti.u64(128), ti.i32)
+        k = ti.cast(tmp, ti.i64) >> 52
+        iz = ix - (tmp & ti.u64(0xfff) * ti.u64(4503599627370496))
+        invc = self.log_tab[i, 0]
+        logc = self.log_tab[i, 1]
+        chi = self.log_tab2[i, 0]
+        clo = self.log_tab2[i, 1]
+        z = ti.bit_cast(iz, ti.f64)
+        r = self.mul(self.sub(self.sub(z, chi, guard), clo, guard), invc, guard)
+        kd = ti.cast(k, ti.f64)
+        w = self.add(self.mul(kd, self.log_ln2hi, guard), logc, guard)
+        hi = self.add(w, r, guard)
+        lo = self.add(self.add(self.sub(w, hi, guard), r, guard), self.mul(kd, self.log_ln2lo, guard), guard)
+        r2 = self.mul(r, r, guard)
+        a0 = self.log_poly[0]
+        a1 = self.log_poly[1]
+        a2 = self.log_poly[2]
+        a3 = self.log_poly[3]
+        a4 = self.log_poly[4]
+        poly = self.add(a1, self.mul(r, a2, guard), guard)
+        poly = self.add(poly, self.mul(r2, self.add(a3, self.mul(r, a4, guard), guard), guard), guard)
+        y = self.add(self.add(lo, self.mul(r2, a0, guard), guard), self.mul(self.mul(r, r2, guard), poly, guard), guard)
+        return self.add(y, hi, guard)
+
+    @ti.func
     def log1p(self, x, guard):
         bits = ti.bit_cast(x, ti.u64)
         hx = ti.cast(bits >> 32, ti.u32)
@@ -166,6 +275,10 @@ class NativeLibm:
                 out[t] = self.tanh(source[t], guard)
             elif mode == 4:
                 out[t] = self.moment_power(source[t], 3, guard)
+            elif mode == 5:
+                out[t] = self.moment_power(source[t], 4, guard)
+            elif mode == 6:
+                out[t] = self.log(source[t], guard)
             else:
                 out[t] = self.moment_power(source[t], 4, guard)
 
