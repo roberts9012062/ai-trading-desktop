@@ -311,3 +311,13 @@ body {
   animation-timing-function: linear;
   animation-fill-mode: forwards;
 }
+/* 短线实验室·任务准备阶段的不定进度条(拉K线/v4注入等无逐包进度的长步骤) */
+@keyframes shortline-prep-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+.shortline-prep-bar {
+  width: 25%;
+  height: 100%;
+  animation: shortline-prep-slide 1.4s ease-in-out infinite;
+}
