@@ -23,6 +23,9 @@ import {
   STALE_MULTIPLIER, type CadenceSeconds, type ShortlineTimeframe,
 } from "@/lib/shortline/spec"
 import { AggTradeStream } from "@/lib/shortline/ws"
+import { buildShortlinePayload, checkMountable, requiredWarmupBars } from "@/lib/shortline/mount"
+import { buildFixtureBundle, buildGoldenCase } from "@/lib/shortline/fixtures"
+import { createShortlineTask } from "@/lib/shortline/server-api"
 
 const runner = createRunner("local")
 
@@ -237,6 +240,77 @@ export default function ShortlineLabPage() {
 
   const ring = ringRef.current.list()
 
+  // ── 挂载（M-D4） ─────────────────────────────────────────
+  const mountChampions = useMemo(
+    () => champions.slice(0, 5).map((c, i) => ({ id: i + 1, tokens: c.tokens })),
+    [champions],
+  )
+  const mountCheck = useMemo(() => checkMountable(mountChampions.map((c) => c.tokens)), [mountChampions])
+  const warmupBars = useMemo(
+    () => (mountChampions.length ? requiredWarmupBars(mountChampions.map((c) => c.tokens), timeframe) : 300),
+    [mountChampions, timeframe],
+  )
+  const [mountMsg, setMountMsg] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
+
+  const onExportFixtures = async () => {
+    setExporting(true)
+    setMountMsg(null)
+    try {
+      const days = (await listDayDigests(symbol)).map((d) => d.day)
+      if (!days.length) throw new Error("无 digest——请先回填 aggTrades")
+      const last = days[days.length - 1]!
+      const loaded = await loadDigestRange(symbol, last, last)
+      if (!loaded) throw new Error("digest 载入失败")
+      const formulas = mountChampions.map((c) => c.tokens)
+      const cases = [3, 15, 60].map((cad) => buildGoldenCase({
+        name: `${symbol}-${timeframe}-${cad}s-${last}`,
+        symbol, timeframe, cadence: cad as CadenceSeconds,
+        buckets: loaded.buckets, formulas,
+      }))
+      const bundle = buildFixtureBundle(symbol, cases, formulas)
+      const blob = new Blob([JSON.stringify({ fixture: bundle.fixture, manifest: bundle.manifest }, null, 2)], { type: "application/json" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `shortline-golden-fixture-${symbol}-${timeframe}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      setMountMsg(`黄金夹具已导出（${cases.length} cadence × ${formulas.length} 公式；manifest ${bundle.manifest.manifest_sha256.slice(0, 12)}…）`)
+    } catch (e) {
+      setMountMsg(`夹具导出失败：${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const onMount = async () => {
+    setMountMsg("导出夹具并组装载荷…")
+    try {
+      const days = (await listDayDigests(symbol)).map((d) => d.day)
+      if (!days.length) throw new Error("无 digest——请先回填 aggTrades")
+      const last = days[days.length - 1]!
+      const loaded = await loadDigestRange(symbol, last, last)
+      if (!loaded) throw new Error("digest 载入失败")
+      const formulas = mountChampions.map((c) => c.tokens)
+      const cases = [3, 15, 60].map((cad) => buildGoldenCase({
+        name: `${symbol}-${timeframe}-${cad}s-${last}`,
+        symbol, timeframe, cadence: cad as CadenceSeconds,
+        buckets: loaded.buckets, formulas,
+      }))
+      const bundle = buildFixtureBundle(symbol, cases, formulas)
+      const payload = buildShortlinePayload(
+        { symbol, timeframe, cadence, champions: mountChampions, warmupBars: warmupBars },
+        bundle.manifest.manifest_sha256,
+      )
+      const task = await createShortlineTask(payload)
+      setMountMsg(`挂载成功：任务 ${task.id}（${task.status ?? "created"}）`)
+    } catch (e) {
+      setMountMsg(
+        `挂载失败：${e instanceof Error ? e.message : String(e)}（服务器短线任务系统 M-S1 交付后联调；夹具与载荷 schema 已就绪）`,
+      )
+    }
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-5xl mx-auto">
@@ -422,6 +496,31 @@ export default function ShortlineLabPage() {
             </div>
           </div>
         )}
+      </section>
+
+      {/* 挂载到服务器（M-D4） */}
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4 space-y-3">
+        <h2 className="text-sm font-medium text-[var(--text-primary)]">挂载到服务器（shortline_factor_v1 · 纸面模式默认）</h2>
+        <p className="text-[10px] text-[var(--text-muted)] font-num">
+          待挂冠军 {mountChampions.length} 个 · warmup_bars {warmupBars} · cadence {cadence}s
+          {mountCheck.localOnlyTokens.length ? ` · 含仅本地 token：${mountCheck.localOnlyTokens.join(",")}` : ""}
+        </p>
+        {!mountCheck.ok && (
+          <ul className="text-[10px] text-amber-400 space-y-0.5 list-disc pl-4">
+            {mountCheck.reasons.slice(0, 4).map((r, i) => <li key={i}>{r}</li>)}
+          </ul>
+        )}
+        <div className="flex items-center gap-2">
+          <button onClick={onExportFixtures} disabled={exporting || !mountChampions.length}
+            className="px-3 py-1 rounded-md border border-[var(--border)] text-xs disabled:opacity-40">
+            {exporting ? "导出中…" : "导出黄金夹具（带 manifest SHA）"}
+          </button>
+          <button onClick={onMount} disabled={!mountChampions.length || !mountCheck.ok}
+            className="px-3 py-1 rounded-md bg-[var(--primary)] text-white text-xs disabled:opacity-40">
+            挂载到服务器
+          </button>
+        </div>
+        {mountMsg && <p className="text-[10px] text-[var(--text-muted)]">{mountMsg}</p>}
       </section>
     </div>
   )
