@@ -17,6 +17,8 @@ import { PortfolioCard } from "@/components/factor-lab/portfolio-card"
 import { addFactorFavorite, listFactorFavorites } from "@/lib/factor-lab-api"
 import type { Champion } from "@/lib/factor-lab-api"
 import { isLocalOnly } from "@/components/factor-lab/hooks/factor-helpers"
+import { switchTaskSite, type AITradingTask } from "@/lib/ai-trading-api"
+import { CreateQuantDialog } from "@/components/ai-trading/form/create-quant-dialog"
 import { showAlert } from "@/stores/dialog"
 import {
   fetchSupported,
@@ -1130,6 +1132,63 @@ function TaskDetailPanel(props: DetailProps): React.JSX.Element {
     }
   }
 
+  // 组合挂载 → 任务配置弹窗（与因子实验室同款；web fad6967 同步）。
+  // localOnly：任一成员含本地专属/直连衍生特征 → 创建后整组切本地引擎执行
+  const [comboPreset, setComboPreset] = useState<{
+    symbol: string
+    timeframe: string
+    tokenGroups: number[][]
+    texts: string[]
+    localOnly: boolean
+  } | null>(null)
+
+  function openComboDialog(cs: Champion[]): void {
+    if (!task) return
+    if (cs.length < 2 || cs.length > 5) {
+      void showAlert({ title: "组合挂载", description: "组合需勾选 2-5 个因子" })
+      return
+    }
+    const bad = cs.find((c) => c.metrics?.overfit_warning || c.metrics?.stale_kernel)
+    if (bad) {
+      void showAlert({
+        title: "组合挂载",
+        description: "组合成员含未通过样本外验证或旧内核口径的因子，已禁止挂载",
+        variant: "destructive",
+      })
+      return
+    }
+    setComboPreset({
+      symbol: task.symbol,
+      timeframe: task.timeframe,
+      tokenGroups: cs.map((c) => c.tokens),
+      texts: cs.map((c) => c.text ?? ""),
+      localOnly: cs.some(
+        (c) => isLocalOnly(c.tokens, c.metrics) || isResearchOnlyFactor(c.tokens, c.metrics),
+      ),
+    })
+  }
+
+  // 组合任务创建成功后置处理：本地专属特征组合切本地引擎（需应用保持运行）
+  async function afterComboCreated(t: AITradingTask): Promise<void> {
+    if (!comboPreset?.localOnly) {
+      await showAlert({ title: "已创建组合任务", description: `${t.name}（到 AI 交易页启动）` })
+      return
+    }
+    try {
+      await switchTaskSite(t.id, "client")
+      await showAlert({
+        title: "已创建并设为本地引擎执行",
+        description: `${t.name}（含本地专属特征成员，服务器无法计算；需应用保持运行）`,
+      })
+    } catch (e) {
+      await showAlert({
+        title: "已创建，但切换本地引擎失败",
+        description: `${t.name}：${e instanceof Error ? e.message : "未知错误"}（请到任务里手动切换本机执行）`,
+        variant: "destructive",
+      })
+    }
+  }
+
   if (!task) {
     return (
       <div className="rounded-xl border border-dashed border-[var(--border)] p-8 text-center text-sm text-[var(--text-muted)]">
@@ -1238,7 +1297,16 @@ function TaskDetailPanel(props: DetailProps): React.JSX.Element {
           </div>
           {/* 组合推荐:等权/IC 加权 vs 最优单因子(完成时自动评估;M4) */}
           {task.portfolio && <PortfolioCard portfolio={task.portfolio} />}
-          <ChampionTable champions={champions} selectedTokens={null} onSelect={() => {}} onFavorite={handleFavorite} favoritedKeys={favoritedKeys} />
+          <ChampionTable
+            champions={champions}
+            selectedTokens={null}
+            onSelect={() => {}}
+            onFavorite={handleFavorite}
+            favoritedKeys={favoritedKeys}
+            onComboMount={openComboDialog}
+            comboSymbol={task.symbol}
+            comboTimeframe={task.timeframe}
+          />
         </div>
       )}
 
@@ -1251,6 +1319,14 @@ function TaskDetailPanel(props: DetailProps): React.JSX.Element {
               : "任务已停止"}
         </div>
       )}
+
+      {/* 组合挂载 → 任务配置弹窗（与因子实验室同款） */}
+      <CreateQuantDialog
+        open={comboPreset !== null}
+        onClose={() => setComboPreset(null)}
+        comboPreset={comboPreset}
+        onCreated={(t) => void afterComboCreated(t)}
+      />
     </div>
   )
 }

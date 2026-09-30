@@ -355,6 +355,43 @@ export async function fetchFactorLabMeta(): Promise<FactorLabMeta> {
   return request<FactorLabMeta>("/api/factor-lab/meta")
 }
 
+/** ── 因子相似度分析（组合挂载前置检查，web fad6967 同源） ── */
+
+export interface FactorSimilarityPair {
+  i: number
+  j: number
+  /** 指标相似度：tanh 仓位意图序列 Pearson 相关（-1~1） */
+  value_corr: number
+  /** 赚钱波段重合：逐 bar 隐含盈亏流 Pearson 相关（-1~1） */
+  pnl_corr: number
+  /** 两因子同时盈利 bar 占任一盈利 bar 的比例（%） */
+  win_overlap_pct: number
+  /** 综合相似度 0~10（≥7 高度相似 / 4-7 中等 / <4 低相关） */
+  similarity: number
+  level: "high" | "mid" | "low"
+}
+
+export interface FactorSimilarityResult {
+  symbol: string
+  timeframe: string
+  bars: number
+  /** 单因子分：与组合内其它因子相似度均值（分接近且偏高的互为相似因子） */
+  factors: { index: number; score: number }[]
+  pairs: FactorSimilarityPair[]
+  verdict: string
+}
+
+export async function analyzeFactorSimilarity(payload: {
+  symbol: string
+  timeframe: string
+  token_groups: number[][]
+}): Promise<FactorSimilarityResult> {
+  return request<FactorSimilarityResult>("/api/factor-lab/similarity", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
 export async function listFactorHistory(
   symbol: string,
 ): Promise<FactorHistoryItem[]> {

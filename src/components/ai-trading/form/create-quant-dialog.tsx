@@ -1,6 +1,7 @@
 "use client"
 
 import { desktopTokensToServerV3 } from "@/lib/factor-access"
+import { cn } from "@/lib/utils"
 import { useEffect, useState } from "react"
 import {
   Dialog,
@@ -62,6 +63,20 @@ interface CreateQuantDialogProps {
   onClose: () => void
   /** 克隆预填：从已有量化/因子任务带出全部参数 */
   prefillFrom?: AITradingTask | null
+  /** 组合因子预填（因子实验室/超级因子挖掘「组合挂载」）：
+   *  打开即按组合因子任务预配置，其余配置项与单因子任务完全一致。
+   *  tokenGroups 为桌面谱系编码，提交时转服务器 v3 */
+  comboPreset?: {
+    symbol: string
+    symbolName?: string
+    timeframe: string
+    tokenGroups: number[][]
+    texts: string[]
+  } | null
+  /** 创建成功回调（任务已入库）：因子实验室组合挂载用它把
+   *  含本地专属特征的组合切到本地引擎执行（switchTaskSite）。
+   *  回调自身负责消化错误（页面提示），不阻断弹窗关闭 */
+  onCreated?: (task: AITradingTask) => void | Promise<void>
 }
 
 const TIMEFRAMES = ["1m", "5m", "15m", "30m", "60m", "1d"] as const
@@ -99,6 +114,8 @@ export function CreateQuantDialog({
   open,
   onClose,
   prefillFrom = null,
+  comboPreset = null,
+  onCreated,
 }: CreateQuantDialogProps): React.JSX.Element {
   const createTask = useAITradingStore((s) => s.createTask)
   const [quant, setQuant] = useState<QuantParamsState>(DEFAULT_QUANT_PARAMS)
@@ -186,13 +203,39 @@ export function CreateQuantDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, prefillFrom])
 
+  // 组合因子模式（来自因子实验室/超级因子挖掘的组合挂载）：
+  // factor_tokens = list of lists（等权），提交时覆盖单公式 tokens
+  const [combo, setCombo] = useState<NonNullable<CreateQuantDialogProps["comboPreset"]> | null>(null)
+
+  // 组合因子预填：打开即按组合任务预配置（品种/周期/名称/因子策略）
+  useEffect(() => {
+    if (!open) return
+    if (!comboPreset) {
+      setCombo(null)
+      return
+    }
+    const cp = comboPreset
+    setCombo(cp)
+    setQuant({ ...DEFAULT_QUANT_PARAMS, quantKind: "factor" })
+    setDecisionEnabled(false)
+    setSymbol(cp.symbol)
+    setSymbolName(cp.symbolName || "")
+    setTimeframe(cp.timeframe)
+    setMaxHoldDays(String(maxHoldDaysForTimeframe(cp.timeframe)))
+    const tfMin = TF_MINUTES[cp.timeframe] ?? 15
+    setEvalIntervalSec(tfMin * 60)
+    setName(`组合(${cp.tokenGroups.length})·${cp.symbol}·${cp.timeframe}`)
+    setError(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, comboPreset])
+
   async function handleSubmit(): Promise<void> {
     setError(null)
     if (!symbol.trim()) {
       setError("请选择合约品种")
       return
     }
-    const qErr = validateQuantParams(quant)
+    const qErr = combo ? null : validateQuantParams(quant)
     if (qErr) {
       setError(qErr)
       return
@@ -227,10 +270,18 @@ export function CreateQuantDialog({
       }
     }
 
-    /** factor 策略参数里的 token 是桌面谱系编码 —— 提交服务器前转 v3 */
+    /** factor 策略参数里的 token 是桌面谱系编码 —— 提交服务器前转 v3
+     *  （组合因子 factor_tokens 为 list of lists，逐组转换；转换幂等） */
     function withServerFactorTokens(params: Record<string, unknown>): Record<string, unknown> {
-      if (Array.isArray(params?.factor_tokens)) {
-        return { ...params, factor_tokens: desktopTokensToServerV3(params.factor_tokens as number[]) }
+      const ft = params?.factor_tokens
+      if (Array.isArray(ft)) {
+        if (ft.length > 0 && Array.isArray(ft[0])) {
+          return {
+            ...params,
+            factor_tokens: (ft as number[][]).map((g) => desktopTokensToServerV3(g)),
+          }
+        }
+        return { ...params, factor_tokens: desktopTokensToServerV3(ft as number[]) }
       }
       return params
     }
@@ -252,14 +303,20 @@ export function CreateQuantDialog({
       name: name.trim(),
       model_row_id: decisionEnabled ? decisionModelRowId : null,
       strategy_type: decisionEnabled ? "decision" : quant.quantKind,
-      strategy_params: decisionEnabled
-        ? {
-            decision_strategy: {
-              kind: quant.quantKind,
-              params: withServerFactorTokens(buildStrategyParams(quant)),
-            },
-          }
-        : withServerFactorTokens(buildStrategyParams(quant)),
+      // 组合因子：factor_tokens = list of lists（等权），单公式走 buildStrategyParams
+      strategy_params: combo
+        ? withServerFactorTokens({
+            factor_tokens:
+              combo.tokenGroups.length === 1 ? combo.tokenGroups[0] : combo.tokenGroups,
+          })
+        : decisionEnabled
+          ? {
+              decision_strategy: {
+                kind: quant.quantKind,
+                params: withServerFactorTokens(buildStrategyParams(quant)),
+              },
+            }
+          : withServerFactorTokens(buildStrategyParams(quant)),
       decision_interval_sec: decisionEnabled ? decisionIntervalSec : undefined,
       // 量化分析间隔：等于周期（默认）发 null=按K线收盘；决策模型忽略
       eval_interval_sec:
@@ -295,7 +352,12 @@ export function CreateQuantDialog({
     }
     setSubmitting(true)
     try {
-      await createTask(payload)
+      const task = await createTask(payload)
+      try {
+        await onCreated?.(task)
+      } catch {
+        // 任务已创建；后置处理（如本地引擎切换）失败不回滚创建，由回调方自行提示
+      }
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : "创建失败")
@@ -317,16 +379,25 @@ export function CreateQuantDialog({
         <FundingSourceBadge info={funding.info} onReload={funding.reload} />
 
         <div className="space-y-3 text-sm">
-          {/* 决策模型开关：开启后量化策略参数被替换为决策模型 + 响应频率 */}
-          <label className="flex items-center gap-2 rounded-md border border-[var(--border)] p-2.5">
+          {/* 决策模型开关：开启后量化策略参数被替换为决策模型 + 响应频率
+              （组合因子模式暂不支持，避免决策分支拿不到组合 factor_tokens） */}
+          <label
+            className={cn(
+              "flex items-center gap-2 rounded-md border border-[var(--border)] p-2.5",
+              combo && "opacity-50",
+            )}
+          >
             <input
               type="checkbox"
               checked={decisionEnabled}
+              disabled={!!combo}
               onChange={(e) => setDecisionEnabled(e.target.checked)}
             />
             <span className="text-sm">决策模型</span>
             <span className="text-[10px] text-[var(--text-muted)]">
-              量化策略给决策模型喂信号内容，决策模型综合行情自主执行做多/做空/平仓（速度快延迟低，适合交易）
+              {combo
+                ? "组合因子模式暂不支持决策模型"
+                : "量化策略给决策模型喂信号内容，决策模型综合行情自主执行做多/做空/平仓（速度快延迟低，适合交易）"}
             </span>
           </label>
 
@@ -395,21 +466,43 @@ export function CreateQuantDialog({
               下方策略类型与参数正常设置：策略信号将作为参考内容喂给决策模型，模型做最终投资判断（可推翻策略建议）。
             </p>
           )}
-          <CreateQuantParams
-            quant={quant}
-            onQuant={setQuant}
-            symbol={symbol}
-            timeframe={timeframe}
-            onApplyFactorMeta={(sym, tf) => {
-              // 选中收藏因子时，回填其品种与周期到任务表单
-              if (sym && sym.trim()) {
-                setSymbol(sym.trim().toLowerCase())
-                // 清空旧名称，避免与回填的 symbol 不一致
-                setSymbolName("")
-              }
-              if (tf && tf.trim()) setTimeframe(tf.trim())
-            }}
-          />
+          {combo ? (
+            <div className="space-y-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-tertiary)]/40 p-2.5">
+              <div className="text-[11px] font-medium text-[var(--text-secondary)]">
+                组合因子（{combo.tokenGroups.length} 个等权 · 来自因子组合挂载）
+              </div>
+              <ul className="space-y-1">
+                {combo.texts.map((t, i) => (
+                  <li
+                    key={i}
+                    className="text-[10px] font-num text-[var(--text-muted)] break-all"
+                    title={t}
+                  >
+                    因子{i + 1}：{t}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[9px] text-[var(--text-muted)]">
+                组合信号 = 各因子 tanh 仓位意图的等权平均；下方其余配置与单因子任务一致。
+              </p>
+            </div>
+          ) : (
+            <CreateQuantParams
+              quant={quant}
+              onQuant={setQuant}
+              symbol={symbol}
+              timeframe={timeframe}
+              onApplyFactorMeta={(sym, tf) => {
+                // 选中收藏因子时，回填其品种与周期到任务表单
+                if (sym && sym.trim()) {
+                  setSymbol(sym.trim().toLowerCase())
+                  // 清空旧名称，避免与回填的 symbol 不一致
+                  setSymbolName("")
+                }
+                if (tf && tf.trim()) setTimeframe(tf.trim())
+              }}
+            />
+          )}
 
           <div className="space-y-1">
             <Label>任务名称（可选）</Label>
@@ -589,7 +682,9 @@ export function CreateQuantDialog({
             showModelStop={decisionEnabled}
             showIndicatorExits
             showFactorExit={!decisionEnabled && quant.quantKind === "factor"}
-            factorExitHint="因子来源：本任务的选择公式。"
+            factorExitHint={
+              combo ? "因子来源：组合成员等权平均。" : "因子来源：本任务的选择公式。"
+            }
           />
 
           {error && (

@@ -8,6 +8,7 @@ import { useState } from "react"
 import type { Champion } from "@/lib/factor-lab-api"
 import { cn } from "@/lib/utils"
 import { FACTOR_HELP, HelpTip } from "./help-tip"
+import { ComboSimilarityPanel } from "./combo/combo-similarity-panel"
 
 interface ChampionTableProps {
   champions: Champion[]
@@ -18,6 +19,9 @@ interface ChampionTableProps {
   favoritedKeys?: Set<string>
   /** 组合挂载回调：勾选 2-5 个未带 overfit_warning 的冠军后可触发 */
   onComboMount?: ((champions: Champion[]) => void) | null
+  /** 组合相关性分析用的品种/周期（与挂载目标一致；未传时面板不分析） */
+  comboSymbol?: string
+  comboTimeframe?: string
 }
 
 function tokenKey(tokens: number[]): string {
@@ -66,6 +70,8 @@ export function ChampionTable({
   onFavorite,
   favoritedKeys,
   onComboMount,
+  comboSymbol,
+  comboTimeframe,
 }: ChampionTableProps): React.JSX.Element {
   // 本地 pending：点击收藏后立即置灰，避免重复点击；网络失败由调用方负责回退
   const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set())
@@ -97,28 +103,35 @@ export function ChampionTable({
   return (
     <div className="space-y-2">
       {showCombo && (
-        <div className="flex items-center justify-end gap-2 text-xs">
-          <span className="text-[var(--text-muted)]">
-            勾选 2-5 个低相关因子组合挂载（等权）
-          </span>
-          <button
-            type="button"
-            disabled={!comboReady}
-            className={cn(
-              "text-[11px] px-2 py-0.5 rounded-md border border-[var(--border)]",
-              comboReady
-                ? "text-[var(--primary)] hover:bg-[var(--bg-tertiary)] cursor-pointer"
-                : "text-[var(--text-muted)] cursor-not-allowed",
-            )}
-            onClick={() => {
-              if (comboReady && onComboMount) {
-                onComboMount(comboChampions)
-                setComboKeys(new Set())
-              }
-            }}
-          >
-            组合挂载所选 ({comboChampions.length})
-          </button>
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-2.5 space-y-2">
+          <div className="flex items-center justify-end gap-2 text-xs">
+            <span className="text-[var(--text-muted)]">
+              勾选 2-5 个低相关因子组合挂载（等权）
+            </span>
+            <button
+              type="button"
+              disabled={!comboReady}
+              className={cn(
+                "text-[11px] px-2 py-0.5 rounded-md border border-[var(--border)]",
+                comboReady
+                  ? "text-[var(--primary)] hover:bg-[var(--bg-tertiary)] cursor-pointer"
+                  : "text-[var(--text-muted)] cursor-not-allowed",
+              )}
+              onClick={() => {
+                if (comboReady && onComboMount) {
+                  onComboMount(comboChampions)
+                  setComboKeys(new Set())
+                }
+              }}
+            >
+              组合挂载所选 ({comboChampions.length})
+            </button>
+          </div>
+          <ComboSimilarityPanel
+            champions={comboChampions}
+            symbol={comboSymbol || ""}
+            timeframe={comboTimeframe || ""}
+          />
         </div>
       )}
     <div className="rounded-xl border border-[var(--border)] overflow-x-auto overflow-y-visible bg-[var(--bg-secondary)]">

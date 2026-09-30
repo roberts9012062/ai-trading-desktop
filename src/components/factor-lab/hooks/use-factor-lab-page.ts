@@ -24,7 +24,6 @@ import { backtestFactorLocal, prepareSearchBars, type LocalSearchStep } from "@/
 import { factorLabRunner, type FactorSearchTask } from "@/lib/mining/factor-lab-runner"
 import { useFactorLabData } from "./use-factor-data"
 import {
-  buildComboTaskPayload,
   buildFactorTaskPayload,
   defaultSearchPayload,
   isLocalOnly,
@@ -70,6 +69,8 @@ export interface FactorLabPageState {
   symbol: string
   setSymbol: (s: string) => void
   setBuildMsg: (s: string | null) => void
+  /** 页面级错误提示（组合挂载弹窗前置校验等） */
+  setError: (s: string | null) => void
   handleSearch: (p: SearchFormPayload) => Promise<void>
   handleEvolve: () => Promise<void>
   /** 计算引擎三态与进度提示 */
@@ -98,7 +99,6 @@ export interface FactorLabPageState {
   }) => Promise<void>
   selectFactor: (c: Champion, p?: SearchFormPayload) => Promise<void>
   handleBuildTask: () => Promise<void>
-  handleComboMount: (champions: Champion[]) => Promise<void>
   handleFavoriteChampion: (c: Champion) => Promise<void>
   handleFavoriteHistory: (c: FavoriteInput) => Promise<void>
   /** 弹窗保存：选名称与文件夹后收藏 */
@@ -454,43 +454,6 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     }
   }
 
-  async function handleComboMount(chosen: Champion[]): Promise<void> {
-    if (!lastReq) return
-    if (chosen.length < 2 || chosen.length > 5) {
-      setError("组合需勾选 2-5 个因子")
-      return
-    }
-    const bad = chosen.find((c) => c.metrics?.overfit_warning || c.metrics?.stale_kernel)
-    if (bad) {
-      setError("组合成员含未通过样本外验证的因子（测试段亏损），已禁止挂载")
-      return
-    }
-    // 任一成员含本地专属/直连衍生特征 → 整个组合只能本地引擎执行
-    const localOnly = chosen.some(
-      (c) => isLocalOnly(c.tokens, c.metrics) || isResearchOnlyFactor(c.tokens, c.metrics),
-    )
-    setBuilding(true)
-    setBuildMsg(null)
-    try {
-      const payload = buildComboTaskPayload(
-        lastReq.symbol,
-        lastReq.timeframe,
-        chosen.map((c) => c.tokens),
-      )
-      const task = await createTask(payload)
-      if (localOnly) {
-        await switchTaskSite(task.id, "client")
-        setBuildMsg(`已创建并设为本地引擎执行：${task.name}（含本地专属特征成员，服务器无法计算；需应用保持运行）`)
-      } else {
-        setBuildMsg(`已创建组合任务：${task.name}（到 AI 交易页启动）`)
-      }
-    } catch (e) {
-      setBuildMsg(errOf(e, "创建失败"))
-    } finally {
-      setBuilding(false)
-    }
-  }
-
   /** 旧口径记录的本地复测:单候选 mine_precise 与搜索同口径,
    *  产出 test_metrics/overfit_warning;失败返回 null */
   async function reverifyOosMetrics(item: FavoriteInput): Promise<FavoriteInput | null> {
@@ -635,6 +598,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     symbol,
     setSymbol,
     setBuildMsg,
+    setError,
     handleSearch,
     handleEvolve,
     engine,
@@ -653,7 +617,6 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     handleGenerate,
     selectFactor,
     handleBuildTask,
-    handleComboMount,
     handleFavoriteChampion,
     handleFavoriteHistory,
     saveFavorite: favoriteFrom,

@@ -24,7 +24,12 @@ import { useEffect, useMemo, useState } from "react"
 import {
   championFromFavorite,
   championFromHistory,
+  isLocalOnly,
 } from "./hooks/factor-helpers"
+import type { Champion } from "@/lib/factor-lab-api"
+import { isResearchOnlyFactor } from "@/lib/factor-access"
+import { switchTaskSite, type AITradingTask } from "@/lib/ai-trading-api"
+import { CreateQuantDialog } from "@/components/ai-trading/form/create-quant-dialog"
 import type { LocalSearchStep } from "@/lib/local-factor"
 import { useNativeAvailability } from "@/lib/native-engine/use-native-availability"
 import { qualificationReasonLabel } from "@/lib/native-engine/progress"
@@ -195,6 +200,57 @@ export function FactorLabPage(): React.JSX.Element {
     }
   }
 
+  // 组合挂载走任务配置弹窗（与单因子任务同款配置；web fad6967 同款流程）。
+  // localOnly：任一成员含本地专属/直连衍生特征 → 创建后整组切本地引擎执行
+  const [comboPreset, setComboPreset] = useState<{
+    symbol: string
+    timeframe: string
+    tokenGroups: number[][]
+    texts: string[]
+    localOnly: boolean
+  } | null>(null)
+
+  function openComboDialog(cs: Champion[]): void {
+    if (cs.length < 2 || cs.length > 5) {
+      s.setError("组合需勾选 2-5 个因子")
+      return
+    }
+    const bad = cs.find((c) => c.metrics?.overfit_warning || c.metrics?.stale_kernel)
+    if (bad) {
+      s.setError("组合成员含未通过样本外验证或旧内核口径的因子，已禁止挂载")
+      return
+    }
+    const symbol = s.lastReq?.symbol ?? s.symbol
+    const timeframe = s.lastReq?.timeframe ?? s.result?.timeframe ?? "1d"
+    if (!symbol) {
+      s.setError("缺少品种信息，无法挂载")
+      return
+    }
+    setComboPreset({
+      symbol,
+      timeframe,
+      tokenGroups: cs.map((c) => c.tokens),
+      texts: cs.map((c) => c.text ?? ""),
+      localOnly: cs.some(
+        (c) => isLocalOnly(c.tokens, c.metrics) || isResearchOnlyFactor(c.tokens, c.metrics),
+      ),
+    })
+  }
+
+  // 组合任务创建成功后置处理：本地专属特征组合切本地引擎（需应用保持运行）
+  async function afterComboCreated(task: AITradingTask): Promise<void> {
+    if (!comboPreset?.localOnly) {
+      s.setBuildMsg(`已创建组合任务：${task.name}（到 AI 交易页启动）`)
+      return
+    }
+    try {
+      await switchTaskSite(task.id, "client")
+      s.setBuildMsg(`已创建并设为本地引擎执行：${task.name}（含本地专属特征成员，服务器无法计算；需应用保持运行）`)
+    } catch (e) {
+      s.setBuildMsg(`已创建 ${task.name}，但切换本地引擎失败：${e instanceof Error ? e.message : "未知错误"}（请到任务里手动切换本机执行）`)
+    }
+  }
+
   return (
     <div className="h-full overflow-y-auto p-4 md:p-6 space-y-4">
       <div>
@@ -344,7 +400,9 @@ export function FactorLabPage(): React.JSX.Element {
             onSelect={(c) => void s.selectFactor(c)}
             onFavorite={(c) => setFavPending(championToFavoriteInput(c))}
             favoritedKeys={favoritedKeys}
-            onComboMount={(cs) => void s.handleComboMount(cs)}
+            onComboMount={(cs) => openComboDialog(cs)}
+            comboSymbol={s.lastReq?.symbol ?? s.symbol ?? ""}
+            comboTimeframe={s.lastReq?.timeframe ?? s.result?.timeframe ?? ""}
           />
         </div>
         <SelectedFactorPanel
@@ -458,6 +516,13 @@ export function FactorLabPage(): React.JSX.Element {
         defaultName={favPending ? s.defaultFavoriteName(favPending) : ""}
         onClose={() => setFavPending(null)}
         onSave={(item, opts) => s.saveFavorite(item, opts)}
+      />
+      {/* 组合挂载 → 任务配置弹窗（与单因子任务同款） */}
+      <CreateQuantDialog
+        open={comboPreset !== null}
+        onClose={() => setComboPreset(null)}
+        comboPreset={comboPreset}
+        onCreated={(task) => void afterComboCreated(task)}
       />
     </div>
   )
