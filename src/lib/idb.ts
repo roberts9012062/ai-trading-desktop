@@ -7,6 +7,7 @@
  *   v3: mining-tasks   本地挖掘任务持久化(keyPath "id")
  *   v4: volume-profile 成交量分布按交易日整包持久化(keyPath "key"=交易日)
  *   v5: research-klines 研究用深历史 K 线缓存(keyPath "key"=channel:symbol:tf)
+ *   v6: shortline-digest 短线实验室 aggTrades 1 秒摘要(keyPath "key"=symbol:day)
  *
  * 约束:任何模块要新增 store,必须在这里升 DB_VERSION 并在本文件的
  * onupgradeneeded 里创建——不要另开 indexedDB.open("ai-trading-desktop", N):
@@ -17,13 +18,14 @@
  */
 
 const DB_NAME = "ai-trading-desktop"
-export const DB_VERSION = 5
+export const DB_VERSION = 6
 
 export const KLINE_HISTORY_STORE = "kline-history"
 export const MINING_BARS_STORE = "mining-bars"
 export const MINING_TASKS_STORE = "mining-tasks"
 export const VOLUME_PROFILE_STORE = "volume-profile"
 export const RESEARCH_KLINE_STORE = "research-klines"
+export const SHORTLINE_DIGEST_STORE = "shortline-digest"
 
 let dbPromise: Promise<IDBDatabase | null> | null = null
 
@@ -49,6 +51,9 @@ export function openDb(): Promise<IDBDatabase | null> {
         }
         if (!db.objectStoreNames.contains(RESEARCH_KLINE_STORE)) {
           db.createObjectStore(RESEARCH_KLINE_STORE, { keyPath: "key" })
+        }
+        if (!db.objectStoreNames.contains(SHORTLINE_DIGEST_STORE)) {
+          db.createObjectStore(SHORTLINE_DIGEST_STORE, { keyPath: "key" })
         }
       }
       req.onsuccess = () => resolve(req.result)
