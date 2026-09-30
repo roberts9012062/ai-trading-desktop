@@ -36,6 +36,7 @@ from .scoring.walk_forward import (
     walk_forward_eval,
     walk_forward_eval_v2,
 )
+from .token_encoding import SHORTLINE_TOKEN_OFFSET, SHORTLINE_FEATURE_COUNT
 from .vm import FEAT_COUNT, FEAT_OFFSET, execute, execute_for_bars, is_constant, validate
 
 
@@ -122,8 +123,10 @@ class Champion:
 
 
 def is_v2_config(cfg: SearchConfig) -> bool:
-    """cfg 是否处于 crypto_local_v2 研究契约"""
-    return cfg.research_profile == "crypto_local_v2"
+    """cfg 是否处于 v2 研究契约语义族(crypto_local_v2 / shortline_v1)"""
+    from .research_context import is_v2_family
+
+    return is_v2_family(str(cfg.research_profile or ""))
 
 
 def _v2_head_trim(mat: np.ndarray, active_ids: list[int]) -> int:
@@ -319,9 +322,16 @@ def _random_tree(
 
 
 def tree_to_tokens(tree: list) -> list[int]:
-    """树 → 后缀 token 序列（vm 执行用）"""
+    """树 → 后缀 token 序列（vm 执行用）
+
+    v4 短线特征在树内用矩阵行 id（FEAT_COUNT+k，62-69）表示，
+    编码为 token 115-122（token_encoding.SHORTLINE_TOKEN_OFFSET）。
+    """
     if tree[0] == "feat":
-        return [int(tree[1])]
+        leaf = int(tree[1])
+        if leaf >= FEAT_COUNT:
+            return [SHORTLINE_TOKEN_OFFSET + (leaf - FEAT_COUNT)]
+        return [leaf]
     tokens: list[int] = []
     for child in tree[2:]:
         tokens.extend(tree_to_tokens(child))
@@ -334,6 +344,12 @@ def tokens_to_tree(tokens: list[int]) -> list | None:
     stack: list[list] = []
     for t in tokens:
         t = int(t)
+        if t >= SHORTLINE_TOKEN_OFFSET:
+            feat_id = FEAT_COUNT + (t - SHORTLINE_TOKEN_OFFSET)
+            if feat_id >= FEAT_COUNT + SHORTLINE_FEATURE_COUNT:
+                return None
+            stack.append(["feat", feat_id])
+            continue
         if t < FEAT_OFFSET:
             if t < 0 or t >= FEAT_COUNT:
                 return None
@@ -595,6 +611,21 @@ def search(
     """
     cfg = cfg or SearchConfig()
 
+    # 短线 fitness 乘子随任务设置(单线程内核;离开时复位防跨任务泄漏)
+    from .scoring.evaluate import set_shortline_fitness
+
+    set_shortline_fitness(is_v2_config(cfg) and cfg.research_profile == "shortline_v1")
+    try:
+        return _search_impl(bars, timeframe, cfg)
+    finally:
+        set_shortline_fitness(False)
+
+
+def _search_impl(
+    bars: list[dict[str, Any]],
+    timeframe: str,
+    cfg: SearchConfig,
+) -> list[Champion]:
     # ── 切分:v2 显式计划优先;test_recent_bars 优先于 train_ratio ────
     anti_overfit = (
         cfg.train_ratio > 0.0 or cfg.test_recent_bars > 0 or cfg.walk_forward_folds > 0

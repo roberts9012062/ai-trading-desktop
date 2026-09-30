@@ -38,7 +38,8 @@ class SignatureTests(unittest.TestCase):
         ends = [10, 20, 40, 60, 84]
         actual = freeze_prefix_signatures(bars, ends)
         self.assertEqual(actual, {(0, end): bars_signature(original[:end]) for end in ends})
-        self.assertEqual(CountingBar.reads, 15 * max(ends))
+        from engine.signatures import KEYS
+        self.assertEqual(CountingBar.reads, len(KEYS) * max(ends))
 
     def test_invalid_prefixes_are_rejected(self):
         for ends in ([-1], [102], [1.5], [True]):

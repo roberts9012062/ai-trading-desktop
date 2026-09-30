@@ -112,7 +112,11 @@ def main():
             (args.out/(key+'.config.json')).write_text(json.dumps(config, indent=2), encoding='utf-8')
             token_path = args.out/(key+'.tokens.json')
             if symbol=='ETHUSDT' and frame=='15m' and not token_path.exists():
-                token_path.write_bytes((ROOT/'.local-data/native-gpu-reports/m1-candidates.json').read_bytes())
+                m1 = ROOT/'.local-data/native-gpu-reports/m1-candidates.json'
+                # M1 锚点候选缺失时(本地 .local-data 不入库)走与其它 case 相同的
+                # 参考页生成路径;重导出的候选集随本次重冻结一同固定。
+                if m1.exists():
+                    token_path.write_bytes(m1.read_bytes())
             case = {'symbol': symbol, 'timeframe': frame, 'bars': key+'.bars.json', 'config': key+'.config.json',
                     'candidates': key+'.tokens.json', 'cpu_reference': key+'.cpu.json',
                     'count': len(rows), 'bars_sha256': hashlib.sha256(encoded).hexdigest(),

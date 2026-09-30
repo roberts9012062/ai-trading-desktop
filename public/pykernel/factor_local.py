@@ -95,6 +95,13 @@ def run(payload_json: str, bars_json: str) -> str:
     return run_search(payload, bars)
 
 
+def _is_v2_profile(profile) -> bool:
+    """v2 语义族(crypto_local_v2 / shortline_v1;见 research_context.is_v2_family)"""
+    from factor_lab.research_context import is_v2_family
+
+    return is_v2_family(str(profile or ""))
+
+
 def _reject_unknown_profile(payload: dict) -> None:
     from factor_lab.research_context import KNOWN_PROFILES
 
@@ -216,7 +223,7 @@ def run_search(payload: dict, bars: list) -> str:
     if cfg_kwargs.get("cost") is None:
         cfg_kwargs["cost"] = resolve_search_cost(payload, bars)
     cfg = SearchConfig(**cfg_kwargs)
-    if cfg.research_profile == "crypto_local_v2":
+    if _is_v2_profile(cfg.research_profile):
         cfg.crypto_profile = True  # v2 隐含加密口径(特征空间/成本解析)
     if cfg.crypto_profile and cfg.cross_peers:
         cfg.cross_peers = [(symbol, prepare_bars({**payload, "symbol": symbol}, peer))
@@ -232,10 +239,10 @@ def run_search(payload: dict, bars: list) -> str:
         }
         for c in champions
     ]
-    if cfg.research_profile == "crypto_local_v2" and payload.get("final_generation", True):
+    if _is_v2_profile(cfg.research_profile) and payload.get("final_generation", True):
         # 封存段一次性揭示:仅最终代、仅通过验证的冻结候选
         _reveal_v2_holdout(out, payload, full_bars, cfg.cost)
-    if cfg.research_profile == "crypto_local_v2":
+    if _is_v2_profile(cfg.research_profile):
         from factor_lab.research_context import resolve_context
 
         ctx = resolve_context(payload, full_bars, cfg.cost)
@@ -657,7 +664,8 @@ def mine_start(payload_json: str, bars_json: str) -> str:
     # 末代快照产出后做一次性封存揭示——与 run_search 入口同口径
     _SESSIONS[sid] = {
         "gen": gen,
-        "v2": cfg.research_profile == "crypto_local_v2",
+        "v2": _is_v2_profile(cfg.research_profile),
+        "shortline_fitness": str(cfg.research_profile or "") == "shortline_v1",
         "full_bars": list(bars),
         "payload": payload,
         "cost": cfg.cost,
@@ -671,11 +679,17 @@ def mine_step(session_id: str) -> str:
     s = _SESSIONS.get(session_id)
     if s is None:
         return json.dumps({"error": "会话不存在"}, ensure_ascii=False)
+    from factor_lab.scoring.evaluate import set_shortline_fitness
+
+    set_shortline_fitness(s.get("shortline_fitness") is True)
     try:
-        snap = next(s["gen"])
-    except StopIteration:
-        _SESSIONS.pop(session_id, None)
-        return json.dumps({"done": True}, ensure_ascii=False)
+        try:
+            snap = next(s["gen"])
+        except StopIteration:
+            _SESSIONS.pop(session_id, None)
+            return json.dumps({"done": True}, ensure_ascii=False)
+    finally:
+        set_shortline_fitness(False)
     champions = [
         {
             "tokens": c.tokens,
@@ -737,7 +751,7 @@ def _split_train_test(cfg: SearchConfig, bars: list) -> tuple[list, list]:
     v2:60/20/20 显式计划;返回的 test 是验证区(封存区由调用方另行处理,
     本函数不返回封存段——避免任何路径意外把它当验证用)。
     """
-    if cfg.research_profile == "crypto_local_v2":
+    if _is_v2_profile(cfg.research_profile):
         from factor_lab.scoring.split_plan import build_split_plan
 
         plan = build_split_plan(len(bars), label_span=cfg.label_span, warmup=250, bars=bars)
@@ -842,7 +856,7 @@ def run_mine_shard(payload: dict, bars: list) -> str:
     feat_mat = prefix_view_matrix(shard_bars, len(train_bars))
     close = np.array([float(b.get("close") or 0) for b in train_bars], dtype=float)
     periods = bars_per_year(train_bars, timeframe)
-    v2 = cfg.research_profile == "crypto_local_v2"
+    v2 = _is_v2_profile(cfg.research_profile)
     head_trim = 0
     if v2:
         from factor_lab.search import _v2_head_trim
@@ -894,12 +908,12 @@ def _strict_eval_context(payload: dict, bars: list) -> dict:
     if cfg_kwargs.get("cost") is None:
         cfg_kwargs["cost"] = resolve_search_cost(payload, bars)
     cfg = SearchConfig(**cfg_kwargs)
-    if cfg.research_profile == "crypto_local_v2":
+    if _is_v2_profile(cfg.research_profile):
         cfg.crypto_profile = True
     if cfg.crypto_profile and cfg.cross_peers:
         cfg.cross_peers = [(symbol, prepare_bars({**payload, "symbol": symbol}, peer))
                            for symbol, peer in cfg.cross_peers]
-    v2 = cfg.research_profile == "crypto_local_v2"
+    v2 = _is_v2_profile(cfg.research_profile)
     plan = None
     if v2:
         from factor_lab.scoring.split_plan import build_split_plan
@@ -1015,13 +1029,13 @@ def run_mine_precise(payload: dict, bars: list) -> str:
     if cfg_kwargs.get("cost") is None:
         cfg_kwargs["cost"] = resolve_search_cost(payload, bars)
     cfg = SearchConfig(**cfg_kwargs)
-    if cfg.research_profile == "crypto_local_v2":
+    if _is_v2_profile(cfg.research_profile):
         cfg.crypto_profile = True
     if cfg.crypto_profile and cfg.cross_peers:
         cfg.cross_peers = [(symbol, prepare_bars({**payload, "symbol": symbol}, peer))
                            for symbol, peer in cfg.cross_peers]
     # v2:显式切分计划;封存段对精算去重不可见(与 search() 一致)
-    v2 = cfg.research_profile == "crypto_local_v2"
+    v2 = _is_v2_profile(cfg.research_profile)
     full_bars = list(bars)
     plan = None
     head_trim = 0

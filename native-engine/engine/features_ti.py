@@ -8,7 +8,7 @@ import math
 
 import taichi as ti
 
-from factor_lab.features import FEATURE_NAMES, zscore_window
+from factor_lab.features import FEATURE_NAMES, SHORTLINE_FEATURE_NAMES, shortline_feature_rows, zscore_window
 from factor_lab.market import is_v2, utc_time
 from .series_ti import GpuSeries, program
 from .reductions_ti import block_tree_sum, compensated_add
@@ -295,7 +295,17 @@ def compute_features(bars):
         else:
             good = row.isfinite()
             out[name] = good.where(good.where(row, 0.0).zscore(200), float("nan"))
-    return GpuFeatureMatrix([out[name] for name in FEATURE_NAMES])
+    rows = [out[name] for name in FEATURE_NAMES]
+    # 短线 v4 行(62-69):bars 携带 sl_of 列时追加。原始列在宿主做 masked
+    # zscore(窗 300)——直接复用 pykernel shortline_feature_rows,与 CPU
+    # 内核逐位同源,不再在 GPU 上重写一套口径。
+    shortline = shortline_feature_rows(bars)
+    if shortline is not None:
+        rows.extend(
+            GpuSeries.upload([float(v) for v in shortline[name]])
+            for name in SHORTLINE_FEATURE_NAMES
+        )
+    return GpuFeatureMatrix(rows)
 
 
 def prepare_features(bars, config):
@@ -315,7 +325,9 @@ def prepare_features(bars, config):
     train = frozen_view(prepared_bars, len(train))
     resident = compute_features(prepared_bars)
     train_features = resident.prefix(len(train))
-    v2 = cfg.research_profile == "crypto_local_v2"
+    from factor_lab.research_context import is_v2_family
+
+    v2 = is_v2_family(str(cfg.research_profile or ""))
     availability = resident.availability(len(train), crypto=cfg.crypto_profile or v2,
                                          max_head_gap=250 if v2 else 0)
     return {"matrix": train_features.matrix,
@@ -324,7 +336,9 @@ def prepare_features(bars, config):
             "close": [float(b.get("close") or 0) for b in train],
             "periods": bars_per_year(train, str(config.get("timeframe") or "1d")),
             "cost": factor_local.resolve_search_cost(config, prepared_bars),
-            "feature_names": list(FEATURE_NAMES),
+            "feature_names": list(FEATURE_NAMES) + (
+                list(SHORTLINE_FEATURE_NAMES) if train_features.matrix.shape[0] > len(FEATURE_NAMES) else []
+            ),
             "active_feature_ids": availability["active_feature_ids"],
             "train_len": len(train), "total_len": len(bars),
             "head_trim": availability["head_trim"] if v2 else 0,

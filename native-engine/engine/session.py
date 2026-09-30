@@ -100,8 +100,11 @@ class NativeSession:
         from .memory import reserved_static_bytes
         # Preflight before constructing a feature graph; low-memory cards get
         # an actionable error rather than partial resident allocations.
-        plan_tile(len(self.bars), 62, max(1, int(config.get('population') or 3000)),
-                  self.precision, self.runtime['vram_mb'], static_bytes=reserved_static_bytes(len(self.bars)))
+        shortline_rows = 70 if str(config.get("research_profile") or "") == "shortline_v1" else 62
+        plan_tile(len(self.bars), shortline_rows,
+                  max(1, int(config.get('population') or 3000)),
+                  self.precision, self.runtime['vram_mb'],
+                  static_bytes=reserved_static_bytes(len(self.bars), shortline_rows))
         prepared = prepare_features(self.bars, frozen_config)
         F, T = prepared["matrix"].shape
         tile = plan_tile(T, F, max(1, int(config.get("population") or 3000)),
@@ -111,7 +114,8 @@ class NativeSession:
         vm = StackVM(prepared["matrix"], "f64", tile=tile,
                           norm_window=prepared["norm_window"], normalization=prepared["normalization"])
         metrics = TrainingMetrics(prepared["close"], prepared["cost"], prepared["periods"],
-                                       tile=tile, head_trim=prepared["head_trim"])
+                                       tile=tile, head_trim=prepared["head_trim"],
+                                       shortline=str(config.get("research_profile") or "") == "shortline_v1")
         availability = prepared["availability"]
         finite_features = [f < 52 or finite or (prepared["normalization"] == "causal_v2"
                                           and f >= 52 and availability["continuous_features"][f])
@@ -173,7 +177,12 @@ class NativeSession:
                     continue
                 # v2 permits a leading direct-data prefix, as the CPU VM does.
                 # Interior gaps and fully missing rows still reject execution.
-                if any(t < 64 and not self.finite_features[t] for t in candidate):
+                if any(
+                    (t < 64 and not self.finite_features[t])
+                    or (t >= 115 and t - 115 < len(self.finite_features) - 62
+                        and not self.finite_features[62 + (t - 115)])
+                    for t in candidate
+                ):
                     continue
                 accepted.append(candidate)
             except (ValueError, TypeError):
@@ -226,9 +235,11 @@ class NativeSession:
             self.vm.dispatch(batch)
             values = self.metrics.evaluate(self.vm.factors, len(batch))
             for index, tokens, row in zip(indices, batch, values):
-                if not np.isfinite(row).all() or row[-1] < 1e-6:
+                # factor_std 是报告项(守卫用);评估指标含短线 fitness 附加项
+                if not np.isfinite(row).all() or row[METRIC_NAMES.index("factor_std")] < 1e-6:
                     continue
-                metrics = {name: float(row[k]) for k, name in enumerate(METRIC_NAMES[:-1])}
+                metrics = {name: float(row[k]) for k, name in enumerate(METRIC_NAMES)
+                           if name != "factor_std"}
                 metrics["oos_negative"] = bool(metrics["oos_negative"])
                 metrics["kernel_version"] = ENGINE_TAG
                 metrics["native_engine_version"] = self.runtime["engine_version"]

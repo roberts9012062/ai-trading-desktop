@@ -24,6 +24,11 @@ from .scoring.split_plan import SplitPlan, build_split_plan
 
 # 新 profile id(显式版本化;不覆盖旧 ID 含义)
 PROFILE_CRYPTO_LOCAL_V2 = "crypto_local_v2"
+# 短线因子档案(shortline_v1):特征/切分/归一化/封存全量复用 v2 语义;
+# 附加 v4 订单流特征行(token 115-122)、fitness 换手/翻转/半衰期惩罚
+# (scoring/evaluate.py)与桌面 TS 侧重放合格门。见
+# docs/plans/2026-09-30-shortline-lab-implementation.md §2/§4/§5。
+PROFILE_SHORTLINE_V1 = "shortline_v1"
 CONTEXT_SCHEMA_VERSION = 1
 
 # 执行模型(方案 §3):现货研究不输出可执行做空收益
@@ -43,7 +48,12 @@ STATUS_HOLDOUT_PASSED = "holdout_passed"
 STATUS_REJECTED = "rejected"
 STATUS_PORTFOLIO_COMPONENT = "portfolio_component"
 
-KNOWN_PROFILES = (CRYPTO_PROFILE, PROFILE_CRYPTO_LOCAL_V2)
+KNOWN_PROFILES = (CRYPTO_PROFILE, PROFILE_CRYPTO_LOCAL_V2, PROFILE_SHORTLINE_V1)
+
+
+def is_v2_family(profile: str) -> bool:
+    """是否走 v2 语义族(切分计划/严格因果归一化/封存揭示)。"""
+    return profile in (PROFILE_CRYPTO_LOCAL_V2, PROFILE_SHORTLINE_V1)
 
 # v2 归一化基础窗口:与旧 _BASE_ZSCORE_WINDOW 同为 200 bars 语义,
 # 但推导方式前缀不变(见 norm_window_for_bars)。
@@ -126,7 +136,7 @@ def resolve_context(
     profile = str(payload.get("research_profile") or "")
     if not profile:
         return None
-    if profile == PROFILE_CRYPTO_LOCAL_V2:
+    if profile in (PROFILE_CRYPTO_LOCAL_V2, PROFILE_SHORTLINE_V1):
         if not is_crypto(bars):
             from .market import prepare_bars
 
@@ -144,7 +154,7 @@ def resolve_context(
         )
         return ResearchContext(
             schema_version=CONTEXT_SCHEMA_VERSION,
-            profile_id=PROFILE_CRYPTO_LOCAL_V2,
+            profile_id=profile,
             execution_model=execution,
             timeframe=timeframe,
             norm_window=norm_window_for_bars(bars),

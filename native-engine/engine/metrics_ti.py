@@ -6,7 +6,8 @@ from .reductions_ti import block_tree_sum, compensated_add, clipped_sortino
 
 METRIC_NAMES = ("ann_ret", "sortino", "calmar", "ts_ic", "ts_ic_5", "ts_ic_20",
                 "symmetry", "turnover_q", "oos_sortino", "oos_mult", "oos_negative",
-                "consistency", "composite", "avg_turnover", "exposure", "periods", "factor_std")
+                "consistency", "composite", "avg_turnover", "exposure", "periods", "factor_std",
+                "flip_rate", "half_life")
 
 REPORT_NAMES = ("ann_ret", "sortino", "calmar", "ts_ic", "avg_turnover", "exposure",
                 "fee_total", "funding_total", "n_trades", "funding_estimated", "funding_missing")
@@ -383,7 +384,7 @@ class _ReportProgram:
 
 
 class TrainingMetrics:
-    def __init__(self, close, cost, periods, *, tile=32, head_trim=0):
+    def __init__(self, close, cost, periods, *, tile=32, head_trim=0, shortline=False):
         close = np.asarray(close, dtype=np.float64)
         if close.ndim != 1 or len(close) - head_trim < 2 or not np.isfinite(close).all():
             raise ValueError("Invalid close series/head trim")
@@ -391,12 +392,15 @@ class TrainingMetrics:
             raise ValueError("Invalid cost/annualization")
         self.T, self.head, self.N = len(close), head_trim, len(close) - head_trim
         self.cost, self.periods, self.tile = float(cost), float(periods), tile
+        self.shortline = bool(shortline)
         self.close = ti.ndarray(ti.f64, shape=self.T)
         self.close.from_numpy(close)
         self.positions = ti.ndarray(ti.f64, shape=(tile, self.T))
         self.pnls = ti.ndarray(ti.f64, shape=(tile, self.N))
         self.turnovers = ti.ndarray(ti.f64, shape=(tile, self.N))
-        self.summary = ti.ndarray(ti.f64, shape=(tile, 16))
+        # 22 槽:0-15 v2 冻结口径;16-21 短线 fitness 附加归约
+        # (sum_pos/sum_pos2/sum_lag/flip_count/p0/pN;非 shortline 不进 composite)
+        self.summary = ti.ndarray(ti.f64, shape=(tile, 22))
         self.means = ti.ndarray(ti.f64, shape=(tile, 4, 2))
         self.ics = ti.ndarray(ti.f64, shape=(tile, 4))
         self.B = 1 << (((self.N + 1023) // 1024 - 1).bit_length())
@@ -434,7 +438,8 @@ class TrainingMetrics:
             self.program._merge_draw(a, b, count, width // 2)
             width //= 2
             a, b = b, a
-        self.program._finish(self.summary, self.ics, a, self.output, count, self.N, self.periods)
+        self.program._finish(self.summary, self.ics, a, self.output, count, self.N, self.periods,
+                             1 if self.shortline else 0)
         ti.sync()
         return self.output.to_numpy()[:count].copy()
 
@@ -511,16 +516,16 @@ class _TrainingProgram:
         ti.loop_config(block_dim=256)
         for idx in range(count * 256):
             p, lane = idx // 256, idx % 256
-            shared = ti.simt.block.SharedArray((256, 16), ti.f64)
-            acc = ti.Vector.zero(ti.f64, 16)
-            correction = ti.Vector.zero(ti.f64, 16)
+            shared = ti.simt.block.SharedArray((256, 22), ti.f64)
+            acc = ti.Vector.zero(ti.f64, 22)
+            correction = ti.Vector.zero(ti.f64, 22)
             for offset in range((N + 255 - lane) // 256):
                 j = lane + offset * 256
                 pnl, turnover, pos = pnls[p, j], turnovers[p, j], positions[p, head + j]
                 dn2, ndn = ti.cast(0, ti.f64), ti.cast(0, ti.f64)
                 if pnl < 0:
                     dn2, ndn = pnl * pnl, 1.0
-                value = ti.Vector.zero(ti.f64, 16)
+                value = ti.Vector.zero(ti.f64, 22)
                 value[0], value[1], value[2] = pnl, dn2, ndn
                 value[3], value[4] = turnover, ti.abs(pos)
                 value[5], value[6] = ti.cast(pos > 0, ti.f64), ti.cast(pos < 0, ti.f64)
@@ -530,18 +535,29 @@ class _TrainingProgram:
                     value[10], value[11], value[12] = pnl, dn2, ndn
                 else:
                     value[13], value[14], value[15] = pnl, dn2, ndn
-                for k in ti.static(range(16)):
-                    if ti.static(k in (2, 5, 6, 9, 12, 15)):
+                # 16-21: 短线 fitness 归约(冻结口径与 pykernel evaluate.py 对齐)
+                prev = positions[p, head + j - 1] if j >= 1 else 0.0
+                value[16], value[17] = pos, pos * pos
+                if j >= 1:
+                    value[18] = pos * prev
+                    if pos * prev < 0:
+                        value[19] = 1.0
+                if j == 0:
+                    value[20] = pos
+                if j == N - 1:
+                    value[21] = pos
+                for k in ti.static(range(22)):
+                    if ti.static(k in (2, 5, 6, 9, 12, 15, 19, 20, 21)):
                         # Counts are exact integers <= 300k, representable in
                         # f64; compensation cannot improve these additions.
                         acc[k] = acc[k] + value[k]
                     else:
                         acc[k], correction[k] = compensated_add(acc[k], correction[k], value[k])
-            for k in ti.static(range(16)):
+            for k in ti.static(range(22)):
                 shared[lane, k] = acc[k]
-            block_tree_sum(shared, lane, 16)
+            block_tree_sum(shared, lane, 22)
             if lane == 0:
-                for k in ti.static(range(16)):
+                for k in ti.static(range(22)):
                     out[p, k] = shared[0, k]
 
     @ti.func
@@ -633,7 +649,7 @@ class _TrainingProgram:
             b[p, k, 3] = ti.max(ti.max(a[p, left, 3], a[p, right, 3]), a[p, left, 1] - (a[p, left, 0] + a[p, right, 2]))
 
     @ti.kernel
-    def _finish(self, sums: ti.types.ndarray(dtype=ti.f64, ndim=2), ics: ti.types.ndarray(dtype=ti.f64, ndim=2), draw: ti.types.ndarray(dtype=ti.f64, ndim=3), out: ti.types.ndarray(dtype=ti.f64, ndim=2), count: ti.i32, N: ti.i32, periods: ti.f64):
+    def _finish(self, sums: ti.types.ndarray(dtype=ti.f64, ndim=2), ics: ti.types.ndarray(dtype=ti.f64, ndim=2), draw: ti.types.ndarray(dtype=ti.f64, ndim=3), out: ti.types.ndarray(dtype=ti.f64, ndim=2), count: ti.i32, N: ti.i32, periods: ti.f64, shortline: ti.i32):
         for p in range(count):
             ann = sums[p, 0] / N * periods
             sor = clipped_sortino(sums[p, 0], sums[p, 1], sums[p, 2], N, periods)
@@ -666,5 +682,25 @@ class _TrainingProgram:
             out[p, 3], out[p, 4], out[p, 5] = ics[p, 1], ics[p, 2], ics[p, 3]
             out[p, 6], out[p, 7], out[p, 8] = sym, tq, oos
             out[p, 9], out[p, 10], out[p, 11] = mult, ti.cast(oos <= 0, ti.f64), consist
+            # 短线 fitness(shortline_v1):翻转率/半衰期惩罚乘子(冻结系数,
+            # 与 pykernel scoring/evaluate.shortline_penalty 同式)
+            m = sums[p, 16] / N
+            c0 = sums[p, 17] / N - m * m
+            denom = ti.max(N - 1, 1)
+            sa = sums[p, 16] - sums[p, 20]
+            sb = sums[p, 16] - sums[p, 21]
+            c1 = (sums[p, 18] - m * (sa + sb) + (N - 1) * m * m) / denom
+            flip_rate = sums[p, 19] / denom
+            rho = c1 / ti.max(c0, 1e-12)
+            # 只认正持久性:rho<=0(交替翻转)→ a 下限 → hl 最快衰减
+            a = ti.min(ti.max(rho, 1e-9), 0.9999999)
+            half_life = ti.min(ti.log(2.0) / (-ti.log(a)), 500.0)
+            if shortline != 0:
+                penalty = 1.0
+                penalty = penalty - 0.5 * ti.min(turnover / 0.35, 1.0)
+                penalty = penalty - 0.3 * ti.min(flip_rate / 0.08, 1.0)
+                penalty = penalty - 0.2 * ti.max(0.0, 1.0 - half_life / 48.0)
+                comp = comp * ti.max(penalty, 0.0)
             out[p, 12], out[p, 13], out[p, 14] = comp, turnover, sums[p, 4] / N
             out[p, 15], out[p, 16] = periods, ics[p, 0]
+            out[p, 17], out[p, 18] = flip_rate, half_life

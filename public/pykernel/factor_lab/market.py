@@ -13,6 +13,9 @@ from datetime import datetime, timezone, timedelta
 
 CRYPTO_PROFILE = "crypto_ohlcv_v1"
 V2_PROFILE = "crypto_local_v2"
+# 短线档案标记:特征/缺失/归一化语义与 v2 同族(见 research_context.is_v2_family)
+SHORTLINE_PROFILE = "shortline_v1"
+V2_FAMILY = (V2_PROFILE, SHORTLINE_PROFILE)
 LEGACY_FEATURE_COUNT = 40
 
 
@@ -22,22 +25,23 @@ def prepare_bars(payload: dict, bars: list) -> list:
     from data.product_specs import is_crypto_symbol
     if not is_crypto_symbol(str(payload.get("symbol") or "")):
         raise ValueError("Crypto factor profile requires a USDT crypto symbol")
-    marker = V2_PROFILE if str(payload.get("research_profile") or "") == V2_PROFILE else CRYPTO_PROFILE
-    if bars and bars[0].get("_factor_market") in (CRYPTO_PROFILE, V2_PROFILE):
-        # 已带标记:只在旧标记上升级到 v2(显式请求时不降级)
-        if marker == V2_PROFILE:
-            return [dict(b, _factor_market=V2_PROFILE) if b.get("_factor_market") != V2_PROFILE else b for b in bars]
+    profile = str(payload.get("research_profile") or "")
+    marker = profile if profile in V2_FAMILY else CRYPTO_PROFILE
+    if bars and bars[0].get("_factor_market") in (CRYPTO_PROFILE, *V2_FAMILY):
+        # 已带标记:只在旧标记上升级到 v2 族(显式请求时不降级)
+        if marker in V2_FAMILY:
+            return [dict(b, _factor_market=marker) if b.get("_factor_market") != marker else b for b in bars]
         return bars
     return [dict(b, _factor_market=marker) for b in bars]
 
 
 def is_crypto(bars: list) -> bool:
-    return bool(bars and bars[0].get("_factor_market") in (CRYPTO_PROFILE, V2_PROFILE))
+    return bool(bars and bars[0].get("_factor_market") in (CRYPTO_PROFILE, *V2_FAMILY))
 
 
 def is_v2(bars: list) -> bool:
-    """bars 是否处于 crypto_local_v2 契约(v2 特征/缺失/切分路径)"""
-    return bool(bars and bars[0].get("_factor_market") == V2_PROFILE)
+    """bars 是否处于 crypto_local_v2 语义族(v2 特征/缺失/切分路径;含 shortline_v1)"""
+    return bool(bars and bars[0].get("_factor_market") in V2_FAMILY)
 
 
 def utc_time(value: str) -> datetime | None:

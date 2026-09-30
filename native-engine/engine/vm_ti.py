@@ -20,7 +20,14 @@ def validate_tokens(tokens, F):
     for token in tokens:
         if not isinstance(token, (int, np.integer)) or token < 0:
             raise ValueError("Tokens must be non-negative integers")
-        if token < 64:
+        if token >= 115:
+            # 短线 v4 特征:矩阵行 62 + (token-115);行不存在(无 sl 列)即拒绝
+            if 62 + (token - 115) >= F:
+                raise ValueError("Shortline feature out of range")
+            sp += 1
+            if sp > 8:
+                raise ValueError("Stack depth exceeds eight slots")
+        elif token < 64:
             if token >= F:
                 raise ValueError("Feature out of range")
             sp += 1
@@ -47,7 +54,7 @@ class StackVM:
         resident = isinstance(matrix, ti.Ndarray)
         if not resident:
             matrix = np.asarray(matrix)
-        if len(matrix.shape) != 2 or not 1 <= matrix.shape[0] <= 64 or matrix.shape[1] < 2:
+        if len(matrix.shape) != 2 or not 1 <= matrix.shape[0] <= 70 or matrix.shape[1] < 2:
             raise ValueError("Invalid feature matrix")
         if resident and matrix.dtype != ti.f64:
             raise ValueError("Authoritative resident features must be f64")
@@ -525,9 +532,9 @@ class _StackProgram:
                 if ti.static(transform == 1):
                     w = ti.abs(w - med)
                 if w < z:
-                    less += 1
+                    less = less + 1
                 elif w == z:
-                    eq += 1
+                    eq = eq + 1
             if less < k and k <= less + eq:
                 result = z
         return result
@@ -878,10 +885,11 @@ class _StackProgram:
                 if tok >= 0:
                     if 40 <= tok < 64 or tok >= 104:
                         causal = True
-                    if tok < 64:
+                    if tok < 64 or tok >= 115:
+                        feat_row = tok if tok < 64 else 62 + (tok - 115)
                         for offset in range((T + 255 - lane) // 256):
                             t = lane + offset * 256
-                            stack[p, sp, t] = features[tok, t]
+                            stack[p, sp, t] = features[feat_row, t]
                         ti.simt.block.sync()
                         sp = sp + 1
                     else:

@@ -678,6 +678,37 @@ FEATURE_NAMES: tuple[str, ...] = (
 )
 
 
+# ── 短线 v4 本地专属特征（shortline_v1；token 115-122 = 矩阵行 62-69）──
+# 原始值由桌面回填管道按 bar 注入（键 sl_of0..7，来自 aggTrades 1 秒桶），
+# 与桌面 TS 求值器 src/lib/shortline/orderflow.ts 同一冻结口径（见
+# docs/plans/2026-09-30-shortline-lab-implementation.md §1）。
+SHORTLINE_FEATURE_NAMES: tuple[str, ...] = (
+    "SL_OF_IMB", "SL_BIG_SHARE", "SL_TRD_INT", "SL_PV_DIV",
+    "SL_VWAP_DEV", "SL_BURST", "SL_STREAK_SIG", "SL_RHYTHM_ENT",
+)
+SHORTLINE_COLUMN_KEYS: tuple[str, ...] = tuple(f"sl_of{i}" for i in range(8))
+SHORTLINE_ZSCORE_WINDOW = 300
+
+
+def shortline_feature_rows(bars: list[dict[str, Any]]) -> dict[str, np.ndarray] | None:
+    """v4 因果归一化行（masked zscore，窗 300）。
+
+    bars 无任何 sl_of 列 → None（矩阵保持 62 行，旧口径逐位不变）。
+    缺失（None/NaN）不冒充 0：全缺失行全 NaN，交 active_feature_ids 排除。
+    """
+    if not any(b.get(SHORTLINE_COLUMN_KEYS[0]) is not None for b in bars):
+        return None
+    out: dict[str, np.ndarray] = {}
+    for i, key in enumerate(SHORTLINE_COLUMN_KEYS):
+        values = np.array(
+            [float(b[key]) if b.get(key) is not None else np.nan for b in bars],
+            dtype=float,
+        )
+        out[SHORTLINE_FEATURE_NAMES[i]] = _masked_zscore_causal(values, SHORTLINE_ZSCORE_WINDOW)
+    return out
+
+
+
 # ── 特征矩阵按段缓存 ──────────────────────────────────────────
 # feature_matrix 只取决于 bars，但调用方按「候选因子 × 段」组织循环，
 # 同一个段会被不同 tokens 反复重算。walk_forward 的段级缓存键含 tokens，
@@ -715,7 +746,7 @@ def bars_signature(bars: list[dict[str, Any]]) -> tuple:
         return (0,)
     import hashlib
     keys = ("time", "open", "high", "low", "close", "volume", "open_interest", "_factor_market", "funding_rate", "quote_volume",
-            "taker_imbalance", "taker_buy_volume", "trade_count", "long_short_ratio", "liquidation_imbalance")
+            "taker_imbalance", "taker_buy_volume", "trade_count", "long_short_ratio", "liquidation_imbalance") + SHORTLINE_COLUMN_KEYS
     digest = hashlib.sha256()
     for b in bars:
         digest.update(repr(tuple(b.get(k) for k in keys)).encode("utf-8"))
@@ -837,7 +868,11 @@ def feature_matrix(bars: list[dict[str, Any]], _sig: tuple | None = None) -> np.
         _MATRIX_CACHE.move_to_end(key)
         return hit
     feats = compute_features(bars)
-    matrix = np.vstack([feats[name] for name in FEATURE_NAMES])
+    rows = [feats[name] for name in FEATURE_NAMES]
+    shortline = shortline_feature_rows(bars)
+    if shortline is not None:
+        rows.extend(shortline[name] for name in SHORTLINE_FEATURE_NAMES)
+    matrix = np.vstack(rows)
     matrix.flags.writeable = False
     _MATRIX_CACHE[key] = matrix
     _MATRIX_CACHE.move_to_end(key)

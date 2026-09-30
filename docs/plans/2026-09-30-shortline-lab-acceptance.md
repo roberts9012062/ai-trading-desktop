@@ -68,3 +68,135 @@ cadence=60s  steps= 119  bits_sha256=a703088de0c3ef155a021c41e532a12b35e627493c3
 3. 真实回填的 UI 入口（进度/占用/清理）随 M-D3 页面交付；管道本身已可用。
 
 ---
+
+## M-D2：v4 特征批次 + fitness + shortline_v1 门（验收门 D2）
+
+### 交付物（实现已写 ✅）
+
+**pykernel**（全部加法分支；v2/legacy 路径逐位不变）：
+- `token_encoding.py`：SHORTLINE_TOKEN_OFFSET=115、SHORTLINE_FEATURE_COUNT=8
+- `features.py`：SHORTLINE_FEATURE_NAMES/列键 sl_of0..7、shortline_feature_rows（masked zscore 窗 300）、feature_matrix 附加行 62-69、bars_signature 纳入 sl 列
+- `vm.py`：token ≥115 分发（行 62+k）+ 52+ 族缺失准入 + token_name
+- `research_context.py`：PROFILE_SHORTLINE_V1、KNOWN_PROFILES、is_v2_family、resolve_context 复用 v2 分支
+- `market.py`：SHORTLINE_PROFILE 标记并入 V2 族（is_v2/is_crypto/prepare_bars）
+- `search.py`：is_v2_config→语义族、树编码 62-69↔token 115-122、search 入口 fitness 开关
+- `scoring/evaluate.py`：flip_rate/half_life 指标（恒算）+ shortline_penalty 乘子（模块开关，入口 try/finally 复位）
+- `factor_local.py`：v2 族判定 10 处统一；mine_step 会话携带 fitness 开关
+
+**native-engine**（VERSION → `native-gpu-v1-m3.4-shortline`）：
+- `features_ti.py`：v4 行宿主计算（直接复用 pykernel shortline_feature_rows → 与 CPU 逐位同源）后上传 GPU；prepare_features v2 族判定 + feature_names 扩展
+- `vm_ti.py`：矩阵行上限 64→70、validate_tokens ≥115、_execute kernel 特征行映射；kth_value 存量 AugAssign 改显式赋值（位级等价，修存量守卫失败）
+- `phase_vm_ti.py`：decode/kernel 同款映射
+- `metrics_ti.py`：METRIC_NAMES +flip_rate/half_life；summary 16→22 槽（sum_pos/pos²/lag/flip/p0/pN）；_finish 短线乘子（与 pykernel 同式）
+- `session.py`：_accepted v4 缺失准入、plan_tile F 预算 70、TrainingMetrics shortline 标志、eval_shards 指标显式排除 factor_std（修正原 `[:-1]` 对新指标序的隐式依赖）
+- `signatures.py`：KEYS 同步 sl 列（与 bars_signature 逐字段一致）
+- `runtime.py`：plan_tile F 上限 64→70
+
+**TS 侧**：`src/lib/shortline/gate.ts` shortline_v1 合格门（live 可用性/翻转率≤0.15/bar/稳定性 std≤0.20/OOS 采样点 Spearman IC≥0.015/延迟 IC≥0.5×基线；拒因逐条记录，0 合法）。
+
+### 测试通过 ✅
+
+- pykernel：`tests/native_engine/test_shortline_pykernel.py` 10/10（矩阵加法性 62↔70、VM 分发与准入、树编码往返、profile 解析、fitness 公式与乘子、search 端到端 shortline≤v2）
+- native：`test_shortline_native.py` 3/3（GPU v4 行与 CPU 逐位一致、token 115 可执行/无列拒绝、composite=v2×penalty 12 位小数一致）
+- native 全量套件：**148 测试，仅剩 2 个与 HEAD 相同的存量 DSR ERROR**（CPU DSR 日历不齐已知遗留，非本次引入）；存量 determinism_contract 失败已修复
+- TS：`gate.test.ts` 4/4；全量 Vitest 519 passed/0 failed
+- metrics 冻结夹具 `training-zero-pyodide.json` 按 `export-native-gpu-training-reference.mjs` 官方流程重生成（新 evaluate.py sha 01e521b2…；行为金样逐位不变）
+
+### 验收门 D2：挖掘全链路跑通 + 门正确拒绝/通过 ✅ 通过
+
+证据 `scripts/shortline-d2-evidence.py` → `.local-data/native-gpu-reports/d2-shortline.json`
+（真实 ETHUSDT 15m 16000 根 + v4 列）：
+- shortline_v1：矩阵 **70 行**，v4 token 候选（115-117 等）全部可评估；strict_eval/precise/qualification 全链路完成
+- v2 对照（同 bars 去 sl 列）：矩阵 **62 行** —— 加法性成立
+- 拒因正确产出（holdout/WF/OOS/strict 各门）；**0 合法合格**（候选未过 v2 严格门，不为产出放宽）
+- fitness 乘子等价性由 test_shortline_native 以非零 composite 12 位小数锁定
+
+### 重冻结（红线 #3）
+
+- VERSION bump `native-gpu-v1-m3.3` → `native-gpu-v1-m3.4-shortline`
+- **G1 通过**：mixed sha256 `a7eb5a46…`、f64 `140d6924…`（两次运行间 metrics 公式修改后自检值不变——非短线分支逐位稳定）
+- G2：见下方 M-D2 附录（重冻结执行记录）
+
+---
+
+## M-D3：短线实验室页面 + 流式打分预览（验收门 D3）
+
+### 交付物 ✅ / 测试 ✅
+
+- 路由 `/factor-lab/shortline`（router.tsx）+ 侧边栏"因子实验室"二级菜单
+- 页面 `src/components/shortline-lab/shortline-lab-page.tsx`：回填管理（进度/占用/清理）
+  → 挖掘表单（品种/1m|5m|15m/种群/代数/成本/cadence，shortline_v1 + 原生 GPU）
+  → 任务进度卡 → 冠军表（composite/翻转率/半衰期/avg换手/IC）→ 流式预览 → 挂载区
+- 任务接线：`local-runner` create 时对 shortline 快照注入 v4 列（`patchBarsSnapshotColumns` + `task-enrich.ts`，digest 确定性派生；断点续训可复现）
+- 流式预览：`ws.ts` Binance aggTrade 直连（重连+退避）；LiveScoringEngine + 50 步环形缓冲
+  + 陈旧标记（age>2×cadence 置灰）；**纯预览，无任何下单代码路径**
+- 预热：digest 尾部 closed bars（kline+aggTrades 双源喂同一构造器）
+
+### 验收门 D3：流式预览与重放器同一 tick 序列分数一致 ✅ 通过
+
+`live-parity.test.ts`：cadence 3/15/60s，同一事件流分别驱动重放器与
+LiveScoringEngine（页面所用同一实例），逐步分数与组合分**逐位相等**
+（0 差异，含 v4 公式）。形成中 K 线构造/订单流特征/求值器全部共享同一实现
+（forming-bar.ts/orderflow.ts/evaluator.ts），无第二套。
+
+---
+
+## M-D4：挂载载荷 + 黄金夹具导出（验收门 D4）
+
+### 交付物 ✅ / 测试 ✅
+
+- `mount.ts`：契约 schema 逐字段组装（task_type/symbol/timeframe/cadence_seconds/
+  warmup_bars/eval_version/champions[{id,tokens,weight Σ=1}]/decision/risk/fixture_manifest）；
+  白名单校验（v4=115-122 与 55/57/58 → 拒绝挂载并标"仅本地"）；warmup 按公式窗口推导（下限 300）
+- `fixtures.ts`：黄金夹具 shortline-golden-fixture/1（digest/1 tick 流字节 base64 +
+  forming-bar-spec/1 + cadence + 公式集 + **期望分数 f64 位模式 hex**）+ manifest SHA256；
+  导出前自校验（digest roundtrip 重放逐位一致）；libm 敏感算子在 manifest 声明
+  （TANH/SIGMOID/SIGNED_LOG——服务器 S1 需按位复现桌面 V8 行为）
+- `server-api.ts`：契约 §7 端点客户端（/api/shortline/tasks* + pause/resume/stop/scores）
+- 页面挂载区：夹具导出（下载 JSON）+ 挂载按钮 + 仅本地原因展示
+- 测试：`mount.test.ts`（schema 逐字段、白名单拒绝、权重归一、warmup 抬升、夹具 manifest 确定性）
+
+### 验收门 D4：部分通过（桌面侧 ✅ / 服务器联调 ⏳ 待服务器 M-S1）
+
+- 桌面侧自洽：载荷过 schema 校验；夹具期望值由 D1 已证确定性的重放器产出，
+  manifest SHA 可复算（同输入同 SHA，测试锁定）
+- **服务器 S1 联调未开始**：服务器仓库（M-S1）尚未实现 FormulaEvaluator 与
+  /api/shortline 端点（桌面按红线 #9 未触碰服务器仓库）。挂载按钮在服务器
+  未就绪时报明确错误。联调门保持开放，待服务器 AI 交付后执行。
+
+### M-D2 附录：G2 重冻结执行记录（重要偏差，需用户裁决）
+
+**结果：54/56 通过（未达 56/56 门槛）**。唯一失败 = ETHUSDT/15m 的 mixed 与 f64
+两记录，各仅 **1 个候选** `[48,6,66,42,71,68,111,73]` composite 相对误差
+1.66e-4 > 1e-9；两记录的冠军重合 1.0 / 严格筛一致率 1.0 / 研究重合 1.0，
+其余 54 记录全过（7 币 × 4 周期 × 双精度全覆盖）。
+
+**根因证据链（判定为存量问题，非本分支引入）**：
+
+1. **m1-candidates.json 丢失**（.local-data 不入库，M1 时代的 ETH-15m 冻结
+   候选集不可恢复）→ 套件脚本按官方参考页路径**重新生成候选集**（Rng(42)
+   确定性；本次重冻结的集合本身已随参考冻结）。新集合含上式，M1 集合未含。
+2. **native 侧位级稳定**：该候选的 native 权威 composite 在 HEAD 干净
+   worktree 与本分支**逐位一致**（0.18417431977399565，两次独立运行）。
+3. **CPU 权威路径位级稳定**：`mine_eval_shard`（参考页 8-worker 池所调用的
+   同一入口）与 `mine_precise` 在 HEAD 与本分支 worktree 直跑均得
+   0.18417431977399565，与 native 相等。
+4. **离群值是浏览器 pyodide(WASM numpy) 参考值** 0.18420497223036278——
+   即分歧发生在 pyodide↔native/CPython 的浮点实现边界（复合链
+   MUL/NEG/MIN/SNR_60/SQRT 上某 bar 的 |tanh|<0.05 仓位地板翻转放大）。
+   f64 与 mixed 同差 → 非粗排问题。native 源码注释本就承认该边界
+   （"A one-ULP position change on a flat-price plateau can turn zero cashflow
+   into a negative fee"）。
+5. m3.3 的 56/56 建立在 M1 冻结候选集上——该集合恰好未触及此边界；
+   **G2 的 1e-9 门对"贴边界候选"存在系统性脆弱**，本次由集合重生成暴露。
+
+**结论与请裁决项**：
+- 本分支引擎改动未移动任何被测数值（位级证据 2/3）；G1 两过；
+  加法性在全部 54 个通过的记录上成立。
+- 按红线字面（56/56 才算完成），M-D2 的引擎改动**不宣称 G2 全过**。
+- 选项 A：接受 54/56 + 本证据链合入（后续单独开"pyodide↔native ULP 边界
+  对拍"任务，系统性收紧或调整贴边界候选的容差政策）；
+- 选项 B：本分支回滚全部引擎改动（短线功能不可用）；
+- 选项 C：投入专项修复该 ULP 边界（对齐 pyodide 超越函数/求和顺序，
+  工作量与风险另估）。
+- 复现工具：`scripts/shortline-diag-mixed.py <worktree>`（位级对照）。

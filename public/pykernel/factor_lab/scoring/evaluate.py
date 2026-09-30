@@ -317,6 +317,52 @@ def _turnover_quality(pos: np.ndarray) -> float:
     return max(-1.0, -(to - MAX_SANE_TURNOVER))
 
 
+# ── 短线 fitness(shortline_v1;方案 B §4,冻结系数见实现决策文档 §4)──
+# 模块级开关:search()/factor_local 入口按 profile 设置并复位(单线程内核
+# 上下文;native 路径不经过本函数,由 metrics_ti 的构造参数同口径实现)。
+_SHORTLINE_FITNESS = False
+
+
+def set_shortline_fitness(enabled: bool) -> None:
+    global _SHORTLINE_FITNESS
+    _SHORTLINE_FITNESS = bool(enabled)
+
+
+def shortline_penalty(avg_turnover: float, flip_rate: float, half_life: float) -> float:
+    """composite 乘子(冻结):max(0, 1 − 0.5·min(turn/0.35,1) − 0.3·min(flip/0.08,1) − 0.2·max(0,1−hl/48))"""
+    return max(
+        0.0,
+        1.0
+        - 0.5 * min(avg_turnover / 0.35, 1.0)
+        - 0.3 * min(flip_rate / 0.08, 1.0)
+        - 0.2 * max(0.0, 1.0 - half_life / 48.0),
+    )
+
+
+def _flip_and_half_life(pos: np.ndarray) -> tuple[float, float]:
+    """仓位序列的符号翻转率与 lag-1 自相关半衰期(冻结口径)。
+
+    flip_rate = #{t≥1: pos_t·pos_{t-1}<0} / max(N-1,1)
+    half_life: rho = c1/max(c0,1e-12)(中心化 lag-1 自相关),
+    a=clip(|rho|,1e-9,0.9999999), hl = min(ln2/(−ln a), 500)
+    """
+    n = len(pos)
+    if n < 2:
+        return 0.0, 0.0
+    prod = pos[1:] * pos[:-1]
+    flips = float(np.count_nonzero(prod < 0))
+    flip_rate = flips / max(n - 1, 1)
+    m = float(pos.mean())
+    d = pos - m
+    c0 = float(np.mean(d * d))
+    c1 = float(np.mean(d[1:] * d[:-1]))
+    rho = c1 / max(c0, 1e-12)
+    # 只认正持久性:rho<=0(含交替翻转)→ a 下限 → hl≈0.03(最快衰减)
+    a = min(max(rho, 1e-9), 0.9999999)
+    half_life = min(math.log(2.0) / (-math.log(a)), 500.0)
+    return flip_rate, half_life
+
+
 def evaluate_factor(
     factor: np.ndarray,
     close: np.ndarray,
@@ -396,6 +442,11 @@ def evaluate_factor(
         + 0.10 * consist
     ) * oos_mult
 
+    avg_turnover = float(turnover.mean())
+    flip_rate, half_life = _flip_and_half_life(pos)
+    if _SHORTLINE_FITNESS:
+        composite = composite * shortline_penalty(avg_turnover, flip_rate, half_life)
+
     return {
         "ann_ret": ann,
         "sortino": sor,
@@ -410,7 +461,9 @@ def evaluate_factor(
         "oos_negative": bool(oos_negative),
         "consistency": consist,
         "composite": composite,
-        "avg_turnover": float(turnover.mean()),
+        "avg_turnover": avg_turnover,
+        "flip_rate": flip_rate,
+        "half_life": half_life,
         "exposure": float(np.abs(pos).mean()),
         # 年化基数随周期变化，回传便于核对口径
         "periods": float(periods),

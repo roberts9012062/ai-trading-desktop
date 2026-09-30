@@ -16,7 +16,8 @@ def decode_instruction_rows(candidates, feature_count):
         validate_tokens(tokens, feature_count)
         sp = 0
         for k, token in enumerate(tokens):
-            if token < 64:
+            if token < 64 or token >= 115:
+                # token 原值入行(115-122 的行映射在 kernel 侧完成)
                 rows[p, k] = token, sp, sp, sp, 0, 1
                 sp += 1
             else:
@@ -109,8 +110,8 @@ class PhaseProgram:
             p, t = indices[step, idx//span], idx%span
             if t < T and rows[p, step, 5] != 0:
                 token, src, other, dst = rows[p, step, 0], rows[p, step, 1], rows[p, step, 2], rows[p, step, 3]
-                if token < 64:
-                    stack[p, dst, t] = features[token, t]
+                if token < 64 or token >= 115:
+                    stack[p, dst, t] = features[token if token < 64 else 62 + (token - 115), t]
                 else:
                     op = token-64
                     value = ti.cast(0, self.dtype)

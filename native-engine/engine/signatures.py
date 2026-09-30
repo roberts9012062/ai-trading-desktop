@@ -3,7 +3,9 @@ import hashlib
 
 KEYS = ("time", "open", "high", "low", "close", "volume", "open_interest",
         "_factor_market", "funding_rate", "quote_volume", "taker_imbalance",
-        "taker_buy_volume", "trade_count", "long_short_ratio", "liquidation_imbalance")
+        "taker_buy_volume", "trade_count", "long_short_ratio", "liquidation_imbalance",
+        # 短线 v4 列(factor_lab.features.bars_signature 同步;两端口径必须一致)
+        "sl_of0", "sl_of1", "sl_of2", "sl_of3", "sl_of4", "sl_of5", "sl_of6", "sl_of7")
 
 
 def freeze_prefix_signatures(bars, ends):

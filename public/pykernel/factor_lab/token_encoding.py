@@ -25,6 +25,13 @@ MAX_FEATURES = 64
 # 算子 id 起点
 FEAT_OFFSET = MAX_FEATURES
 
+# ── 短线 v4 本地专属特征（shortline_v1，append-only）─────────────────
+# 算子止于 FEAT_OFFSET+len(OPS_CONFIG)=115；token 115-122 为桌面本地专属
+# v4 订单流特征（特征矩阵行 62-69，bars 携带 sl_of0..7 列时可用）。
+# 含此区间 token 的公式服务端无法执行（挂载白名单外，标记"仅本地"）。
+SHORTLINE_TOKEN_OFFSET = 115
+SHORTLINE_FEATURE_COUNT = 8
+
 # 当前编码版本，与 system_settings.factor_token_encoding_version 对应
 TOKEN_ENCODING_VERSION = 2
 

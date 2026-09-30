@@ -21,7 +21,8 @@ import numpy as np
 
 from .features import FEATURE_NAMES
 from .ops import OPS_CONFIG, OPS_NAMES, ts_mean, ts_std
-from .token_encoding import FEAT_OFFSET, MAX_FEATURES
+from .token_encoding import FEAT_OFFSET, MAX_FEATURES, SHORTLINE_TOKEN_OFFSET
+from .features import SHORTLINE_FEATURE_NAMES
 
 FEAT_COUNT: int = len(FEATURE_NAMES)
 
@@ -60,6 +61,9 @@ SIGN_RESTORE_OPS = {
 def token_name(token: int) -> str:
     """token → 名称"""
     token = int(token)
+    if token >= SHORTLINE_TOKEN_OFFSET:
+        k = token - SHORTLINE_TOKEN_OFFSET
+        return SHORTLINE_FEATURE_NAMES[k] if k < len(SHORTLINE_FEATURE_NAMES) else f"sl_{token}"
     if token < FEAT_OFFSET:
         return FEATURE_NAMES[token] if token < FEAT_COUNT else f"feat_{token}"
     idx = token - FEAT_OFFSET
@@ -149,6 +153,23 @@ def execute(
     v2 = normalization == NORM_CAUSAL_V2
     for token in tokens:
         token = int(token)
+        if token >= SHORTLINE_TOKEN_OFFSET:
+            # v4 短线特征（矩阵行 FEAT_COUNT+k；仅 bars 带 sl 列时存在）
+            row_idx = FEAT_COUNT + (token - SHORTLINE_TOKEN_OFFSET)
+            if row_idx >= feat_matrix.shape[0]:
+                return None
+            row = feat_matrix[row_idx]
+            if not np.isfinite(row).all():
+                if not v2:
+                    return None
+                finite = np.isfinite(row)
+                if not finite.any():
+                    return None
+                first = int(np.argmax(finite))
+                if not finite[first:].all():
+                    return None
+            stack.append(row)
+            continue
         if token < FEAT_OFFSET:
             if token >= feat_matrix.shape[0]:
                 return None
