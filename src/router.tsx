@@ -21,6 +21,7 @@ import AssetsPage from "./app/(main)/assets/page"
 import BacktestPage from "./app/(main)/backtest/page"
 import DashboardPage from "./app/(main)/dashboard/page"
 import FactorLabPage from "./app/(main)/factor-lab/page"
+import ShortlineLabPage from "./app/(main)/factor-lab/shortline/page"
 import HistoryPage from "./app/(main)/history/page"
 import MallPage from "./app/(main)/mall/page"
 import MarketPage from "./app/(main)/market/page"
@@ -68,6 +69,7 @@ export function AppRoutes() {
         <Route path="/backtest" element={<BacktestPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/factor-lab" element={<FactorLabPage />} />
+        <Route path="/factor-lab/shortline" element={<ShortlineLabPage />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/mall" element={<MallPage />} />
         <Route path="/market" element={<MarketPage />} />

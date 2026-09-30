@@ -49,7 +49,16 @@ const MENU_ITEMS: MenuItem[] = [
   { icon: LineChart, label: "交易", path: "/trading", demo: false },
   { icon: Sparkles, label: "AI 交易", path: "/ai-trading", demo: false },
   { icon: FlaskConical, label: "历史回测", path: "/backtest", demo: false },
-  { icon: Dna, label: "因子实验室", path: "/factor-lab", demo: false },
+  {
+    icon: Dna,
+    label: "因子实验室",
+    path: "/factor-lab",
+    demo: false,
+    children: [
+      { label: "因子实验室", path: "/factor-lab" },
+      { label: "短线因子实验室", path: "/factor-lab/shortline" },
+    ],
+  },
   { icon: Bookmark, label: "策略收藏夹", path: "/strategy-favorites", demo: false },
   { icon: Briefcase, label: "持仓", path: "/positions", demo: false },
   { icon: FileText, label: "订单", path: "/orders", demo: false },

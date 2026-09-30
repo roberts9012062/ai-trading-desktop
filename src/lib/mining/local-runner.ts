@@ -149,6 +149,22 @@ export class LocalMiningRunner implements MiningRunner {
       endDate: config.end_date ?? range.end,
     })
 
+    // 短线任务:冻结快照注入 v4 订单流特征列(digest 确定性派生;见 task-enrich)
+    if (config.research_profile === "shortline_v1") {
+      progress?.("注入 aggTrades 订单流特征列（v4 digest）…")
+      const { patchBarsSnapshotColumns } = await import("@/lib/mining/data-source")
+      const { enrichBarsWithOrderflow } = await import("@/lib/shortline/task-enrich")
+      await patchBarsSnapshotColumns(snapshot.id, async (bars) => {
+        const res = await enrichBarsWithOrderflow(
+          bars, config.symbol, config.timeframe as "1m" | "5m" | "15m",
+        )
+        progress?.(
+          `v4 特征列：覆盖 ${res.enrichedBars}/${snapshot.count} 根` +
+            (res.digestSha ? `（digest ${res.digestSha.slice(0, 8)}…）` : "（digest 缺失,回填后可复跑）"),
+        )
+      })
+    }
+
     const now = nowIso()
     taskSeq += 1
     const rec: LocalTaskRecord = {

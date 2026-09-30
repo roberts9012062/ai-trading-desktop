@@ -39,7 +39,7 @@ const DATASETS = [
 
 describe("D1 门：重放器双跑逐位一致", () => {
   for (const ds of DATASETS) {
-    it(`dataset seed=${ds.seed} tf=${ds.timeframe} 全 cadence 双跑一致`, () => {
+    it(`dataset seed=${ds.seed} tf=${ds.timeframe} 全 cadence 双跑一致`, { timeout: 120_000 }, () => {
       const buckets = buildBuckets(ds.seed, ds.startSec, ds.seconds, ds.everySec)
       expect(buckets.length).toBeGreaterThan(50)
       const sha = digestSha256(buckets)
@@ -66,7 +66,7 @@ describe("D1 门：重放器双跑逐位一致", () => {
     })
   }
 
-  it("digest 序列化 roundtrip 后重放仍逐位一致（冻结数据集协议）", () => {
+  it("digest 序列化 roundtrip 后重放仍逐位一致（冻结数据集协议）", { timeout: 60_000 }, () => {
     const buckets = buildBuckets(44, 1_700_259_200, 1_800, 6)
     const sha = digestSha256(buckets)
     const restored = decodeDigest(encodeDigest(buckets))

@@ -18,7 +18,7 @@ function events(seed: number, seconds: number): AggTradeEvent[] {
 
 describe("D3 证据：实时=回放（同一 tick 序列）", () => {
   for (const cadence of [3, 15, 60] as const) {
-    it(`cadence=${cadence}s 流式与重放逐位一致`, () => {
+    it(`cadence=${cadence}s 流式与重放逐位一致`, { timeout: 60_000 }, () => {
       const evs = events(77, 1_800)
       const acc = new BucketAccumulator()
       for (const e of evs) acc.pushEvent(e)

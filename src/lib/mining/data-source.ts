@@ -202,6 +202,25 @@ export async function acquireBarsSnapshot(req: AcquireBarsRequest): Promise<Bars
   return toSnapshot(fresh)
 }
 
+/**
+ * 短线实验室:给已冻结快照的 bars 附加确定性派生列(如 sl_of0..7)。
+ * 快照 id/sourceHash 不变——它们标识基础 K 线;派生列由 aggTrades digest
+ * 确定性生成(digest 相同 → 列逐位相同),续训可复现。
+ */
+export async function patchBarsSnapshotColumns(
+  id: string,
+  mutate: (bars: KlineBar[]) => Promise<void> | void,
+): Promise<boolean> {
+  const db = await openDb()
+  if (!db) return false
+  const rec = await idbGet<SnapshotRecord | undefined>(db, MINING_BARS_STORE, id)
+  if (!rec) return false
+  await mutate(rec.bars)
+  rec.sizeEstimate = rec.bars.length * BYTES_PER_BAR
+  await idbPut(db, MINING_BARS_STORE, rec)
+  return true
+}
+
 export async function getBarsSnapshot(id: string): Promise<BarsSnapshot | null> {
   const db = await openDb()
   if (!db) return null
