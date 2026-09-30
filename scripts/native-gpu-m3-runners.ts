@@ -130,4 +130,18 @@ async function nativeQueueVerification(input: QueueInput) {
     startsWhileShared, startsAfterACancelB, startsFinal, superEvents,
     commandAdapterNote: "shared FIFO lease across both entrances in one page" }
 }
-Object.assign(window, { nativeRunnerVerification, nativeQueueVerification })
+/** 合格率验证跑法:与 nativeRunnerVerification 的 3 代冒烟不同,不覆盖
+ *  generations/population——按调用方给的完整配置跑 lab 入口,返回带
+ *  qualification 的冠军明细。供 scripts/factor-verify-native-gpu.py 用。 */
+interface QualificationInput { bars: KlineBar[]; config: MiningConfig }
+async function nativeQualificationRun(input: QualificationInput) {
+  const config = { ...input.config, kernel_version: NATIVE_ENGINE_TAG, native_engine_version: NATIVE_ENGINE_VERSION }
+  const lab = new FactorLabSearchRunner({ prepareNativeBars: async () => input.bars })
+  const events: unknown[] = []
+  lab.subscribe(task => { if (task) events.push({ status: task.status, generation: task.generation,
+    qualified: task.qualificationCounts?.qualified, reasons: task.qualificationReasons }) })
+  const champions = await lab.start({ ...config, top_n: config.top_n ?? 10, seed: config.seed ?? 42 }, "native-gpu")
+  const task = structuredClone(lab.current)
+  return { entrance: "lab", task, champions, events }
+}
+Object.assign(window, { nativeRunnerVerification, nativeQueueVerification, nativeQualificationRun })

@@ -6,6 +6,7 @@
 
 import { gateResearchRange } from "@/lib/crypto-direct"
 import { CRYPTO_RESEARCH_NOTE } from "@/lib/mining/crypto-profile"
+import { championSeedsFor } from "@/lib/mining/champion-seeds"
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -55,6 +56,8 @@ export interface SearchFormPayload {
   walk_forward_folds?: number
   /** 本地增强挖掘(selection_v2 + evolve_v2):仅本地引擎生效,服务端忽略 */
   enhanced?: boolean
+  /** 冠军种子库 token(本地引擎注入种群头部;来自 G2 冻结合格冠军) */
+  seed_tokens?: number[][]
   /** 长历史区间（YYYY-MM-DD，需与 end_date 成对；不传走近期数据） */
   start_date?: string
   end_date?: string
@@ -112,6 +115,12 @@ export function FactorSearchForm({
   const [walkForwardFolds, setWalkForwardFolds] = useState(3)
   // 本地增强挖掘(默认开;服务端引擎忽略)
   const [enhanced, setEnhanced] = useState(true)
+  // 冠军种子库(G2 冻结证据合格冠军):本地增强搜索默认注入
+  const [useChampionSeeds, setUseChampionSeeds] = useState(true)
+  const seedPick = useMemo(
+    () => championSeedsFor(symbol.trim().toLowerCase() || "BTCUSDT", timeframe),
+    [symbol, timeframe],
+  )
   // 长历史区间（默认关）：不启用时请求不带日期，走近期数据（与历史行为一致）；
   // 启用后走 pg-tickdata 长历史库（2005 起，具体合约自动拼接主力连续）。
   const [showLongHistory, setShowLongHistory] = useState(false)
@@ -198,6 +207,9 @@ export function FactorSearchForm({
       model_row_id: useCoach ? modelRowId : null,
       ...antiOverfitPayload(antiOverfitOn, trainRatio, testRecentBars, walkForwardFolds),
       enhanced,
+      ...(localEngine && enhanced && useChampionSeeds && seedPick.seeds.length
+        ? { seed_tokens: seedPick.seeds.map((s) => s.tokens) }
+        : {}),
       ...(useLongHistory ? { start_date: rangeStart, end_date: rangeEnd } : {}),
       data_channel: dataChannel,
     })
@@ -506,6 +518,21 @@ export function FactorSearchForm({
               />
               增强挖掘（仅本地引擎）：同一因子的不同写法先去重再验证，测试段后半封存只评估一次，进化加点/收缩变异
             </label>
+            {localEngine && enhanced && (
+              <div className="space-y-1">
+                <label className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useChampionSeeds}
+                    onChange={(e) => setUseChampionSeeds(e.target.checked)}
+                  />
+                  注入冠军种子：从 G2 冻结验证的合格因子族出发搜索
+                </label>
+                <p className="text-[11px] text-[var(--text-muted)]">
+                  {useChampionSeeds ? seedPick.note : "已关闭：完全随机起步（合格概率显著更低）"}
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

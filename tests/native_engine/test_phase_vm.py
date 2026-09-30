@@ -23,8 +23,9 @@ class PhaseDecodeTests(unittest.TestCase):
         self.assertEqual(decode_instruction_rows([], 3).shape, (0, 32, 6))
 
     def test_decoder_retains_original_admission_errors(self):
+        # m3.3: EMA(102)已支持,不再在准入层拒绝;仅结构性非法仍拒绝
         from engine.phase_vm_ti import decode_instruction_rows
-        for tokens in ([], [3], [64], [0, 1], [0, 102], [0]*9, [0]*33):
+        for tokens in ([], [3], [64], [0, 1], [0]*9, [0]*33):
             with self.subTest(tokens=tokens), self.assertRaises(ValueError):
                 decode_instruction_rows([tokens], 3)
 

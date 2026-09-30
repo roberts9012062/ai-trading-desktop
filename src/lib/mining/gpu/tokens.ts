@@ -104,12 +104,15 @@ export const OP_INDEX: ReadonlyMap<string, number> = new Map(
 
 /** EMA 串行递推无法在 WGSL 并行化(v1 不支持);robust_zscore/winsor 为
  * 排序类滚动统计,WGSL 尚未实现(v2 批次3),同样不支持。其余全部支持。
+ * 原生 Taichi 引擎(m3.3)与 CPU 内核已实现全部 51 算子——这两条路径
+ * 传 fullOps=true 跳过 WGSL 限制。
  */
 export const GPU_UNSUPPORTED_KINDS: ReadonlySet<OpKind> =
   new Set(["ema", "robust_zscore", "winsor"])
 
-/** token 序列是否全部落在 GPU 支持范围(算子不支持/超长/栈深超限 → 回落) */
-export function tokensGpuSupported(tokens: number[], featCount: number): boolean {
+/** token 序列是否全部落在执行引擎支持范围(算子不支持/超长/栈深超限 → 回落)
+ *  fullOps=true 时仅校验结构,不限算子种类(原生 m3.3+/CPU 内核)。 */
+export function tokensGpuSupported(tokens: number[], featCount: number, fullOps = false): boolean {
   if (tokens.length === 0 || tokens.length > MAX_TOKENS) return false
   // 栈深上界:特征压栈 +1,算子弹栈 arity 再压 1 → 用 tokens_to_tree 同款追踪
   let sp = 0
@@ -122,7 +125,7 @@ export function tokensGpuSupported(tokens: number[], featCount: number): boolean
     } else {
       const op = OPS[t - FEAT_OFFSET]
       if (!op) return false
-      if (GPU_UNSUPPORTED_KINDS.has(op.kind)) return false
+      if (!fullOps && GPU_UNSUPPORTED_KINDS.has(op.kind)) return false
       if (sp < op.arity) return false
       sp -= op.arity - 1
     }

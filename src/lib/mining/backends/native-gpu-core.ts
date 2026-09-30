@@ -3,7 +3,7 @@ import { maxResearchBars } from "@/lib/device-profile"
 import { packNativeBars, type NativeBar } from "@/lib/native-engine/bars"
 import { NativeEngineError, type NativeEngineClient } from "@/lib/native-engine/ipc"
 import type { NativeHello, NativePreciseResult } from "@/lib/native-engine/types"
-import { Rng, gpuOpSets, randomTreeGpuSafe, tokensToTree, treeToTokens, type Tree } from "../gpu/gp"
+import { Rng, gpuOpSets, randomTreeGpuSafe, slowBiasedOpSets, tokensToTree, treeToTokens, type Tree } from "../gpu/gp"
 import { nextGeneration, resolveIslands, StagnationTracker } from "../gpu/evolve"
 import { preciseTopK, selectPreciseIndices, selectPreciseIndicesQuota, type RankedCandidate } from "../gpu/rank"
 import type { EvalRequest, GenerationStep, SerializedBest } from "./types"
@@ -55,11 +55,13 @@ export async function* runNativeGpuSession(
     if (!active.length) throw new Error("训练段没有可用特征")
     const sampling = cfg.crypto_profile ? [...active, ...active.filter(id => id >= 45)] : active
     const rng = new Rng((cfg.seed ?? 42) + req.startGeneration, sampling)
-    const { opOne, opTwo } = gpuOpSets(cfg.crypto_profile ?? false)
+    // 原生引擎 m3.3 起支持全部 51 算子(与 CPU 内核同源);WebGPU 仍走裁剪集
+    const gpuOps = gpuOpSets(cfg.crypto_profile ?? false, true)
+    const { opOne, opTwo } = slowBiasedOpSets(gpuOps.opOne, gpuOps.opTwo, cfg.timeframe)
     const islands = resolveIslands(cfg.population, cfg.islands)
     const evolveV2 = cfg.evolve_v2 === true
     const stagnation = evolveV2 ? new StagnationTracker(islands) : undefined
-    let population: Tree[] = Array.from({ length: cfg.population }, () => randomTreeGpuSafe(cfg.max_depth, F, opOne, opTwo, rng))
+    let population: Tree[] = Array.from({ length: cfg.population }, () => randomTreeGpuSafe(cfg.max_depth, F, opOne, opTwo, rng, true))
     const seedTokens = cfg.seed_tokens ?? []
     if (seedTokens.some(tokens => tokens.some(t => t < 64 && !active.includes(t)))) throw new Error("种子依赖当前训练数据不可用的特征")
     for (let i = 0; i < Math.min(seedTokens.length, population.length); i++) {
@@ -113,7 +115,7 @@ export async function* runNativeGpuSession(
       const scored: RankedCandidate[] = entries.map(row => ({ tree: row.tree, tokens: row.tokens, comp: cache.get(row.key)! }))
       const selected = (evolveV2 ? selectPreciseIndicesQuota(scored, topK) : selectPreciseIndices(scored, topK, false)).map(index => scored[index].tokens)
       population = nextGeneration(scored, { population: cfg.population, islands, maxDepth: cfg.max_depth,
-        featN: F, opOne, opTwo, v2: evolveV2 }, rng, gen + 1, stagnation)
+        featN: F, opOne, opTwo, v2: evolveV2, fullOps: true }, rng, gen + 1, stagnation)
       const preciseStart = performance.now()
       // No cancellation inside a generation: preserve the same boundary as
       // the desktop runners and never expose a partial precision result.

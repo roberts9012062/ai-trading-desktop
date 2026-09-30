@@ -23,8 +23,6 @@ class VMTests(unittest.TestCase):
 
     def test_all_supported_operator_semantics(self):
         for op, (_, fn, arity) in enumerate(OPS_CONFIG):
-            if op in (38, 39, 44, 45):
-                continue
             tokens = [0, 1, 64 + op] if arity == 2 else [0, 64 + op]
             with self.subTest(op=op):
                 actual = self.vm.execute_batch([tokens], normalize=False)[0]
@@ -62,8 +60,10 @@ class VMTests(unittest.TestCase):
                     self.assertEqual(actual.tobytes(), expected)
                     self.assertEqual(vm.execute_batch(candidates).tobytes(), expected)
 
-    def test_invalid_and_unsupported_candidates_are_not_scored(self):
-        for tokens in ([], [3], [64], [0, 1], [0, 102], [0] * 9, [0] * 33):
+    def test_invalid_candidates_are_not_scored(self):
+        # m3.3: 51 算子全集已实现(EMA/ROBUST_ZSCORE/WINSOR 不再拒绝),
+        # 仅结构性非法(空/特征越界/栈不平衡/超深/超长)仍拒绝
+        for tokens in ([], [3], [64], [0, 1], [0] * 9, [0] * 33):
             with self.subTest(tokens=tokens):
                 with self.assertRaises(ValueError):
                     self.vm.execute_batch([tokens])

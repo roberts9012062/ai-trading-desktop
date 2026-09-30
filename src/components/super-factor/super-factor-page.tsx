@@ -24,12 +24,13 @@ import {
   type SupportedTimeframe,
 } from "@/lib/super-factor-api"
 import type { DeviceKind, MiningTask, RunnerKind } from "@/lib/mining/types"
+import { championSeedsFor } from "@/lib/mining/champion-seeds"
 import { MiningSymbolCombobox } from "./mining-symbol-combobox"
 import { CryptoDataPanel } from "@/components/common/crypto-data-panel"
 import { LOCAL_DERIVATIVE_CHANNELS } from "@/lib/kline-channels"
 import { DataChannelSelect } from "@/components/common/data-channel-select"
 import { DEFAULT_KLINE_CHANNEL } from "@/lib/kline-channels"
-import { PresetPicker, type MiningPreset } from "./mining-presets"
+import { PresetPicker, MINING_PRESETS, type MiningPreset } from "./mining-presets"
 import { useMiningTasks, useTaskChampions } from "./use-mining-tasks"
 import { useNativeAvailability } from "@/lib/native-engine/use-native-availability"
 import { qualificationReasonLabel } from "@/lib/native-engine/progress"
@@ -177,7 +178,14 @@ export function SuperFactorPage(): React.JSX.Element {
                     walk_forward_folds: p.walk_forward_folds,
                     ...(p.device === "native-gpu" ? { native_precision: p.nativePrecision } : {}),
                     ...(p.origin === "local" && p.islands > 1 ? { islands: p.islands } : {}),
-                    ...(p.llmSeedTokens?.length ? { seed_tokens: p.llmSeedTokens } : {}),
+                    ...(p.origin === "local" && (p.championSeedTokens?.length || p.llmSeedTokens?.length)
+                      ? {
+                          seed_tokens: [
+                            ...(p.championSeedTokens ?? []),
+                            ...(p.llmSeedTokens ?? []),
+                          ],
+                        }
+                      : {}),
                     ...(p.crossPeers?.length ? { cross_peers: p.crossPeers } : {}),
                     // 本地增强仅本地任务(服务端 CreateTaskPayload 不含这些字段)
                     ...(p.origin === "local" && p.enhanced
@@ -250,6 +258,8 @@ interface ConfigFormProps {
     name: string
     /** LLM 生成的种子候选(表单提交前已生成并校验) */
     llmSeedTokens?: number[][]
+    /** 冠军种子库命中的合格冠军 token(提交时按币种+周期选取) */
+    championSeedTokens?: number[][]
     /** 跨币种验证伙伴(表单提交前已预加载):[[币种代码, bars], ...] */
     crossPeers?: Array<[string, Array<Record<string, unknown>>]>
     /** 多币种联合训练(伙伴币种同时进训练适应度,仅本地且需伙伴) */
@@ -305,6 +315,9 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
   const [trainRatio, setTrainRatio] = useState("0.7")
   const [walkForwardFolds, setWalkForwardFolds] = useState("3")
   const [islands, setIslands] = useState("1")
+  // 冠军种子库(G2 冻结证据合格冠军):默认注入,提交时按币种+周期选取
+  const [useChampionSeeds, setUseChampionSeeds] = useState(true)
+  const seedPick = championSeedsFor(symbol || "BTCUSDT", timeframe)
   // LLM 种子(路线 B 本地化,M5):本地直连 LLM 生成候选注入种群头部
   const [useLlmSeed, setUseLlmSeed] = useState(false)
   const [llmHint, setLlmHint] = useState("")
@@ -321,6 +334,21 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
   const [liveGate, setLiveGate] = useState(false)
   // 当前命中的搜索力度预设;手动改参数后置 null(自定义)
   const [presetId, setPresetId] = useState<string | null>("standard")
+  // 原生 GPU 自动升「达标」力度:G2 出合格的搜索量级;只在用户还停在标准档时
+  // 升档,手动选过其他档/自定义的不打扰
+  useEffect(() => {
+    if (device === "native-gpu" && presetId === "standard") {
+      const qualified = MINING_PRESETS.find((p) => p.id === "qualified")
+      if (qualified) {
+        setPopulation(String(qualified.population))
+        setGenerations(String(qualified.generations))
+        setMaxDepth(String(qualified.maxDepth))
+        setIslands(String(qualified.islands))
+        setPresetId(qualified.id)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [device])
   const [submitting, setSubmitting] = useState(false)
 
   // 本地直连可用性(未配置则置灰开关并提示入口)
@@ -428,6 +456,9 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
         ...(device === "native-gpu" ? { nativePrecision } : {}),
         name: origin === "local" ? `本挖·${symbol}·${timeframe}` : `超挖·${symbol}·${timeframe}`,
         ...(llmSeedTokens?.length ? { llmSeedTokens } : {}),
+        ...(origin === "local" && useChampionSeeds && seedPick.seeds.length
+          ? { championSeedTokens: seedPick.seeds.map((s) => s.tokens) }
+          : {}),
         ...(crossPeers?.length ? { crossPeers, jointTraining } : {}),
         enhanced,
         liveGate,
@@ -496,6 +527,12 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
         </div>
         {curTf && !curTf.long_history && (
           <p className="text-[10px] text-amber-500">{curTf.note}</p>
+        )}
+        {["1m", "5m", "15m"].includes(timeframe) && (
+          <p className="text-[10px] text-amber-500 leading-relaxed">
+            分钟级周期对换手成本最敏感：搜索会自动偏向低换手（慢）因子与慢种子模板；
+            合格门不会放宽（净收益必须为正），建议保持「注入冠军种子」开启并配合达标档力度。
+          </p>
         )}
       </div>
 
@@ -702,6 +739,31 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
             placeholder="1"
             className="w-full h-9 px-3 text-xs font-num rounded-md border border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
           />
+        </div>
+      )}
+
+      {/* 冠军种子库(G2 冻结证据合格冠军):按币种+周期注入种子,原生 GPU 路径
+          开跑前先对种子跑完整精算,CPU/内核路径种子进种群头部+作 v2 族模板 */}
+      {origin === "local" && (
+        <div className="space-y-1">
+          <Label>冠军种子（推荐）</Label>
+          <label className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)] cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useChampionSeeds}
+              onChange={(e) => setUseChampionSeeds(e.target.checked)}
+            />
+            注入合格冠军种子，从已验证的因子族出发搜索
+          </label>
+          <p className="text-[10px] text-[var(--text-muted)] leading-tight">
+            {useChampionSeeds ? seedPick.note : "已关闭：完全随机起步（合格概率显著更低）"}
+          </p>
+          {useChampionSeeds && (
+            <p className="text-[10px] text-[var(--text-muted)] leading-tight">
+              种子来自 G2 冻结验证（30m/60m 出过合格冠军的公式），开跑即先对种子做一次完整精算，
+              进化在种子邻域精炼；合格门照常执行，不因种子放宽。
+            </p>
+          )}
         </div>
       )}
 

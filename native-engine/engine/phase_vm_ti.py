@@ -74,7 +74,7 @@ class PhaseProgram:
             if self.authority:
                 tokens = rows[:, step, 0]
                 ops = tokens-64
-                needs = ((ops >= 13) & (ops <= 17)) | (ops == 23) | ((ops >= 30) & (ops <= 32)) | (ops == 34) | ((ops >= 46) & (ops <= 49)) | (ops == 36)
+                needs = ((ops >= 13) & (ops <= 17)) | (ops == 23) | ((ops >= 30) & (ops <= 32)) | (ops == 34) | ((ops >= 46) & (ops <= 49)) | (ops == 36) | (ops == 38) | (ops == 39)
                 if np.any(needs & rows[:, step, 5].astype(bool)):
                     self._phase_prefix(count, step, 0, vm.phase_rows, vm.stack, vm.prefix)
             self._phase_instruction(active_counts[step], step, 0, vm.features,
@@ -148,6 +148,8 @@ class PhaseProgram:
                 elif op == 36:
                     self.math.rolling_prefix(p, lane, src, 0, guard, stack, prefix, scan_x, scan_sq)
                     self.math.rolling_prefix(p, lane, rows[p, step, 2], 2, guard, stack, prefix, scan_x, scan_sq)
+                elif op == 38 or op == 39:
+                    self.math.rolling_ema(p, lane, src, 4, 5 if op == 38 else 20, guard, stack, prefix, scan_x)
 
     @ti.kernel
     def _phase_statistics(self, count: ti.i32, legacy: ti.i32,

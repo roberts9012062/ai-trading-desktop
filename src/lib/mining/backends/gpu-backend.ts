@@ -44,6 +44,7 @@ import {
   Rng,
   gpuOpSets,
   randomTreeGpuSafe,
+  slowBiasedOpSets,
   tokensToTree,
   type Tree,
 } from "../gpu/gp"
@@ -273,7 +274,8 @@ export class GpuBackend implements ComputeBackend {
       if (!active.length) throw new Error("训练段没有可用特征")
       const sampling = cfg.crypto_profile ? [...active, ...active.filter((i) => i >= 45)] : active
       const rng = new Rng((cfg.seed ?? 42) + req.startGeneration, sampling)
-      const { opOne, opTwo } = gpuOpSets(cfg.crypto_profile ?? false)
+      const gpuOps = gpuOpSets(cfg.crypto_profile ?? false)
+      const { opOne, opTwo } = slowBiasedOpSets(gpuOps.opOne, gpuOps.opTwo, cfg.timeframe)
       const maxDepth = cfg.max_depth
       const population: Tree[] = []
       for (let i = 0; i < cfg.population; i++) {

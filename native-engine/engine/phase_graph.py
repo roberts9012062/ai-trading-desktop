@@ -85,7 +85,7 @@ class InstructionGraph:
             inputs[f'copy_{step}'] = count if rows[:, step, 4].any() else 0
             if self.authority:
                 ops = rows[:, step, 0]-64
-                needs = ((ops >= 13) & (ops <= 17)) | (ops == 23) | ((ops >= 30) & (ops <= 32)) | (ops == 34) | ((ops >= 46) & (ops <= 49)) | (ops == 36)
+                needs = ((ops >= 13) & (ops <= 17)) | (ops == 23) | ((ops >= 30) & (ops <= 32)) | (ops == 34) | ((ops >= 46) & (ops <= 49)) | (ops == 36) | (ops == 38) | (ops == 39)
                 inputs[f'prefix_{step}'] = count if (needs & rows[:, step, 5].astype(bool)).any() else 0
         if self.authority:
             inputs.update(normal_prefix=count if normalize else 0, normal_step=-1)

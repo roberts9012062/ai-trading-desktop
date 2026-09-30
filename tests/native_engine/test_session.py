@@ -30,6 +30,15 @@ class SessionTests(unittest.TestCase):
             session.prepare_features({'symbol': 'ETHUSDT', 'timeframe': '15m', 'crypto_profile': True,
                 'train_ratio': .7, 'selection_v2': True, 'walk_forward_folds': 3, 'population': 2})
         self.assertEqual(before, list(_SEG_RESULTS.items()))
+        # 0.2.48 起加密+selection_v2 自动升级 crypto_local_v2(引擎侧兜底):
+        # v2 有显式计划,StrictContext 延迟到首次 strict_eval/precise 构建;
+        # 无计划(legacy)时仍在 prepare 阶段预建
+        if session.strict_metadata['plan'] is not None:
+            self.assertIsNone(session.strict_context)
+            from engine.strict_ti import StrictContext, strict_eval
+            session.strict_context = StrictContext(session.prepared['bars'], session.config,
+                resident=session.prepared['resident_full'], metadata=session.strict_metadata,
+                signatures=session.prefix_signatures)
         self.assertIsNotNone(session.strict_context)
         self.assertTrue(all(data['last_tokens'] is None for data in session.strict_context.research.contexts.values()))
         self.assertLessEqual(sum(data['bytes'] for data in session.strict_context.research.contexts.values()), 256*1024*1024)

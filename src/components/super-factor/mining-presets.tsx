@@ -25,11 +25,20 @@ export const MINING_PRESETS: readonly MiningPreset[] = [
   {
     id: "standard",
     label: "标准",
-    desc: "种群40×30代·单岛·深4 —— 与旧默认一致,分钟级完成",
+    desc: "种群40×30代·单岛·深4 —— 快速试跑;此力度出合格因子的概率很低,要合格请用「达标」档",
     population: 40,
     generations: 30,
     islands: 1,
     maxDepth: 4,
+  },
+  {
+    id: "qualified",
+    label: "达标",
+    desc: "种群3000×100代·单岛·深6 —— G2 冻结证据出合格冠军的力度(30万次评估);原生 GPU 分钟级完成,建议 30m/60m",
+    population: 3000,
+    generations: 100,
+    islands: 1,
+    maxDepth: 6,
   },
   {
     id: "deep",

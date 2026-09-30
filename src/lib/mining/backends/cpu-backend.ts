@@ -39,6 +39,7 @@ import {
   Rng,
   gpuOpSets,
   randomTreeGpuSafe,
+  slowBiasedOpSets,
   tokensToTree,
   treeToTokens,
   type Tree,
@@ -269,11 +270,13 @@ async function* runParallel(
     if (!active.length) throw new Error("训练段没有可用特征")
     const sampling = cfg.crypto_profile ? [...active, ...active.filter((i) => i >= 45)] : active
     const rng = new Rng((cfg.seed ?? 42) + req.startGeneration, sampling)
-    const { opOne, opTwo } = gpuOpSets(cfg.crypto_profile ?? false)
+    // CPU 内核(pykernel)支持全部 51 算子;与原生/GPU 挖掘同源(m3.3 对齐)
+    const gpuOps = gpuOpSets(cfg.crypto_profile ?? false, true)
+    const { opOne, opTwo } = slowBiasedOpSets(gpuOps.opOne, gpuOps.opTwo, cfg.timeframe)
     const maxDepth = cfg.max_depth
     const population: Tree[] = []
     for (let i = 0; i < cfg.population; i++) {
-      population.push(randomTreeGpuSafe(maxDepth, F, opOne, opTwo, rng))
+      population.push(randomTreeGpuSafe(maxDepth, F, opOne, opTwo, rng, true))
     }
     const seedTokens = cfg.seed_tokens ?? []
     if (seedTokens.some((tokens) => tokens.some((t) => t < 64 && !active.includes(t)))) {
@@ -415,7 +418,7 @@ async function* runParallel(
       // 进化下一代(只依赖 f64 分数)
       const nextTrees = nextGeneration(
         scored,
-        { population: cfg.population, islands, maxDepth, featN: F, opOne, opTwo, v2: evolveV2 },
+        { population: cfg.population, islands, maxDepth, featN: F, opOne, opTwo, v2: evolveV2, fullOps: true },
         rng,
         genIdx + 1,
         stagnation,

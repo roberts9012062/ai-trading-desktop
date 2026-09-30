@@ -7,7 +7,7 @@ shuffle, or floating-point atomic is used. Statistics accumulate in f64.
 import numpy as np
 import taichi as ti
 
-UNSUPPORTED = frozenset((38, 39, 44, 45))
+UNSUPPORTED = frozenset()  # m3.3: EMA/ROBUST_ZSCORE/WINSOR 已实现,51 算子与 CPU 内核同源
 BINARY = frozenset((0, 1, 2, 3, 4, 5, 29, 35, 36))
 _PROGRAMS = {}
 _PHASE_PROGRAMS = {}
@@ -82,7 +82,7 @@ class StackVM:
         self.tokens = ti.ndarray(ti.i32, shape=(tile, 32))
         self.stack = ti.ndarray(self.dtype, shape=(tile, 9, self.T))
         self.factors = ti.ndarray(ti.f64, shape=(tile, self.T))
-        self.prefix = ti.ndarray(ti.f64, shape=(tile, 4, self.T + 1 if self.cpu_rolling else 1))
+        self.prefix = ti.ndarray(ti.f64, shape=(tile, 5, self.T + 1 if self.cpu_rolling else 1))  # ch4 = EMA 扫描(m3.3)
         self.coarse_terms = ti.ndarray(ti.f32, shape=(tile, 2, self.T)) if self.compensated_coarse else None
         self.phase = None
         if execution_layout == "candidate_time_block":
@@ -413,6 +413,8 @@ class _StackProgram:
             w = 60
         elif op == 49:
             w = 120
+        elif op == 38:
+            w = 5
         return w
 
     @ti.func
@@ -480,6 +482,87 @@ class _StackProgram:
                 dy = self.rounded(dy - bm, guard)
                 value = self.rounded(dy * dy, guard)
         return value
+
+    @ti.func
+    def rolling_ema(self, p, lane, src, channel, w, guard, stack: ti.template(), prefix: ti.template(), scratch: ti.template()):
+        # scipy.signal.lfilter([α],[1,-(1-α)]) 的直接 II 型转置结构:
+        #   y[i] = α·x[i] + z;z = (1-α)·y[i],z 初值 0(y[-1]=0 同义)。
+        # 与 rolling_prefix 同构的分块协作扫描:lane 0 按时间升序推进状态,
+        # 每块写 shared 后全体 lane 取各自 t。NaN 输入按递推自然向后毒化
+        # (lfilter 同口径),输出侧 sane()/nan_to_num 统一清 0。
+        T = stack.shape[2]
+        alpha = 2.0 / (ti.cast(w, ti.f64) + 1.0)
+        beta = 1.0 - alpha
+        y, z = ti.cast(0.0, ti.f64), ti.cast(0.0, ti.f64)
+        for chunk in range((T + 255) // 256):
+            if lane == 0:
+                size = ti.min(256, T - chunk * 256)
+                for j in range(size):
+                    xi = ti.cast(stack[p, src, chunk * 256 + j], ti.f64)
+                    y = alpha * xi + z
+                    z = beta * y
+                    scratch[j] = y
+            ti.simt.block.sync()
+            t = chunk * 256 + lane
+            if t < T:
+                prefix[p, channel, t] = scratch[lane]
+            ti.simt.block.sync()
+
+    @ti.func
+    def kth_value(self, p, src, lo, n, k, transform: ti.template(), med, stack: ti.template(), cache: ti.template(), base, use_cache: ti.template()):
+        # 窗口内第 k 小(1-based)。计数选择:对每个元素统计严格小于/等于
+        # 的个数,O(w²),与冻结的 rank 算子同型;transform=1 时取 |z-med|
+        # (MAD 的基座)。np.median/np.quantile 的次序统计由此构成。
+        result = ti.cast(0, ti.f64)
+        for i in range(lo, lo + n):
+            z = ti.cast(self.source_read(p, src, i, stack, cache, base, use_cache, 0), ti.f64)
+            if ti.static(transform == 1):
+                z = ti.abs(z - med)
+            less = 0
+            eq = 0
+            for j in range(lo, lo + n):
+                w = ti.cast(self.source_read(p, src, j, stack, cache, base, use_cache, 0), ti.f64)
+                if ti.static(transform == 1):
+                    w = ti.abs(w - med)
+                if w < z:
+                    less += 1
+                elif w == z:
+                    eq += 1
+            if less < k and k <= less + eq:
+                result = z
+        return result
+
+    @ti.func
+    def window_median(self, p, src, lo, n, transform: ti.template(), med, stack: ti.template(), cache: ti.template(), base, use_cache: ti.template()):
+        # np.median:奇数窗取正中;偶数窗取两中位值均值((a+b)/2,f64 除 2 精确)。
+        # Taichi 限制:运行时分支内不允许 return,统一末尾单一返回。
+        result = ti.cast(0, ti.f64)
+        if n % 2 == 1:
+            result = self.kth_value(p, src, lo, n, (n + 1) // 2, transform, med, stack, cache, base, use_cache)
+        else:
+            a = self.kth_value(p, src, lo, n, n // 2, transform, med, stack, cache, base, use_cache)
+            b = self.kth_value(p, src, lo, n, n // 2 + 1, transform, med, stack, cache, base, use_cache)
+            result = (a + b) / 2.0
+        return result
+
+    @ti.func
+    def window_quantile(self, p, src, lo, n, q, stack: ti.template(), cache: ti.template(), base, use_cache: ti.template()):
+        # np.quantile 线性插值默认口径:pos = q·(n-1);_lerp(a,b,t) 在
+        # t<0.5 时 a+(b-a)·t,t≥0.5 时 b-(b-a)·(1-t)(numpy 分支公式逐位对齐)
+        pos = q * ti.cast(n - 1, ti.f64)
+        idx = ti.cast(ti.floor(pos), ti.i32)
+        result = ti.cast(0, ti.f64)
+        a = self.kth_value(p, src, lo, n, idx + 1, 0, 0.0, stack, cache, base, use_cache)
+        if idx >= n - 1:
+            result = a
+        else:
+            b = self.kth_value(p, src, lo, n, idx + 2, 0, 0.0, stack, cache, base, use_cache)
+            frac = pos - ti.cast(idx, ti.f64)
+            if frac >= 0.5:
+                result = b - (b - a) * (1.0 - frac)
+            else:
+                result = a + (b - a) * frac
+        return result
 
     @ti.func
     def window_sum(self, p, a, b, lo, count, kind: ti.template(), mx, my, am, bm, guard, stack: ti.template()):
@@ -683,6 +766,46 @@ class _StackProgram:
                         v = self.divide(acc, c * (c + 1.0) / 2.0, guard)
                     else:
                         v = self.divide(acc, c, guard)
+            elif op == 38 or op == 39:
+                # EMA(m3.3):f64 权威路径读协作扫描通道(与 CPU lfilter 同式
+                # 递推);mixed 粗排无扫描通道,用同窗滚动均值近似排序信号
+                # ——粗排只决定进精算的候选次序,权威数值始终出自 f64 VM。
+                if ti.static(self.cpu_rolling):
+                    v = ti.cast(prefix[p, 4, t], self.dtype)
+                else:
+                    approx = ti.cast(0, ti.f64)
+                    for i in range(lo, t + 1):
+                        approx = approx + ti.cast(self.source_read(p, src, i, stack, cache, base, use_cache, 0), ti.f64)
+                    v = ti.cast(approx / c, self.dtype)
+            elif op == 44:
+                # ROBUST_ZSCORE_20(m3.3):(x-中位)/(1.4826·MAD) 有界截断,
+                # MAD≈0 时按 |x-med|<1e-9 判 0 / ±3 饱和 —— 与内核
+                # ops.robust_zscore 逐分支对齐;窗口含当前 bar。
+                xi = ti.cast(x, ti.f64)
+                med = self.window_median(p, src, lo, t - lo + 1, 0, 0.0, stack, cache, base, use_cache)
+                mad = self.window_median(p, src, lo, t - lo + 1, 1, med, stack, cache, base, use_cache)
+                scale = 1.4826 * mad
+                val = ti.cast(0, ti.f64)
+                if scale > 1e-9:
+                    val = (xi - med) / ti.max(scale, 1e-9)
+                elif ti.abs(xi - med) < 1e-9:
+                    val = 0.0
+                else:
+                    val = self.sign(xi - med) * 3.0
+                v = ti.cast(ti.min(3.0, ti.max(-3.0, val)), self.dtype)
+            elif op == 45:
+                # WINSOR_20(m3.3):按截至 t-1 的历史窗(最多 19 根)5%/95%
+                # 分位裁剪当前值;历史不足 2 根原样通过 —— 与内核
+                # ops.rolling_winsor(线性插值分位)逐位对齐。
+                xi = ti.cast(x, ti.f64)
+                lo_h = ti.max(0, t - 19)
+                hn = t - lo_h
+                val = xi
+                if hn >= 2:
+                    qlo = self.window_quantile(p, src, lo_h, hn, 0.05, stack, cache, base, use_cache)
+                    qhi = self.window_quantile(p, src, lo_h, hn, 0.95, stack, cache, base, use_cache)
+                    val = ti.min(ti.max(xi, qlo), qhi)
+                v = ti.cast(val, self.dtype)
             elif ti.static(self.compensated_rolling):
                 v = self.compensated_coarse_moments(p, src, t, op, guard, stack, cache, base, use_cache)
             else:
@@ -780,6 +903,8 @@ class _StackProgram:
                             elif op == 36:
                                 self.rolling_prefix(p, lane, sp - 2, 0, guard, stack, prefix, scan_x, scan_sq)
                                 self.rolling_prefix(p, lane, sp - 1, 2, guard, stack, prefix, scan_x, scan_sq)
+                            elif op == 38 or op == 39:
+                                self.rolling_ema(p, lane, src, 4, self.window(op), guard, stack, prefix, scan_x)
                         if ti.static(self.shared_windows):
                             # All lanes visit every chunk, including the final
                             # partial block. Each window still reads lo..t in

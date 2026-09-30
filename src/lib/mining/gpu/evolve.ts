@@ -39,6 +39,8 @@ export interface EvolveOptions {
   opTwo: readonly number[]
   /** 进化增强(evolve_v2):点/收缩变异、克隆降权、零平台细分、停滞重启 */
   v2?: boolean
+  /** 全算子路径(原生 m3.3+/CPU 内核):子代校验不限 WGSL 算子集 */
+  fullOps?: boolean
 }
 
 /** 解析合法岛数:钳到 [1, floor(population/5)];未配置/非法 → 1 */
@@ -87,10 +89,10 @@ function evolveIsland(
     if (rng.next() < mutationP) {
       child = doMutate(child, opts.featN, opts.opOne, opts.opTwo, rng, opts.maxDepth)
     }
-    next.push(gpuSafeChild(child, mom, opts.featN))
+    next.push(gpuSafeChild(child, mom, opts.featN, opts.fullOps))
   }
   while (next.length < size) {
-    next.push(randomTreeGpuSafe(opts.maxDepth, opts.featN, opts.opOne, opts.opTwo, rng))
+    next.push(randomTreeGpuSafe(opts.maxDepth, opts.featN, opts.opOne, opts.opTwo, rng, opts.fullOps))
   }
   return next
 }

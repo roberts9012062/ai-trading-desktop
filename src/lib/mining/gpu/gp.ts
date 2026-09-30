@@ -210,28 +210,68 @@ export function mutateV2(
   return shrinkMutate(tree, featN, opOne, opTwo, rng)
 }
 
-/** GPU 路径的可用算子集(排除 EMA/稳健排序类等 WGSL 未实现的算子) */
-export function gpuOpSets(cryptoProfile = true): { opOne: number[]; opTwo: number[] } {
+/** GPU 路径的可用算子集(排除 EMA/稳健排序类等 WGSL 未实现的算子);
+ *  fullOps=true 时不排除——原生 Taichi 引擎(m3.3)与 CPU 内核支持全部
+ *  51 算子,与 GPU 挖掘同源。 */
+export function gpuOpSets(cryptoProfile = true, fullOps = false): { opOne: number[]; opTwo: number[] } {
   const opOne: number[] = []
   const opTwo: number[] = []
   OPS.forEach((o, i) => {
-    if (GPU_UNSUPPORTED_KINDS.has(o.kind) || (!cryptoProfile && i >= 40)) return
+    if ((!fullOps && GPU_UNSUPPORTED_KINDS.has(o.kind)) || (!cryptoProfile && i >= 40)) return
     ;(o.arity === 2 ? opTwo : opOne).push(i)
   })
   return { opOne, opTwo }
 }
 
-/** 随机树重试:token 超 MAX_TOKENS 或栈深超限时重生成(上限 8 次) */
+// ── 短周期慢因子先验(编排层;不改任何数值口径)──────────────────────
+//
+// 短周期(≤15m)单根毛边际 = IC×单根波动(1m≈0.10%、5m≈0.22%、15m≈0.37%),
+// 而交易成本固定 6-10bp/回合——因子必须持仓几十根才回本。随机树默认在全部
+// 算子上均匀采样,生成的大多是快信号(几根翻仓),净额适应度必然为负,搜索
+// 在错误区域消耗预算。把平滑/长窗算子(MA/EMA/DECAY/CORR/60/120 窗族)
+// 在采样池里加权复制,让初始种群与变异更密集地落在低换手区域。只影响
+// 生成分布,不改变算子语义、评估与合格门。
+
+/** 平滑算子 kind 集(输出变化缓慢 → 低换手) */
+const SMOOTH_KINDS = new Set(["ema", "decay_linear", "lag", "corr", "snr"])
+
+function isSlowOp(i: number): boolean {
+  const op = OPS[i]
+  if (!op) return false
+  if (SMOOTH_KINDS.has(op.kind)) return true
+  if (op.kind === "ts_ma") return (op.win ?? 0) >= 20
+  return (op.win ?? 0) >= 60 || (op.n ?? 0) >= 24
+}
+
+const SLOW_TF_WEIGHT: Record<string, number> = { "1m": 3, "5m": 3, "15m": 2 }
+
+/** 短周期把慢算子在采样池加权;其他周期原样返回。 */
+export function slowBiasedOpSets(
+  opOne: readonly number[],
+  opTwo: readonly number[],
+  timeframe: string | undefined,
+): { opOne: number[]; opTwo: number[] } {
+  const weight = timeframe ? SLOW_TF_WEIGHT[timeframe] : undefined
+  if (!weight) return { opOne: [...opOne], opTwo: [...opTwo] }
+  const extra = (i: number) => (isSlowOp(i) ? weight : 0)
+  const expand = (ops: readonly number[]) =>
+    ops.flatMap(i => Array.from({ length: 1 + extra(i) }, () => i))
+  return { opOne: expand(opOne), opTwo: expand(opTwo) }
+}
+
+/** 随机树重试:token 超 MAX_TOKENS 或栈深超限时重生成(上限 8 次);
+ *  fullOps=true 时不按 WGSL 算子集裁剪(原生/CPU 全算子路径) */
 export function randomTreeGpuSafe(
   depth: number,
   featN: number,
   opOne: readonly number[],
   opTwo: readonly number[],
   rng: Rng,
+  fullOps = false,
 ): Tree {
   for (let i = 0; i < 8; i++) {
     const tree = randomTree(depth, featN, opOne, opTwo, rng)
-    if (tokensGpuSupported(treeToTokens(tree), featN)) return tree
+    if (tokensGpuSupported(treeToTokens(tree), featN, fullOps)) return tree
   }
   return ["feat", rng.feature(featN)]
 }
@@ -241,8 +281,9 @@ export function gpuSafeChild(
   child: Tree,
   fallback: Tree,
   featN: number,
+  fullOps = false,
 ): Tree {
-  return tokensGpuSupported(treeToTokens(child), featN) ? child : fallback
+  return tokensGpuSupported(treeToTokens(child), featN, fullOps) ? child : fallback
 }
 
 export const GP_MAX_TOKENS = MAX_TOKENS

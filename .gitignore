@@ -17,3 +17,10 @@ scripts/.bench-data/
 # 本地基准行情缓存(可再生的数据文件,不入库)
 .local-data/
 resources/
+
+# 本地验证/引擎运行产物
+native-engine/cache/
+native-engine/engine-trace.log
+champion-seed-extract.json
+scripts/_probe-*.py
+scripts/_patch_*.py

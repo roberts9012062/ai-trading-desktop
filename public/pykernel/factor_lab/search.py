@@ -190,6 +190,39 @@ def _search_space(mat, cfg, rng):
             [i for i, (_, _, a) in enumerate(OPS_CONFIG[:limit]) if a == 2])
 
 
+# 短周期慢因子先验(编排层):≤15m 时把平滑/长窗算子在采样池加权复制,
+# 与桌面端 gp.ts slowBiasedOpSets 同口径。只影响生成分布,不改算子语义、
+# 评估与合格门。经济依据:短周期单根毛边际=IC×单根波动(1m≈0.10%),
+# 成本固定 6-10bp/回合,持仓几十根才回本——随机均匀采样生成的快信号
+# (几根翻仓)净额适应度必负,搜索在错误区域消耗预算。
+_SLOW_TF_WEIGHT = {"1m": 3, "5m": 3, "15m": 2}
+
+
+def _is_slow_op_name(name: str) -> bool:
+    head = name.split("_", 1)[0]
+    if head in ("EMA", "LAG", "CORR", "SNR", "DECAY"):
+        return True
+    parts = name.rsplit("_", 1)
+    if len(parts) < 2 or not parts[1].isdigit():
+        return False
+    n = int(parts[1])
+    if name.startswith("TS_MA_"):
+        return n >= 20
+    return n >= 24  # 24/60/120 窗族
+
+
+def _slow_biased_ops(op_one, op_two, timeframe):
+    weight = _SLOW_TF_WEIGHT.get(str(timeframe or ""))
+    if not weight:
+        return op_one, op_two
+
+    def expand(ops):
+        return [i for i in ops
+                for _ in range(1 + (weight if _is_slow_op_name(OPS_CONFIG[i][0]) else 0))]
+
+    return expand(op_one), expand(op_two)
+
+
 # 训练段分块稳健性(本地增强):训练段 K 等分,各块单独算 sortino。
 # 加密行情牛熊/震荡切换快,整段 composite 高的因子常是"某一段行情吃满、
 # 其余段亏"——这类因子验证/封存段基本必亏(冠军表测试年化/封存 Sortino 飘红
@@ -602,7 +635,7 @@ def search(
     periods = bars_per_year(train_bars, timeframe)
     feat_n = feat_mat.shape[0] if (cfg.crypto_profile or v2) else min(40, feat_mat.shape[0])
     rng = random.Random(cfg.seed)
-    op_one, op_two = _search_space(feat_mat, cfg, rng)
+    op_one, op_two = _slow_biased_ops(*_search_space(feat_mat, cfg, rng), timeframe)
     head_trim = _v2_head_trim(feat_mat, rng._active_features or []) if v2 else 0
     cached_eval = _training_evaluator(
         feat_mat, close, cfg.cost, periods, trim=head_trim, bars=train_bars if v2 else None,
@@ -652,7 +685,7 @@ def search(
     if v2:
         from .seed_templates import seed_fraction, templates_for
 
-        tpl_tokens = templates_for(rng._active_features or [])
+        tpl_tokens = templates_for(rng._active_features or [], timeframe)
         k_start = min(len(seeds), len(population))
         k_max = min(k_start + seed_fraction(cfg.population, tpl_tokens), len(population))
         for j in range(k_start, k_max):
@@ -1432,7 +1465,7 @@ def search_stepwise(
     periods = bars_per_year(train_bars, timeframe)
     feat_n = feat_mat.shape[0] if (cfg.crypto_profile or v2) else min(40, feat_mat.shape[0])
     rng = random.Random(cfg.seed)
-    op_one, op_two = _search_space(feat_mat, cfg, rng)
+    op_one, op_two = _slow_biased_ops(*_search_space(feat_mat, cfg, rng), timeframe)
     head_trim = _v2_head_trim(feat_mat, rng._active_features or []) if v2 else 0
     cached_eval = _training_evaluator(
         feat_mat, close, cfg.cost, periods, trim=head_trim, bars=train_bars if v2 else None,
@@ -1499,7 +1532,7 @@ def search_stepwise(
     if v2:
         from .seed_templates import seed_fraction, templates_for
 
-        tpl_tokens = templates_for(rng._active_features or [])
+        tpl_tokens = templates_for(rng._active_features or [], timeframe)
         k_start = min(len(cfg.seed_tokens or []), len(population))
         k_max = min(k_start + seed_fraction(cfg.population, tpl_tokens), len(population))
         for j in range(k_start, k_max):
