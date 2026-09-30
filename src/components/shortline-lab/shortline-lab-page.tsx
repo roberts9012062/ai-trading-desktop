@@ -64,6 +64,7 @@ export default function ShortlineLabPage() {
   const [backfillTo, setBackfillTo] = useState("")
   const [backfillMsg, setBackfillMsg] = useState<string | null>(null)
   const [backfillBusy, setBackfillBusy] = useState(false)
+  const backfillAbortRef = useRef<AbortController | null>(null)
 
   /** 建议区间（按周期：1m 30 天 / 5m 90 天 / 15m 180 天,对齐因子区间上限） */
   const suggestedFrom = useMemo(() => {
@@ -94,12 +95,14 @@ export default function ShortlineLabPage() {
   const onBackfill = async () => {
     if (!backfillFrom || !backfillTo) return
     setBackfillBusy(true)
-    setBackfillMsg(`回填 ${symbol} 启动…（每日归档约 20-80MB，即下即聚合为 digest；已缓存日自动跳过）`)
+    backfillAbortRef.current = new AbortController()
+    setBackfillMsg(`回填 ${symbol} 启动…（国内链路约 100-250KB/s，单日 1-80MB 可能要等；已缓存日自动跳过）`)
     try {
       const summary = await runBackfillWithStore({
         symbol,
         fromDay: backfillFrom,
         toDay: backfillTo,
+        signal: backfillAbortRef.current.signal,
         onProgress: (p) =>
           setBackfillMsg(`回填 ${symbol} ${p.index + 1}/${p.total} · ${p.day} ${p.status} · 累计 ${fmtBytes(p.cumulativeBytes)}`),
       })
@@ -112,6 +115,7 @@ export default function ShortlineLabPage() {
       setBackfillMsg(`回填失败：${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setBackfillBusy(false)
+      backfillAbortRef.current = null
     }
   }
 
@@ -380,6 +384,12 @@ export default function ShortlineLabPage() {
             className="px-3 py-1 rounded-md bg-[var(--primary)] text-white disabled:opacity-40">
             {backfillBusy ? "回填中…" : "回填（只补缺失/最新）"}
           </button>
+          {backfillBusy && (
+            <button onClick={() => backfillAbortRef.current?.abort()}
+              className="px-3 py-1 rounded-md border border-red-500/60 text-red-400">
+              停止
+            </button>
+          )}
           <button onClick={() => { setBackfillFrom(suggestedFrom); setBackfillTo(today) }} disabled={backfillBusy}
             className="px-3 py-1 rounded-md border border-[var(--border)] text-[var(--text-muted)]">
             按建议区间全选

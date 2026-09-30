@@ -22,20 +22,43 @@ export function aggTradesZipUrl(symbol: string, day: string): string {
   return `${VISION_BASE}/data/futures/um/daily/aggTrades/${symbol}/${symbol}-aggTrades-${day}.zip`
 }
 
-async function fetchZipBytes(url: string, retries = 3): Promise<Uint8Array | null> {
+/**
+ * 下载归档 zip：404 → null；每次尝试 180s 硬超时（国内到 data.binance.vision
+ * 仅 100-250KB/s 且偶发连接挂起——无超时的 fetch 会无限等待,回填循环卡死）；
+ * 超时/网络错重试,外部 signal(用户停止)立即中止不再重试。
+ */
+const FETCH_ATTEMPT_TIMEOUT_MS = 180_000
+
+async function fetchZipBytes(
+  url: string,
+  retries = 4,
+  externalSignal?: AbortSignal,
+): Promise<Uint8Array | null> {
   let lastErr: unknown = null
   for (let attempt = 0; attempt <= retries; attempt++) {
-    if (attempt > 0) await new Promise((r) => setTimeout(r, 700 * attempt))
+    if (externalSignal?.aborted) throw new DOMException("已停止", "AbortError")
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 1000 * attempt))
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), FETCH_ATTEMPT_TIMEOUT_MS)
+    const relay = () => controller.abort()
+    externalSignal?.addEventListener("abort", relay, { once: true })
     try {
-      const resp = await fetch(url)
+      const resp = await fetch(url, { signal: controller.signal })
       if (resp.status === 404) return null
       if (!resp.ok) throw new Error(`aggTrades 归档下载失败(${resp.status}: ${url.slice(-60)})`)
       return new Uint8Array(await resp.arrayBuffer())
     } catch (e) {
+      if (externalSignal?.aborted) throw new DOMException("已停止", "AbortError")
       lastErr = e
+    } finally {
+      clearTimeout(timer)
+      externalSignal?.removeEventListener("abort", relay)
     }
   }
-  throw lastErr instanceof Error ? lastErr : new Error(`aggTrades 归档下载失败: ${url.slice(-60)}`)
+  const tail = url.slice(-60)
+  throw lastErr instanceof Error
+    ? new Error(`${lastErr.message}（重试 ${retries} 次仍失败: ${tail}）`)
+    : new Error(`aggTrades 归档下载失败（重试 ${retries} 次）: ${tail}`)
 }
 
 export interface DayDigestEntry {
@@ -146,6 +169,8 @@ export interface BackfillOptions {
   budgetBytes?: number
   /** 跳过已有 digest 的日子（断点续传默认 true） */
   skipExisting?: boolean
+  /** 用户停止：每日循环开始与下载中检查，中止后 summary 注明 */
+  signal?: AbortSignal
   onProgress?: (p: BackfillProgress) => void
 }
 
@@ -172,13 +197,13 @@ export interface BackfillSummary {
 
 /** 完整回填（下载 → 聚合 → 入库；断点续传 + 预算）。依赖可注入（测试）。 */
 export interface BackfillDeps {
-  fetchZip?: (url: string) => Promise<Uint8Array | null>
+  fetchZip?: (url: string, signal?: AbortSignal) => Promise<Uint8Array | null>
   listSavedDays?: (symbol: string) => Promise<string[]>
   saveDay?: (symbol: string, day: string, buckets: readonly TickBucket[]) => Promise<void>
 }
 
 export async function runBackfillWithStore(opts: BackfillOptions, deps: BackfillDeps = {}): Promise<BackfillSummary> {
-  const fetchZip = deps.fetchZip ?? fetchZipBytes
+  const fetchZip = deps.fetchZip ?? ((url: string, signal?: AbortSignal) => fetchZipBytes(url, 4, signal))
   const listSavedDays = deps.listSavedDays ?? (async (symbol) => (await listDayDigests(symbol)).map((e) => e.day))
   const saveDay = deps.saveDay ?? saveDayDigest
   const budget = opts.budgetBytes ?? SHORTLINE_BACKFILL_BUDGET_BYTES
@@ -186,7 +211,13 @@ export async function runBackfillWithStore(opts: BackfillOptions, deps: Backfill
   const summary: BackfillSummary = { done: 0, missing: 0, empty: 0, failed: 0, skipped: 0, totalBytes: 0, errors: [] }
   const existing = new Set(await listSavedDays(opts.symbol))
   let cumulative = 0
+  let stopped = false
   for (let i = 0; i < days.length; i++) {
+    if (opts.signal?.aborted) {
+      stopped = true
+      summary.errors.push({ day: days[i]!, error: `已手动停止（完成 ${i}/${days.length} 天，未下载的天数下次回填自动补齐）` })
+      break
+    }
     const day = days[i]!
     const report = (status: DayBackfillResult["status"]) =>
       opts.onProgress?.({ day, index: i, total: days.length, status, cumulativeBytes: cumulative })
@@ -196,7 +227,7 @@ export async function runBackfillWithStore(opts: BackfillOptions, deps: Backfill
       continue
     }
     try {
-      const zip = await fetchZip(aggTradesZipUrl(opts.symbol, day))
+      const zip = await fetchZip(aggTradesZipUrl(opts.symbol, day), opts.signal)
       if (!zip) {
         summary.missing++
         report("missing")
@@ -221,11 +252,17 @@ export async function runBackfillWithStore(opts: BackfillOptions, deps: Backfill
       summary.totalBytes = cumulative
       report("done")
     } catch (e) {
+      if (opts.signal?.aborted) {
+        stopped = true
+        summary.errors.push({ day, error: `已手动停止（完成 ${i}/${days.length} 天，未下载的天数下次回填自动补齐）` })
+        break
+      }
       summary.failed++
       summary.errors.push({ day, error: e instanceof Error ? e.message : String(e) })
       report("failed")
     }
   }
+  if (stopped) summary.failed = Math.max(0, summary.failed)
   return summary
 }
 

@@ -59,6 +59,36 @@ describe("aggTrades 回填管道", () => {
     expect(full.from).toBe("2026-09-05")
   })
 
+  it("runBackfillWithStore：外部 signal 中止——已完成日照常入库并标注停止", async () => {
+    const zips = new Map<string, Uint8Array>()
+    for (const d of ["2026-09-28", "2026-09-29", "2026-09-30"]) {
+      zips.set(`T2-${d}`, makeDayZip(CSV_HEADERless(d)))
+    }
+    const controller = new AbortController()
+    const saved: string[] = []
+    let calls = 0
+    const deps: BackfillDeps = {
+      fetchZip: async (url, signal) => {
+        if (signal?.aborted) throw new DOMException("已停止", "AbortError")
+        calls += 1
+        if (calls >= 2) controller.abort() // 第二天下载后用户点停止
+        const day = url.slice(-14, -4)
+        return zips.get(`T2-${day}`) ?? null
+      },
+      listSavedDays: async () => [],
+      saveDay: async (_s, day) => { saved.push(day) },
+    }
+    const summary = await runBackfillWithStore(
+      { symbol: "T2", fromDay: "2026-09-28", toDay: "2026-09-30", signal: controller.signal },
+      deps,
+    )
+    expect(summary.done).toBeGreaterThanOrEqual(1)
+    expect(saved).toContain("2026-09-28")
+    expect(summary.errors[0]!.error).toContain("已手动停止")
+    // 停止后不再继续下载剩余天
+    expect(calls).toBeLessThanOrEqual(2)
+  })
+
   it("runBackfillWithStore：断点续传跳过已有、预算超限停止、missing 计数", async () => {
     const zips = new Map<string, Uint8Array>()
     zips.set("TEST-2026-09-28", makeDayZip(CSV_HEADERless("2026-09-28")))
