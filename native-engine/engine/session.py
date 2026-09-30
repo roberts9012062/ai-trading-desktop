@@ -89,6 +89,14 @@ class NativeSession:
         from .vm_ti import StackVM
         from .metrics_ti import TrainingMetrics
         frozen_config = copy.deepcopy(config)
+        # 兜底:加密渠道+增强挖掘(selection_v2/evolve_v2)而未显式指定研究档案时,
+        # 补 crypto_local_v2。否则走 legacy 档案,selection_v2 的封存裁剪会把
+        # walk-forward 全部折吞进训练段(n_oos_folds=0 → 拒因「样本外折证据
+        # 缺失」),且 legacy 路径无封存指标产出(→「封存区未通过」)——任何
+        # 数据量与搜索量都必然 0 合格。与前端组合评估链路的档案升级逻辑对齐。
+        if (frozen_config.get("crypto_profile") and not frozen_config.get("research_profile")
+                and (frozen_config.get("selection_v2") or frozen_config.get("evolve_v2"))):
+            frozen_config["research_profile"] = "crypto_local_v2"
         from .memory import reserved_static_bytes
         # Preflight before constructing a feature graph; low-memory cards get
         # an actionable error rather than partial resident allocations.

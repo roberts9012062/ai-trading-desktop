@@ -13,6 +13,56 @@ from websockets.exceptions import ConnectionClosed
 from .protocol import MAX_FRAME_BYTES, ProtocolError, decode_message, encode_message
 
 
+def _trace_dispatch(kind, session_id, payload):
+    """诊断追踪:关键请求的摘要追加落盘,供排查「0 合格」类口径问题。
+
+    只记录请求侧摘要(load_bars 根数/mine_features 配置/precise 批次规模),
+    不记数值结果、不进 stdout(那是宿主协议通道),失败静默——诊断设施
+    绝不影响引擎可用性。
+    """
+    try:
+        from datetime import datetime
+        from pathlib import Path
+        entry = {"ts": datetime.now().isoformat(timespec="seconds"), "kind": kind, "session": session_id}
+        if kind == "load_bars":
+            entry["count"] = (payload.get("metadata") or {}).get("count")
+        elif kind == "mine_features":
+            entry["config"] = payload.get("config")
+        elif kind == "precise":
+            entry["best_seen"] = len(payload.get("best_seen") or [])
+            entry["final"] = payload.get("final_generation")
+        elif kind == "strict_eval":
+            entry["candidates"] = len(payload.get("candidates") or [])
+        path = Path(__file__).resolve().parents[1] / "engine-trace.log"
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
+    except Exception:
+        pass
+
+
+def _trace_precise_result(result):
+    """诊断追踪:precise 资格判定摘要(拒因分布与首条 WF 原始结构)。"""
+    try:
+        from datetime import datetime
+        from pathlib import Path
+        entry = {"ts": datetime.now().isoformat(timespec="seconds"), "kind": "precise_result",
+                 "requirements": result.get("qualification_requirements"),
+                 "champions": len(result.get("champions") or []),
+                 "rejected": len(result.get("rejected_candidates") or [])}
+        rejected = result.get("rejected_candidates") or []
+        if rejected:
+            metrics = rejected[0].get("metrics") or {}
+            entry["first_reject_reasons"] = rejected[0].get("qualification", {}).get("reasons")
+            entry["first_walk_forward"] = metrics.get("walk_forward")
+            entry["first_holdout"] = {k: v for k, v in (metrics.get("holdout_metrics") or {}).items()
+                                      if isinstance(v, (int, float, str, bool, type(None)))}
+        path = Path(__file__).resolve().parents[1] / "engine-trace.log"
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
+    except Exception:
+        pass
+
+
 class EngineServer:
     def __init__(self, precision="mixed"):
         self.precision = precision
@@ -25,20 +75,38 @@ class EngineServer:
     def startup(self, inject_failure=False):
         from .runtime import initialize_runtime
         from .selfcheck import run_startup_selfcheck
+
+        def boot(stage, **payload):
+            # stdout 启动进度行:ready 之前宿主据此展示预热进度,而不是
+            # 静默等待到超时误判「编译失败」。单行 JSON 且不含 token,
+            # 与最终的 native_engine_ready 行同构,宿主按行解析即可、
+            # 未知类型直接忽略,协议向后兼容。
+            print(json.dumps({"type": "native_engine_boot", "stage": stage, **payload}), flush=True)
+
         runtime = initialize_runtime(self.precision)
         if runtime["backend"] != "cuda":
             raise RuntimeError("Native CUDA unavailable; use existing WebGPU/CPU engine")
+        boot("runtime", device=runtime["device_name"], capability=runtime.get("capability"),
+             kernel_pathway=runtime.get("kernel_pathway"))
         from .cuda_context import capture_cuda_context
         self.cuda_context = capture_cuda_context()
+        # compat 路径(50 系 sm_120 等)kernel 由驱动 JIT 转译,冷缓存首启
+        # 预热为十分钟级;native 路径(20/30/40 系)与热缓存都很快
+        boot("selfcheck_begin", message="kernel JIT warmup + deterministic selfcheck",
+             first_boot_hint=("driver-translated kernels; cold cache first warmup may take tens of minutes"
+                              if runtime.get("kernel_pathway") == "compat" else
+                              "warm cache makes this fast"))
         check = run_startup_selfcheck(self.precision, inject_failure=inject_failure)
         if not check["passed"]:
             raise RuntimeError("G1 deterministic selfcheck failed; native engine refused")
+        boot("selfcheck_done", sha256=check["sha256"])
         self.hello = {**runtime, "precision": self.precision, "selfcheck": check}
         return self.hello
 
     def dispatch(self, message):
         from .session import NativeSession
         kind, session_id, payload = message["type"], message.get("session_id"), message["payload"]
+        _trace_dispatch(kind, session_id, payload)
         if kind == "dispose_session":
             session = self.sessions.pop(session_id, None)
             if session:
@@ -77,7 +145,9 @@ class EngineServer:
                 values = payload.get(name, [])
                 if not isinstance(values, list) or len(values) > 100_000:
                     raise ProtocolError("Invalid precise candidate payload")
-            return session.precise(payload)
+            result = session.precise(payload)
+            _trace_precise_result(result)
+            return result
         raise ProtocolError("Mode not implemented", "UNSUPPORTED_MODE")
 
     def dispose_owned(self, ids):

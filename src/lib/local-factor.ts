@@ -181,7 +181,7 @@ async function evaluatePortfolio(
         ...(payload.train_ratio ? { train_ratio: payload.train_ratio } : {}),
         ...(payload.test_recent_bars != null ? { test_recent_bars: payload.test_recent_bars } : {}),
         ...(payload.selection_v2 ? { selection_v2: true } : {}),
-        ...(payload.research_profile ? { research_profile: payload.research_profile } : {}),
+        ...(researchProfileFor(payload) ? { research_profile: researchProfileFor(payload) } : {}),
         ...(payload.execution_model ? { execution_model: payload.execution_model } : {}),
       },
       bars,
@@ -214,10 +214,25 @@ export function buildSearchConfig(payload: LocalFactorPayload) {
     ...(payload.selection_v2 ? { selection_v2: true } : {}),
     ...(payload.evolve_v2 ? { evolve_v2: true } : {}),
     ...(payload.live_entry_gate ? { live_entry_gate: payload.live_entry_gate } : {}),
-    ...(payload.research_profile ? { research_profile: payload.research_profile } : {}),
+    ...(researchProfileFor(payload) ? { research_profile: researchProfileFor(payload) } : {}),
     ...(payload.execution_model ? { execution_model: payload.execution_model } : {}),
     ...(payload.label_span != null ? { label_span: payload.label_span } : {}),
   }
+}
+
+/** 加密渠道 + 增强挖掘(selection_v2/evolve_v2)时必须走 v2 研究档案。
+ *
+ * 曾缺失此升级:落进 legacy 档案后,selection_v2 的封存裁剪切掉数据尾部
+ * 但训练段长度不重算,walk-forward 三折全部落入训练段(n_oos_folds=0 →
+ * 「样本外折证据缺失」),且 legacy 无封存指标产出(→「封存区未通过」)——
+ * 任何数据量与搜索量都必然 0 合格。与组合评估链路及引擎侧
+ * session.prepare_features 的兜底保持同一口径。 */
+export function researchProfileFor(payload: LocalFactorPayload): string | undefined {
+  if (payload.research_profile) return payload.research_profile
+  if (payload.crypto_profile && (payload.selection_v2 || payload.evolve_v2)) {
+    return "crypto_local_v2"
+  }
+  return undefined
 }
 
 /** GenerationStep → 进度卡片摘要(CPU/GPU 两路径共用) */
