@@ -229,6 +229,28 @@ export async function runBackfillWithStore(opts: BackfillOptions, deps: Backfill
   return summary
 }
 
+/**
+ * 增量回填区间计算——"下次只下载最新的数据拼接"：
+ * 给定建议区间与已缓存日集合，返回实际还需下载的区间与缓存统计。
+ * 已缓存日自动跳过（runBackfillWithStore 的 skipExisting），此处供表单
+ * 预填与覆盖展示。
+ */
+export function missingRange(
+  fromDay: string,
+  toDay: string,
+  existingDays: readonly string[],
+): { from: string, to: string, cachedCount: number, firstGap: string | null } {
+  const have = new Set(existingDays)
+  const days = listDays(fromDay, toDay)
+  const missing = days.filter((d) => !have.has(d))
+  return {
+    from: missing[0] ?? toDay,
+    to: missing.length ? missing[missing.length - 1]! : toDay,
+    cachedCount: have.size ? days.filter((d) => have.has(d)).length : 0,
+    firstGap: missing[0] ?? null,
+  }
+}
+
 /** 汇总占用（UI 展示与清理入口用） */
 export async function digestUsage(symbol?: string): Promise<{ days: number, bytes: number }> {
   const all = await idbRun<DayDigestEntry[]>("readonly", (s) => s.getAll())

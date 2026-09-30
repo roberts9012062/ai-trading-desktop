@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { zipSync } from "fflate"
-import { dayZipToDigest, listDays, runBackfillWithStore, type BackfillDeps } from "./backfill/pipeline"
+import { dayZipToDigest, listDays, missingRange, runBackfillWithStore, type BackfillDeps } from "./backfill/pipeline"
 import { parseAggTradesCsv, BucketAccumulator } from "./bucket-stream"
 
 function makeDayZip(rows: readonly string[]): Uint8Array {
@@ -38,6 +38,25 @@ describe("aggTrades 回填管道", () => {
     const acc = new BucketAccumulator()
     parseAggTradesCsv("1,100,1,2,3,1700000000000,true", (r) => acc.pushCsvRow(r))
     expect(acc.list()[0]!.takerBuyVol).toBe(0)
+  })
+
+  it("missingRange：增量区间计算（只补缺失/最新）", () => {
+    const days = listDays("2026-09-01", "2026-09-05")
+    expect(days).toHaveLength(5)
+    // 无缓存 → 全量
+    const none = missingRange("2026-09-01", "2026-09-05", [])
+    expect(none).toEqual({ from: "2026-09-01", to: "2026-09-05", cachedCount: 0, firstGap: "2026-09-01" })
+    // 中间+尾部缺失 → from=第一缺口, to=最后缺口
+    const partial = missingRange("2026-09-01", "2026-09-05", ["2026-09-01", "2026-09-02", "2026-09-04"])
+    expect(partial.from).toBe("2026-09-03")
+    expect(partial.to).toBe("2026-09-05")
+    expect(partial.cachedCount).toBe(3)
+    expect(partial.firstGap).toBe("2026-09-03")
+    // 全已缓存 → 无缺口（from/to 收敛到 to）
+    const full = missingRange("2026-09-01", "2026-09-05", days)
+    expect(full.firstGap).toBeNull()
+    expect(full.cachedCount).toBe(5)
+    expect(full.from).toBe("2026-09-05")
   })
 
   it("runBackfillWithStore：断点续传跳过已有、预算超限停止、missing 计数", async () => {

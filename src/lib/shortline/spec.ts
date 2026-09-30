@@ -113,3 +113,23 @@ export function isLiveToken(token: number): boolean {
 
 /** 默认挂载品种（回填磁盘预算默认单品种） */
 export const DEFAULT_SHORTLINE_SYMBOL = "ETHUSDT"
+
+/**
+ * 可挖币种下拉（Binance USDT 永续主流币；aggTrades 回填与 v4 订单流特征
+ * 均以 Binance UM 为源，列表按 UM 上线深度筛选——全部 ≥2 年历史）。
+ */
+export const SHORTLINE_SYMBOLS: readonly string[] = [
+  "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT",
+  "ADAUSDT", "LTCUSDT", "LINKUSDT", "AVAXUSDT", "TRXUSDT", "DOTUSDT",
+]
+
+/**
+ * 各周期的 aggTrades 回填建议区间（天）——对齐因子评估区间上限
+ * （factor-range-limits：1m 30/60/182 天按内存档位，15m 可达两年）。
+ * digest 为 1 秒桶、三周期共用一份；该值仅作为回填表单的默认范围。
+ */
+export const TIMEFRAME_BACKFILL_DAYS: Record<ShortlineTimeframe, number> = {
+  "1m": 30,
+  "5m": 90,
+  "15m": 180,
+}
