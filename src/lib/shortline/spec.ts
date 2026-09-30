@@ -115,12 +115,27 @@ export function isLiveToken(token: number): boolean {
 export const DEFAULT_SHORTLINE_SYMBOL = "ETHUSDT"
 
 /**
- * 可挖币种下拉（Binance USDT 永续主流币；aggTrades 回填与 v4 订单流特征
- * 均以 Binance UM 为源，列表按 UM 上线深度筛选——全部 ≥2 年历史）。
+ * 可挖币种精选清单（Binance USDT 永续；aggTrades 回填与 v4 订单流特征均以
+ * Binance UM 为源）。国内网络拉不到交易所币种接口（fapi/S3 listing 均被墙，
+ * 实测），故维护精选 ~50 个主流+高流动性币；表单为 datalist——可下拉选择，
+ * 也可手输任意 USDT 永续合约代码（如 1000SHIBUSDT）。
  */
 export const SHORTLINE_SYMBOLS: readonly string[] = [
+  // 一线主流
   "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT",
   "ADAUSDT", "LTCUSDT", "LINKUSDT", "AVAXUSDT", "TRXUSDT", "DOTUSDT",
+  "BCHUSDT", "TONUSDT",
+  // DeFi / L2
+  "UNIUSDT", "AAVEUSDT", "MKRUSDT", "LDOUSDT", "CRVUSDT", "COMPUSDT",
+  "SNXUSDT", "GRTUSDT", "ARBUSDT", "OPUSDT", "SUIUSDT", "NEARUSDT",
+  "APTUSDT", "INJUSDT", "SEIUSDT", "TIAUSDT", "ICPUSDT", "ATOMUSDT",
+  // 老牌 / 公链
+  "EOSUSDT", "ETCUSDT", "FILUSDT", "ALGOUSDT", "VETUSDT", "THETAUSDT",
+  "IMXUSDT", "ONEUSDT", "ROSEUSDT",
+  // GameFi / Meme / AI
+  "SANDUSDT", "MANAUSDT", "AXSUSDT", "GALAUSDT", "CHZUSDT", "BLURUSDT",
+  "PEPEUSDT", "WIFUSDT", "BONKUSDT", "FLOKIUSDT", "ORDIUSDT", "WLDUSDT",
+  "ENATUSDT", "FETUSDT", "RENDERUSDT",
 ]
 
 /**

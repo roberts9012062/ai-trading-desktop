@@ -406,15 +406,23 @@ export default function ShortlineLabPage() {
       <section className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4 space-y-3">
         <h2 className="text-sm font-medium text-[var(--text-primary)]">第 1-3 步 · 挖掘参数（收盘 K 线训练，shortline_v1 档案）</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-          {/* 1 币种：USDT 永续可挖列表（aggTrades/v4 订单流以 Binance UM 为源） */}
+          {/* 1 币种：USDT 永续（datalist——下拉选精选 50 币,也可手输任意合约代码） */}
           <label className="space-y-1">
             <span className="text-[var(--text-muted)]">① 币种（USDT 永续）</span>
-            <select value={symbol} onChange={(e) => setSymbol(e.target.value)}
-              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1">
-              {SHORTLINE_SYMBOLS.map((sym) => <option key={sym} value={sym}>{sym}</option>)}
-            </select>
+            <input
+              list="shortline-symbol-options"
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+              onBlur={() => setSymbol((v) => (v.endsWith("USDT") || !v ? v : `${v}USDT`))}
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 font-num"
+              placeholder="下拉选择或输入合约代码"
+            />
+            <datalist id="shortline-symbol-options">
+              {SHORTLINE_SYMBOLS.map((sym) => <option key={sym} value={sym} />)}
+            </datalist>
             <span className="text-[10px] text-[var(--text-muted)] block leading-4">
-              12 个主流币均具备 ≥2 年永续历史；aggTrades 回填与 v4 订单流特征以 Binance UM 归档为源。
+              精选 {SHORTLINE_SYMBOLS.length} 个主流/高流动性币可直接选；也可手输任意 Binance USDT 永续代码
+              （如 1000SHIBUSDT，小币 aggTrades 归档更小、流动性差需自担）。国内网络拉不到交易所币种接口，清单为人工维护。
             </span>
           </label>
           {/* 2 周期：决定归一化窗口与建议回填区间 */}
