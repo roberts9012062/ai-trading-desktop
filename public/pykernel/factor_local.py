@@ -946,6 +946,20 @@ def _strict_eval_context(payload: dict, bars: list) -> dict:
                         (peer, [b for b in pb if str(b.get("time") or "") < cut_time])
                         for peer, pb in cfg.cross_peers
                     ]
+    # norm_window 与 _dedup_top 同口径推导(_strict_gate 的 WF-v2 分支消费;
+    # 未标记加密的 bars 走默认 250,与 legacy 行为一致)
+    norm_window = 250
+    if v2 and bars:
+        from factor_lab.market import is_crypto
+
+        if is_crypto(bars):
+            from factor_lab.research_context import resolve_context
+
+            temp_ctx = resolve_context(
+                {"research_profile": cfg.research_profile, "timeframe": timeframe}, bars, cfg.cost
+            )
+            if temp_ctx is not None:
+                norm_window = temp_ctx.norm_window
     return {
         "all_bars": bars,
         "train_bars": train_bars,
@@ -960,6 +974,7 @@ def _strict_eval_context(payload: dict, bars: list) -> dict:
         "cross_peers": cfg.cross_peers,
         "execution_model": cfg.execution_model,
         "joint_training": cfg.joint_training,
+        "norm_window": norm_window,
     }
 
 

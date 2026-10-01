@@ -953,7 +953,10 @@ def _strict_gate(tokens: list[int], ctx: dict) -> tuple[bool, dict[str, float]]:
         if plan is not None:
             wf = walk_forward_eval_v2(
                 tokens, all_bars, timeframe, cost, plan, walk_forward_folds,
-                norm_window=ctx.norm_window if ctx else 250,
+                # ctx 是 dict(_dedup_top/_strict_eval_context 构造),必须键访问;
+                # 属性访问会 AttributeError:'dict' object has no attribute
+                # 'norm_window'(WF>0 的 v2 族 CPU 任务在严格筛全灭于此)
+                norm_window=ctx.get("norm_window", 250) if ctx else 250,
             )
         else:
             wf = walk_forward_eval(
@@ -1068,17 +1071,24 @@ def _dedup_top(
     # _strict_gate 消费同一 ctx——主实例与分片 worker(mine_strict_eval)
     # 共用一份判定逻辑,verify-strict-shard 对拍锁定一致
 
-    # 解析 norm_window：从 plan 或 all_bars 推导 research_context
+    # 解析 norm_window：从 plan 或 all_bars 推导 research_context。
+    # bars 未带加密标记时跳过(resolve_context 会走 prepare_bars 且
+    # symbol 为空 → "requires a USDT crypto symbol" 崩溃),保持默认 250
     norm_window = 250  # 默认值
     if plan is not None and all_bars:
-        from .research_context import resolve_context
+        from .market import is_crypto
+
         first_bar = all_bars[0] if all_bars else {}
         profile = first_bar.get("_factor_market", "crypto_local_v2")
-        temp_ctx = resolve_context(
-            {"research_profile": profile, "timeframe": timeframe, "symbol": ""},
-            all_bars, cost
-        )
-        norm_window = temp_ctx.norm_window
+        if is_crypto(all_bars):
+            from .research_context import resolve_context
+
+            temp_ctx = resolve_context(
+                {"research_profile": profile, "timeframe": timeframe, "symbol": ""},
+                all_bars, cost
+            )
+            if temp_ctx is not None:
+                norm_window = temp_ctx.norm_window
 
     strict_ctx: dict = {
         "all_bars": all_bars,
