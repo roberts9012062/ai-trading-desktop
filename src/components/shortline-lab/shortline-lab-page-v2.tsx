@@ -85,8 +85,11 @@ export default function ShortlineLabPageV2() {
   // ── 刷新任务与冠军 ──
   const refreshTasks = useCallback(async () => {
     const all = await runner.list()
+    console.log("[刷新任务] 总任务数:", all.length)
     const mine = all.filter((t) => t.config?.research_profile === "shortline_v1")
+    console.log("[刷新任务] 短线任务数:", mine.length, mine.map(t => ({ id: t.id, status: t.status, gen: t.current_generation })))
     const active = mine.find((t) => t.status === "running" || t.status === "pending")
+    console.log("[刷新任务] 活跃任务:", active?.id, active?.status)
     setActiveTask(active ?? null)
 
     if (active?.id) {
@@ -170,12 +173,14 @@ export default function ShortlineLabPageV2() {
           device: engine,
           name: `短线·${symbol}·${timeframe}`,
           onProgress: (m) => {
+            console.log("[创建任务进度]", m)
             setStatusMsg(m)
             setProgress(40 + Math.random() * 10)
           },
         },
       )
 
+      console.log("[任务已创建]", task.id, task.status, task.current_generation)
       setStatusMsg(`挖掘中：${task.name}`)
       await refreshTasks()
 
@@ -191,6 +196,9 @@ export default function ShortlineLabPageV2() {
 
   // ── 监听任务完成 ──
   useEffect(() => {
+    console.log("[监听任务] activeTask:", activeTask?.id, "status:", activeTask?.status,
+                "gen:", activeTask?.current_generation, "/", activeTask?.generations)
+
     if (activeTask?.status === "completed") {
       setStage("completed")
       setProgress(100)
@@ -198,7 +206,12 @@ export default function ShortlineLabPageV2() {
     } else if (activeTask?.status === "failed") {
       setStage("failed")
       setError(activeTask.error_msg ?? "任务失败")
+    } else if (activeTask?.status === "pending") {
+      setStage("mining")
+      setProgress(50)
+      setStatusMsg(`任务排队中（等待算力释放）...`)
     } else if (activeTask?.status === "running") {
+      setStage("mining")
       const genProgress = activeTask.current_generation && activeTask.generations
         ? (activeTask.current_generation / activeTask.generations) * 100
         : 0
@@ -208,7 +221,7 @@ export default function ShortlineLabPageV2() {
         `适应度评估中 · ${genProgress.toFixed(1)}% 完成`
       )
     }
-  }, [activeTask, champions.length])
+  }, [activeTask?.id, activeTask?.status, activeTask?.current_generation, activeTask?.generations, champions.length])
 
   // ── 停止 ──
   const onStop = () => {

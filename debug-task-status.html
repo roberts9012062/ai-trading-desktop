@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>任务状态调试</title>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #0A0D12; color: #fff; }
+    button { padding: 10px 20px; margin: 10px; cursor: pointer; }
+    pre { background: #1E2636; padding: 15px; border-radius: 8px; overflow: auto; }
+    .error { color: #ff6b6b; }
+    .success { color: #51cf66; }
+  </style>
+</head>
+<body>
+  <h1>短线因子实验室 - 任务状态调试</h1>
+
+  <div>
+    <button onclick="checkIndexedDB()">检查 IndexedDB 任务</button>
+    <button onclick="checkRunningProcesses()">检查运行进程</button>
+    <button onclick="testBackend()">测试后端连接</button>
+  </div>
+
+  <h2>输出：</h2>
+  <pre id="output">点击上方按钮开始检查...</pre>
+
+  <script>
+    const output = document.getElementById('output');
+
+    function log(msg, type = 'info') {
+      const className = type === 'error' ? 'error' : type === 'success' ? 'success' : '';
+      output.innerHTML += `<div class="${className}">${new Date().toISOString()} | ${msg}</div>`;
+    }
+
+    async function checkIndexedDB() {
+      output.innerHTML = '';
+      log('=== 检查 IndexedDB 任务 ===');
+
+      try {
+        const dbName = 'local-mining-store';
+        const storeName = 'tasks';
+
+        log(`尝试打开数据库: ${dbName}`);
+        const db = await new Promise((resolve, reject) => {
+          const req = indexedDB.open(dbName, 1);
+          req.onsuccess = () => {
+            log(`✓ 数据库打开成功`, 'success');
+            resolve(req.result);
+          };
+          req.onerror = () => {
+            log(`✗ 数据库打开失败: ${req.error}`, 'error');
+            reject(req.error);
+          };
+          req.onupgradeneeded = (e) => {
+            log(`触发 onupgradeneeded (版本升级)`);
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(storeName)) {
+              log(`创建对象存储: ${storeName}`);
+              db.createObjectStore(storeName, { keyPath: 'id' });
+            }
+          };
+        });
+
+        log(`检查对象存储列表...`);
+        const storeNames = Array.from(db.objectStoreNames);
+        log(`对象存储: ${storeNames.join(', ')}`);
+
+        if (!storeNames.includes(storeName)) {
+          log(`✗ 缺少 '${storeName}' 对象存储`, 'error');
+          return;
+        }
+
+        log(`读取所有任务记录...`);
+        const tx = db.transaction(storeName, 'readonly');
+        const store = tx.objectStore(storeName);
+        const allRecords = await new Promise((resolve, reject) => {
+          const req = store.getAll();
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+
+        log(`✓ 找到 ${allRecords.length} 条任务记录`, 'success');
+
+        if (allRecords.length === 0) {
+          log(`数据库为空，可能任务还未创建或创建失败`, 'error');
+        } else {
+          allRecords.forEach((rec, i) => {
+            log(`\n--- 任务 ${i + 1} ---`);
+            log(`ID: ${rec.id}`);
+            log(`名称: ${rec.name}`);
+            log(`状态: ${rec.status}`);
+            log(`当前代数: ${rec.current_generation}/${rec.config?.generations || '?'}`);
+            log(`进度: ${rec.progress_pct}%`);
+            log(`冠军数: ${rec.champions_count}`);
+            log(`创建时间: ${rec.created_at}`);
+            log(`更新时间: ${rec.updated_at}`);
+            if (rec.error_msg) log(`错误: ${rec.error_msg}`, 'error');
+            if (rec.pause_reason) log(`暂停原因: ${rec.pause_reason}`);
+            if (rec.nativePhase) log(`原生阶段: ${rec.nativePhase}`);
+          });
+        }
+
+        db.close();
+
+      } catch (e) {
+        log(`✗ 检查失败: ${e.message}`, 'error');
+        console.error(e);
+      }
+    }
+
+    async function checkRunningProcesses() {
+      output.innerHTML = '';
+      log('=== 检查运行进程 ===');
+      log('此功能需要后端支持，暂无法从前端直接检查');
+      log('建议检查：任务管理器中是否有 python.exe 或 AI Trading Desktop.exe 进程');
+    }
+
+    async function testBackend() {
+      output.innerHTML = '';
+      log('=== 测试后端连接 ===');
+
+      try {
+        // 尝试调用原生引擎
+        if (window.__TAURI__) {
+          log('✓ Tauri 环境已加载', 'success');
+          log('尝试调用原生引擎自检...');
+
+          // 这里需要实际的 Tauri 命令来测试
+          log('需要实现具体的后端测试命令');
+        } else {
+          log('✗ 非 Tauri 环境，无法测试原生后端', 'error');
+        }
+
+      } catch (e) {
+        log(`✗ 测试失败: ${e.message}`, 'error');
+        console.error(e);
+      }
+    }
+  </script>
+</body>
+</html>
