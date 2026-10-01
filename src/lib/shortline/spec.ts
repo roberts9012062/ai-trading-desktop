@@ -139,12 +139,17 @@ export const SHORTLINE_SYMBOLS: readonly string[] = [
 ]
 
 /**
- * 各周期的 aggTrades 回填建议区间（天）——对齐因子评估区间上限
- * （factor-range-limits：1m 90 天满足 v2 验证/封存各 30 天门槛，15m 可达两年）。
+ * 各周期的 aggTrades 回填建议区间（天）。
+ * K 线快照区间由 factor-range-limits 按内存档位决定（5m 183-365 天、
+ * 15m 365-730 天），切分计划（60/20/20，验证/封存各 ≥30 自然日）因此天然
+ * 满足；digest 建议区间的作用是让 v4 订单流特征列覆盖整个研究窗口——
+ * 若只回填一半，前半段训练数据的短线特征缺失，v4 token 实际不可用，
+ * 短线实验室退化为带惩罚项的普通挖掘。故对齐 5m 最低档 183 天取 180；
+ * 1m 在高档位（182 天 K 线）同理取 180（低档位 K 线更短，多回填无害）。
  * digest 为 1 秒桶、三周期共用一份；该值仅作为回填表单的默认范围。
  */
 export const TIMEFRAME_BACKFILL_DAYS: Record<ShortlineTimeframe, number> = {
-  "1m": 90,
-  "5m": 90,
+  "1m": 180,
+  "5m": 180,
   "15m": 180,
 }
