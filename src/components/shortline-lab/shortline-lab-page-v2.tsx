@@ -48,6 +48,14 @@ export default function ShortlineLabPageV2() {
   const [timeframe, setTimeframe] = useState<ShortlineTimeframe>("15m")
   const [engine, setEngine] = useState<"native-gpu" | "cpu">("native-gpu")
 
+  // ── 高级参数（默认值 + 用户可调） ──
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [population, setPopulation] = useState(300)
+  const [generations, setGenerations] = useState(30)
+  const [maxDepth, setMaxDepth] = useState(5)
+  const [trainRatio, setTrainRatio] = useState(0.7)
+  const [walkForwardFolds, setWalkForwardFolds] = useState(3)
+
   // ── 统一状态机 ──
   const [stage, setStage] = useState<Stage>("idle")
   const [progress, setProgress] = useState(0)
@@ -146,11 +154,11 @@ export default function ShortlineLabPageV2() {
         {
           symbol,
           timeframe,
-          population: 300,
-          generations: 30,
-          max_depth: 5,
-          train_ratio: 0.7,
-          walk_forward_folds: 3,
+          population,
+          generations,
+          max_depth: maxDepth,
+          train_ratio: trainRatio,
+          walk_forward_folds: walkForwardFolds,
           selection_v2: true,
           evolve_v2: true,
           research_profile: "shortline_v1",
@@ -191,8 +199,14 @@ export default function ShortlineLabPageV2() {
       setStage("failed")
       setError(activeTask.error_msg ?? "任务失败")
     } else if (activeTask?.status === "running") {
-      setProgress(50 + (activeTask.progress_pct ?? 0) / 2)
-      setStatusMsg(`挖掘中 ${activeTask.current_generation}/${activeTask.generations} 代`)
+      const genProgress = activeTask.current_generation && activeTask.generations
+        ? (activeTask.current_generation / activeTask.generations) * 100
+        : 0
+      setProgress(50 + genProgress / 2)
+      setStatusMsg(
+        `第 ${activeTask.current_generation ?? 0}/${activeTask.generations ?? 0} 代 · ` +
+        `适应度评估中 · ${genProgress.toFixed(1)}% 完成`
+      )
     }
   }, [activeTask, champions.length])
 
@@ -289,6 +303,132 @@ export default function ShortlineLabPageV2() {
               建议区间：{TIMEFRAME_BACKFILL_DAYS[timeframe]} 天
             </span>
           </div>
+
+          {/* 高级参数（可折叠） */}
+          <div className="pt-4 border-t border-white/5">
+            <button
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              disabled={stage !== "idle"}
+              className="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-300 transition-colors disabled:opacity-50"
+            >
+              <span className={`transform transition-transform ${showAdvanced ? "rotate-90" : ""}`}>▶</span>
+              高级参数设置
+            </button>
+
+            {showAdvanced && (
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+                {/* 种群规模 */}
+                <div className="space-y-2">
+                  <label className="text-xs text-gray-400 flex items-center justify-between">
+                    <span>种群规模</span>
+                    <span className="text-gray-600">max 30000</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={50}
+                    max={30000}
+                    step={50}
+                    value={population}
+                    onChange={(e) => setPopulation(Math.min(30000, Math.max(50, Number(e.target.value))))}
+                    disabled={stage !== "idle"}
+                    className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white
+                             focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
+                  />
+                  <p className="text-xs text-gray-600">默认 300，影响搜索广度</p>
+                </div>
+
+                {/* 进化代数 */}
+                <div className="space-y-2">
+                  <label className="text-xs text-gray-400 flex items-center justify-between">
+                    <span>进化代数</span>
+                    <span className="text-gray-600">max 3000</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={10}
+                    max={3000}
+                    step={10}
+                    value={generations}
+                    onChange={(e) => setGenerations(Math.min(3000, Math.max(10, Number(e.target.value))))}
+                    disabled={stage !== "idle"}
+                    className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white
+                             focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
+                  />
+                  <p className="text-xs text-gray-600">默认 30，更多代数=更深搜索</p>
+                </div>
+
+                {/* 最大深度 */}
+                <div className="space-y-2">
+                  <label className="text-xs text-gray-400 flex items-center justify-between">
+                    <span>公式最大深度</span>
+                    <span className="text-gray-600">3-8</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={3}
+                    max={8}
+                    value={maxDepth}
+                    onChange={(e) => setMaxDepth(Math.min(8, Math.max(3, Number(e.target.value))))}
+                    disabled={stage !== "idle"}
+                    className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white
+                             focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
+                  />
+                  <p className="text-xs text-gray-600">默认 5，深度过大易过拟合</p>
+                </div>
+
+                {/* 训练集比例 */}
+                <div className="space-y-2">
+                  <label className="text-xs text-gray-400">训练集比例</label>
+                  <input
+                    type="number"
+                    min={0.5}
+                    max={0.8}
+                    step={0.05}
+                    value={trainRatio}
+                    onChange={(e) => setTrainRatio(Math.min(0.8, Math.max(0.5, Number(e.target.value))))}
+                    disabled={stage !== "idle"}
+                    className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white
+                             focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
+                  />
+                  <p className="text-xs text-gray-600">默认 0.7（70%训练/30%验证）</p>
+                </div>
+
+                {/* Walk-Forward 折数 */}
+                <div className="space-y-2">
+                  <label className="text-xs text-gray-400">WF 验证折数</label>
+                  <input
+                    type="number"
+                    min={2}
+                    max={5}
+                    value={walkForwardFolds}
+                    onChange={(e) => setWalkForwardFolds(Math.min(5, Math.max(2, Number(e.target.value))))}
+                    disabled={stage !== "idle"}
+                    className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white
+                             focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
+                  />
+                  <p className="text-xs text-gray-600">默认 3，防过拟合关键参数</p>
+                </div>
+
+                {/* 重置按钮 */}
+                <div className="flex items-end">
+                  <button
+                    onClick={() => {
+                      setPopulation(300)
+                      setGenerations(30)
+                      setMaxDepth(5)
+                      setTrainRatio(0.7)
+                      setWalkForwardFolds(3)
+                    }}
+                    disabled={stage !== "idle"}
+                    className="w-full rounded-xl bg-[#0F131C]/50 border border-white/10 px-4 py-2.5 text-sm text-gray-400
+                             hover:text-gray-300 hover:border-white/20 transition-colors disabled:opacity-50"
+                  >
+                    恢复默认值
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 进度卡片 */}
@@ -327,8 +467,53 @@ export default function ShortlineLabPageV2() {
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-400">{statusMsg}</p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-400">{statusMsg}</p>
+                <span className="text-xs text-gray-500 font-mono">{progress.toFixed(1)}%</span>
+              </div>
             </div>
+
+            {/* 挖掘阶段详细信息 */}
+            {stage === "mining" && activeTask?.status === "running" && (
+              <div className="rounded-xl bg-[#0F131C]/50 border border-white/5 p-4 space-y-3">
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="text-gray-500">当前代数</span>
+                    <p className="text-white font-mono text-base">
+                      {activeTask.current_generation ?? 0} / {activeTask.generations ?? 0}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">种群规模</span>
+                    <p className="text-white font-mono text-base">{population}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">最大深度</span>
+                    <p className="text-white font-mono text-base">{maxDepth}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">WF 折数</span>
+                    <p className="text-white font-mono text-base">{walkForwardFolds}</p>
+                  </div>
+                </div>
+
+                {/* 实时状态指示器 */}
+                <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-[#6EE7B7] animate-pulse" />
+                    <span className="text-xs text-gray-400">正在进化中...</span>
+                  </div>
+                  <span className="text-xs text-gray-600 ml-auto">
+                    预计剩余: {(() => {
+                      const remaining = (activeTask.generations ?? 0) - (activeTask.current_generation ?? 0)
+                      const timePerGen = 3 // 预估每代 3 秒
+                      const mins = Math.ceil(remaining * timePerGen / 60)
+                      return `~${mins} 分钟`
+                    })()}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {error && (
               <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-3">
@@ -408,8 +593,16 @@ export default function ShortlineLabPageV2() {
         <div className="rounded-xl bg-[#1E2636]/30 border border-white/5 p-4">
           <p className="text-xs text-gray-500 leading-relaxed">
             <strong className="text-gray-400">流程说明：</strong>
-            系统将自动完成数据回填（{TIMEFRAME_BACKFILL_DAYS[timeframe]} 天）→ 因子挖掘（300 种群 × 30 代）→ 验证筛选。
+            系统将自动完成数据回填（{TIMEFRAME_BACKFILL_DAYS[timeframe]} 天）→ 因子挖掘（{population} 种群 × {generations} 代）→ 验证筛选。
             回填数据会缓存，二次运行秒启动。GPU 算力需 NVIDIA 显卡，CPU 为降级选择（慢 10-25×）。
+            {showAdvanced && (
+              <>
+                <br /><br />
+                <strong className="text-gray-400">防过拟合机制：</strong>
+                Walk-Forward 验证（{walkForwardFolds} 折）确保因子在未见样本上稳定；训练集比例 {(trainRatio * 100).toFixed(0)}%
+                保留充足验证数据；最大深度 {maxDepth} 限制公式复杂度。种群规模和代数平衡搜索广度与深度。
+              </>
+            )}
           </p>
         </div>
       </div>
