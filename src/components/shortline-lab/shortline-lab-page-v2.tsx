@@ -13,7 +13,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createRunner } from "@/lib/mining/runner"
 import type { MiningTask } from "@/lib/mining/types"
-import { addFactorFavorite } from "@/lib/factor-lab-api"
 import {
   digestUsage, runBackfillWithStore, missingRange, listDayDigests, loadDigestRange,
 } from "@/lib/shortline/backfill/pipeline"
@@ -23,7 +22,10 @@ import {
 } from "@/lib/shortline/spec"
 import { buildShortlinePayload, checkMountable, requiredWarmupBars } from "@/lib/shortline/mount"
 import { buildGoldenCase, buildFixtureBundle } from "@/lib/shortline/fixtures"
-import { createShortlineTask, listShortlineTasks, type ShortlineServerTask } from "@/lib/shortline/server-api"
+import {
+  addShortlineFavorite, createShortlineTask, listShortlineTasks,
+  type ShortlineServerTask,
+} from "@/lib/shortline/server-api"
 
 const runner = createRunner("local")
 
@@ -255,12 +257,14 @@ export default function ShortlineLabPageV2() {
     }
   }, [activeTask?.id, activeTask?.status, activeTask?.current_generation, activeTask?.generations, activeTask?.nativePhase, activeTask?.research_champions?.length, champions.length])
 
-  // ── 收藏冠军到因子库（服务器收藏，同主实验室口径） ──
+  // ── 收藏冠军到短线因子库（独立于因子收藏:桌面编码,混进因子收藏
+  //    会被服务端按 83 行特征表误读——两套表 52 号后同号不同义） ──
   const onFavorite = async (c: { tokens: number[]; text?: string; composite: number }) => {
     const key = c.tokens.join(",")
     setFavBusy(key)
     try {
-      await addFactorFavorite({
+      await addShortlineFavorite({
+        name: c.text ? c.text.slice(0, 60) : `短线·${symbol}·${timeframe}`,
         tokens: c.tokens,
         text: c.text ?? c.tokens.join(" "),
         symbol,
@@ -268,7 +272,7 @@ export default function ShortlineLabPageV2() {
         composite: c.composite,
         note: "短线因子实验室",
       })
-      setFavMsgs((m) => ({ ...m, [key]: "已收藏到因子库" }))
+      setFavMsgs((m) => ({ ...m, [key]: "已收藏到短线因子库" }))
     } catch (e) {
       setFavMsgs((m) => ({
         ...m,
@@ -284,12 +288,12 @@ export default function ShortlineLabPageV2() {
     return (
       <button
         onClick={() => void onFavorite(c)}
-        disabled={favBusy === key || msg === "已收藏到因子库"}
+        disabled={favBusy === key || msg === "已收藏到短线因子库"}
         className="text-xs px-3 py-1 rounded-lg border border-[#38BDF8]/40 text-[#38BDF8]
                  hover:bg-[#38BDF8]/10 transition-colors disabled:opacity-60 whitespace-nowrap"
-        title={msg && msg !== "已收藏到因子库" ? msg : "收藏到服务器因子库"}
+        title={msg && msg !== "已收藏到短线因子库" ? msg : "收藏到服务器短线因子库(独立于因子收藏)"}
       >
-        {favBusy === key ? "收藏中…" : msg === "已收藏到因子库" ? "✓ 已收藏" : "收藏"}
+        {favBusy === key ? "收藏中…" : msg === "已收藏到短线因子库" ? "✓ 已收藏" : "收藏"}
       </button>
     )
   }

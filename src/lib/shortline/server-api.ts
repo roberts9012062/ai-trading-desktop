@@ -54,3 +54,39 @@ export async function listShortlineTasks(): Promise<ShortlineServerTask[]> {
   const rows = await request<ShortlineServerTask[] | { items?: ShortlineServerTask[] }>("/tasks")
   return Array.isArray(rows) ? rows : (rows.items ?? [])
 }
+
+// ── 短线因子收藏(独立于因子收藏:桌面编码,消费方只有短线挂载链路) ──
+
+export interface ShortlineFavoriteItem {
+  id: string
+  name: string
+  symbol: string
+  timeframe: string
+  tokens: number[]
+  text: string
+  composite: number | null
+  metrics: Record<string, unknown> | null
+  note: string | null
+  created_at: string | null
+}
+
+export async function addShortlineFavorite(payload: {
+  name?: string
+  symbol: string
+  timeframe: string
+  tokens: number[]
+  text?: string
+  composite?: number | null
+  metrics?: Record<string, unknown> | null
+  note?: string
+}): Promise<ShortlineFavoriteItem> {
+  return request<ShortlineFavoriteItem>("/favorites", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function listShortlineFavorites(): Promise<ShortlineFavoriteItem[]> {
+  const res = await request<{ items: ShortlineFavoriteItem[] }>("/favorites")
+  return res.items
+}
