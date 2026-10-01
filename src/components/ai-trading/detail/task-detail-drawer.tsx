@@ -11,6 +11,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { DecisionList } from "@/components/ai-trading/detail/decision-list"
+import { ShortlineScoreStream } from "./shortline-score-stream"
 import { TradeList } from "@/components/ai-trading/detail/trade-list"
 import {
   STATUS_LABEL,
@@ -322,6 +323,9 @@ export function TaskDetailDrawer({
                 </TabsContent>
               )}
               <TabsContent value="decisions" className="mt-3">
+                {task.strategy_type === "shortline_factor" && task.id ? (
+                  <ShortlineScoreStream taskId={task.id} />
+                ) : null}
                 <DecisionList
                   items={decisions}
                   loading={loading}

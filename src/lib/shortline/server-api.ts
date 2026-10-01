@@ -94,6 +94,21 @@ export async function listShortlineFavorites(
   return res.items
 }
 
+
+/** 短线打分环(最近 50 步,契约 §4) */
+export interface ShortlineScoreStep {
+  ts: number
+  combo: number | null
+  champions?: Record<string, number | null>
+  action: string
+  rule?: string
+  stale?: boolean
+  eval_error?: string | null
+}
+
+export async function getShortlineScores(taskId: string): Promise<ShortlineScoreStep[]> {
+  return request<ShortlineScoreStep[]>(`/tasks/${taskId}/scores`)
+}
 export async function deleteShortlineFavorite(id: string): Promise<void> {
   await request(`/favorites/${id}`, { method: "DELETE" })
 }
