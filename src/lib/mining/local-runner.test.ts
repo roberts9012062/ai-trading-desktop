@@ -16,6 +16,9 @@ vi.mock("@/lib/mining/data-source", () => ({
   getBarsSnapshot: vi.fn(),
   releaseBarsSnapshot: vi.fn(),
   reconcileSnapshotRefs: vi.fn(),
+  patchBarsSnapshotColumns: vi.fn(async (_snapId: string, patcher: (bars: unknown[]) => Promise<void>) => {
+    await patcher([])
+  }),
 }))
 
 import {
@@ -337,5 +340,28 @@ describe("LocalMiningRunner", () => {
     const task = await runner.create(CONFIG, { device: "gpu" })
     expect(task.device).toBe("gpu") // 用户意图保留
     expect(task.effectiveDevice).toBe("cpu") // 实际算力
+  })
+
+  it("研究契约:加密+增强开关默认补 crypto_local_v2;显式 research_profile 不被覆盖", async () => {
+    const { LocalMiningRunner } = await loadModules()
+    const runner = new LocalMiningRunner({ backendFactory: () => new GatedBackend() })
+
+    // 默认:USDT 币种 + selection_v2 → 未显式指定时补 crypto_local_v2
+    const a = await runner.create(
+      { ...CONFIG, symbol: "ADAUSDT", selection_v2: true, evolve_v2: true },
+      { device: "cpu" },
+    )
+    expect(a.config?.research_profile).toBe("crypto_local_v2")
+
+    // 短线:显式 shortline_v1 必须保留——被覆盖会让 v4 特征注入与页面任务
+    // 过滤(shortline_v1)全部失效,任务被偷换成普通加密挖掘
+    const b = await runner.create(
+      {
+        ...CONFIG, symbol: "ADAUSDT", selection_v2: true, evolve_v2: true,
+        research_profile: "shortline_v1",
+      },
+      { device: "cpu" },
+    )
+    expect(b.config?.research_profile).toBe("shortline_v1")
   })
 })

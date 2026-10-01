@@ -129,8 +129,10 @@ export class LocalMiningRunner implements MiningRunner {
       ...(opts.device === "native-gpu" ? { native_engine_version: NATIVE_ENGINE_VERSION } : {}),
       crypto_profile: isCrypto,
       // 加密币增强挖掘:启用 crypto_local_v2 研究契约(60/20/20 切分+严格因果归一化+
-      // 可执行口径,见 factor_local.py);非加密币或未开启增强时不设置(内核用默认口径)
-      ...(isCrypto && (config.selection_v2 || config.evolve_v2)
+      // 可执行口径,见 factor_local.py);调用方显式指定 research_profile(如短线
+      // shortline_v1)时必须尊重,不覆盖——覆盖会让短线任务的 v4 特征注入与
+      // 页面任务过滤全部失效(只补默认,与原生引擎 session.py 的默认逻辑一致)
+      ...(isCrypto && !config.research_profile && (config.selection_v2 || config.evolve_v2)
         ? { research_profile: "crypto_local_v2" }
         : {})
     }

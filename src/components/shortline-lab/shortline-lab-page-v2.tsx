@@ -40,7 +40,7 @@ function fmtNum(v: unknown): string {
   return typeof v === "number" && Number.isFinite(v) ? v.toFixed(4) : "—"
 }
 
-type Stage = "idle" | "backfill" | "mining" | "completed" | "failed"
+type Stage = "idle" | "backfill" | "mining" | "completed" | "failed" | "paused"
 
 export default function ShortlineLabPageV2() {
   // ── 核心参数（简化：只保留必需项） ──
@@ -85,30 +85,22 @@ export default function ShortlineLabPageV2() {
   // ── 刷新任务与冠军 ──
   const refreshTasks = useCallback(async () => {
     const all = await runner.list()
-    console.log("[刷新任务] 总任务数:", all.length)
     const mine = all.filter((t) => t.config?.research_profile === "shortline_v1")
-    console.log("[刷新任务] 短线任务数:", mine.length, mine.map(t => ({ id: t.id, status: t.status, gen: t.current_generation })))
+    const byNewest = (a: MiningTask, b: MiningTask) =>
+      (b.created_at ?? "").localeCompare(a.created_at ?? "")
     const active = mine.find((t) => t.status === "running" || t.status === "pending")
-    console.log("[刷新任务] 活跃任务:", active?.id, active?.status)
-    setActiveTask(active ?? null)
+    // 焦点任务:优先运行/排队中;否则盯最近创建的一个。任务完成后不再是"活跃",
+    // 但阶段流转要靠它的终态(completed/failed)驱动,否则永远停在"挖掘中"
+    const focus = active ?? [...mine].sort(byNewest)[0] ?? null
+    setActiveTask(focus)
 
-    if (active?.id) {
-      const rows = await runner.champions(active.id)
+    const champTask = active ?? mine.filter((t) => t.status === "completed").sort(byNewest)[0]
+    if (champTask?.id) {
+      const rows = await runner.champions(champTask.id)
       setChampions(rows.map((c) => ({
         tokens: c.tokens, text: c.text, composite: c.composite,
         metrics: c.metrics as unknown as Record<string, unknown>,
       })))
-    } else {
-      const done = mine.filter((t) => t.status === "completed").sort((a, b) =>
-        (b.created_at ?? "").localeCompare(a.created_at ?? "")
-      )[0]
-      if (done?.id) {
-        const rows = await runner.champions(done.id)
-        setChampions(rows.map((c) => ({
-          tokens: c.tokens, text: c.text, composite: c.composite,
-          metrics: c.metrics as unknown as Record<string, unknown>,
-        })))
-      }
     }
   }, [])
 
@@ -173,14 +165,12 @@ export default function ShortlineLabPageV2() {
           device: engine,
           name: `短线·${symbol}·${timeframe}`,
           onProgress: (m) => {
-            console.log("[创建任务进度]", m)
             setStatusMsg(m)
             setProgress(40 + Math.random() * 10)
           },
         },
       )
 
-      console.log("[任务已创建]", task.id, task.status, task.current_generation)
       setStatusMsg(`挖掘中：${task.name}`)
       await refreshTasks()
 
@@ -194,24 +184,32 @@ export default function ShortlineLabPageV2() {
     }
   }
 
-  // ── 监听任务完成 ──
+  // ── 监听焦点任务,驱动阶段流转 ──
   useEffect(() => {
-    console.log("[监听任务] activeTask:", activeTask?.id, "status:", activeTask?.status,
-                "gen:", activeTask?.current_generation, "/", activeTask?.generations)
+    if (!activeTask) return
 
-    if (activeTask?.status === "completed") {
+    if (activeTask.status === "completed") {
       setStage("completed")
       setProgress(100)
       setStatusMsg(`完成：发现 ${champions.length} 个冠军`)
-    } else if (activeTask?.status === "failed") {
+    } else if (activeTask.status === "failed") {
       setStage("failed")
       setError(activeTask.error_msg ?? "任务失败")
-    } else if (activeTask?.status === "pending") {
+    } else if (activeTask.status === "paused") {
+      setStage("paused")
+      setStatusMsg(activeTask.pause_reason ?? "任务已暂停")
+    } else if (activeTask.status === "pending") {
       setStage("mining")
       setProgress(50)
       setStatusMsg(`任务排队中（等待算力释放）...`)
-    } else if (activeTask?.status === "running") {
+    } else if (activeTask.status === "running") {
       setStage("mining")
+      if (activeTask.nativePhase) {
+        // 原生引擎冷启动/自检期:current_generation 还是 0,显示引擎自报的阶段
+        // 消息(f64 首次编译 3-6 分钟,不能让用户面对静默)
+        setStatusMsg(activeTask.nativePhase)
+        return
+      }
       const genProgress = activeTask.current_generation && activeTask.generations
         ? (activeTask.current_generation / activeTask.generations) * 100
         : 0
@@ -221,12 +219,13 @@ export default function ShortlineLabPageV2() {
         `适应度评估中 · ${genProgress.toFixed(1)}% 完成`
       )
     }
-  }, [activeTask?.id, activeTask?.status, activeTask?.current_generation, activeTask?.generations, champions.length])
+  }, [activeTask?.id, activeTask?.status, activeTask?.current_generation, activeTask?.generations, activeTask?.nativePhase, champions.length])
 
   // ── 停止 ──
   const onStop = () => {
     abortRef.current?.abort()
-    if (activeTask?.id) runner.cancel(activeTask.id)
+    const busy = activeTask?.status === "running" || activeTask?.status === "pending"
+    if (activeTask?.id && busy) runner.cancel(activeTask.id)
     setStage("idle")
     setProgress(0)
     setStatusMsg("")
@@ -240,7 +239,8 @@ export default function ShortlineLabPageV2() {
     setError(null)
   }
 
-  const canStart = stage === "idle" && !activeTask
+  const taskBusy = activeTask?.status === "running" || activeTask?.status === "pending"
+  const canStart = stage === "idle" && !taskBusy
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0A0D12] via-[#0F131C] to-[#161D2B] p-6">
@@ -453,6 +453,7 @@ export default function ShortlineLabPageV2() {
                 {stage === "mining" && "挖掘因子"}
                 {stage === "completed" && "✓ 完成"}
                 {stage === "failed" && "✗ 失败"}
+                {stage === "paused" && "⏸ 已暂停"}
               </h2>
               {(stage === "backfill" || stage === "mining") && (
                 <button
@@ -462,7 +463,7 @@ export default function ShortlineLabPageV2() {
                   停止
                 </button>
               )}
-              {(stage === "completed" || stage === "failed") && (
+              {(stage === "completed" || stage === "failed" || stage === "paused") && (
                 <button
                   onClick={onReset}
                   className="text-xs text-gray-400 hover:text-gray-300 px-3 py-1 rounded-lg border border-white/10"
@@ -513,17 +514,21 @@ export default function ShortlineLabPageV2() {
                 {/* 实时状态指示器 */}
                 <div className="flex items-center gap-2 pt-2 border-t border-white/5">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-[#6EE7B7] animate-pulse" />
-                    <span className="text-xs text-gray-400">正在进化中...</span>
+                    <div className={`w-2 h-2 rounded-full animate-pulse ${activeTask.nativePhase ? "bg-[#F59E0B]" : "bg-[#6EE7B7]"}`} />
+                    <span className="text-xs text-gray-400">
+                      {activeTask.nativePhase ? "引擎启动/自检中..." : "正在进化中..."}
+                    </span>
                   </div>
-                  <span className="text-xs text-gray-600 ml-auto">
-                    预计剩余: {(() => {
-                      const remaining = (activeTask.generations ?? 0) - (activeTask.current_generation ?? 0)
-                      const timePerGen = 3 // 预估每代 3 秒
-                      const mins = Math.ceil(remaining * timePerGen / 60)
-                      return `~${mins} 分钟`
-                    })()}
-                  </span>
+                  {!activeTask.nativePhase && (activeTask.current_generation ?? 0) > 0 && (
+                    <span className="text-xs text-gray-600 ml-auto">
+                      预计剩余: {(() => {
+                        const remaining = (activeTask.generations ?? 0) - (activeTask.current_generation ?? 0)
+                        const timePerGen = 3 // 预估每代 3 秒
+                        const mins = Math.ceil(remaining * timePerGen / 60)
+                        return `~${mins} 分钟`
+                      })()}
+                    </span>
+                  )}
                 </div>
               </div>
             )}
