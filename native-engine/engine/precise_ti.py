@@ -441,7 +441,12 @@ def precise(session, payload):
     champions = session.dedup_context.dedup(best, trials, final, prefetched)
     for c in champions:
         c['metrics'] = _mark_local_only(_round_metrics(c['metrics']), c['tokens'])
-    v2 = session.prepared['cfg'].research_profile == 'crypto_local_v2'
+    # shortline_v1 与 crypto_local_v2 同属 v2 语义族(research_context.is_v2_family,
+    # 与 features_ti 的归一化判定一致):末代封存解封与有界档案必须同样生效。
+    # 修复前这里只字面匹配 crypto_local_v2,短线任务末代永远产不出
+    # holdout_metrics,资格判定全数栽在 holdout_failed_or_missing 上(0 冠军)。
+    from factor_lab.research_context import is_v2_family
+    v2 = is_v2_family(str(session.prepared['cfg'].research_profile or ""))
     if v2 and final:
         session.dedup_context.reveal_holdout(champions)
     if v2:

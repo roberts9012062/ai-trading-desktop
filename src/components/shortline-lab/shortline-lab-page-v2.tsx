@@ -40,6 +40,25 @@ function fmtNum(v: unknown): string {
   return typeof v === "number" && Number.isFinite(v) ? v.toFixed(4) : "—"
 }
 
+/** 资格拒因的如实中文解释(引擎 qualification.py 的 reasons) */
+const REJECT_REASON_LABELS: Record<string, string> = {
+  holdout_failed_or_missing: "封存段（最终样本外）收益为负或缺失",
+  holdout_stress_failed_or_missing: "封存段 2× 成本压力测试未通过",
+  holdout_live_entry_failed: "封存段实盘离散入场未通过",
+  holdout_sealed: "封存段未解封（非末代）",
+  oos_validation_failed_or_missing: "验证段样本外收益为负",
+  oos_validation_unavailable: "验证段不可用（数据不足）",
+  wf_failed_or_missing: "Walk-Forward 稳健性未通过",
+  wf_oos_fold_failed: "Walk-Forward 样本外折亏损",
+  wf_oos_evidence_missing: "样本外折证据缺失",
+  strict_screen_failed_or_unproven: "严格筛（符号稳定性）未通过",
+  research_only_candidate: "仅供研究（过拟合警示）",
+  insufficient_samples: "样本不足",
+  nonfinite_metric: "指标异常（非有限值）",
+  live_fill_failed_or_missing: "实盘成交模拟未通过",
+  execution_failed_or_missing: "执行成本口径未通过",
+}
+
 type Stage = "idle" | "backfill" | "mining" | "completed" | "failed" | "paused"
 
 export default function ShortlineLabPageV2() {
@@ -536,6 +555,30 @@ export default function ShortlineLabPageV2() {
             {error && (
               <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-3">
                 <p className="text-xs text-red-400">{error}</p>
+              </div>
+            )}
+
+            {/* 完成 but 0 冠军:如实展示资格门的否决原因,而不是静默的零 */}
+            {stage === "completed" && champions.length === 0 && (activeTask?.qualificationReasons?.length ?? 0) > 0 && (
+              <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 space-y-2">
+                <p className="text-xs text-amber-300 font-medium">
+                  挖掘完成，但决赛候选无一通过资格门——这是如实否决，不是故障
+                </p>
+                {activeTask?.qualificationCounts && (
+                  <p className="text-xs text-gray-400">
+                    决赛候选 {activeTask.qualificationCounts.qualified + activeTask.qualificationCounts.rejected + activeTask.qualificationCounts.pending} 个：
+                    {activeTask.qualificationCounts.qualified} 合格 · {activeTask.qualificationCounts.rejected} 被拒 · {activeTask.qualificationCounts.pending} 待定
+                  </p>
+                )}
+                <ul className="text-xs text-gray-400 list-disc list-inside space-y-1">
+                  {activeTask?.qualificationReasons?.map((r) => (
+                    <li key={r}>{REJECT_REASON_LABELS[r] ?? r}</li>
+                  ))}
+                </ul>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  封存段是最终样本外考试（训练全程不可见）。常见原因：训练期与封存段行情反转、
+                  换手成本吞噬边际、或搜索预算不足。可尝试：更长回填区间、更大种群/代数后重跑。
+                </p>
               </div>
             )}
           </div>

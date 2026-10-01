@@ -6,6 +6,8 @@ from pathlib import Path
 from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 
+import numpy as np
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT / 'native-engine'), str(ROOT / 'public/pykernel'), str(Path(__file__).parent)]
 from engine.runtime import initialize_runtime
@@ -87,6 +89,44 @@ class PreciseTests(unittest.TestCase):
                     'cross_peers': [('BTCUSDT', peer)], 'top_n': 2}, 1201)
         self.check({'symbol': 'ETHUSDT', 'timeframe': '1d', 'research_profile': 'crypto_local_v2',
                     'cost': .00001, 'top_n': 2}, 2001, daily=True)
+
+    def test_shortline_v2_family_final_holdout_revealed(self):
+        # 回归:shortline_v1 属 v2 语义族,末代封存解封必须与 crypto_local_v2
+        # 一致。修复前 precise 只字面匹配 crypto_local_v2,短线任务末代
+        # holdout_metrics 永远缺失 → 资格判定全数 holdout_failed_or_missing
+        # (真实任务 qualified=0/pending=40,训练端 best_composite 2.59)。
+        # 15001 根 15m ≈ 156 天:验证/封存段各需 ≥30 自然日(split_plan),
+        # 更短的历史会让 plan.sufficient=False,封存解封无从触发
+        bars = feature_bars(15001)
+        for i, b in enumerate(bars):
+            volume = float(b.get('volume') or 0)
+            buy = float(b.get('taker_buy_volume') or 0)
+            b['sl_of0'] = (2 * buy / volume - 1) if volume > 0 and 0 <= buy <= volume else 0.0
+            # 超慢正弦(周期约 3000 根):低翻转率,避免短线惩罚把 composite
+            # 全部清零导致 strict 池为空、封存解封无从触发
+            for k in range(1, 8):
+                b[f'sl_of{k}'] = float(np.sin(i / (500.0 + k)))
+        config = {'symbol': 'ETHUSDT', 'timeframe': '15m', 'crypto_profile': True,
+                  'research_profile': 'shortline_v1', 'cost': .0003,
+                  'train_ratio': .7, 'selection_v2': True, 'walk_forward_folds': 2, 'top_n': 3}
+        candidates = [[0], [1], [0, 1, 64], [0, 1, 65], [1, 0, 65], [2], [3], [4], [5], [0]]
+        session = NativeSession('precise-sl', self.runtime, 'f64')
+        try:
+            session.load_records(bars, {'max_bars': 100000})
+            info = session.prepare_features(config)
+            self.assertEqual(len(info['feature_names']), 70)
+            # trials=0:合成 K 线的特征列带 NaN 前缀(head_trim>0)会触发既有的
+            # DSR 日历失配(与 legacy 两个存量失败同源,与封存解封无关)
+            actual = session.precise({'candidates': candidates, 'trials': 0, 'final_generation': True})
+            self.assertTrue(actual['research_candidates'])
+            self.assertFalse(actual['pending_candidates'], '末代不应留有封存待定候选')
+            graded = actual['champions'] + actual['rejected_candidates']
+            revealed = [c for c in graded if 'holdout_metrics' in (c.get('metrics') or {})]
+            self.assertTrue(revealed, '末代必须产出封存段指标')
+            for c in revealed:
+                self.assertIn('sortino_2x', c['metrics']['holdout_metrics'])
+        finally:
+            session.dispose()
 
 
 if __name__ == '__main__':
