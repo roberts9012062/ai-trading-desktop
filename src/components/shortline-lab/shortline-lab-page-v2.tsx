@@ -13,13 +13,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createRunner } from "@/lib/mining/runner"
 import type { MiningTask } from "@/lib/mining/types"
+import { addFactorFavorite } from "@/lib/factor-lab-api"
 import {
-  digestUsage, runBackfillWithStore, missingRange, listDayDigests,
+  digestUsage, runBackfillWithStore, missingRange, listDayDigests, loadDigestRange,
 } from "@/lib/shortline/backfill/pipeline"
 import {
   SHORTLINE_SYMBOLS, TIMEFRAME_BACKFILL_DAYS, DEFAULT_SHORTLINE_SYMBOL,
-  SHORTLINE_TIMEFRAMES, type ShortlineTimeframe,
+  SHORTLINE_TIMEFRAMES, type CadenceSeconds, type ShortlineTimeframe,
 } from "@/lib/shortline/spec"
+import { buildShortlinePayload, checkMountable, requiredWarmupBars } from "@/lib/shortline/mount"
+import { buildGoldenCase, buildFixtureBundle } from "@/lib/shortline/fixtures"
+import { createShortlineTask, listShortlineTasks, type ShortlineServerTask } from "@/lib/shortline/server-api"
 
 const runner = createRunner("local")
 
@@ -88,6 +92,15 @@ export default function ShortlineLabPageV2() {
   const [activeTask, setActiveTask] = useState<MiningTask | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
+
+  // ── 收藏与挂载（服务器短线任务系统，契约 shortline_factor_v1） ──
+  const [favMsgs, setFavMsgs] = useState<Record<string, string>>({})
+  const [favBusy, setFavBusy] = useState<string | null>(null)
+  const [cadence, setCadence] = useState<CadenceSeconds>(15)
+  const [mountMsg, setMountMsg] = useState<string | null>(null)
+  const [mounting, setMounting] = useState(false)
+  const [serverTasks, setServerTasks] = useState<ShortlineServerTask[] | null>(null)
+  const [serverTaskErr, setServerTaskErr] = useState<string | null>(null)
 
   // ── 建议区间 ──
   const suggestedFrom = useMemo(() => {
@@ -241,6 +254,106 @@ export default function ShortlineLabPageV2() {
       )
     }
   }, [activeTask?.id, activeTask?.status, activeTask?.current_generation, activeTask?.generations, activeTask?.nativePhase, activeTask?.research_champions?.length, champions.length])
+
+  // ── 收藏冠军到因子库（服务器收藏，同主实验室口径） ──
+  const onFavorite = async (c: { tokens: number[]; text?: string; composite: number }) => {
+    const key = c.tokens.join(",")
+    setFavBusy(key)
+    try {
+      await addFactorFavorite({
+        tokens: c.tokens,
+        text: c.text ?? c.tokens.join(" "),
+        symbol,
+        timeframe,
+        composite: c.composite,
+        note: "短线因子实验室",
+      })
+      setFavMsgs((m) => ({ ...m, [key]: "已收藏到因子库" }))
+    } catch (e) {
+      setFavMsgs((m) => ({
+        ...m,
+        [key]: `收藏失败：${e instanceof Error ? e.message : String(e)}`,
+      }))
+    } finally {
+      setFavBusy(null)
+    }
+  }
+  const favButton = (c: { tokens: number[]; text?: string; composite: number }) => {
+    const key = c.tokens.join(",")
+    const msg = favMsgs[key]
+    return (
+      <button
+        onClick={() => void onFavorite(c)}
+        disabled={favBusy === key || msg === "已收藏到因子库"}
+        className="text-xs px-3 py-1 rounded-lg border border-[#38BDF8]/40 text-[#38BDF8]
+                 hover:bg-[#38BDF8]/10 transition-colors disabled:opacity-60 whitespace-nowrap"
+        title={msg && msg !== "已收藏到因子库" ? msg : "收藏到服务器因子库"}
+      >
+        {favBusy === key ? "收藏中…" : msg === "已收藏到因子库" ? "✓ 已收藏" : "收藏"}
+      </button>
+    )
+  }
+
+  // ── 挂载（服务器短线任务系统，契约 shortline_factor_v1；纸面模式） ──
+  const mountPool = useMemo(() => {
+    const exec = champions.slice(0, 8).map((c, i) => ({ id: i + 1, tokens: c.tokens }))
+    if (exec.length) return exec
+    // 无执行级冠军时允许挂研究级(样本外 1× 盈利;风险自担)
+    return (activeTask?.research_champions ?? []).slice(0, 8)
+      .map((c, i) => ({ id: i + 1, tokens: c.tokens }))
+  }, [champions, activeTask?.research_champions])
+  const mountCheck = useMemo(
+    () => (mountPool.length ? checkMountable(mountPool.map((c) => c.tokens)) : { ok: false, reasons: ["无冠军"], localOnlyTokens: [] }),
+    [mountPool],
+  )
+  const warmupBars = useMemo(
+    () => (mountPool.length ? requiredWarmupBars(mountPool.map((c) => c.tokens), timeframe) : 300),
+    [mountPool, timeframe],
+  )
+  const usingResearchPool = champions.length === 0 && (activeTask?.research_champions?.length ?? 0) > 0
+
+  const onMount = async () => {
+    setMounting(true)
+    setMountMsg("导出黄金夹具并组装载荷…")
+    try {
+      const days = (await listDayDigests(symbol)).map((d) => d.day)
+      if (!days.length) throw new Error("无 digest——请先回填 aggTrades")
+      const last = days[days.length - 1]!
+      const loaded = await loadDigestRange(symbol, last, last)
+      if (!loaded) throw new Error("digest 载入失败")
+      const formulas = mountPool.map((c) => c.tokens)
+      const cases = [3, 15, 60].map((cad) => buildGoldenCase({
+        name: `${symbol}-${timeframe}-${cad}s-${last}`,
+        symbol, timeframe, cadence: cad as CadenceSeconds,
+        buckets: loaded.buckets, formulas,
+      }))
+      const bundle = buildFixtureBundle(symbol, cases, formulas)
+      const payload = buildShortlinePayload(
+        { symbol, timeframe, cadence, champions: mountPool, warmupBars },
+        bundle.manifest.manifest_sha256,
+      )
+      const task = await createShortlineTask(payload, `短线·${symbol}·${timeframe}·${cadence}s`)
+      setMountMsg(`挂载成功：服务器任务 ${task.id}（${task.status ?? "created"}，纸面模式）`)
+      await refreshServerTasks()
+    } catch (e) {
+      setMountMsg(`挂载失败：${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setMounting(false)
+    }
+  }
+
+  const refreshServerTasks = useCallback(async () => {
+    setServerTaskErr(null)
+    try {
+      setServerTasks(await listShortlineTasks())
+    } catch (e) {
+      setServerTasks(null)
+      setServerTaskErr(e instanceof Error ? e.message : String(e))
+    }
+  }, [])
+  useEffect(() => {
+    if (stage === "completed") void refreshServerTasks()
+  }, [stage, refreshServerTasks])
 
   // ── 停止 ──
   const onStop = () => {
@@ -633,9 +746,12 @@ export default function ShortlineLabPageV2() {
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-mono text-gray-400">#{i + 1}</span>
-                    <span className="text-sm font-semibold text-[#38BDF8]">
-                      {c.composite.toFixed(3)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-[#38BDF8]">
+                        {c.composite.toFixed(3)}
+                      </span>
+                      {favButton(c)}
+                    </div>
                   </div>
                   <p className="text-xs text-gray-300 truncate font-mono">
                     {c.text ?? c.tokens.join(" ")}
@@ -690,9 +806,12 @@ export default function ShortlineLabPageV2() {
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-mono text-gray-400">R#{i + 1}</span>
-                      <span className="text-sm font-semibold text-amber-300">
-                        {c.composite.toFixed(3)}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-amber-300">
+                          {c.composite.toFixed(3)}
+                        </span>
+                        {favButton(c)}
+                      </div>
                     </div>
                     <p className="text-xs text-gray-300 truncate font-mono">
                       {c.text ?? c.tokens.join(" ")}
@@ -772,6 +891,74 @@ export default function ShortlineLabPageV2() {
             </div>
           )
         })()}
+
+        {/* 挂载:把冠军组合挂到服务器短线任务系统(纸面模式实时打分) */}
+        {stage === "completed" && mountPool.length > 0 && (
+          <div className="bg-[#1E2636]/50 backdrop-blur-sm rounded-2xl border border-white/5 p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-medium text-gray-300">挂载为服务器短线任务</h2>
+              <span className="text-xs text-gray-500">纸面模式 · 实时流式打分</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400">
+              <span>组合成员：{mountPool.length} 个{usingResearchPool ? "（研究级，样本外 1× 盈利、未过 2× 压力）" : ""}</span>
+              <label className="flex items-center gap-1">
+                打分节奏
+                <select
+                  value={cadence}
+                  onChange={(e) => setCadence(Number(e.target.value) as CadenceSeconds)}
+                  className="rounded-lg border border-white/10 bg-[#0F131C] px-2 py-1 text-white"
+                >
+                  <option value={3}>3s</option>
+                  <option value={15}>15s</option>
+                  <option value={60}>60s</option>
+                </select>
+              </label>
+              <span>预热 {warmupBars} 根</span>
+            </div>
+            {!mountCheck.ok && (
+              <p className="text-xs text-amber-400/90">
+                {mountCheck.reasons.join("；")}——含 v4 订单流 token（{mountCheck.localOnlyTokens.length} 个）的因子
+                依赖 aggTrades 逐笔数据,服务器 3s 级数据源接入前仅本地可用
+              </p>
+            )}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => void onMount()}
+                disabled={mounting || !mountCheck.ok}
+                className="rounded-xl bg-gradient-to-r from-[#38BDF8] to-[#6EE7B7] px-5 py-2.5 text-sm
+                         font-semibold text-[#0A0D12] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {mounting ? "挂载中…" : "挂载组合"}
+              </button>
+              <button
+                onClick={() => void refreshServerTasks()}
+                className="text-xs text-gray-400 hover:text-gray-300 px-3 py-2 rounded-lg border border-white/10"
+              >
+                刷新任务列表
+              </button>
+            </div>
+            {mountMsg && <p className="text-xs text-gray-400 break-all">{mountMsg}</p>}
+            {serverTaskErr && (
+              <p className="text-xs text-amber-400/90">服务器任务列表不可用：{serverTaskErr}（需登录且服务器可达）</p>
+            )}
+            {serverTasks && serverTasks.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500">服务器短线任务（{serverTasks.length}）：</p>
+                {serverTasks.slice(0, 5).map((t) => (
+                  <div key={String(t.id)} className="flex items-center justify-between text-xs bg-[#0F131C]/50 rounded-lg px-3 py-2">
+                    <span className="font-mono text-gray-400">{String(t.id).slice(0, 8)} · {t.symbol?.toUpperCase?.() ?? t.symbol}</span>
+                    <span className="text-gray-400">
+                      {t.status}
+                      {t.mode ? ` · ${t.mode}` : ""}
+                      {t.position != null ? ` · 持仓 ${t.position}` : ""}
+                      {t.cumulative_pnl != null ? ` · PnL ${t.cumulative_pnl.toFixed(2)}` : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 启动按钮 */}
         {stage === "idle" && (

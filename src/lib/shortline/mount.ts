@@ -44,6 +44,20 @@ export interface ShortlineTaskPayload {
 /** 服务器仍无数据源的桌面特征（factor-access.SERVER_MISSING_FEATS 同源） */
 export const SERVER_MISSING_FEATS = new Set([55, 57, 58])
 
+/**
+ * 服务器 3s 级数据源只有 OHLCV(+时间):衍生品/跨资产/直连特征不可挂载。
+ * 与服务端 shortline/contract.py 的 SERVER_FEATURE_WHITELIST(_DERIV_DEPENDENT
+ * 排除集)同源——两端不一致时,桌面放行的载荷会被服务器 400 拒收。
+ * id 按 pykernel FEATURE_NAMES 计算(62 特征表,两端同步演进)。
+ */
+export const SERVER_BLOCKED_FEATS: ReadonlyMap<number, string> = new Map([
+  [14, "OI_CHG"], [15, "OI_PV"], [16, "VOL_OI"],
+  [27, "OI_PC"], [28, "OI_CHG5"], [29, "OI_CHG20"], [30, "VOL_OI_MA"],
+  [52, "FUNDING_RATE"], [53, "FUNDING_DELTA"], [54, "TAKER_IMBALANCE"],
+  [55, "QUOTE_ILLIQ20"], [56, "ACCOUNT_LS_RATIO"], [57, "LIQUIDATION_IMBALANCE"],
+  [58, "AVG_TRADE_QUOTE"], [59, "FUNDING_MEAN24"], [60, "OI_TREND24"], [61, "TAKER_IMB24"],
+])
+
 export interface MountCheck {
   ok: boolean
   reasons: string[]
@@ -59,8 +73,11 @@ export function checkMountable(tokensList: ReadonlyArray<readonly number[]>): Mo
       if (isShortlineToken(t)) {
         localOnly.push(t)
         reasons.push(`token ${t}: v4 订单流特征为桌面本地专属,服务器 FormulaEvaluator 尚未实现(标记"仅本地")`)
-      } else if (SERVER_MISSING_FEATS.has(t)) {
-        reasons.push(`token ${t}: 服务器无数据源的直连特征(55 QUOTE_ILLIQ20/57 LIQUIDATION_IMBALANCE/58 AVG_TRADE_QUOTE)`)
+      } else if (SERVER_BLOCKED_FEATS.has(t)) {
+        reasons.push(
+          `token ${t}（${SERVER_BLOCKED_FEATS.get(t)}）: 服务器 3s 级数据源只有 K 线 OHLCV,` +
+          "衍生品/直连特征不可挂载(与服务端白名单同源)",
+        )
       }
     }
   }
