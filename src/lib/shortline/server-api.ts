@@ -90,3 +90,7 @@ export async function listShortlineFavorites(): Promise<ShortlineFavoriteItem[]>
   const res = await request<{ items: ShortlineFavoriteItem[] }>("/favorites")
   return res.items
 }
+
+export async function deleteShortlineFavorite(id: string): Promise<void> {
+  await request(`/favorites/${id}`, { method: "DELETE" })
+}

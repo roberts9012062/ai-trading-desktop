@@ -10,12 +10,14 @@
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { FactorFavoritesPanel } from "@/components/strategy-favorites/factor-favorites-panel"
+import { ShortlineFavoritesPanel } from "@/components/strategy-favorites/shortline-favorites-panel"
 import { TaskFavoritesPanel } from "@/components/strategy-favorites/task-favorites-panel"
 
-type TabKey = "factor" | "task"
+type TabKey = "factor" | "shortline" | "task"
 
 const TABS: Array<{ key: TabKey; label: string }> = [
   { key: "factor", label: "因子收藏夹" },
+  { key: "shortline", label: "短线因子收藏夹" },
   { key: "task", label: "AI 任务收藏夹" },
 ]
 
@@ -44,7 +46,13 @@ export default function StrategyFavoritesPage(): React.JSX.Element {
       </div>
 
       <div className="flex-1 min-h-0">
-        {tab === "factor" ? <FactorFavoritesPanel /> : <TaskFavoritesPanel />}
+        {tab === "factor" ? (
+          <FactorFavoritesPanel />
+        ) : tab === "shortline" ? (
+          <ShortlineFavoritesPanel />
+        ) : (
+          <TaskFavoritesPanel />
+        )}
       </div>
     </div>
   )
