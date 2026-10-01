@@ -13,6 +13,7 @@ import {
   type QuantParamsState,
 } from "@/lib/quant-strategy"
 import { FactorKindParams } from "./factor-kind-params"
+import { ShortlineKindParams } from "./shortline-kind-params"
 
 interface CreateQuantParamsProps {
   /** 主周期（专业波段第二周期标签换算用） */
@@ -266,6 +267,93 @@ export function KindParams({
         symbol={symbol}
         onApplyMeta={onApplyFactorMeta}
       />
+    )
+  }
+  if (quant.quantKind === "shortline_factor") {
+    // 短线因子：收藏源=短线因子库（桌面编码,与因子收藏严格分流——
+    // 两套特征表 52 号后同号不同义,混用必"数据不足或因子无效"）
+    // + 短线专属参数（cadence/预热/决策闸门/日亏）
+    return (
+      <div className="space-y-2">
+        <ShortlineKindParams
+          quant={quant}
+          onQuant={onQuant}
+          symbol={symbol}
+          onApplyMeta={onApplyFactorMeta}
+        />
+        <div className="rounded-md border border-[var(--border)] p-2.5 space-y-2">
+          <div className="text-[11px] font-medium text-[var(--text-secondary)]">
+            短线参数（打分节奏 ≠ 交易节奏：阈值/确认/频率闸门）
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[11px]">打分节奏（秒）</Label>
+            <div className="flex gap-1 flex-wrap">
+              {[3, 5, 10, 15, 30, 60].map((sOpt) => (
+                <button
+                  key={sOpt}
+                  type="button"
+                  onClick={() => onQuant({ ...quant, slCadenceSec: sOpt })}
+                  className={`px-2 h-7 rounded-md border text-xs transition-colors ${
+                    quant.slCadenceSec === sOpt
+                      ? "border-[var(--primary)] bg-[var(--primary)]/15 text-[var(--primary)]"
+                      : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]"
+                  }`}
+                >
+                  {sOpt}s
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Field
+              label="预热 K 线根数"
+              type="number"
+              min={60}
+              max={2000}
+              value={quant.slWarmupBars}
+              onChange={(v) =>
+                onQuant({ ...quant, slWarmupBars: Math.min(2000, Math.max(60, Math.round(v))) })
+              }
+            />
+            <Field
+              label="开仓阈值"
+              type="number"
+              min={0.05}
+              max={0.9}
+              step={0.05}
+              value={quant.slThreshold}
+              onChange={(v) => onQuant({ ...quant, slThreshold: v })}
+            />
+            <Field
+              label="确认步数"
+              type="number"
+              min={1}
+              max={50}
+              value={quant.slConfirmSteps}
+              onChange={(v) =>
+                onQuant({ ...quant, slConfirmSteps: Math.min(50, Math.max(1, Math.round(v))) })
+              }
+            />
+            <Field
+              label="每小时动作上限"
+              type="number"
+              min={1}
+              max={60}
+              value={quant.slMaxPerHour}
+              onChange={(v) =>
+                onQuant({ ...quant, slMaxPerHour: Math.min(60, Math.max(1, Math.round(v))) })
+              }
+            />
+            <Field
+              label="日亏停机（USDT）"
+              type="number"
+              min={1}
+              value={quant.slDailyLoss}
+              onChange={(v) => onQuant({ ...quant, slDailyLoss: Math.max(1, v) })}
+            />
+          </div>
+        </div>
+      </div>
     )
   }
   return (

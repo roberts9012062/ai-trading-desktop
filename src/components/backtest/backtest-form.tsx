@@ -185,7 +185,16 @@ export function BacktestForm({
       return
     }
 
-    const strategy_type = mode === "ai" ? "ai" : quant.quantKind
+    // 短线因子不进回测（选项已过滤）；类型收窄防御非法值
+    const strategy_type =
+      mode === "ai"
+        ? "ai"
+        : (quant.quantKind === "shortline_factor"
+            ? "factor"
+            : quant.quantKind) as Exclude<
+              import("@/lib/quant-strategy").QuantKind,
+              "shortline_factor"
+            >
     const strategy_params =
       mode === "ai" ? null : buildStrategyParams(quant)
 

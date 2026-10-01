@@ -69,7 +69,7 @@ export function StrategySection({
       {mode === "quant" && (
         <>
           <div className="flex flex-wrap gap-2">
-            {QUANT_KIND_OPTIONS.map((opt) => (
+            {QUANT_KIND_OPTIONS.filter((o) => o.value !== "shortline_factor").map((opt) => (
               <Button
                 key={opt.value}
                 type="button"

@@ -12,6 +12,7 @@ export type QuantKind =
   | "strength_entry"
   | "strength_entry_v2"
   | "factor"
+  | "shortline_factor"
 
 export interface QuantParamsState {
   quantKind: QuantKind
@@ -60,6 +61,13 @@ export interface QuantParamsState {
   sv2ZoneDrop: number; sv2BufMult: number; sv2AtrPeriod: number; sv2Cooldown: number
   // 因子公式（逗号分隔的 token 序列，来自因子实验室）
   factorTokensText: string
+  // 短线因子（shortline_factor）：§4 决策参数 + cadence/预热/日亏
+  slCadenceSec: number
+  slWarmupBars: number
+  slThreshold: number
+  slConfirmSteps: number
+  slMaxPerHour: number
+  slDailyLoss: number
   // 专业波段（swing_pro）：双周期共振 / 单频 + 信号K线极值止损
   /** 第二周期（标准K线周期档 "1m"~"1d"；空=无第二周期；可大于或小于主周期） */
   proHtfTf: string
@@ -109,6 +117,12 @@ export const DEFAULT_QUANT_PARAMS: QuantParamsState = {
   sv2ShrinkRatio: 0.45, sv2FlatEps: 1.2, sv2ZoneDrop: 10, sv2BufMult: 0.3,
   sv2AtrPeriod: 14, sv2Cooldown: 8,
   factorTokensText: "",
+  slCadenceSec: 5,
+  slWarmupBars: 300,
+  slThreshold: 0.25,
+  slConfirmSteps: 3,
+  slMaxPerHour: 6,
+  slDailyLoss: 50,
   proHtfTf: "",
   proConfirmMode: "single",
   proExitMode: "single",
@@ -137,6 +151,7 @@ export const QUANT_KIND_OPTIONS: Array<{
   { value: "strength_entry", label: "强弱进场" },
   { value: "strength_entry_v2", label: "强弱形态 V2（双向）" },
   { value: "factor", label: "因子公式" },
+  { value: "shortline_factor", label: "短线因子" },
 ]
 
 import { buildStrengthParams, buildStrengthV2Params, parseStrengthParams, parseStrengthV2Params, validateStrengthParams } from "./quant-strategy-strength"
@@ -168,6 +183,25 @@ export function paramsToQuantState(
     return typeof v === "number" && Number.isFinite(v) ? v : fb
   }
   switch (kind) {
+    case "shortline_factor": {
+      const d = (p.decision ?? {}) as Record<string, unknown>
+      const nd = (key: string, fb: number): number =>
+        typeof d[key] === "number" && Number.isFinite(d[key] as number)
+          ? (d[key] as number)
+          : fb
+      return {
+        ...base,
+        factorTokensText: Array.isArray(p.factor_tokens)
+          ? (p.factor_tokens as number[]).join(",")
+          : base.factorTokensText,
+        slCadenceSec: n("cadence_seconds", 5),
+        slWarmupBars: n("warmup_bars", 300),
+        slThreshold: nd("threshold", 0.25),
+        slConfirmSteps: nd("confirm_steps", 3),
+        slMaxPerHour: nd("max_actions_per_hour", 6),
+        slDailyLoss: n("daily_loss_limit_usdt", 50),
+      }
+    }
     case "ma_cross":
       return { ...base, fastPeriod: n("fast_period", 5), slowPeriod: n("slow_period", 20) }
     case "n_breakout":
@@ -316,6 +350,20 @@ export function buildStrategyParams(
       return buildStrengthV2Params(q)
     case "factor":
       return { factor_tokens: parseFactorTokens(q.factorTokensText) }
+    case "shortline_factor":
+      return {
+        factor_tokens: parseFactorTokens(q.factorTokensText),
+        cadence_seconds: q.slCadenceSec,
+        warmup_bars: q.slWarmupBars,
+        decision: {
+          threshold: q.slThreshold,
+          confirm_steps: q.slConfirmSteps,
+          max_actions_per_hour: q.slMaxPerHour,
+          max_actions_per_bar: 1,
+          stale_multiplier: 2.0,
+        },
+        daily_loss_limit_usdt: q.slDailyLoss,
+      }
     default:
       return {}
   }
@@ -356,8 +404,31 @@ export function validateQuantParams(q: QuantParamsState): string | null {
   }
   const strengthErr = validateStrengthParams(q)
   if (strengthErr) return strengthErr
-  if (q.quantKind === "factor" && parseFactorTokens(q.factorTokensText).length === 0) {
-    return "因子公式 tokens 不能为空（从因子实验室复制）"
+  if (
+    (q.quantKind === "factor" || q.quantKind === "shortline_factor") &&
+    parseFactorTokens(q.factorTokensText).length === 0
+  ) {
+    return "因子公式 tokens 不能为空（从因子实验室收藏选择或复制）"
+  }
+  if (q.quantKind === "shortline_factor") {
+    if (![3, 5, 10, 15, 30, 60].includes(q.slCadenceSec)) {
+      return "打分节奏只支持 3/5/10/15/30/60 秒"
+    }
+    if (q.slWarmupBars < 60 || q.slWarmupBars > 2000) {
+      return "预热 K 线根数须在 60~2000"
+    }
+    if (q.slThreshold <= 0 || q.slThreshold >= 1) {
+      return "开仓阈值须在 (0,1)"
+    }
+    if (q.slConfirmSteps < 1 || q.slConfirmSteps > 50) {
+      return "确认步数须在 1~50"
+    }
+    if (q.slMaxPerHour < 1 || q.slMaxPerHour > 60) {
+      return "每小时动作上限须在 1~60"
+    }
+    if (q.slDailyLoss <= 0) {
+      return "日亏停机额度须大于 0"
+    }
   }
   const VALID_TFS = ["1m", "5m", "15m", "30m", "60m", "1d"]
   if (q.quantKind === "swing_pro") {

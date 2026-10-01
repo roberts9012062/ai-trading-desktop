@@ -117,6 +117,17 @@ export function livePnl(
 }
 
 export function strategyLabel(task: AITradingTask): string {
+  if (task.strategy_type === "shortline_factor") {
+    const p = (task.strategy_params || {}) as {
+      cadence_seconds?: number
+      shortline?: { cadence_seconds?: number; champions?: unknown[] }
+    }
+    const cadence = p.shortline?.cadence_seconds ?? p.cadence_seconds ?? 5
+    const count = Array.isArray(p.shortline?.champions)
+      ? p.shortline!.champions!.length
+      : 1
+    return `短线·${cadence}s·${count}因子`
+  }
   if (task.strategy_type === "decision") {
     const sec = Number(task.decision_interval_sec ?? 60)
     return `决策·${Math.round(sec / 60)}分钟`

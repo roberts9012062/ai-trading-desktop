@@ -86,8 +86,11 @@ export async function addShortlineFavorite(payload: {
   })
 }
 
-export async function listShortlineFavorites(): Promise<ShortlineFavoriteItem[]> {
-  const res = await request<{ items: ShortlineFavoriteItem[] }>("/favorites")
+export async function listShortlineFavorites(
+  symbol?: string,
+): Promise<ShortlineFavoriteItem[]> {
+  const q = symbol ? `?symbol=${encodeURIComponent(symbol)}` : ""
+  const res = await request<{ items: ShortlineFavoriteItem[] }>(`/favorites${q}`)
   return res.items
 }
 
