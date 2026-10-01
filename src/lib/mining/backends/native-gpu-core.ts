@@ -18,6 +18,35 @@ export interface NativeGenerationStep extends GenerationStep {
   researchCandidates: NativePreciseResult["research_candidates"]
   pendingCandidates: NativePreciseResult["pending_candidates"]
   rejectedCandidates: NativePreciseResult["rejected_candidates"]
+  /** 研究级冠军:被拒原因全部属于成本/执行压力类(其余门全过,含封存段 1× 盈利) */
+  researchChampions: Champion[]
+}
+
+/** 执行级专属门槛:考验的是加倍成本/实盘执行的鲁棒性,而非样本外有效性 */
+const EXECUTION_ONLY_BLOCKERS = new Set([
+  "holdout_stress_failed_or_missing",
+  "holdout_live_entry_failed",
+  "live_fill_failed_or_missing",
+  "execution_failed_or_missing",
+])
+
+/** 研究级冠军 = 被拒原因全部属于执行级门槛的候选——样本外 1× 已盈利、
+ *  Walk-Forward/严格筛/验证段全过,仅未扛住 2× 成本压力。如实分级展示,
+ *  不与过全门的执行级冠军混淆。 */
+export function researchGradeChampions(
+  rejected: NativePreciseResult["rejected_candidates"],
+): Champion[] {
+  return rejected
+    .filter((row) => {
+      const reasons = row.qualification?.reasons ?? []
+      return reasons.length > 0 && reasons.every((r) => EXECUTION_ONLY_BLOCKERS.has(r))
+    })
+    .map((row) => ({
+      tokens: row.tokens,
+      text: row.text,
+      composite: row.composite,
+      metrics: row.metrics as unknown as Champion["metrics"],
+    }))
 }
 
 function publicChampions(result: NativePreciseResult, version: string): Champion[] {
@@ -122,6 +151,7 @@ export async function* runNativeGpuSession(
       const result = await precise(selected, gen + 1 === cfg.generations)
       champions = publicChampions(result, hello.engine_version)
       bestSeen = result.best_seen
+      const researchChampions = researchGradeChampions(result.rejected_candidates)
       const preciseMs = performance.now() - preciseStart
       yield {
         generation: gen + 1, totalGenerations: cfg.generations,
@@ -133,6 +163,7 @@ export async function* runNativeGpuSession(
         bestSeen, researchCandidates: result.research_candidates,
         nativePortfolio: result.portfolio ?? null,
         pendingCandidates: result.pending_candidates, rejectedCandidates: result.rejected_candidates,
+        researchChampions,
         gpuStats: { rankMs, preciseMs, evaluated: entries.length, cacheHits: entries.length - pending.size,
           gpuEvaluated: pending.size, shardWorkers: hello.sm_count, gpuMemMB: result.gpu_buffer_mb ?? 0 },
       }

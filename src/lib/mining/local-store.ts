@@ -40,6 +40,8 @@ export interface LocalTaskRecord {
   best_composite: number
   champions_count: number
   latest_champions: Champion[]
+  /** 研究级冠军:仅未过执行级门槛(2× 成本压力等)的候选,如实分级展示 */
+  latest_research_champions?: Champion[]
   /** 续训种子:截至最近一代的去重 top-N 摘要 */
   best_seen: SerializedBest[]
   snapshotId: string
@@ -83,6 +85,7 @@ export function toMiningTask(r: LocalTaskRecord): MiningTask {
     best_composite: r.best_composite,
     progress_pct: r.progress_pct,
     champions_count: r.champions_count,
+    research_champions: r.latest_research_champions ?? [],
     bars_count: r.bars_count,
     data_range_from: r.data_range_from,
     data_range_to: r.data_range_to,

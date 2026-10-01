@@ -62,6 +62,8 @@ export interface GenerationStep {
   nativeRestarts?: number
   qualificationCounts?: { research: number; qualified: number; pending: number; rejected: number }
   qualificationReasons?: string[]
+  /** 原生引擎路径:研究级冠军(仅未过执行级门槛的候选) */
+  researchChampions?: Champion[]
   recoveryReason?: string
 }
 

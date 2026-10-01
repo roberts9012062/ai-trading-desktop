@@ -462,7 +462,20 @@ def precise(session, payload):
                                                 for comp, tokens, metrics in best]}
     if payload.get('include_portfolio'):
         from .portfolio_ti import evaluate_portfolio
-        portfolio = evaluate_portfolio(session, qualified['champions']) if final else None
+        portfolio = None
+        if final:
+            # 组合成员池 = 执行级冠军 + 研究级候选(唯一拒因属于成本/执行压力门)。
+            # 组合对冲可降低净换手与成本拖累——单个成员扛不住 2× 成本,组合书
+            # 可能扛得住;组合本身在封存段按 1×/2× 双口径如实计分再分级。
+            execution_only = {'holdout_stress_failed_or_missing', 'holdout_live_entry_failed',
+                              'live_fill_failed_or_missing', 'execution_failed_or_missing'}
+            pool = list(qualified['champions'])
+            for c in qualified['rejected']:
+                reasons = ((c.get('qualification') or {}).get('reasons') or [])
+                if reasons and all(r in execution_only for r in reasons):
+                    pool.append(c)
+            if len(pool) >= 2:
+                portfolio = evaluate_portfolio(session, pool)
         result['portfolio'] = portfolio
         if portfolio is not None:
             from .memory import session_buffer_mb

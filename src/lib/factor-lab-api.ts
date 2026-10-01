@@ -157,6 +157,14 @@ export interface PortfolioResult {
   segment?: "full" | "test" | "holdout"
   /** 评估区间 bar 数(segment 非 full 时) */
   eval_bars?: number
+  /** 原生引擎组合压力口径:2× 成本下的同一封存段计分 */
+  equal_2x?: PortfolioMetrics
+  ic_weighted_2x?: PortfolioMetrics | null
+  best_single_2x?: PortfolioMetrics
+  /** 成员 token 列表与是否研究级(仅未过执行级门槛的组合救活来源) */
+  members?: number[][]
+  member_research?: boolean[]
+  any_member_research?: boolean
 }
 
 export interface SearchResult {

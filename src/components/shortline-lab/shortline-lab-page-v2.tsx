@@ -69,11 +69,12 @@ export default function ShortlineLabPageV2() {
 
   // ── 高级参数（默认值 + 用户可调） ──
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const [population, setPopulation] = useState(300)
-  const [generations, setGenerations] = useState(30)
+  const [population, setPopulation] = useState(600)
+  const [generations, setGenerations] = useState(40)
   const [maxDepth, setMaxDepth] = useState(5)
   const [trainRatio, setTrainRatio] = useState(0.7)
   const [walkForwardFolds, setWalkForwardFolds] = useState(3)
+  const [cost, setCost] = useState(0.0003)
 
   // ── 统一状态机 ──
   const [stage, setStage] = useState<Stage>("idle")
@@ -176,7 +177,7 @@ export default function ShortlineLabPageV2() {
           selection_v2: true,
           evolve_v2: true,
           research_profile: "shortline_v1",
-          cost: 0.0003,
+          cost,
           native_precision: "mixed",
           data_channel: "binance_usdt",
         },
@@ -210,7 +211,8 @@ export default function ShortlineLabPageV2() {
     if (activeTask.status === "completed") {
       setStage("completed")
       setProgress(100)
-      setStatusMsg(`完成：发现 ${champions.length} 个冠军`)
+      const researchN = activeTask.research_champions?.length ?? 0
+      setStatusMsg(`完成：发现 ${champions.length} 个冠军` + (researchN ? ` · ${researchN} 个研究级` : ""))
     } else if (activeTask.status === "failed") {
       setStage("failed")
       setError(activeTask.error_msg ?? "任务失败")
@@ -238,7 +240,7 @@ export default function ShortlineLabPageV2() {
         `适应度评估中 · ${genProgress.toFixed(1)}% 完成`
       )
     }
-  }, [activeTask?.id, activeTask?.status, activeTask?.current_generation, activeTask?.generations, activeTask?.nativePhase, champions.length])
+  }, [activeTask?.id, activeTask?.status, activeTask?.current_generation, activeTask?.generations, activeTask?.nativePhase, activeTask?.research_champions?.length, champions.length])
 
   // ── 停止 ──
   const onStop = () => {
@@ -366,7 +368,7 @@ export default function ShortlineLabPageV2() {
                     className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white
                              focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
                   />
-                  <p className="text-xs text-gray-600">默认 300，影响搜索广度</p>
+                  <p className="text-xs text-gray-600">默认 600，影响搜索广度</p>
                 </div>
 
                 {/* 进化代数 */}
@@ -386,7 +388,30 @@ export default function ShortlineLabPageV2() {
                     className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white
                              focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
                   />
-                  <p className="text-xs text-gray-600">默认 30，更多代数=更深搜索</p>
+                  <p className="text-xs text-gray-600">默认 40，更多代数=更深搜索</p>
+                </div>
+
+                {/* 单位换手成本 */}
+                <div className="space-y-2">
+                  <label className="text-xs text-gray-400 flex items-center justify-between">
+                    <span>单位换手成本</span>
+                    <span className="text-gray-600">0.5-10 bp</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={0.00005}
+                    max={0.001}
+                    step={0.00005}
+                    value={cost}
+                    onChange={(e) => setCost(Math.min(0.001, Math.max(0.00005, Number(e.target.value))))}
+                    disabled={stage !== "idle"}
+                    className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white font-mono
+                             focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
+                  />
+                  <p className="text-xs text-gray-600 leading-relaxed">
+                    默认 0.0003（3bp）。资格门会以 2× 成本做压力测试——若你的真实执行
+                    成本更低（纯 maker），如实调低可提高冠军产出；请勿为凑冠军虚标。
+                  </p>
                 </div>
 
                 {/* 最大深度 */}
@@ -445,11 +470,12 @@ export default function ShortlineLabPageV2() {
                 <div className="flex items-end">
                   <button
                     onClick={() => {
-                      setPopulation(300)
-                      setGenerations(30)
+                      setPopulation(600)
+                      setGenerations(40)
                       setMaxDepth(5)
                       setTrainRatio(0.7)
                       setWalkForwardFolds(3)
+                      setCost(0.0003)
                     }}
                     disabled={stage !== "idle"}
                     className="w-full rounded-xl bg-[#0F131C]/50 border border-white/10 px-4 py-2.5 text-sm text-gray-400
@@ -562,7 +588,9 @@ export default function ShortlineLabPageV2() {
             {stage === "completed" && champions.length === 0 && (activeTask?.qualificationReasons?.length ?? 0) > 0 && (
               <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 space-y-2">
                 <p className="text-xs text-amber-300 font-medium">
-                  挖掘完成，但决赛候选无一通过资格门——这是如实否决，不是故障
+                  {(activeTask?.research_champions?.length ?? 0) > 0
+                    ? "执行级冠军 0 个，但有研究级产出（见下方列表）——样本外已盈利，差在成本压力"
+                    : "挖掘完成，但决赛候选无一通过资格门——这是如实否决，不是故障"}
                 </p>
                 {activeTask?.qualificationCounts && (
                   <p className="text-xs text-gray-400">
@@ -635,6 +663,115 @@ export default function ShortlineLabPageV2() {
             </div>
           </div>
         )}
+
+        {/* 研究级冠军卡片:样本外 1× 已盈利,仅未扛住 2× 成本压力 */}
+        {(activeTask?.research_champions?.length ?? 0) > 0 && (
+          <div className="bg-[#1E2636]/50 backdrop-blur-sm rounded-2xl border border-amber-500/20 p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-medium text-amber-300">
+                研究级冠军 · {activeTask?.research_champions?.length ?? 0} 个
+              </h2>
+              <span className="text-xs text-gray-500">样本外盈利 · 未扛住 2× 成本压力</span>
+            </div>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              以下因子的严格筛/Walk-Forward/验证段/封存段(1× 成本)全部通过，
+              唯独在加倍成本压力下转负——按执行级标准不算合格冠军。若你的真实
+              执行成本显著低于当前设置，可在高级参数里如实调低后复跑。
+            </p>
+            <div className="space-y-2">
+              {activeTask?.research_champions?.slice(0, 10).map((c, i) => {
+                const holdout = (c.metrics as { holdout_metrics?: { sortino?: number, sortino_2x?: number } })
+                  ?.holdout_metrics
+                return (
+                  <div
+                    key={i}
+                    className="rounded-xl bg-[#0F131C]/50 border border-amber-500/10 p-4 space-y-2
+                             hover:border-amber-500/20 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono text-gray-400">R#{i + 1}</span>
+                      <span className="text-sm font-semibold text-amber-300">
+                        {c.composite.toFixed(3)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-300 truncate font-mono">
+                      {c.text ?? c.tokens.join(" ")}
+                    </p>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div>
+                        <span className="text-gray-500">样本外 sortino</span>
+                        <p className="text-emerald-400">{fmtNum(holdout?.sortino)}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">2× 成本 sortino</span>
+                        <p className="text-red-400">{fmtNum(holdout?.sortino_2x)}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">换手</span>
+                        <p className="text-white">{fmtNum(c.metrics.avg_turnover)}</p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 组合超级冠军:组合书在 2× 成本压力下的封存段计分 */}
+        {stage === "completed" && activeTask?.portfolio && activeTask.portfolio.n_factors >= 2 && (() => {
+          const pf = activeTask.portfolio
+          const eq2 = pf.equal_2x?.sortino ?? -1
+          const ic2 = pf.ic_weighted_2x?.sortino ?? -1
+          const superOk = eq2 > 0 || ic2 > 0
+          const rescued = superOk && (pf.any_member_research ?? false)
+            && (pf.best_single_2x?.sortino ?? 0) <= 0
+          return (
+            <div className={`bg-[#1E2636]/50 backdrop-blur-sm rounded-2xl border p-6 space-y-4 ${
+              superOk ? "border-emerald-500/30" : "border-white/5"
+            }`}>
+              <div className="flex items-center justify-between">
+                <h2 className={`text-sm font-medium ${superOk ? "text-emerald-300" : "text-gray-300"}`}>
+                  {superOk ? "★ 组合超级冠军" : "组合评估"} · {pf.n_factors} 因子
+                  {(pf.any_member_research ?? false) && (
+                    <span className="text-amber-300/80">（含 {pf.member_research?.filter(Boolean).length ?? 0} 个研究级）</span>
+                  )}
+                </h2>
+                <span className="text-xs text-gray-500">
+                  封存段 · 平均相关 |{pf.avg_abs_corr.toFixed(3)}|
+                </span>
+              </div>
+              {rescued && (
+                <p className="text-xs text-emerald-400/90 leading-relaxed">
+                  组合救活：单个成员在 2× 成本下全部转负，但组合对冲降低了净换手与成本拖累，
+                  组合书在加倍成本下依然盈利——1+1&gt;2 的分散化效果。
+                </p>
+              )}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                <div className="rounded-xl bg-[#0F131C]/50 border border-white/5 p-3">
+                  <span className="text-gray-500">等权 · 1× 成本</span>
+                  <p className="text-white font-mono text-base">{fmtNum(pf.equal?.sortino)}</p>
+                </div>
+                <div className={`rounded-xl bg-[#0F131C]/50 border p-3 ${eq2 > 0 ? "border-emerald-500/30" : "border-white/5"}`}>
+                  <span className="text-gray-500">等权 · 2× 成本</span>
+                  <p className={`font-mono text-base ${eq2 > 0 ? "text-emerald-400" : "text-red-400"}`}>{fmtNum(pf.equal_2x?.sortino)}</p>
+                </div>
+                <div className="rounded-xl bg-[#0F131C]/50 border border-white/5 p-3">
+                  <span className="text-gray-500">IC 加权 · 1×</span>
+                  <p className="text-white font-mono text-base">{fmtNum(pf.ic_weighted?.sortino)}</p>
+                </div>
+                <div className={`rounded-xl bg-[#0F131C]/50 border p-3 ${ic2 > 0 ? "border-emerald-500/30" : "border-white/5"}`}>
+                  <span className="text-gray-500">IC 加权 · 2×</span>
+                  <p className={`font-mono text-base ${ic2 > 0 ? "text-emerald-400" : "text-red-400"}`}>{fmtNum(pf.ic_weighted_2x?.sortino)}</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                权重在训练段冻结（IC 截负归一），计分只在封存段；2× 口径为加倍交易成本的压力测试。
+                最优单因子 2× sortino：{fmtNum(pf.best_single_2x?.sortino)}（对照：组合相对单因子的增益）。
+              </p>
+            </div>
+          )
+        })()}
 
         {/* 启动按钮 */}
         {stage === "idle" && (

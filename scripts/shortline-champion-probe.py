@@ -160,7 +160,7 @@ def main():
                                                  for c, t, m in best.values()],
                                    "prefetched_strict": strict,
                                    "trials": args.population * args.rounds,
-                                   "final_generation": True})
+                                   "final_generation": True, "include_portfolio": True})
 
         champions = precise["champions"]
         counts = {"champions": len(champions),
@@ -195,6 +195,15 @@ def main():
         print(json.dumps({"counts": counts, "reject_reasons": reasons}, ensure_ascii=False), flush=True)
         for r in rows:
             print(f"CHAMPION composite={r['composite']:.4f} {r['text']}", flush=True)
+        pf = precise.get("portfolio")
+        if pf:
+            def sm(m):
+                return None if not m else round(m["sortino"], 3)
+            print(f"PORTFOLIO n={pf['n_factors']} corr={pf['avg_abs_corr']} "
+                  f"equal 1x/2x={sm(pf['equal'])}/{sm(pf['equal_2x'])} "
+                  f"ic 1x/2x={sm(pf['ic_weighted'])}/{sm(pf['ic_weighted_2x'])} "
+                  f"best_single_2x={sm(pf['best_single_2x'])} "
+                  f"research_members={sum(pf.get('member_research') or [])}", flush=True)
         for r in rejected_detail:
             print(f"REJECTED composite={r['composite']} reasons={r['reasons']} "
                   f"test_sortino={r['test_sortino']} holdout={r['holdout_metrics']}", flush=True)

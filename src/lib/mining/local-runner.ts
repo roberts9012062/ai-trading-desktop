@@ -397,6 +397,7 @@ export class LocalMiningRunner implements MiningRunner {
           rec.nativeRestarts = step.nativeRestarts ?? rec.nativeRestarts
           rec.qualificationCounts = step.qualificationCounts
           rec.qualificationReasons = step.qualificationReasons
+          rec.latest_research_champions = step.researchChampions
           rec.nativePhase = null
           if (step.actualEngine === "native-gpu") rec.portfolio = step.nativePortfolio ?? null
           rec.pause_reason = step.recoveryReason ?? null

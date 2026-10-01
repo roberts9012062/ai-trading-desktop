@@ -88,6 +88,8 @@ export interface MiningTask {
   best_composite: number
   progress_pct: number
   champions_count: number
+  /** 研究级冠军:仅未过执行级门槛(2× 成本压力等)的候选(原生引擎任务) */
+  research_champions?: Champion[]
   bars_count: number
   data_range_from: string | null
   data_range_to: string | null

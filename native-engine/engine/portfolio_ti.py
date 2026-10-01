@@ -22,7 +22,13 @@ def portfolio_bounds(session):
 
 
 def evaluate_portfolio(session, champions, *, diagnostics=False):
-    """All series/statistics stay on CUDA; only scalar reports leave the GPU."""
+    """All series/statistics stay on CUDA; only scalar reports leave the GPU.
+
+    成员池可含研究级候选(仅未过 2× 成本压力的因子):组合对冲会降低净换手
+    与成本拖累,组合书在加倍成本下的存活能力可以强于任何单个成员。
+    equal/ic_weighted 各按 1× 与 2× 成本双口径在封存段计分,成员的
+    research 标记一并输出,由上层判定"组合超级冠军"。
+    """
     if len(champions) < 2:
         return None
     bounds = portfolio_bounds(session)
@@ -61,16 +67,18 @@ def evaluate_portfolio(session, champions, *, diagnostics=False):
         combination = ti.ndarray(ti.f64, shape=(1, T))
         periods = bars_per_year(bars, str(session.config.get('timeframe') or '1d'))
 
-        def metrics(mode, index=0):
+        def metrics(mode, index=0, scale=1.0):
             program._portfolio_combine(positions, weights, combination, K, mode, index, 0)
-            program._portfolio_flows(report.source, combination, report.flows, session.prepared['cost'], 0)
+            program._portfolio_flows(report.source, combination, report.flows, session.prepared['cost'] * scale, 0)
             values = report._summarize(combination, 1, lo, hi, periods, 0)[0]
             return {name: values[name] for name in ('ann_ret', 'sortino', 'calmar')}
 
         equal = metrics(0)
         ti.sync()
-        weighted = metrics(1) if float(weight_sum.to_numpy()[0]) > 1e-9 else None
+        has_weights = float(weight_sum.to_numpy()[0]) > 1e-9
+        weighted = metrics(1) if has_weights else None
         singles = [metrics(2, index) for index in range(K)]
+        singles_2x = [metrics(2, index, 2.0) for index in range(K)]
         full_means = ti.ndarray(ti.f64, shape=K)
         correlations = ti.ndarray(ti.f64, shape=K*K)
         avg_corr = ti.ndarray(ti.f64, shape=1)
@@ -78,9 +86,23 @@ def evaluate_portfolio(session, champions, *, diagnostics=False):
         program._portfolio_correlations(factors, full_means, correlations, K)
         program._portfolio_corr_summary(correlations, avg_corr, K)
         ti.sync()
+        # 成员是否为研究级(唯一拒因属于执行级门槛)——组合救活的候选来源
+        execution_only = {'holdout_stress_failed_or_missing', 'holdout_live_entry_failed',
+                          'live_fill_failed_or_missing', 'execution_failed_or_missing'}
+        member_research = []
+        for champion in champions:
+            reasons = ((champion.get('qualification') or {}).get('reasons') or [])
+            member_research.append(bool(reasons) and all(r in execution_only for r in reasons))
+        equal_2x = metrics(0, 0, 2.0)
+        weighted_2x = (metrics(1, 0, 2.0) if has_weights else None)
         result = {'n_factors': K, 'avg_abs_corr': round(float(avg_corr.to_numpy()[0]), 3),
                   'equal': equal, 'ic_weighted': weighted,
                   'best_single': max(singles, key=lambda row: row['sortino']),
+                  'equal_2x': equal_2x, 'ic_weighted_2x': weighted_2x,
+                  'best_single_2x': max(singles_2x, key=lambda row: row['sortino']),
+                  'members': [list(c['tokens']) for c in champions],
+                  'member_research': member_research,
+                  'any_member_research': any(member_research),
                   'segment': segment, 'eval_bars': hi-lo}
         if diagnostics:
             result['weights'] = weights.to_numpy().tolist()
