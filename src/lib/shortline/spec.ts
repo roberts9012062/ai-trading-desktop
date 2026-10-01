@@ -140,11 +140,11 @@ export const SHORTLINE_SYMBOLS: readonly string[] = [
 
 /**
  * 各周期的 aggTrades 回填建议区间（天）——对齐因子评估区间上限
- * （factor-range-limits：1m 30/60/182 天按内存档位，15m 可达两年）。
+ * （factor-range-limits：1m 90 天满足 v2 验证/封存各 30 天门槛，15m 可达两年）。
  * digest 为 1 秒桶、三周期共用一份；该值仅作为回填表单的默认范围。
  */
 export const TIMEFRAME_BACKFILL_DAYS: Record<ShortlineTimeframe, number> = {
-  "1m": 30,
+  "1m": 90,
   "5m": 90,
   "15m": 180,
 }

@@ -952,7 +952,8 @@ def _strict_gate(tokens: list[int], ctx: dict) -> tuple[bool, dict[str, float]]:
     if walk_forward_folds > 0 and all_bars:
         if plan is not None:
             wf = walk_forward_eval_v2(
-                tokens, all_bars, timeframe, cost, plan, walk_forward_folds
+                tokens, all_bars, timeframe, cost, plan, walk_forward_folds,
+                norm_window=ctx.norm_window if ctx else 250,
             )
         else:
             wf = walk_forward_eval(
@@ -1066,6 +1067,19 @@ def _dedup_top(
     # 严格筛上下文:封存裁剪后的 bars/peers + 各验证门参数。模块级
     # _strict_gate 消费同一 ctx——主实例与分片 worker(mine_strict_eval)
     # 共用一份判定逻辑,verify-strict-shard 对拍锁定一致
+
+    # 解析 norm_window：从 plan 或 all_bars 推导 research_context
+    norm_window = 250  # 默认值
+    if plan is not None and all_bars:
+        from .research_context import resolve_context
+        first_bar = all_bars[0] if all_bars else {}
+        profile = first_bar.get("_factor_market", "crypto_local_v2")
+        temp_ctx = resolve_context(
+            {"research_profile": profile, "timeframe": timeframe, "symbol": ""},
+            all_bars, cost
+        )
+        norm_window = temp_ctx.norm_window
+
     strict_ctx: dict = {
         "all_bars": all_bars,
         "train_bars": train_bars,
@@ -1080,6 +1094,7 @@ def _dedup_top(
         "cross_peers": cross_peers,
         "execution_model": execution_model,
         "joint_training": joint_training,
+        "norm_window": norm_window,  # 添加 norm_window
     }
     _prefetched = prefetched or {}
 
@@ -1223,7 +1238,8 @@ def _dedup_top(
             # v2:验证折只在验证区内切分(walk_forward_eval_v2)
             if plan is not None:
                 wf = walk_forward_eval_v2(
-                    tokens, all_bars, timeframe, cost, plan, walk_forward_folds
+                    tokens, all_bars, timeframe, cost, plan, walk_forward_folds,
+                    norm_window=strict_ctx.get("norm_window", 250),
                 )
             else:
                 wf = walk_forward_eval(

@@ -70,7 +70,7 @@ def run_case(symbol: str, tf: str, population: int, generations: int,
         "execution_model": "signal_research",
         "final_generation": True,
         **({"label_span": label_span} if label_span > 1 else {}),
-        **({"seed_tokens": CHAMPION_SEEDS} if with_seeds else {}),
+        **({"seed_tokens": champion_seed_tokens(symbol, tf)} if with_seeds else {}),
     }
     started = time.time()
     raw = factor_local.run(json.dumps(payload), json.dumps(bars))

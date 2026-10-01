@@ -29,6 +29,8 @@ PROFILE_CRYPTO_LOCAL_V2 = "crypto_local_v2"
 # (scoring/evaluate.py)与桌面 TS 侧重放合格门。见
 # docs/plans/2026-09-30-shortline-lab-implementation.md §2/§4/§5。
 PROFILE_SHORTLINE_V1 = "shortline_v1"
+# 短线固定归一化窗口(对齐 src/lib/shortline/spec.ts SHORTLINE_ZSCORE_WINDOW)
+SHORTLINE_NORM_WINDOW = 300
 CONTEXT_SCHEMA_VERSION = 1
 
 # 执行模型(方案 §3):现货研究不输出可执行做空收益
@@ -146,10 +148,18 @@ def resolve_context(
             raise ValueError(f"未知执行模型: {execution}")
         timeframe = str(payload.get("timeframe") or "1d")
         label_span = int(payload.get("label_span") or 1)
+        # 短线固定归一化窗口 300;crypto_local_v2 动态推导
+        if profile == PROFILE_SHORTLINE_V1:
+            norm_window = SHORTLINE_NORM_WINDOW
+            warmup = SHORTLINE_NORM_WINDOW
+        else:
+            norm_window = norm_window_for_bars(bars)
+            warmup = int(payload.get("warmup") or 250)
+
         split = build_split_plan(
             len(bars),
             label_span=label_span,
-            warmup=int(payload.get("warmup") or 250),
+            warmup=warmup,
             bars=bars,
         )
         return ResearchContext(
@@ -157,7 +167,7 @@ def resolve_context(
             profile_id=profile,
             execution_model=execution,
             timeframe=timeframe,
-            norm_window=norm_window_for_bars(bars),
+            norm_window=norm_window,
             label_span=label_span,
             split=split,
             cost=cost,
