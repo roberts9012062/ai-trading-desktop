@@ -11,6 +11,117 @@ use tauri_plugin_shell::{
     ShellExt,
 };
 
+// Windows 内核级兜底:把引擎子进程挂入 kill-on-close 的 Job Object。
+// 主进程无论正常退出、崩溃还是被更新器 taskkill 强杀,内核关闭其持有的
+// 全部句柄时都会自动终结 job 内的引擎进程,根治"孤儿 python 进程锁住
+// native-engine DLL 导致更新安装失败"的问题。
+#[cfg(windows)]
+mod win_job {
+    use std::os::windows::io::RawHandle;
+
+    const PROCESS_SET_QUOTA: u32 = 0x0100;
+    const JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE: u32 = 0x2000;
+    const JOB_OBJECT_EXTENDED_LIMIT_INFORMATION: u32 = 9;
+
+    /// IO_COUNTERS(x64 布局,全零即可)
+    #[repr(C)]
+    #[derive(Default)]
+    struct IoCounters {
+        read_ops: u64,
+        write_ops: u64,
+        other_ops: u64,
+        read_bytes: u64,
+        write_bytes: u64,
+        other_bytes: u64,
+    }
+
+    /// JOBOBJECT_BASIC_LIMIT_INFORMATION(x64 布局)
+    #[repr(C)]
+    #[derive(Default)]
+    struct JobBasicLimit {
+        per_process_user_time: u64,
+        per_job_user_time: u64,
+        min_working_set: u32,
+        max_working_set: u32,
+        active_process_limit: u32,
+        limit_flags: u32,
+        affinity: usize,
+        priority_class: u32,
+        scheduling_class: u32,
+    }
+
+    /// JOBOBJECT_EXTENDED_LIMIT_INFORMATION(x64 布局)
+    #[repr(C)]
+    #[derive(Default)]
+    struct JobExtendedLimit {
+        basic: JobBasicLimit,
+        io: IoCounters,
+        process_memory_limit: usize,
+        job_memory_limit: usize,
+        peak_process_memory_used: usize,
+        peak_job_memory_used: usize,
+    }
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn CreateJobObjectW(attrs: *mut core::ffi::c_void, name: *const u16) -> RawHandle;
+        fn SetInformationJobObject(
+            job: RawHandle,
+            class: u32,
+            info: *mut core::ffi::c_void,
+            len: u32,
+        ) -> i32;
+        fn AssignProcessToJobObject(job: RawHandle, process: RawHandle) -> i32;
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> RawHandle;
+        fn CloseHandle(handle: RawHandle) -> i32;
+    }
+
+    /// 裸句柄的安全包装:RawHandle(*mut c_void)不含 Send/Sync,而句柄本质是
+    /// 整数值且此处仅存储与关闭、绝不解引用,标记跨线程传递是安全的
+    #[derive(Clone, Copy)]
+    pub struct JobHandle(RawHandle);
+    unsafe impl Send for JobHandle {}
+    unsafe impl Sync for JobHandle {}
+
+    /// 把 pid 对应进程挂入 kill-on-close job;返回调用方需长期持有的 job 句柄
+    /// (主进程存活期间不得关闭,否则内核会立刻终结引擎)。
+    pub fn attach_kill_on_close(pid: u32) -> Option<JobHandle> {
+        unsafe {
+            let job = CreateJobObjectW(std::ptr::null_mut(), std::ptr::null());
+            if job.is_null() {
+                return None;
+            }
+            let mut info = JobExtendedLimit::default();
+            info.basic.limit_flags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            let process = OpenProcess(PROCESS_SET_QUOTA, 0, pid);
+            let ok = !process.is_null()
+                && SetInformationJobObject(
+                    job,
+                    JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
+                    &mut info as *mut JobExtendedLimit as *mut core::ffi::c_void,
+                    std::mem::size_of::<JobExtendedLimit>() as u32,
+                ) != 0
+                && AssignProcessToJobObject(job, process) != 0;
+            if !process.is_null() {
+                CloseHandle(process);
+            }
+            if ok {
+                Some(JobHandle(job))
+            } else {
+                CloseHandle(job);
+                None
+            }
+        }
+    }
+
+    /// 关闭 job 句柄:句柄全关后内核按 kill-on-close 终结 job 内进程
+    pub fn close(handle: JobHandle) {
+        unsafe {
+            CloseHandle(handle.0);
+        }
+    }
+}
+
 #[derive(Clone, Serialize)]
 pub struct NativeEndpoint {
     port: u16,
@@ -22,6 +133,9 @@ pub struct NativeEndpoint {
 #[derive(Default)]
 struct Managed {
     child: Option<CommandChild>,
+    /// 引擎进程所在 kill-on-close job 的句柄;主进程死亡时由内核自动终结引擎
+    #[cfg(windows)]
+    job: Option<win_job::JobHandle>,
     endpoint: Option<NativeEndpoint>,
     starting: bool,
     epoch: u64,
@@ -29,21 +143,40 @@ struct Managed {
     reason: Option<String>,
 }
 
+/// 引擎退出时待释放的资源集合(child 显式终结;job 句柄在 kill 之后关闭,
+/// 关闭即触发内核 kill-on-close 兜底)
+struct RetiredEngine {
+    child: Option<CommandChild>,
+    #[cfg(windows)]
+    job: Option<win_job::JobHandle>,
+}
+
 impl Managed {
+    /// 退出当前引擎,取出待释放资源;epoch 不匹配时不动作(保护新启动)
     fn retire(
         &mut self,
         expected_epoch: Option<u64>,
         reason: Option<String>,
-    ) -> Option<CommandChild> {
+    ) -> RetiredEngine {
+        let mut retired = RetiredEngine {
+            child: None,
+            #[cfg(windows)]
+            job: None,
+        };
         if expected_epoch.is_some_and(|epoch| epoch != self.epoch) {
-            return None;
+            return retired;
         }
         self.epoch += 1;
         self.starting = false;
         self.endpoint = None;
         self.precision = None;
         self.reason = reason;
-        self.child.take()
+        retired.child = self.child.take();
+        #[cfg(windows)]
+        {
+            retired.job = self.job.take();
+        }
+        retired
     }
 }
 
@@ -133,12 +266,18 @@ fn shutdown_epoch(
     reason: Option<String>,
 ) -> Result<(), String> {
     let state = app.state::<NativeEngineState>();
-    let child = {
+    let retired = {
         let mut managed = state.0.lock().map_err(|_| "Native engine state poisoned")?;
         managed.retire(expected_epoch, reason)
     };
-    if let Some(child) = child {
-        child.kill().map_err(|e| e.to_string())?;
+    if let Some(child) = retired.child {
+        // 显式终结;即便失败(如进程已自行退出)也无妨,下方 job 关闭会触发
+        // 内核 kill-on-close 兜底
+        let _ = child.kill();
+    }
+    #[cfg(windows)]
+    if let Some(job) = retired.job {
+        win_job::close(job);
     }
     Ok(())
 }
@@ -196,14 +335,26 @@ async fn spawn_process(
         .spawn()
         .map_err(|e| e.to_string())?;
     let pid = child.pid();
+    // 引擎一旦 spawn 就立即挂入 kill-on-close job:此后无论主进程因何退出,
+    // 内核都会回收该进程(窗口 Destroyed 清理路径只是第一道防线)
+    #[cfg(windows)]
+    let job = win_job::attach_kill_on_close(pid);
     {
         let state = app.state::<NativeEngineState>();
         let mut managed = state.0.lock().map_err(|_| "Native engine state poisoned")?;
         if managed.epoch != epoch {
             let _ = child.kill();
+            #[cfg(windows)]
+            if let Some(job) = job {
+                win_job::close(job);
+            }
             return Err("原生引擎启动已取消".into());
         }
         managed.child = Some(child);
+        #[cfg(windows)]
+        {
+            managed.job = job;
+        }
     }
     let (tx, rx) = mpsc::channel();
     tauri::async_runtime::spawn(async move {
@@ -258,6 +409,11 @@ async fn spawn_process(
                             managed.endpoint = None;
                             managed.starting = false;
                             managed.reason = Some(reason.clone());
+                            // 引擎已自行退出:关闭其 job 句柄(job 内已无进程,无副作用)
+                            #[cfg(windows)]
+                            if let Some(job) = managed.job.take() {
+                                win_job::close(job);
+                            }
                         }
                     }
                     if let Some(tx) = tx.take() {

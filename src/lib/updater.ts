@@ -166,6 +166,17 @@ export async function downloadUpdate(
 
 /** 安装已下载的更新并重启应用(NSIS passive 模式,安装后自动重启) */
 export async function installUpdate(update: Update): Promise<void> {
+  // 安装器为解锁目标文件会直接强杀主进程,窗口 Destroyed 的引擎清理路径
+  // 因此不保证执行;若不先显式终结引擎,孤儿 python 进程会锁住
+  // native-engine 下的 DLL,导致安装器写文件失败(反复弹 Retry 错误框)。
+  if (window.__TAURI_INTERNALS__) {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core")
+      await invoke("native_engine_kill")
+    } catch {
+      // 引擎本就未运行或已退出:忽略,继续安装
+    }
+  }
   await update.install()
   const { relaunch } = await import("@tauri-apps/plugin-process")
   await relaunch()
