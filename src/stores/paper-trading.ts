@@ -74,6 +74,8 @@ interface PaperTradingState {
   error: string | null
   lastMessage: string | null
   loaded: boolean
+  /** 清空账户/委托/持仓内存态（切换账号/查询失败时防上一账号数据残留） */
+  reset: () => void
 
   setVenue: (venue: TradingVenue) => void
   refresh: () => Promise<void>
@@ -129,6 +131,18 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
     set({ venue, orders: [], positions: [], account: null, loaded: false })
     void get().refresh()
   },
+
+  reset: () =>
+    set({
+      account: null,
+      orders: [],
+      positions: [],
+      ledgers: [],
+      loading: false,
+      error: null,
+      lastMessage: null,
+      loaded: false,
+    }),
 
   refresh: async () => {
     const mode = currentMode()
@@ -196,10 +210,16 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
         loaded: true,
       })
     } catch (err) {
+      // 查询失败也必须清空业务数据：否则残留的可能是上一账号
+      // （或上一交易所）的持仓/委托——安全隔离不允许"失败时显示旧数据"
       set({
         loading: false,
         loaded: true,
         error: err instanceof Error ? err.message : "加载交易账户失败",
+        account: null,
+        orders: [],
+        positions: [],
+        ledgers: [],
       })
     }
   },

@@ -40,6 +40,14 @@ function writeCachedUser(user: User | null): void {
   }
 }
 
+/** 切换账号时清空交易内存态（持仓/委托/账户）。
+ *  动态 import：paper-trading 顶层引用了本 store，静态互引会成环。 */
+function resetTradingState(): void {
+  void import("@/stores/paper-trading").then((m) => {
+    m.usePaperTradingStore.getState().reset()
+  })
+}
+
 interface AuthState {
   /** 当前用户 */
   user: User | null
@@ -75,6 +83,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.setItem(ACCESS_KEY, accessToken)
     localStorage.setItem(REFRESH_KEY, refreshToken)
     writeCachedUser(user)
+    // 账号会话边界：不得带入上一账号的持仓/委托/账户内存态
+    resetTradingState()
     set({ user, accessToken, loaded: true, hydrating: false })
   },
 
@@ -89,6 +99,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     // 清空通知状态，避免下一账号看到上一账号的未读红点 / 弹窗
     useNotificationsStore.getState().reset()
+    // 清空交易内存态，避免下一账号看到上一账号的持仓 / 委托
+    resetTradingState()
     set({ user: null, accessToken: null, loaded: true, hydrating: false })
   },
 

@@ -7,9 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { User, Shield, Sliders, Bell, Wallet, Edit3, Type, Volume2, Database } from "lucide-react"
+import { User, Shield, Sliders, Bell, Edit3, Type, Volume2, Database } from "lucide-react"
 import { DataCachePanel } from "@/components/profile/data-cache-panel"
-import { VirtualFundsPanel } from "@/components/portfolio/virtual-funds-panel"
 import { TradeSettingsPanel } from "@/components/portfolio/trade-settings-panel"
 import { SecurityPanel } from "@/components/profile/security-panel"
 import { AlertSettingsPanel } from "@/components/profile/alert-settings-panel"
@@ -28,7 +27,6 @@ export default function ProfilePage(): React.JSX.Element {
         {[
           { value: "info", icon: User, label: "个人信息" },
           { value: "display", icon: Type, label: "显示设置" },
-          { value: "funds", icon: Wallet, label: "虚拟资金" },
           { value: "security", icon: Shield, label: "安全设置" },
           { value: "trading", icon: Sliders, label: "交易设置" },
           { value: "alerts", icon: Bell, label: "提醒设置" },
@@ -55,7 +53,6 @@ export default function ProfilePage(): React.JSX.Element {
       <div className="flex-1 p-6 overflow-auto">
         {activeTab === "info" && <PersonalInfoPanel />}
         {activeTab === "display" && <DisplaySettingsPanel />}
-        {activeTab === "funds" && <VirtualFundsPanel />}
         {activeTab === "security" && <SecurityPanel />}
         {activeTab === "trading" && <TradeSettingsPanel />}
         {activeTab === "alerts" && <AlertSettingsPanel />}

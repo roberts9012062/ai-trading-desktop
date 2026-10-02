@@ -36,11 +36,14 @@ const EMPTY: EditState = { apiKey: "", secret: "", passphrase: "", demo: false }
 function VenueCard({
   venue,
   name,
+  open,
   credential,
   onSaved,
 }: {
   venue: TradingVenue
   name: string
+  /** 是否开放接入（当前仅 OKX；未开放所不可新配置） */
+  open: boolean
   credential: VenueCredential | undefined
   onSaved: () => void
 }): React.JSX.Element {
@@ -129,7 +132,11 @@ function VenueCard({
     <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-3 space-y-2">
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold">{name}</span>
-        {configured ? (
+        {!open ? (
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-muted)]">
+            暂未开放
+          </span>
+        ) : configured ? (
           credential!.last_check_ok === true ? (
             <span className="inline-flex items-center gap-1 text-[10px] text-[var(--accent-up)]">
               <ShieldCheck className="w-3 h-3" /> 已连通
@@ -216,6 +223,10 @@ function VenueCard({
             </Button>
           </div>
         </div>
+      ) : !open && !configured ? (
+        <p className="text-[11px] text-[var(--text-muted)] py-1">
+          即将开放，敬请期待
+        </p>
       ) : (
         <div className="flex gap-2">
           {configured ? (
@@ -270,7 +281,7 @@ export function ExchangeCredentialsPanel(): React.JSX.Element {
       <div>
         <h3 className="text-sm font-semibold">实盘交易所接入</h3>
         <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
-          三所对等接入 · 凭证加密存储 · 实盘下单前请先测试连通
+          当前开放 OKX · 凭证加密存储 · 实盘下单前请先测试连通
         </p>
       </div>
       {loaded ? (
@@ -280,6 +291,7 @@ export function ExchangeCredentialsPanel(): React.JSX.Element {
               key={v.venue}
               venue={v.venue}
               name={v.name}
+              open={v.venue === "okx"}
               credential={credentials.find((c) => c.venue === v.venue)}
               onSaved={() => void load()}
             />

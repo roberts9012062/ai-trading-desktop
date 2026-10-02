@@ -1,7 +1,9 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import Link from "next/link"
 import {
+  getCredentialsApi,
   getDailyPnlApi,
   type DailyPnlRow,
   type DailyPnlSummary,
@@ -492,6 +494,10 @@ export function DailyPnlPanel(): React.JSX.Element {
     summary: DailyPnlSummary | null
   } | null>(null)
   const [error, setError] = useState(false)
+  // 是否已配置 OKX 凭证：null=查询中；未配置时后端返回空结构，
+  // 不查凭证无法区分"没配置"与"配置了没数据"
+  const [hasOkxCred, setHasOkxCred] = useState<boolean | null>(null)
+  const [loaded, setLoaded] = useState(false)
   const [chartView, setChartView] = useState<"cum" | "month">("cum")
   // 当前展示月（北京时区）：浏览器本地月与北京月偶有跨日差，数据键以
   // 后端北京日为准，网格标题用展示月即可
@@ -499,6 +505,20 @@ export function DailyPnlPanel(): React.JSX.Element {
     const bj = new Date(Date.now() + 8 * 3600_000)
     return { y: bj.getUTCFullYear(), m: bj.getUTCMonth() }
   })
+
+  useEffect(() => {
+    let alive = true
+    getCredentialsApi()
+      .then((cs) => {
+        if (alive) setHasOkxCred(cs.some((c) => c.venue === "okx"))
+      })
+      .catch(() => {
+        if (alive) setHasOkxCred(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -511,6 +531,8 @@ export function DailyPnlPanel(): React.JSX.Element {
         }
       } catch {
         if (alive) setError(true)
+      } finally {
+        if (alive) setLoaded(true)
       }
     }
     load()
@@ -548,17 +570,27 @@ export function DailyPnlPanel(): React.JSX.Element {
         <CardTitle className="text-sm">收益分析 · OKX 实账户口径</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {error && (
+        {hasOkxCred === false ? (
+          <div className="py-6 text-center space-y-2">
+            <p className="text-xs text-[var(--text-muted)]">
+              尚未配置 OKX API 凭证，配置后此处展示账户收益分析
+            </p>
+            <Link
+              href="/assets"
+              className="inline-block text-xs text-[var(--primary)] hover:underline"
+            >
+              前往「资产」页配置 →
+            </Link>
+          </div>
+        ) : error ? (
           <p className="text-xs text-[var(--text-muted)] py-4 text-center">
             收益数据加载失败（未连接实盘或网络异常）
           </p>
-        )}
-        {!error && !summary && (
+        ) : !loaded || !summary ? (
           <p className="text-xs text-[var(--text-muted)] py-4 text-center">
-            加载中…
+            {loaded ? "暂无成交数据" : "加载中…"}
           </p>
-        )}
-        {summary && (
+        ) : (
           <>
             {/* 盈亏比 + 盈利/亏损汇总 */}
             <div className="grid grid-cols-4 divide-x divide-[var(--border)]">

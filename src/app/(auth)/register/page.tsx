@@ -92,7 +92,9 @@ export default function RegisterPage(): React.JSX.Element {
 
       const user = await getMeApi()
       login(user, authRes.access_token, authRes.refresh_token)
-      router.push("/dashboard")
+      // 整页跳转而非 SPA 路由：清空上一账号留在内存里的
+      // 持仓/委托/任务等全部状态，杜绝跨账号数据残留
+      window.location.assign("/dashboard")
     } catch (err) {
       setError(err instanceof Error ? err.message : "注册失败，请重试")
     } finally {

@@ -240,7 +240,9 @@ export default function LoginPage(): React.JSX.Element {
         authRes.access_token,
         authRes.refresh_token,
       )
-      router.push("/dashboard")
+      // 整页跳转而非 SPA 路由：换账号会话必须清空内存中
+      // 上一账号的持仓/委托/任务等全部状态
+      window.location.assign("/dashboard")
     } catch (err) {
       if (isNetworkError(err)) {
         const base = serverBase || resolveDesktopServerBase()
