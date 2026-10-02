@@ -255,6 +255,7 @@ export function PnlCalendar(): React.JSX.Element {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [monthOffset, setMonthOffset] = useState(0)
+  const [curveMode, setCurveMode] = useState<"month" | "total">("month")
   const reqSeq = useRef(0)
 
   useEffect(() => {
@@ -384,6 +385,29 @@ export function PnlCalendar(): React.JSX.Element {
       new Date(ey, em - 1, 1).getTime()
   }, [cache, monthOffset])
 
+  /** 总收益曲线：数据窗口起点逐日累计到今天（不按月清零） */
+  const totalPoints = useMemo(() => {
+    if (!cache?.earliestDate) return []
+    const out: { time: string; value: number; day: number }[] = []
+    let acc = 0
+    const end = new Date()
+    for (let d = new Date(`${cache.earliestDate}T00:00:00`); d <= end; d = new Date(d.getTime() + 86_400_000)) {
+      const key = dayKeyOf(d)
+      const dayPnl = cache.days[key]?.pnl ?? 0
+      acc += dayPnl
+      out.push({ time: key, value: acc, day: dayPnl })
+    }
+    return out
+  }, [cache])
+
+  /** 总收益曲线的时间范围描述（如「9月1日 – 10月2日」） */
+  const totalRangeText = useMemo(() => {
+    if (!cache?.earliestDate) return "近 90 天"
+    const [ey, em, ed] = cache.earliestDate.split("-").map(Number)
+    const now = new Date()
+    return `${em}月${ed}日 – ${now.getMonth() + 1}月${now.getDate()}日`
+  }, [cache])
+
   const s = monthView.summary
   const ratioText =
     s.ratio === Infinity ? "∞" : s.ratio == null ? "--" : `${s.ratio.toFixed(2)} : 1`
@@ -439,7 +463,10 @@ export function PnlCalendar(): React.JSX.Element {
             className="h-7 w-7 p-0"
             aria-label="上一月"
             disabled={monthOffset <= -240 || !canGoPrev}
-            onClick={() => setMonthOffset((v) => v - 1)}
+            onClick={() => {
+              setMonthOffset((v) => v - 1)
+              setCurveMode("month")
+            }}
           >
             <ChevronLeft className="w-3.5 h-3.5" />
           </Button>
@@ -452,7 +479,10 @@ export function PnlCalendar(): React.JSX.Element {
             className="h-7 w-7 p-0"
             aria-label="下一月"
             disabled={monthOffset >= 0}
-            onClick={() => setMonthOffset((v) => v + 1)}
+            onClick={() => {
+              setMonthOffset((v) => v + 1)
+              setCurveMode("month")
+            }}
           >
             <ChevronRight className="w-3.5 h-3.5" />
           </Button>
@@ -598,16 +628,40 @@ export function PnlCalendar(): React.JSX.Element {
             )}
           </div>
 
-          {/* 当月累计盈亏曲线 */}
+          {/* 盈亏曲线：当月累计 / 总收益（全窗口）双模式 */}
           <div className="mt-3">
-            <div className="text-[11px] text-[var(--text-muted)] mb-1">
-              当月累计盈亏曲线（{monthView.title}，USDT）
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[11px] text-[var(--text-muted)] truncate">
+                {curveMode === "month"
+                  ? `当月累计盈亏曲线（${monthView.title}，USDT）`
+                  : `总收益曲线（${totalRangeText}，USDT）`}
+              </span>
+              <div className="ml-auto flex items-center rounded-md border border-[var(--border)] overflow-hidden shrink-0">
+                {([
+                  { key: "month", label: "当月累计" },
+                  { key: "total", label: "总收益" },
+                ] as const).map((m) => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    className={cn(
+                      "px-2 h-6 text-[10px] transition-colors",
+                      curveMode === m.key
+                        ? "bg-[var(--bg-tertiary)] text-[var(--text-primary)]"
+                        : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
+                    )}
+                    onClick={() => setCurveMode(m.key)}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
             </div>
-            {monthView.hasData && monthView.cumulative.length > 0 ? (
-              <CumulativeChart points={monthView.cumulative} />
+            {(curveMode === "month" ? monthView.cumulative : totalPoints).length > 0 ? (
+              <CumulativeChart points={curveMode === "month" ? monthView.cumulative : totalPoints} />
             ) : (
               <div className="h-[100px] rounded-lg bg-[var(--bg-tertiary)]/30 flex items-center justify-center text-[11px] text-[var(--text-muted)]">
-                {cache ? "本月暂无盈亏记录" : "暂无数据"}
+                {cache ? "暂无盈亏记录" : "暂无数据"}
               </div>
             )}
           </div>
