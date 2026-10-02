@@ -76,6 +76,11 @@ export async function getPlansApi(): Promise<VipPlan[]> {
   return res.items
 }
 
+/** 商城状态：closed=true 时商城入口隐藏、页面显示关闭占位 */
+export async function getMallStatusApi(): Promise<{ closed: boolean }> {
+  return mallRequest<{ closed: boolean }>("/api/mall/status")
+}
+
 export async function getMembershipApi(): Promise<VipMembershipState> {
   return mallRequest<VipMembershipState>("/api/mall/membership")
 }

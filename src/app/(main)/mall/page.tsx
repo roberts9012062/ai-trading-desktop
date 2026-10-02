@@ -16,6 +16,7 @@ import {
   cancelOrderApi,
   createOrderApi,
   getMembershipApi,
+  getMallStatusApi,
   getMyOrdersApi,
   getPlansApi,
   payOrderApi,
@@ -62,20 +63,23 @@ export default function MallPage(): React.JSX.Element {
   const [state, setState] = useState<VipMembershipState | null>(null)
   const [orders, setOrders] = useState<VipOrderItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [closed, setClosed] = useState(false)
   const [busyPlan, setBusyPlan] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function refresh(): Promise<void> {
     try {
-      const [p, m, o] = await Promise.all([
+      const [p, m, o, s] = await Promise.all([
         getPlansApi(),
         getMembershipApi(),
         getMyOrdersApi(),
+        getMallStatusApi(),
       ])
       setPlans(p)
       setState(m)
       setOrders(o)
+      setClosed(Boolean(s.closed))
     } catch (e) {
       setError(e instanceof Error ? e.message : "加载失败")
     } finally {
@@ -117,6 +121,29 @@ export default function MallPage(): React.JSX.Element {
       <div className="flex items-center justify-center h-64 text-sm text-[var(--text-muted)]">
         <Loader2 className="w-4 h-4 animate-spin mr-2" />
         加载中…
+      </div>
+    )
+  }
+
+  // 商城已关闭（后台开关）：VIP 功能全站免费开放，仅保留会员状态展示
+  if (closed) {
+    return (
+      <div className="max-w-3xl mx-auto py-16 text-center space-y-3">
+        <Crown className="w-10 h-10 text-[var(--text-muted)] mx-auto" />
+        <h1 className="text-lg font-semibold text-[var(--text-primary)]">
+          商城已关闭
+        </h1>
+        <p className="text-sm text-[var(--text-muted)]">
+          会员功能已向所有用户免费开放，无需购买。
+          {state?.is_vip && !state?.is_admin
+            ? " 您的会员权益在到期前继续生效（不受免费配额限制）。"
+            : ""}
+        </p>
+        {state && (
+          <p className="text-xs text-[var(--text-muted)]">
+            普通用户可免费创建的 AI 任务数等配额见各功能页提示。
+          </p>
+        )}
       </div>
     )
   }

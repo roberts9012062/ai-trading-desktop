@@ -93,6 +93,10 @@ export interface SystemSettings {
   max_tasks_per_user: number
   factor_lab_daily_limit: number
   backtest_daily_limit: number
+  /** 商城关闭开关：true=VIP 专属功能全站免费开放 */
+  mall_closed?: boolean
+  /** 普通用户（无 VIP）AI 任务数上限，0=不限 */
+  free_max_tasks?: number
   /** 交易时段行情/K线/WS 刷新间隔默认秒数（1-10，默认 1） */
   market_refresh_interval_sec: number
   /** per-channel 刷新间隔覆盖 {channel: seconds}，未列渠道用默认 */

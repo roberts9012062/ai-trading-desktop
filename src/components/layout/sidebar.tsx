@@ -75,16 +75,37 @@ export function Sidebar(): React.JSX.Element {
   const pathname = usePathname()
   const { sidebarCollapsed, toggleSidebar } = useAppStore()
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null)
+  // 商城关闭后隐藏「商城 VIP」入口（后台开关，全站 VIP 功能免费开放）
+  const [mallClosed, setMallClosed] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    import("@/lib/mall-api")
+      .then((m) => m.getMallStatusApi())
+      .then((s) => {
+        if (alive) setMallClosed(Boolean(s.closed))
+      })
+      .catch(() => {
+        // 查询失败不隐藏入口（保持商城可见）
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const items = mallClosed
+    ? MENU_ITEMS.filter((i) => i.path !== "/mall")
+    : MENU_ITEMS
 
   // 进入子菜单路由时自动展开对应一级项
   useEffect(() => {
-    const parent = MENU_ITEMS.find(
+    const parent = items.find(
       (item) =>
         item.children &&
         item.children.some((child) => child.path !== item.path && pathname === child.path),
     )
     if (parent) setExpandedMenu(parent.path)
-  }, [pathname])
+  }, [pathname, items])
 
   return (
     <aside
@@ -95,7 +116,7 @@ export function Sidebar(): React.JSX.Element {
     >
       {/* 菜单列表 */}
       <nav className="flex-1 py-2 overflow-y-auto">
-        {MENU_ITEMS.map((item) => {
+        {items.map((item) => {
           const isExact = pathname === item.path
           const isActive =
             isExact ||

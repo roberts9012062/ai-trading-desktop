@@ -6,8 +6,11 @@ import { cn, formatShanghaiTime } from "@/lib/utils"
 import { usePaperTradingStore } from "@/stores/paper-trading"
 import {
   adjustDemoBalanceApi,
+  getAccountModeApi,
   placePositionTpslApi,
+  setAccountModeApi,
   transferFundsApi,
+  type AccountMode,
 } from "@/lib/live-api"
 import type { PaperPositionItem } from "@/lib/paper-api"
 import { Card, CardContent } from "@/components/ui/card"
@@ -22,7 +25,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table"
-import { Loader2 } from "lucide-react"
+import { Loader2, AlertTriangle } from "lucide-react"
 import { ExchangeCredentialsPanel } from "@/components/trading/exchange-credentials-panel"
 import type { PaperLedgerItem } from "@/lib/paper-api"
 
@@ -65,6 +68,45 @@ function LiveAssetsView(): React.JSX.Element {
   const [tpslFor, setTpslFor] = useState<PaperPositionItem | null>(null)
   const [tpPrice, setTpPrice] = useState("")
   const [slPrice, setSlPrice] = useState("")
+
+  // 账户模式（OKX 纯现货模式无法合约交易，本系统仅支持合约）
+  const [acctMode, setAcctMode] = useState<AccountMode | null>(null)
+  const [modeBusy, setModeBusy] = useState(false)
+  const [modeMsg, setModeMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    getAccountModeApi(venue)
+      .then((m) => {
+        if (alive) setAcctMode(m)
+      })
+      .catch(() => {
+        // 未配置凭证/查询失败：不显示模式提示（凭证区另有引导）
+        if (alive) setAcctMode(null)
+      })
+    return () => {
+      alive = false
+    }
+  }, [venue])
+
+  async function switchToContractMode(): Promise<void> {
+    setModeBusy(true)
+    setModeMsg(null)
+    try {
+      const res = await setAccountModeApi(venue, "2")
+      setModeMsg(
+        res.changed
+          ? `已切换为合约模式（${res.label ?? "现货+合约"}），现在可以正常开仓了`
+          : `账户已是合约模式（${res.label ?? ""}）`,
+      )
+      const m = await getAccountModeApi(venue)
+      setAcctMode(m)
+    } catch (e) {
+      setModeMsg(e instanceof Error ? e.message : "切换失败，请到 OKX 官方「交易设置」手动切换")
+    } finally {
+      setModeBusy(false)
+    }
+  }
 
   async function doTransfer(): Promise<void> {
     const amt = Number(transferAmt)
@@ -155,6 +197,31 @@ function LiveAssetsView(): React.JSX.Element {
 
   return (
     <div className="space-y-4">
+      {acctMode?.supported && !acctMode.can_trade_contract && (
+        <div className="flex items-start gap-3 rounded-lg border border-[var(--accent-danger)]/40 bg-[var(--accent-danger)]/10 px-4 py-3">
+          <AlertTriangle className="w-4 h-4 text-[var(--accent-danger)] shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-2">
+            <p className="text-sm text-[var(--text-primary)] font-medium">
+              当前 OKX 账户为「{acctMode.label ?? "现货模式"}」——本系统仅支持合约交易
+            </p>
+            <p className="text-xs text-[var(--text-muted)]">
+              现货模式的账户无法下单永续合约，任务开仓会被交易所全部拒绝。
+              请切换为合约模式（现货+合约，单币种保证金）后再使用；资金与持仓不受影响。
+            </p>
+            {modeMsg && (
+              <p className="text-xs text-[var(--accent-up)]">{modeMsg}</p>
+            )}
+            <Button size="sm" disabled={modeBusy} onClick={() => void switchToContractMode()}>
+              {modeBusy ? "切换中…" : "一键切换为合约模式"}
+            </Button>
+          </div>
+        </div>
+      )}
+      {acctMode?.supported && acctMode.can_trade_contract && modeMsg && (
+        <div className="px-3 py-2 rounded-md bg-[var(--accent-up)]/10 text-[var(--accent-up)] text-xs">
+          {modeMsg}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold text-[var(--text-primary)]">
@@ -209,7 +276,11 @@ function LiveAssetsView(): React.JSX.Element {
       )}
 
       {transferOpen && (
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-3">
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-3 space-y-2">
+          <p className="text-[11px] text-[var(--text-muted)]">
+            合约交易（任务/手动开仓）使用「合约账户」余额；资金账户的钱不会自动用于合约下单，
+            请先划入。合约账户即 OKX 的交易账户。
+          </p>
           <div className="flex items-center gap-2 flex-wrap text-xs">
             <span className="text-[var(--text-secondary)] font-medium">资金划转（USDT）</span>
             <div className="flex rounded-md border border-[var(--border)] overflow-hidden">
@@ -218,14 +289,14 @@ function LiveAssetsView(): React.JSX.Element {
                 className={`px-2.5 py-1 text-[11px] ${transferDir === "in" ? "bg-[var(--primary)]/15 text-[var(--primary)]" : "text-[var(--text-muted)]"}`}
                 onClick={() => setTransferDir("in")}
               >
-                资金账户 → 交易账户
+                资金账户 → 合约账户
               </button>
               <button
                 type="button"
                 className={`px-2.5 py-1 text-[11px] ${transferDir === "out" ? "bg-[var(--primary)]/15 text-[var(--primary)]" : "text-[var(--text-muted)]"}`}
                 onClick={() => setTransferDir("out")}
               >
-                交易账户 → 资金账户
+                合约账户 → 资金账户
               </button>
             </div>
             <input

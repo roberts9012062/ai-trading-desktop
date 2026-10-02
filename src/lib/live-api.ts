@@ -292,6 +292,29 @@ export async function transferFundsApi(payload: {
   })
 }
 
+/** 账户模式（OKX acctLv；1=纯现货无法合约交易，本系统仅支持合约） */
+export interface AccountMode {
+  supported: boolean
+  acct_lv: string | null
+  label: string | null
+  can_trade_contract: boolean
+}
+
+export async function getAccountModeApi(venue: string): Promise<AccountMode> {
+  return liveRequest(`/api/live/account-mode?venue=${venue}`)
+}
+
+/** 切换账户模式（仅允许升级到可合约交易档位 2/3/4） */
+export async function setAccountModeApi(
+  venue: string,
+  target: string,
+): Promise<{ ok: boolean; changed: boolean; acct_lv: string | null; label: string | null }> {
+  return liveRequest("/api/live/account-mode", {
+    method: "POST",
+    body: JSON.stringify({ venue, target }),
+  })
+}
+
 export async function adjustDemoBalanceApi(payload: {
   venue: string
   direction: "increase" | "reduce"
