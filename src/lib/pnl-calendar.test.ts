@@ -34,9 +34,11 @@ describe("pnl-calendar daily-pnl source", () => {
       venue: "okx",
       fetchedAt: 123,
       earliestDate: "2026-09-01",
-      days: { "2026-10-02": { pnl: 5, count: 3 } },
+      days: { "2026-10-02": { net: -9.41, gross: 10.62, fee: 20.03, count: 96 } },
     })
-    expect(loadDailyPnlCache("okx")?.days["2026-10-02"]).toEqual({ pnl: 5, count: 3 })
+    expect(loadDailyPnlCache("okx")?.days["2026-10-02"]).toEqual({
+      net: -9.41, gross: 10.62, fee: 20.03, count: 96,
+    })
     // 换 venue 视为缓存失效
     expect(loadDailyPnlCache("binance")).toBeNull()
   })
@@ -66,11 +68,11 @@ describe("pnl-calendar daily-pnl source", () => {
     const cache = await refreshDailyPnl({ venue: "okx" })
     expect(urls[0]).toContain("/api/live/daily-pnl?venue=okx&days=90")
     expect(cache.earliestDate).toBe("2026-09-30")
-    expect(cache.days["2026-09-30"]).toEqual({ pnl: 98, count: 4 })
-    expect(cache.days["2026-10-01"]).toEqual({ pnl: -41, count: 2 })
+    expect(cache.days["2026-09-30"]).toEqual({ net: 98, gross: 100, fee: 2, count: 4 })
+    expect(cache.days["2026-10-01"]).toEqual({ net: -41, gross: -40, fee: 1, count: 2 })
     expect(cache.days["2026-10-02"]).toBeUndefined()
     // 落缓存可读回
-    expect(loadDailyPnlCache("okx")?.days["2026-10-01"]).toEqual({ pnl: -41, count: 2 })
+    expect(loadDailyPnlCache("okx")?.days["2026-10-01"]).toEqual({ net: -41, gross: -40, fee: 1, count: 2 })
   })
 
   it("surfaces server errors instead of swallowing them", async () => {

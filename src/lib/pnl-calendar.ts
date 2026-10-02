@@ -16,7 +16,11 @@ export const CACHE_FRESH_MS = 10 * 60 * 1000
 
 export interface DailyPnlEntry {
   /** 当日净盈亏（平仓盈亏 − 手续费，USDT） */
-  pnl: number
+  net: number
+  /** 当日平仓腿已实现盈亏（不含手续费） */
+  gross: number
+  /** 当日手续费合计（正数，方便展示时取负） */
+  fee: number
   /** 当日成交笔数 */
   count: number
 }
@@ -42,8 +46,13 @@ export function loadDailyPnlCache(venue: string): DailyPnlCache | null {
     if (c.version !== 3 || c.venue !== venue || !c.days) return null
     const days: DailyPnlMap = {}
     for (const [k, v] of Object.entries(c.days)) {
-      if (v && Number.isFinite(Number(v.pnl))) {
-        days[k] = { pnl: Number(v.pnl), count: Number(v.count) || 0 }
+      if (v && Number.isFinite(Number(v.net))) {
+        days[k] = {
+          net: Number(v.net),
+          gross: Number(v.gross) || 0,
+          fee: Number(v.fee) || 0,
+          count: Number(v.count) || 0,
+        }
       }
     }
     return {
@@ -75,7 +84,12 @@ export async function refreshDailyPnl(opts: {
   // 服务器把无交易日也补成 0 行；只留有成交的日子，日历上其余自然显示空
   for (const r of Array.isArray(res.days) ? res.days : []) {
     if (r.trades > 0 || r.net !== 0) {
-      days[r.date] = { pnl: r.net, count: r.trades }
+      days[r.date] = {
+        net: r.net,
+        gross: r.pnl,
+        fee: r.fee,
+        count: r.trades,
+      }
     }
   }
   const dates = Object.keys(days).sort()

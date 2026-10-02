@@ -59,8 +59,12 @@ const pad = (n: number) => String(n).padStart(2, "0")
 interface CumPoint {
   time: string
   value: number
-  /** 当日净盈亏（tooltip 用） */
+  /** 当日净盈亏（平仓 − 手续费） */
   day: number
+  /** 当日平仓腿盈亏（不含手续费） */
+  gross: number
+  /** 当日手续费（正数） */
+  fee: number
 }
 
 /** Catmull-Rom 插值转三次贝塞尔：转折柔和，不过分振荡 */
@@ -231,6 +235,9 @@ function CumulativeChart({ points }: { points: CumPoint[] }): React.JSX.Element 
           <div className="font-num">
             <span className="text-[var(--text-muted)]">当日 </span>
             <span className={hoverP.day > 0 ? "text-up" : hoverP.day < 0 ? "text-down" : "text-[var(--text-secondary)]"}>{fmt(hoverP.day)}</span>
+            <span className="text-[var(--text-muted)]">
+              （平仓 {hoverP.gross > 0 ? "+" : ""}{hoverP.gross.toFixed(2)} · 费 -{hoverP.fee.toFixed(2)}）
+            </span>
           </div>
           <div className="font-num">
             <span className="text-[var(--text-muted)]">累计 </span>
@@ -244,6 +251,19 @@ function CumulativeChart({ points }: { points: CumPoint[] }): React.JSX.Element 
 
 function dayKeyOf(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/** 日历格子悬浮文案：净 + 分解（平仓/手续费）+ 笔数 */
+function cellTitle(
+  key: string,
+  net: number,
+  count: number,
+  cache: DailyPnlCache | null,
+): string {
+  const e = cache?.days[key]
+  const g = e?.gross ?? 0
+  const f = e?.fee ?? 0
+  return `${key} · 净 ${fmtCompact(net)} USDT（平仓 ${g > 0 ? "+" : ""}${g.toFixed(2)} · 费 -${f.toFixed(2)}）${count > 0 ? ` · ${count} 笔` : ""}`
 }
 
 export function PnlCalendar(): React.JSX.Element {
@@ -332,18 +352,18 @@ export function PnlCalendar(): React.JSX.Element {
     for (let day = 1; day <= daysInMonth; day += 1) {
       const key = `${year}-${pad(month + 1)}-${pad(day)}`
       const entry = cache?.days[key]
-      const pnl = entry ? entry.pnl : null
+      const pnl = entry ? entry.net : null
       if (entry) {
         tradedDays += 1
         totalCount += entry.count
-        if (entry.pnl > 0) {
-          profit += entry.pnl
+        if (entry.net > 0) {
+          profit += entry.net
           winDays += 1
-        } else if (entry.pnl < 0) {
-          loss += entry.pnl
+        } else if (entry.net < 0) {
+          loss += entry.net
           lossDays += 1
         }
-        maxAbs = Math.max(maxAbs, Math.abs(entry.pnl))
+        maxAbs = Math.max(maxAbs, Math.abs(entry.net))
       }
       cells.push({
         day,
@@ -357,13 +377,19 @@ export function PnlCalendar(): React.JSX.Element {
     const net = profit + loss
     const ratio = profit > 0 && loss === 0 ? Infinity : profit + loss === 0 ? null : profit / -loss
 
-    const cumulative: { time: string; value: number; day: number }[] = []
+    const cumulative: { time: string; value: number; day: number; gross: number; fee: number }[] = []
     let acc = 0
     const lastDay = monthOffset === 0 ? now.getDate() : daysInMonth
     for (let day = 1; day <= lastDay; day += 1) {
-      const dayPnl = cache?.days[`${year}-${pad(month + 1)}-${pad(day)}`]?.pnl ?? 0
-      acc += dayPnl
-      cumulative.push({ time: `${year}-${pad(month + 1)}-${pad(day)}`, value: acc, day: dayPnl })
+      const e = cache?.days[`${year}-${pad(month + 1)}-${pad(day)}`]
+      acc += e?.net ?? 0
+      cumulative.push({
+        time: `${year}-${pad(month + 1)}-${pad(day)}`,
+        value: acc,
+        day: e?.net ?? 0,
+        gross: e?.gross ?? 0,
+        fee: e?.fee ?? 0,
+      })
     }
 
     return {
@@ -388,14 +414,14 @@ export function PnlCalendar(): React.JSX.Element {
   /** 总收益曲线：数据窗口起点逐日累计到今天（不按月清零） */
   const totalPoints = useMemo(() => {
     if (!cache?.earliestDate) return []
-    const out: { time: string; value: number; day: number }[] = []
+    const out: { time: string; value: number; day: number; gross: number; fee: number }[] = []
     let acc = 0
     const end = new Date()
     for (let d = new Date(`${cache.earliestDate}T00:00:00`); d <= end; d = new Date(d.getTime() + 86_400_000)) {
       const key = dayKeyOf(d)
-      const dayPnl = cache.days[key]?.pnl ?? 0
-      acc += dayPnl
-      out.push({ time: key, value: acc, day: dayPnl })
+      const e = cache.days[key]
+      acc += e?.net ?? 0
+      out.push({ time: key, value: acc, day: e?.net ?? 0, gross: e?.gross ?? 0, fee: e?.fee ?? 0 })
     }
     return out
   }, [cache])
@@ -605,11 +631,7 @@ export function PnlCalendar(): React.JSX.Element {
                         }
                       : undefined
                   }
-                  title={
-                    c.pnl != null
-                      ? `${c.key} · ${fmtCompact(c.pnl)} USDT${c.count > 0 ? ` · ${c.count} 笔` : ""}`
-                      : c.key
-                  }
+                  title={c.pnl != null ? cellTitle(c.key, c.pnl, c.count, cache) : c.key}
                 >
                   <span className="text-[10px] text-[var(--text-muted)] leading-none">{c.day}</span>
                   {c.pnl != null ? (
