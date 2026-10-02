@@ -5,6 +5,7 @@ import {
   paperActionLabel,
 } from "@/lib/trade-labels"
 import { usePaperTradingStore } from "@/stores/paper-trading"
+import { perpSymbol } from "@/lib/perp-symbol"
 import { cn } from "@/lib/utils"
 
 /** 格式化时间 */
@@ -73,7 +74,7 @@ export function RecentTrades(): React.JSX.Element {
                 {fmtTime(trade.filled_at || trade.updated_at)}
               </span>
               <span className="text-[var(--text-primary)] truncate">
-                {trade.symbol}
+                {perpSymbol(trade.symbol)}
               </span>
               <span
                 className={cn(

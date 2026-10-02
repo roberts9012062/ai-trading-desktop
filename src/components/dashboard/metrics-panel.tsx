@@ -1,11 +1,11 @@
 "use client"
 
-import { useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useMarketStore } from "@/stores/market"
 import { usePaperTradingStore } from "@/stores/paper-trading"
 import { positionPnl } from "@/lib/position-pnl"
+import { getDailyPnlApi } from "@/lib/live-api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { PnlCalendar } from "@/components/dashboard/pnl-calendar"
 import { cn } from "@/lib/utils"
 
 function fmtMoney(v: number): string {
@@ -63,8 +63,64 @@ export function MetricsPanel(): React.JSX.Element {
   const account = usePaperTradingStore((s) => s.account)
   const quotes = useMarketStore((s) => s.quotes)
 
-  /** 今日（本地自然日）已实现盈利：已成交平仓单合计 */
+  // 实盘今日盈亏：OKX 成交明细口径（与下方收益分析九宫格同源同数——
+  // 镜像单合计会因 realized_pnl 缺失/不含手续费/漏手动单而对不上）
+  const [okxToday, setOkxToday] = useState<{
+    net: number
+    win: number
+    loss: number
+    fee: number
+    trades: number
+  } | null>(null)
+  useEffect(() => {
+    if (mode !== "live") {
+      setOkxToday(null)
+      return
+    }
+    let alive = true
+    const load = async () => {
+      try {
+        const bj = new Date(Date.now() + 8 * 3600_000)
+          .toISOString()
+          .slice(0, 10)
+        const res = await getDailyPnlApi("okx", 7)
+        if (!alive) return
+        const row = (res.days ?? []).find((d) => d.date === bj)
+        setOkxToday(
+          row
+            ? {
+                net: row.net,
+                win: row.win_pnl ?? 0,
+                loss: row.loss_pnl ?? 0,
+                fee: row.fee ?? 0,
+                trades: row.trades,
+              }
+            : { net: 0, win: 0, loss: 0, fee: 0, trades: 0 }
+        )
+      } catch {
+        /* 拉取失败保持 null，回退镜像口径 */
+      }
+    }
+    load()
+    const timer = setInterval(load, 60_000)
+    return () => {
+      alive = false
+      clearInterval(timer)
+    }
+  }, [mode])
+
+  /** 今日已实现盈利：实盘=OKX 成交口径（北京自然日，毛盈亏）；
+   *  虚拟盘=本地自然日已成交平仓单合计 */
   const todayRealized = useMemo(() => {
+    if (mode === "live" && okxToday !== null) {
+      return {
+        sum: okxToday.net,
+        count: okxToday.trades,
+        win: okxToday.win,
+        loss: okxToday.loss,
+        fee: okxToday.fee,
+      }
+    }
     const dayStart = new Date()
     dayStart.setHours(0, 0, 0, 0)
     let sum = 0
@@ -76,8 +132,8 @@ export function MetricsPanel(): React.JSX.Element {
       sum += Number(o.realized_pnl || 0)
       count += 1
     }
-    return { sum, count }
-  }, [orders])
+    return { sum, count, win: null, loss: null, fee: null }
+  }, [mode, okxToday, orders])
 
   /** 持仓浮动盈亏合计 + 多空结构（按保证金权重）+ 保证金占用 */
   const posStats = useMemo(() => {
@@ -144,13 +200,17 @@ export function MetricsPanel(): React.JSX.Element {
 
   const cells = [
     {
-      label: "今日已实现盈利",
+      label: "今日平仓盈亏",
       value: `${todayRealized.sum > 0 ? "+" : ""}${fmtMoney(todayRealized.sum)}`,
       valueClass: pnlColor(todayRealized.sum),
       sub:
-        todayRealized.count > 0
-          ? `今日平仓 ${todayRealized.count} 笔`
-          : "今日暂无平仓",
+        mode === "live" && todayRealized.win !== null
+          ? todayRealized.count > 0
+            ? `赚 ${fmtMoney(todayRealized.win ?? 0)} · 亏 ${fmtMoney(Math.abs(todayRealized.loss ?? 0))} · 费 ${fmtMoney(todayRealized.fee ?? 0)}`
+            : "OKX 口径 · 今日暂无平仓"
+          : todayRealized.count > 0
+            ? `今日平仓 ${todayRealized.count} 笔`
+            : "今日暂无平仓",
     },
     {
       label: "持仓浮动盈亏",
@@ -210,9 +270,6 @@ export function MetricsPanel(): React.JSX.Element {
             </span>
           </div>
         )}
-
-        {/* 实盘盈亏日历：服务器同步账单 → 月度汇总 + 九宫格日盈亏 + 累计曲线 */}
-        <PnlCalendar />
       </CardContent>
     </Card>
   )

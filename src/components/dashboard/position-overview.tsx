@@ -5,6 +5,7 @@ import { useMarketStore } from "@/stores/market"
 import { usePaperTradingStore } from "@/stores/paper-trading"
 import { positionPnl } from "@/lib/position-pnl"
 import { cn } from "@/lib/utils"
+import { perpSymbol } from "@/lib/perp-symbol"
 import { Badge } from "@/components/ui/badge"
 
 /** 价格自适应精度：≥1000→1 位；≥1→2 位；<1→4 位（微价格币不丢精度） */
@@ -60,7 +61,7 @@ export function PositionOverview(): React.JSX.Element {
           >
             <div className="flex items-center gap-2 min-w-0">
               <span className="text-sm font-medium text-[var(--text-primary)] truncate">
-                {p.symbol_name || p.symbol}
+                {p.symbol_name || perpSymbol(p.symbol)}
               </span>
               <Badge variant={p.direction === "long" ? "up" : "down"}>
                 {p.direction === "long" ? "多" : "空"}

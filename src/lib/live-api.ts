@@ -350,18 +350,23 @@ export async function getLiveBillsApi(
   return res.bills
 }
 
-// ===== 账户日收益统计（工作台盈亏日历数据源，服务器基于成交明细聚合） =====
+// ===== 账户日收益统计（工作台收益分析，服务器基于成交明细聚合） =====
 
-export interface LiveDailyPnlRow {
-  date: string
+/** 账户日收益统计（OKX 成交明细口径）——工作台数据看板 */
+export interface DailyPnlRow {
+  date: string // 北京自然日 YYYY-MM-DD
   pnl: number
   fee: number
+  /** 盈利平仓合计（逐笔 fillPnl>0） */
+  win_pnl: number
+  /** 亏损平仓合计（逐笔 fillPnl<0） */
+  loss_pnl: number
   net: number
   cumulative: number
   trades: number
 }
 
-export interface LiveDailyPnlSummary {
+export interface DailyPnlSummary {
   total_profit: number
   total_loss: number
   profit_ratio: number | null
@@ -370,19 +375,48 @@ export interface LiveDailyPnlSummary {
   total_trades: number
 }
 
-export interface LiveDailyPnl {
-  days: LiveDailyPnlRow[]
-  summary: LiveDailyPnlSummary | null
+/** 仅 OKX 支持；days 上限 90（服务器按 fills 覆盖范围钳制） */
+export async function getDailyPnlApi(
+  venue = "okx",
+  days = 90
+): Promise<{ days: DailyPnlRow[]; summary: DailyPnlSummary | null }> {
+  return liveRequest(`/api/live/daily-pnl?venue=${venue}&days=${days}`)
 }
 
-/** 仅 OKX 支持；days 上限 90（服务器按 fills 覆盖范围钳制） */
-export async function getLiveDailyPnlApi(
-  venue: string,
-  days = 90
-): Promise<LiveDailyPnl> {
-  return liveRequest<LiveDailyPnl>(
-    `/api/live/daily-pnl?venue=${venue}&days=${days}`
-  )
+/** 今日按任务归属的盈亏/手续费明细 */
+export interface TaskTradeRow {
+  time: string
+  symbol: string
+  direction: string
+  offset: string
+  qty: number
+  avg_price: number
+  pnl: number
+  fee: number
+}
+
+export interface TaskPnlGroup {
+  task_id: string | null
+  task_name: string
+  symbol: string
+  trades: TaskTradeRow[]
+  win: number
+  loss: number
+  fee: number
+  net: number
+}
+
+export interface TaskPnlTotal {
+  win: number
+  loss: number
+  fee: number
+  net: number
+}
+
+export async function getDailyPnlTasksApi(
+  venue = "okx"
+): Promise<{ tasks: TaskPnlGroup[]; total: TaskPnlTotal | null }> {
+  return liveRequest(`/api/live/daily-pnl/tasks?venue=${venue}`)
 }
 
 export async function getLiveFeeRatesApi(

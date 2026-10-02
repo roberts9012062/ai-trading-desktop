@@ -6,6 +6,7 @@ import { getWatchlistApi, deleteWatchlistApi } from "@/lib/api"
 import type { WatchlistItem } from "@/lib/api"
 import { useMarketStore } from "@/stores/market"
 import { cn, formatPrice } from "@/lib/utils"
+import { perpSymbol } from "@/lib/perp-symbol"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { useAppStore } from "@/stores/app"
 import { X } from "lucide-react"
@@ -143,7 +144,7 @@ export function WatchlistTable(): React.JSX.Element {
               onDoubleClick={() => handleDoubleClick(item.contract_symbol)}
             >
               <TableCell>
-                <div className="text-sm font-medium text-[var(--text-primary)]">{item.contract_symbol}</div>
+                <div className="text-sm font-medium text-[var(--text-primary)]">{perpSymbol(item.contract_symbol)}</div>
                 <div className="text-[10px] text-[var(--text-muted)]">{item.contract_name}</div>
               </TableCell>
               <TableCell>

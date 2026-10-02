@@ -8,6 +8,7 @@ import { WatchlistTable } from "@/components/dashboard/watchlist"
 import { PositionOverview } from "@/components/dashboard/position-overview"
 import { RecentTrades } from "@/components/dashboard/recent-trades"
 import { MetricsPanel } from "@/components/dashboard/metrics-panel"
+import { DailyPnlPanel } from "@/components/dashboard/daily-pnl-panel"
 import { AnnouncementBar } from "@/components/dashboard/announcement-bar"
 import { AiTradingOverview } from "@/components/dashboard/ai-trading-overview"
 import { usePaperTradingStore } from "@/stores/paper-trading"
@@ -29,6 +30,7 @@ export default function DashboardPage(): React.JSX.Element {
 
       <div className="flex-1 overflow-auto p-4 space-y-4">
         <MetricsPanel />
+        <DailyPnlPanel />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <Card className="lg:col-span-2">
