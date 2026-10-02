@@ -3,11 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   getDailyPnlApi,
-  getDailyPnlTasksApi,
   type DailyPnlRow,
   type DailyPnlSummary,
-  type TaskPnlGroup,
-  type TaskPnlTotal,
 } from "@/lib/live-api"
 import {
   Card,
@@ -489,87 +486,6 @@ function MonthlyChart({ rows }: { rows: DailyPnlRow[] }): React.JSX.Element {
   )
 }
 
-/** 今日任务明细：任务分组头（小计）+ 逐笔行 */
-function TaskGroup({
-  group,
-}: {
-  group: TaskPnlGroup
-}): React.JSX.Element {
-  const dirLabel = (d: string, off: string) => {
-    const side = d === "buy" ? "买" : "卖"
-    const o = off === "open" ? "开" : off === "close" ? "平" : ""
-    return `${side}${o}`
-  }
-  return (
-    <>
-      <tr className="border-b border-[var(--border)] bg-[var(--accent)]/8">
-        <td
-          colSpan={2}
-          className="py-1.5 px-2 font-medium text-[var(--text-primary)]"
-        >
-          {group.task_name}
-          <span className="text-[var(--text-muted)] ml-1">
-            {group.symbol?.toUpperCase()}
-          </span>
-          <span className="text-[var(--text-muted)] ml-2">
-            {group.trades.length} 笔
-          </span>
-        </td>
-        <td colSpan={2} className="py-1.5 px-2 text-right font-num text-[11px]">
-          <span className="text-[var(--text-muted)]">小计 </span>
-          <span className={group.net > 0 ? "text-up" : group.net < 0 ? "text-down" : ""}>
-            {group.net > 0 ? "+" : ""}
-            {fmtMoney(group.net)}
-          </span>
-        </td>
-        <td
-          colSpan={2}
-          className="py-1.5 px-2 text-right font-num text-[11px] text-[var(--text-muted)]"
-        >
-          赚 +{fmtMoney(group.win)} · 亏 {fmtMoney(group.loss)} · 费{" "}
-          {fmtMoney(group.fee)}
-        </td>
-      </tr>
-      {group.trades.map((t, i) => (
-        <tr
-          key={`${group.task_id}-${i}-${t.time}`}
-          className="border-b border-[var(--border)]/40"
-        >
-          <td className="py-1 px-2 text-[var(--text-muted)] font-num whitespace-nowrap">
-            {t.time}
-          </td>
-          <td className="py-1 px-2 whitespace-nowrap">
-            <span
-              className={cn(
-                "mr-1.5",
-                t.direction === "buy" ? "text-up" : "text-down"
-              )}
-            >
-              {dirLabel(t.direction, t.offset)}
-            </span>
-            <span className="text-[var(--text-muted)]">
-              {t.symbol?.toUpperCase()}
-            </span>
-          </td>
-          <td className="py-1 px-2 text-right font-num">{t.qty}</td>
-          <td className="py-1 px-2 text-right font-num">{t.avg_price}</td>
-          <td
-            className={cn(
-              "py-1 px-2 text-right font-num",
-              t.pnl > 0 ? "text-up" : t.pnl < 0 ? "text-down" : "text-[var(--text-muted)]"
-            )}
-          >
-            {t.offset === "close" ? `${t.pnl > 0 ? "+" : ""}${fmtMoney(t.pnl)}` : "—"}
-          </td>
-          <td className="py-1 px-2 text-right font-num text-[var(--text-muted)]">
-            {fmtMoney(t.fee)}
-          </td>
-        </tr>
-      ))}
-    </>
-  )
-}
-
 export function DailyPnlPanel(): React.JSX.Element {
   const [data, setData] = useState<{
     days: DailyPnlRow[]
@@ -577,10 +493,6 @@ export function DailyPnlPanel(): React.JSX.Element {
   } | null>(null)
   const [error, setError] = useState(false)
   const [chartView, setChartView] = useState<"cum" | "month">("cum")
-  const [taskDetail, setTaskDetail] = useState<{
-    tasks: TaskPnlGroup[]
-    total: TaskPnlTotal | null
-  } | null>(null)
   // 当前展示月（北京时区）：浏览器本地月与北京月偶有跨日差，数据键以
   // 后端北京日为准，网格标题用展示月即可
   const [cursor, setCursor] = useState(() => {
@@ -603,25 +515,6 @@ export function DailyPnlPanel(): React.JSX.Element {
     }
     load()
     const timer = setInterval(load, 60_000) // 60s（后端同款缓存，平仓后准实时可见）
-    return () => {
-      alive = false
-      clearInterval(timer)
-    }
-  }, [])
-
-  // 今日任务明细（OKX 成交按任务归属）
-  useEffect(() => {
-    let alive = true
-    const load = async () => {
-      try {
-        const res = await getDailyPnlTasksApi("okx")
-        if (alive) setTaskDetail(res)
-      } catch {
-        /* 失败保持现状 */
-      }
-    }
-    load()
-    const timer = setInterval(load, 60_000)
     return () => {
       alive = false
       clearInterval(timer)
@@ -806,62 +699,6 @@ export function DailyPnlPanel(): React.JSX.Element {
                 </p>
               )}
             </div>
-            {/* 今日任务明细：逐笔盈亏/手续费 + 任务小计 + 总计 */}
-            {taskDetail && taskDetail.tasks.length > 0 && (
-              <div>
-                <div className="flex items-baseline justify-between mb-1">
-                  <div className="text-[11px] text-[var(--text-muted)]">
-                    今日任务明细
-                  </div>
-                  {taskDetail.total && (
-                    <div className="text-[11px] font-num">
-                      <span className="text-up">
-                        赚 +{fmtMoney(taskDetail.total.win)}
-                      </span>
-                      <span className="text-[var(--text-muted)]"> · </span>
-                      <span className="text-down">
-                        亏 {fmtMoney(taskDetail.total.loss)}
-                      </span>
-                      <span className="text-[var(--text-muted)]"> · </span>
-                      <span className="text-[var(--text-muted)]">
-                        费 {fmtMoney(taskDetail.total.fee)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className="overflow-x-auto max-h-[320px] rounded-md border border-[var(--border)]">
-                  <table className="w-full text-xs">
-                    <thead className="text-[var(--text-muted)] sticky top-0 bg-[var(--card)]">
-                      <tr className="border-b border-[var(--border)]">
-                        <th className="text-left py-1.5 px-2 font-normal">
-                          时间
-                        </th>
-                        <th className="text-left py-1.5 px-2 font-normal">
-                          任务 / 方向
-                        </th>
-                        <th className="text-right py-1.5 px-2 font-normal">
-                          数量
-                        </th>
-                        <th className="text-right py-1.5 px-2 font-normal">
-                          均价
-                        </th>
-                        <th className="text-right py-1.5 px-2 font-normal">
-                          盈亏
-                        </th>
-                        <th className="text-right py-1.5 px-2 font-normal">
-                          手续费
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {taskDetail.tasks.map((g) => (
-                        <TaskGroup key={g.task_id ?? "manual"} group={g} />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
           </>
         )}
       </CardContent>
