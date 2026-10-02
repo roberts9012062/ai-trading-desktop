@@ -5,7 +5,7 @@ import { useMarketStore } from "@/stores/market"
 import { usePaperTradingStore } from "@/stores/paper-trading"
 import { positionPnl } from "@/lib/position-pnl"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { OkxPnlCalendar } from "@/components/dashboard/okx-pnl-calendar"
+import { PnlCalendar } from "@/components/dashboard/pnl-calendar"
 import { cn } from "@/lib/utils"
 
 function fmtMoney(v: number): string {
@@ -211,8 +211,8 @@ export function MetricsPanel(): React.JSX.Element {
           </div>
         )}
 
-        {/* OKX 盈亏日历：本地直连账单 → 月度汇总 + 九宫格日盈亏 + 累计曲线 */}
-        <OkxPnlCalendar />
+        {/* 实盘盈亏日历：服务器同步账单 → 月度汇总 + 九宫格日盈亏 + 累计曲线 */}
+        <PnlCalendar />
       </CardContent>
     </Card>
   )

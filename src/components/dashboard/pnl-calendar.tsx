@@ -1,14 +1,14 @@
 "use client"
 
 /**
- * OKX 盈亏日历（本地直连，不与业务服务器交互）
+ * 实盘盈亏日历（数据经业务服务器同步，复用「实盘交易所接入」凭证）
  *
  * 结构自上而下：月度汇总条（盈亏比 / 总盈利 / 总亏损 / 净盈亏）→
  * 日历九宫格（每格当日盈亏，红盈绿亏 CN 口径，底色深浅=当日盈亏强度）→
  * 当月累计盈亏曲线（lightweight-charts）。
  *
- * 数据源：OKX /api/v5/account/bills-history 本地签名分页拉取，按日聚合
- * 「已实现盈亏 + 手续费 + 资金费」；凭据与聚合缓存仅存本机 localStorage。
+ * 数据源：/api/live/bills（跟随当前实盘交易场所），按自然日在本地聚合
+ * 「已实现盈亏 + 手续费」；聚合缓存仅存本机 localStorage。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -20,36 +20,23 @@ import {
   createChart,
   type Time,
 } from "lightweight-charts"
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Settings2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import {
-  clearLocalOkxCredentials,
-  clearOkxDailyCache,
-  loadLocalOkxCredentials,
-  loadOkxDailyCache,
-  refreshOkxDailyPnl,
-  saveLocalOkxCredentials,
-  testOkxConnection,
-  type OkxDailyPnlCache,
-  type OkxInstType,
-  type OkxLocalCredentials,
-} from "@/lib/okx-direct"
-
-const INST_TYPES: { value: OkxInstType; label: string }[] = [
-  { value: "SWAP", label: "永续" },
-  { value: "FUTURES", label: "交割" },
-  { value: "MARGIN", label: "杠杆" },
-]
+  getCredentialsApi,
+  getStoredVenue,
+  venueName,
+  type VenueCredential,
+} from "@/lib/live-api"
+import {
+  BILLS_LIMIT,
+  CACHE_FRESH_MS,
+  loadDailyPnlCache,
+  refreshDailyPnl,
+  type DailyPnlCache,
+} from "@/lib/pnl-calendar"
 
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"]
 
@@ -77,7 +64,7 @@ function pnlColor(v: number): string {
 
 const pad = (n: number) => String(n).padStart(2, "0")
 
-/** 当月累计盈亏曲线：业务日字符串作 Time，固定展示整月横轴 */
+/** 当月累计盈亏曲线：业务日字符串作 Time */
 function CumulativeChart({ points }: { points: { time: string; value: number }[] }): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null)
 
@@ -165,213 +152,60 @@ function CumulativeChart({ points }: { points: { time: string; value: number }[]
   return <div ref={containerRef} className="w-full" />
 }
 
-/** 本地 OKX 凭据配置弹窗：保存/测试/删除，凭据只落本机 */
-function CredentialsDialog({
-  open,
-  onOpenChange,
-  creds,
-  onSaved,
-}: {
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  creds: OkxLocalCredentials | null
-  onSaved: (c: OkxLocalCredentials | null) => void
-}): React.JSX.Element {
-  const [form, setForm] = useState({ apiKey: "", secret: "", passphrase: "", demo: false })
-  const [busy, setBusy] = useState(false)
-  const [testing, setTesting] = useState(false)
-  const [error, setError] = useState("")
-  const [message, setMessage] = useState("")
-
-  useEffect(() => {
-    if (open) {
-      setForm({
-        apiKey: creds?.apiKey ?? "",
-        secret: "",
-        passphrase: "",
-        demo: creds?.demo ?? false,
-      })
-      setError("")
-      setMessage("")
-    }
-  }, [open, creds])
-
-  const merged = (): OkxLocalCredentials | null => {
-    const apiKey = form.apiKey.trim()
-    if (!apiKey) {
-      setError("请填写 API Key")
-      return null
-    }
-    const secret = form.secret.trim() || creds?.secret || ""
-    if (!secret) {
-      setError("请填写 Secret")
-      return null
-    }
-    const passphrase = form.passphrase.trim() || creds?.passphrase || ""
-    if (!passphrase) {
-      setError("请填写 Passphrase（OKX 专用）")
-      return null
-    }
-    return { apiKey, secret, passphrase, demo: form.demo }
-  }
-
-  const save = () => {
-    const c = merged()
-    if (!c) return
-    saveLocalOkxCredentials(c)
-    onSaved(c)
-    onOpenChange(false)
-  }
-
-  const test = async () => {
-    const c = merged()
-    if (!c) return
-    setError("")
-    setMessage("")
-    setTesting(true)
-    try {
-      const res = await testOkxConnection(c)
-      setMessage(`连通正常 · 权益 ${res.equity.toFixed(2)} USDT${c.demo ? "（模拟盘）" : ""}`)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "连通失败")
-    } finally {
-      setTesting(false)
-    }
-  }
-
-  const remove = () => {
-    setBusy(true)
-    try {
-      clearLocalOkxCredentials()
-      clearOkxDailyCache()
-      onSaved(null)
-      onOpenChange(false)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>OKX 本地直连凭据</DialogTitle>
-          <DialogDescription>
-            凭据仅保存在本机，用于本地签名直连 OKX 拉取账单，不会上传任何服务器。
-            建议只开启「读取 + 交易」权限，禁止提币权限。
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <Label className="text-xs">API Key</Label>
-            <Input
-              className="h-8 text-xs font-num"
-              value={form.apiKey}
-              onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
-              placeholder="输入 API Key"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Secret{creds ? "（留空保留原值）" : ""}</Label>
-            <Input
-              className="h-8 text-xs font-num"
-              type="password"
-              value={form.secret}
-              onChange={(e) => setForm((f) => ({ ...f, secret: e.target.value }))}
-              placeholder={creds ? "留空保留原值" : "输入 Secret"}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Passphrase（OKX 专用{creds ? "，留空保留原值" : ""}）</Label>
-            <Input
-              className="h-8 text-xs font-num"
-              type="password"
-              value={form.passphrase}
-              onChange={(e) => setForm((f) => ({ ...f, passphrase: e.target.value }))}
-              placeholder={creds ? "留空保留原值" : "输入口令"}
-            />
-          </div>
-          <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-            <input
-              type="checkbox"
-              checked={form.demo}
-              onChange={(e) => setForm((f) => ({ ...f, demo: e.target.checked }))}
-            />
-            模拟盘凭证（OKX Demo Trading）
-          </label>
-          <div className="flex gap-2">
-            <Button size="sm" className="h-7 text-xs" disabled={testing} onClick={() => void test()}>
-              {testing && <Loader2 className="w-3 h-3 animate-spin" />}测试连通
-            </Button>
-            <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={save}>
-              保存
-            </Button>
-            {creds && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs text-[var(--accent-danger)]"
-                disabled={busy}
-                onClick={remove}
-              >
-                删除本机凭据
-              </Button>
-            )}
-          </div>
-          {error && <p className="text-[11px] text-[var(--accent-danger)] break-all">{error}</p>}
-          {message && <p className="text-[11px] text-[var(--accent-up)] break-all">{message}</p>}
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
+function dayKeyOf(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-export function OkxPnlCalendar(): React.JSX.Element {
-  const [creds, setCreds] = useState<OkxLocalCredentials | null>(() => loadLocalOkxCredentials())
-  const [instType, setInstType] = useState<OkxInstType>("SWAP")
-  const [cache, setCache] = useState<OkxDailyPnlCache | null>(() => loadOkxDailyCache("SWAP"))
+export function PnlCalendar(): React.JSX.Element {
+  // 跟随当前实盘交易场所（资产/交易页切换后回到工作台即生效）
+  const [venue] = useState(() => getStoredVenue())
+  const [credential, setCredential] = useState<VenueCredential | null>(null)
+  const [credLoaded, setCredLoaded] = useState(false)
+  const [cache, setCache] = useState<DailyPnlCache | null>(() => loadDailyPnlCache(getStoredVenue()))
   const [loading, setLoading] = useState(false)
-  const [progress, setProgress] = useState(0)
   const [error, setError] = useState("")
   const [monthOffset, setMonthOffset] = useState(0)
-  const [configOpen, setConfigOpen] = useState(false)
   const reqSeq = useRef(0)
 
+  useEffect(() => {
+    let cancelled = false
+    getCredentialsApi()
+      .then((cs) => {
+        if (!cancelled) setCredential(cs.find((c) => c.venue === venue) ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setCredential(null)
+      })
+      .finally(() => {
+        if (!cancelled) setCredLoaded(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [venue])
+
   const doRefresh = useCallback(async () => {
-    if (!creds) return
     const seq = (reqSeq.current += 1)
     setLoading(true)
     setError("")
-    setProgress(0)
     try {
-      const next = await refreshOkxDailyPnl({
-        instType,
-        creds,
-        onProgress: (n) => {
-          if (reqSeq.current === seq) setProgress(n)
-        },
-      })
+      const next = await refreshDailyPnl({ venue })
       if (reqSeq.current === seq) setCache(next)
     } catch (e) {
       if (reqSeq.current === seq) {
-        setError(e instanceof Error ? e.message : "同步 OKX 账单失败")
+        setError(e instanceof Error ? e.message : "同步实盘账单失败")
       }
     } finally {
       if (reqSeq.current === seq) setLoading(false)
     }
-  }, [creds, instType])
+  }, [venue])
 
   useEffect(() => {
-    if (!creds) {
-      setCache(null)
-      return
-    }
-    const cached = loadOkxDailyCache(instType)
-    setCache(cached && cached.demo === creds.demo ? cached : null)
-    const stale =
-      !cached || cached.demo !== creds.demo || Date.now() - cached.fetchedAt > 10 * 60 * 1000
-    if (stale) void doRefresh()
-  }, [creds, instType, doRefresh])
+    if (!credential) return
+    const cached = loadDailyPnlCache(venue)
+    setCache(cached)
+    if (!cached || Date.now() - cached.fetchedAt > CACHE_FRESH_MS) void doRefresh()
+  }, [credential, venue, doRefresh])
 
   /** 月视图：日历格子 + 汇总 + 月内累计序列 */
   const monthView = useMemo(() => {
@@ -448,18 +282,15 @@ export function OkxPnlCalendar(): React.JSX.Element {
     }
   }, [cache, monthOffset])
 
+  /** 翻月下限：不早于最早一条账单所在月 */
   const canGoPrev = useMemo(() => {
-    const earliest = cache ? cache.fetchedAt - cache.windowDays * 86_400_000 : Date.now()
+    const earliest = cache?.earliestTsMs ?? Date.now()
+    const e = new Date(earliest)
     const target = new Date()
     return new Date(target.getFullYear(), target.getMonth() + monthOffset - 1, 1).getTime() >=
-      new Date(
-        new Date(earliest).getFullYear(),
-        new Date(earliest).getMonth(),
-        1,
-      ).getTime()
+      new Date(e.getFullYear(), e.getMonth(), 1).getTime()
   }, [cache, monthOffset])
 
-  const instLabel = INST_TYPES.find((t) => t.value === instType)?.label ?? instType
   const s = monthView.summary
   const ratioText =
     s.ratio === Infinity ? "∞" : s.ratio == null ? "--" : `${s.ratio.toFixed(2)} : 1`
@@ -487,7 +318,7 @@ export function OkxPnlCalendar(): React.JSX.Element {
       label: "净盈亏",
       value: `${s.net > 0 ? "+" : ""}${fmtMoney(s.net)}`,
       valueClass: pnlColor(s.net),
-      sub: `${monthView.title} · ${instLabel}`,
+      sub: `${monthView.title} · ${venueName(venue)}`,
     },
     {
       label: "交易笔数",
@@ -497,9 +328,20 @@ export function OkxPnlCalendar(): React.JSX.Element {
     },
   ]
 
+  const coverageText = useMemo(() => {
+    if (!cache) return ""
+    const parts: string[] = []
+    if (cache.earliestTsMs != null) {
+      const e = new Date(cache.earliestTsMs)
+      parts.push(`覆盖 ${e.getMonth() + 1}月${e.getDate()}日 起`)
+    }
+    if (cache.billCount >= BILLS_LIMIT) parts.push(`已达单次 ${BILLS_LIMIT} 条上限，较早账单未含`)
+    return parts.join(" · ")
+  }, [cache])
+
   return (
     <div className="mt-4 pt-4 border-t border-[var(--border)]/60">
-      {/* 工具行：月份切换 + 产品类型 + 刷新/配置 */}
+      {/* 工具行：月份切换 + 场所徽章 + 刷新 */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1">
           <Button
@@ -507,7 +349,7 @@ export function OkxPnlCalendar(): React.JSX.Element {
             size="sm"
             className="h-7 w-7 p-0"
             aria-label="上一月"
-            disabled={monthOffset <= -120 || !canGoPrev}
+            disabled={monthOffset <= -240 || !canGoPrev}
             onClick={() => setMonthOffset((v) => v - 1)}
           >
             <ChevronLeft className="w-3.5 h-3.5" />
@@ -526,34 +368,23 @@ export function OkxPnlCalendar(): React.JSX.Element {
             <ChevronRight className="w-3.5 h-3.5" />
           </Button>
         </div>
-        <div className="flex items-center rounded-md border border-[var(--border)] overflow-hidden">
-          {INST_TYPES.map((t) => (
-            <button
-              key={t.value}
-              type="button"
-              className={cn(
-                "px-2 h-7 text-[11px] transition-colors",
-                instType === t.value
-                  ? "bg-[var(--bg-tertiary)] text-[var(--text-primary)]"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-              )}
-              onClick={() => setInstType(t.value)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-secondary)]">
+          {venueName(venue)}{credential?.demo ? " 模拟盘" : " 实盘"}
+        </span>
+        {credential?.api_key_masked && (
+          <span className="font-num text-[10px] text-[var(--text-muted)]">{credential.api_key_masked}</span>
+        )}
         <div className="ml-auto flex items-center gap-2">
           {cache && (
             <span className="text-[10px] text-[var(--text-muted)] font-num">
-              数据截至 {new Date(cache.fetchedAt).toLocaleString("zh-CN", { hour12: false })} · 近{cache.windowDays}天
+              数据截至 {new Date(cache.fetchedAt).toLocaleString("zh-CN", { hour12: false })}
             </span>
           )}
           <Button
             variant="outline"
             size="sm"
             className="h-7 text-xs"
-            disabled={!creds || loading}
+            disabled={!credential || loading}
             onClick={() => void doRefresh()}
           >
             {loading ? (
@@ -563,33 +394,31 @@ export function OkxPnlCalendar(): React.JSX.Element {
             )}
             刷新
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={() => setConfigOpen(true)}
-          >
-            <Settings2 className="w-3 h-3" />
-            {creds ? "凭据" : "配置 OKX API"}
-          </Button>
         </div>
       </div>
 
-      {/* 无凭据 / 加载 / 出错 提示 */}
-      {!creds && (
+      {/* 未配置凭证 / 加载 / 出错 提示 */}
+      {credLoaded && !credential && (
         <div className="mt-3 rounded-lg bg-[var(--bg-tertiary)]/50 px-4 py-6 text-center">
           <p className="text-xs text-[var(--text-secondary)]">
-            配置 OKX API 凭据后，本地直连拉取账单并统计每日盈亏（不经过服务器）。
+            尚未配置 {venueName(venue)} 实盘凭证。盈亏日历通过业务服务器同步实盘账单，
+            请先在「资产 → 实盘交易所接入」配置 API 凭证。
           </p>
-          <Button size="sm" className="h-7 text-xs mt-2" onClick={() => setConfigOpen(true)}>
-            配置 OKX API
-          </Button>
+          <Link
+            href="/assets"
+            className="inline-flex items-center h-7 px-3 mt-2 rounded-md text-xs bg-[var(--bg-primary)] border border-[var(--border)] hover:bg-[var(--bg-tertiary)] transition-colors"
+          >
+            去配置实盘凭证
+          </Link>
         </div>
       )}
-      {loading && (
-        <p className="mt-2 text-[11px] text-[var(--text-muted)] font-num">
-          同步 OKX 账单中…已获取 {progress} 条
+      {!credLoaded && !cache && (
+        <p className="mt-3 text-[11px] text-[var(--text-muted)] flex items-center gap-1.5">
+          <Loader2 className="w-3 h-3 animate-spin" /> 检查实盘凭证配置…
         </p>
+      )}
+      {loading && (
+        <p className="mt-2 text-[11px] text-[var(--text-muted)] font-num">同步实盘账单中…</p>
       )}
       {error && (
         <div className="mt-2 flex items-center gap-2">
@@ -598,7 +427,7 @@ export function OkxPnlCalendar(): React.JSX.Element {
             variant="outline"
             size="sm"
             className="h-6 text-[10px]"
-            disabled={loading || !creds}
+            disabled={loading || !credential}
             onClick={() => void doRefresh()}
           >
             重试
@@ -606,7 +435,7 @@ export function OkxPnlCalendar(): React.JSX.Element {
         </div>
       )}
 
-      {creds && (
+      {credential && (
         <>
           {/* 汇总条：盈亏比 / 总盈利 / 总亏损 / 净盈亏 / 交易笔数 */}
           <div className="mt-3 grid grid-cols-2 lg:grid-cols-5 gap-2 rounded-lg bg-[var(--bg-tertiary)]/50 px-2 py-3">
@@ -687,25 +516,14 @@ export function OkxPnlCalendar(): React.JSX.Element {
           </div>
 
           <p className="mt-2 text-[10px] text-[var(--text-muted)]">
-            口径：OKX 账单「已实现盈亏 + 手续费 + 资金费」按自然日本地聚合；红=盈、绿=亏。
-            数据在本地签名直连 OKX 获取并计算，不与业务服务器交互；凭据仅存本机。
+            口径：实盘账单「已实现盈亏 + 手续费」按自然日聚合；红=盈、绿=亏。
+            账单经业务服务器同步自 {venueName(venue)}
+            {credential.demo ? "（模拟盘）" : ""}，复用「实盘交易所接入」凭证；
+            {coverageText ? ` ${coverageText}。` : " "}
+            聚合与图表在本地计算。
           </p>
         </>
       )}
-
-      <CredentialsDialog
-        open={configOpen}
-        onOpenChange={setConfigOpen}
-        creds={creds}
-        onSaved={(c) => {
-          setCreds(c)
-          setMonthOffset(0)
-        }}
-      />
     </div>
   )
-}
-
-function dayKeyOf(d: Date): string {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
