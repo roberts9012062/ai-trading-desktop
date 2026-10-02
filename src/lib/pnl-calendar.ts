@@ -7,8 +7,12 @@
 
 import { getLiveBillsApi, type LiveBill } from "./live-api"
 
-/** 单次同步拉取上限：服务器接口无分页游标，一次拉全 */
-export const BILLS_LIMIT = 2000
+/**
+ * 单次同步拉取条数。服务器 /api/live/bills 对 limit 的校验上限未知
+ * （此前该接口从未被调用，默认 50 是唯一验证过的值），超限返回 422，
+ * 因此按档位从大到小降试：2000 → 500 → 100 → 50。
+ */
+export const LIMIT_LADDER = [2000, 500, 100, 50]
 
 /** 缓存 10 分钟内视为新鲜，避免每次进工作台都重拉 */
 export const CACHE_FRESH_MS = 10 * 60 * 1000
@@ -53,8 +57,10 @@ export interface DailyPnlCache {
   version: 2
   venue: string
   fetchedAt: number
-  /** 本次拉到的账单条数（受 BILLS_LIMIT 截断） */
+  /** 本次拉到的账单条数（受生效 limit 截断） */
   billCount: number
+  /** 实际被服务器接受的 limit 档位；旧缓存无此字段为 0 */
+  usedLimit: number
   /** 最早一条账单时间，用于判断覆盖范围 */
   earliestTsMs: number | null
   days: DailyPnlMap
@@ -73,6 +79,7 @@ export function loadDailyPnlCache(venue: string): DailyPnlCache | null {
       venue,
       fetchedAt: Number(c.fetchedAt) || 0,
       billCount: Number(c.billCount) || 0,
+      usedLimit: Number(c.usedLimit) || 0,
       earliestTsMs: Number.isFinite(Number(c.earliestTsMs)) ? Number(c.earliestTsMs) : null,
       days: c.days,
     }
@@ -89,11 +96,33 @@ export function clearDailyPnlCache(): void {
   localStorage.removeItem(CACHE_KEY)
 }
 
-/** 拉取服务器账单并落缓存 */
+/** 拉取服务器账单并落缓存；limit 被服务器拒绝（422）时自动降档重试 */
 export async function refreshDailyPnl(opts: {
   venue: string
 }): Promise<DailyPnlCache> {
-  const bills = await getLiveBillsApi(opts.venue, BILLS_LIMIT)
+  let bills: LiveBill[] | null = null
+  let usedLimit = 0
+  let lastErr: unknown = null
+  for (const limit of LIMIT_LADDER) {
+    try {
+      bills = await getLiveBillsApi(opts.venue, limit)
+      usedLimit = limit
+      break
+    } catch (e) {
+      lastErr = e
+      // 仅参数校验类失败（422）降档重试；网络/鉴权等其他错误直接抛
+      if (!(e instanceof Error && e.message.includes("422"))) throw e
+    }
+  }
+  if (!bills) {
+    // 全部档位都被拒：参数本身有问题，给人话而不是裸 422
+    const raw = lastErr instanceof Error ? lastErr.message : ""
+    throw new Error(
+      raw.includes("422")
+        ? "服务器拒绝账单请求（limit 参数校验失败），请联系管理员或稍后重试"
+        : raw || "同步实盘账单失败",
+    )
+  }
   let earliestTsMs: number | null = null
   for (const b of bills) {
     const ts = Number(b.ts_ms)
@@ -106,6 +135,7 @@ export async function refreshDailyPnl(opts: {
     venue: opts.venue,
     fetchedAt: Date.now(),
     billCount: bills.length,
+    usedLimit,
     earliestTsMs,
     days: aggregateDailyPnl(bills),
   }

@@ -1,11 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import {
+import type { LiveBill } from "./live-api"
+
+// live-api 的 API_BASE 是模块顶层常量（读 globalThis.__QH_API_BASE__），
+// 必须先设全局再动态 import，否则已被求值为空串
+;(globalThis as Record<string, unknown>).__QH_API_BASE__ = "http://mock"
+const {
   aggregateDailyPnl,
   dayKeyLocal,
   loadDailyPnlCache,
+  refreshDailyPnl,
   saveDailyPnlCache,
-} from "./pnl-calendar"
-import type { LiveBill } from "./live-api"
+} = await import("./pnl-calendar")
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -54,11 +59,47 @@ describe("pnl-calendar server-source aggregation", () => {
       venue: "okx",
       fetchedAt: 123,
       billCount: 10,
+      usedLimit: 500,
       earliestTsMs: 456,
       days: { "2026-10-02": { pnl: 5, count: 1 } },
     })
     expect(loadDailyPnlCache("okx")?.days["2026-10-02"]).toEqual({ pnl: 5, count: 1 })
     // 换 venue 视为缓存失效
     expect(loadDailyPnlCache("binance")).toBeNull()
+  })
+
+  it("steps the limit down on 422 and keeps other errors loud", async () => {
+    vi.stubGlobal("localStorage", fakeStorage())
+    // live-api 的 API_BASE 来自 globalThis.__QH_API_BASE__（vite define 注入），测试里直接给全 URL 前缀
+    ;(globalThis as Record<string, unknown>).__QH_API_BASE__ = "http://mock"
+    const urls: string[] = []
+    const bill: LiveBill = {
+      ts_ms: new Date(2026, 9, 2, 9, 30).getTime(),
+      symbol: "BTC-USDT-SWAP", type: "2", sub_type: "2", amount: 0, fee: -1, pnl: 50, notes: "",
+    }
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL) => {
+        const url = String(input)
+        urls.push(url)
+        const limit = new URL(url).searchParams.get("limit")
+        if (Number(limit) > 500) {
+          return new Response(JSON.stringify({ detail: [{ loc: ["query", "limit"], msg: "less than or equal to 500" }] }), { status: 422 })
+        }
+        return new Response(JSON.stringify({ bills: [bill] }), { status: 200 })
+      }),
+    )
+    const cache = await refreshDailyPnl({ venue: "okx" })
+    expect(urls.map((u) => new URL(u).searchParams.get("limit"))).toEqual(["2000", "500"])
+    expect(cache.usedLimit).toBe(500)
+    expect(cache.billCount).toBe(1)
+    expect(cache.days[dayKeyLocal(bill.ts_ms)]).toEqual({ pnl: 49, count: 1 })
+
+    // 非 422 错误不降档，直接抛
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ detail: "内部错误" }), { status: 500 })),
+    )
+    await expect(refreshDailyPnl({ venue: "okx" })).rejects.toThrow("内部错误")
   })
 })

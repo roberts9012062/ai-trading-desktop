@@ -31,7 +31,6 @@ import {
   type VenueCredential,
 } from "@/lib/live-api"
 import {
-  BILLS_LIMIT,
   CACHE_FRESH_MS,
   loadDailyPnlCache,
   refreshDailyPnl,
@@ -335,7 +334,9 @@ export function PnlCalendar(): React.JSX.Element {
       const e = new Date(cache.earliestTsMs)
       parts.push(`覆盖 ${e.getMonth() + 1}月${e.getDate()}日 起`)
     }
-    if (cache.billCount >= BILLS_LIMIT) parts.push(`已达单次 ${BILLS_LIMIT} 条上限，较早账单未含`)
+    if (cache.billCount > 0 && cache.usedLimit > 0 && cache.billCount >= cache.usedLimit) {
+      parts.push(`已达单次 ${cache.usedLimit} 条上限，较早账单未含`)
+    }
     return parts.join(" · ")
   }, [cache])
 
