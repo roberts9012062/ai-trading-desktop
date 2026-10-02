@@ -1,16 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import type { LiveBill } from "./live-api"
 
 // live-api 的 API_BASE 是模块顶层常量（读 globalThis.__QH_API_BASE__），
 // 必须先设全局再动态 import，否则已被求值为空串
 ;(globalThis as Record<string, unknown>).__QH_API_BASE__ = "http://mock"
-const {
-  aggregateDailyPnl,
-  dayKeyLocal,
-  loadDailyPnlCache,
-  refreshDailyPnl,
-  saveDailyPnlCache,
-} = await import("./pnl-calendar")
+const { loadDailyPnlCache, refreshDailyPnl, saveDailyPnlCache } = await import("./pnl-calendar")
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -33,69 +26,55 @@ function fakeStorage(): Storage {
 
 const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200 })
 
-describe("pnl-calendar server-source aggregation", () => {
-  it("buckets live bills into local calendar days with pnl+fee only", () => {
-    const base = new Date(2026, 9, 2, 9, 30).getTime()
-    const bills: LiveBill[] = [
-      { ts_ms: base, symbol: "BTC-USDT-SWAP", type: "2", sub_type: "2", amount: 0, fee: -2, pnl: 100, notes: "" },
-      { ts_ms: base + 3_600_000, symbol: "BTC-USDT-SWAP", type: "2", sub_type: "2", amount: 0, fee: -1, pnl: -40, notes: "" },
-      // 纯转账：amount 是转账额，绝不能算进盈亏
-      { ts_ms: base + 7_200_000, symbol: "", type: "1", sub_type: "0", amount: 9999, fee: 0, pnl: 0, notes: "" },
-      // 强平平仓
-      { ts_ms: base + 86_400_000, symbol: "ETH-USDT-SWAP", type: "5", sub_type: "0", amount: 0, fee: -0.5, pnl: -80.75, notes: "" },
-      // 零值非交易账单不产生日期条目
-      { ts_ms: base, symbol: "", type: "9", sub_type: "0", amount: 0, fee: 0, pnl: 0, notes: "" },
-    ]
-    const days = aggregateDailyPnl(bills)
-    expect(days[dayKeyLocal(base)]).toEqual({ pnl: 100 - 2 - 40 - 1, count: 2 })
-    expect(days[dayKeyLocal(base + 86_400_000)]).toEqual({ pnl: -81.25, count: 1 })
-    expect(Object.keys(days)).toHaveLength(2)
-  })
-
+describe("pnl-calendar daily-pnl source", () => {
   it("round-trips the daily cache per venue through localStorage", () => {
     vi.stubGlobal("localStorage", fakeStorage())
     saveDailyPnlCache({
-      version: 2,
+      version: 3,
       venue: "okx",
       fetchedAt: 123,
-      billCount: 10,
-      usedLimit: 500,
-      earliestTsMs: 456,
-      days: { "2026-10-02": { pnl: 5, count: 1 } },
+      earliestDate: "2026-09-01",
+      days: { "2026-10-02": { pnl: 5, count: 3 } },
     })
-    expect(loadDailyPnlCache("okx")?.days["2026-10-02"]).toEqual({ pnl: 5, count: 1 })
+    expect(loadDailyPnlCache("okx")?.days["2026-10-02"]).toEqual({ pnl: 5, count: 3 })
     // 换 venue 视为缓存失效
     expect(loadDailyPnlCache("binance")).toBeNull()
   })
 
-  it("steps the limit down on 422 and keeps other errors loud", async () => {
+  it("refreshes from server daily rows and drops zero-trade filler days", async () => {
     vi.stubGlobal("localStorage", fakeStorage())
-    // live-api 的 API_BASE 来自 globalThis.__QH_API_BASE__（vite define 注入），测试里直接给全 URL 前缀
-    ;(globalThis as Record<string, unknown>).__QH_API_BASE__ = "http://mock"
     const urls: string[] = []
-    const bill: LiveBill = {
-      ts_ms: new Date(2026, 9, 2, 9, 30).getTime(),
-      symbol: "BTC-USDT-SWAP", type: "2", sub_type: "2", amount: 0, fee: -1, pnl: 50, notes: "",
-    }
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: string | URL) => {
         const url = String(input)
         urls.push(url)
-        const limit = new URL(url).searchParams.get("limit")
-        if (Number(limit) > 500) {
-          return new Response(JSON.stringify({ detail: [{ loc: ["query", "limit"], msg: "less than or equal to 500" }] }), { status: 422 })
-        }
-        return new Response(JSON.stringify({ bills: [bill] }), { status: 200 })
+        return ok({
+          days: [
+            { date: "2026-09-30", pnl: 100, fee: 2, net: 98, cumulative: 98, trades: 4 },
+            { date: "2026-10-01", pnl: -40, fee: 1, net: -41, cumulative: 57, trades: 2 },
+            // 服务器补零的无交易日：应被丢弃，不占日历格子
+            { date: "2026-10-02", pnl: 0, fee: 0, net: 0, cumulative: 57, trades: 0 },
+          ],
+          summary: {
+            total_profit: 98, total_loss: -41, profit_ratio: 2.3902, net: 57,
+            trade_days: 2, total_trades: 6,
+          },
+        })
       }),
     )
     const cache = await refreshDailyPnl({ venue: "okx" })
-    expect(urls.map((u) => new URL(u).searchParams.get("limit"))).toEqual(["2000", "500"])
-    expect(cache.usedLimit).toBe(500)
-    expect(cache.billCount).toBe(1)
-    expect(cache.days[dayKeyLocal(bill.ts_ms)]).toEqual({ pnl: 49, count: 1 })
+    expect(urls[0]).toContain("/api/live/daily-pnl?venue=okx&days=90")
+    expect(cache.earliestDate).toBe("2026-09-30")
+    expect(cache.days["2026-09-30"]).toEqual({ pnl: 98, count: 4 })
+    expect(cache.days["2026-10-01"]).toEqual({ pnl: -41, count: 2 })
+    expect(cache.days["2026-10-02"]).toBeUndefined()
+    // 落缓存可读回
+    expect(loadDailyPnlCache("okx")?.days["2026-10-01"]).toEqual({ pnl: -41, count: 2 })
+  })
 
-    // 非 422 错误不降档，直接抛
+  it("surfaces server errors instead of swallowing them", async () => {
+    vi.stubGlobal("localStorage", fakeStorage())
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response(JSON.stringify({ detail: "内部错误" }), { status: 500 })),

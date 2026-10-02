@@ -350,6 +350,41 @@ export async function getLiveBillsApi(
   return res.bills
 }
 
+// ===== 账户日收益统计（工作台盈亏日历数据源，服务器基于成交明细聚合） =====
+
+export interface LiveDailyPnlRow {
+  date: string
+  pnl: number
+  fee: number
+  net: number
+  cumulative: number
+  trades: number
+}
+
+export interface LiveDailyPnlSummary {
+  total_profit: number
+  total_loss: number
+  profit_ratio: number | null
+  net: number
+  trade_days: number
+  total_trades: number
+}
+
+export interface LiveDailyPnl {
+  days: LiveDailyPnlRow[]
+  summary: LiveDailyPnlSummary | null
+}
+
+/** 仅 OKX 支持；days 上限 90（服务器按 fills 覆盖范围钳制） */
+export async function getLiveDailyPnlApi(
+  venue: string,
+  days = 90
+): Promise<LiveDailyPnl> {
+  return liveRequest<LiveDailyPnl>(
+    `/api/live/daily-pnl?venue=${venue}&days=${days}`
+  )
+}
+
 export async function getLiveFeeRatesApi(
   venue: string,
   symbol?: string

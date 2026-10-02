@@ -1,87 +1,57 @@
 /**
- * 盈亏日历数据层：业务服务器转发的实盘账单 → 按日聚合 → 本地缓存。
+ * 盈亏日历数据层：业务服务器 /api/live/daily-pnl（账户日收益统计）→ 本地缓存。
  *
- * 数据源为 /api/live/bills（复用「实盘交易所接入」保存在服务器上的凭证，
- * 桌面端不再本地签名直连交易所）；聚合口径与缓存展示全部在本地完成。
+ * 服务器基于 OKX 成交明细（fills-history，覆盖约 90 天）聚合：
+ * 每日净 = Σ平仓腿盈亏 − Σ|手续费|（不含资金费），按北京自然日分桶。
+ * 桌面端只缓存 days 数组，月度汇总/曲线在本地按月重算。
  */
 
-import { getLiveBillsApi, type LiveBill } from "./live-api"
+import { getLiveDailyPnlApi } from "./live-api"
 
-/**
- * 单次同步拉取条数。服务器 /api/live/bills 对 limit 的校验上限未知
- * （此前该接口从未被调用，默认 50 是唯一验证过的值），超限返回 422，
- * 因此按档位从大到小降试：2000 → 500 → 100 → 50。
- */
-export const LIMIT_LADDER = [2000, 500, 100, 50]
+/** 服务器 days 参数上限（le=90，≈fills 覆盖范围） */
+export const WINDOW_DAYS = 90
 
-/** 缓存 10 分钟内视为新鲜，避免每次进工作台都重拉 */
+/** 缓存 10 分钟内视为新鲜（服务器侧另有 TTL 缓存，双保险） */
 export const CACHE_FRESH_MS = 10 * 60 * 1000
 
 export interface DailyPnlEntry {
-  /** 已实现盈亏 + 手续费（服务器账单口径，USDT 计价） */
+  /** 当日净盈亏（平仓盈亏 − 手续费，USDT） */
   pnl: number
-  /** 平仓/交割/强平类账单笔数 */
+  /** 当日成交笔数 */
   count: number
 }
 
 export type DailyPnlMap = Record<string, DailyPnlEntry>
 
-/** 账单毫秒时间戳 → 本机时区自然日 key（YYYY-MM-DD），与日历视图同一口径 */
-export function dayKeyLocal(tsMs: number): string {
-  const d = new Date(tsMs)
-  const p = (n: number) => String(n).padStart(2, "0")
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
-}
-
-/** 按日聚合：跳过纯转账；盈亏 = pnl + fee；amount（余额变动）不可加，会把充值提现算进盈亏 */
-export function aggregateDailyPnl(bills: LiveBill[]): DailyPnlMap {
-  const days: DailyPnlMap = {}
-  for (const b of bills) {
-    const ts = Number(b.ts_ms)
-    if (!Number.isFinite(ts)) continue
-    const type = String(b.type ?? "")
-    if (type === "1") continue
-    const v = (Number(b.pnl) || 0) + (Number(b.fee) || 0)
-    const isTrade = type === "2" || type === "3" || type === "5"
-    if (v === 0 && !isTrade) continue
-    const key = dayKeyLocal(ts)
-    const day = days[key] ?? { pnl: 0, count: 0 }
-    day.pnl += v
-    if (isTrade) day.count += 1
-    days[key] = day
-  }
-  return days
-}
-
 export interface DailyPnlCache {
-  version: 2
+  version: 3
   venue: string
   fetchedAt: number
-  /** 本次拉到的账单条数（受生效 limit 截断） */
-  billCount: number
-  /** 实际被服务器接受的 limit 档位；旧缓存无此字段为 0 */
-  usedLimit: number
-  /** 最早一条账单时间，用于判断覆盖范围 */
-  earliestTsMs: number | null
+  /** 最早有数据的日期（YYYY-MM-DD），用于翻月下限 */
+  earliestDate: string | null
   days: DailyPnlMap
 }
 
-const CACHE_KEY = "atd-pnl-calendar-cache-v2"
+const CACHE_KEY = "atd-pnl-calendar-cache-v3"
 
 export function loadDailyPnlCache(venue: string): DailyPnlCache | null {
   try {
     const raw = localStorage.getItem(CACHE_KEY)
     if (!raw) return null
     const c = JSON.parse(raw) as Partial<DailyPnlCache>
-    if (c.version !== 2 || c.venue !== venue || !c.days) return null
+    if (c.version !== 3 || c.venue !== venue || !c.days) return null
+    const days: DailyPnlMap = {}
+    for (const [k, v] of Object.entries(c.days)) {
+      if (v && Number.isFinite(Number(v.pnl))) {
+        days[k] = { pnl: Number(v.pnl), count: Number(v.count) || 0 }
+      }
+    }
     return {
-      version: 2,
+      version: 3,
       venue,
       fetchedAt: Number(c.fetchedAt) || 0,
-      billCount: Number(c.billCount) || 0,
-      usedLimit: Number(c.usedLimit) || 0,
-      earliestTsMs: Number.isFinite(Number(c.earliestTsMs)) ? Number(c.earliestTsMs) : null,
-      days: c.days,
+      earliestDate: typeof c.earliestDate === "string" ? c.earliestDate : null,
+      days,
     }
   } catch {
     return null
@@ -96,48 +66,25 @@ export function clearDailyPnlCache(): void {
   localStorage.removeItem(CACHE_KEY)
 }
 
-/** 拉取服务器账单并落缓存；limit 被服务器拒绝（422）时自动降档重试 */
+/** 拉取服务器日收益统计并落缓存 */
 export async function refreshDailyPnl(opts: {
   venue: string
 }): Promise<DailyPnlCache> {
-  let bills: LiveBill[] | null = null
-  let usedLimit = 0
-  let lastErr: unknown = null
-  for (const limit of LIMIT_LADDER) {
-    try {
-      bills = await getLiveBillsApi(opts.venue, limit)
-      usedLimit = limit
-      break
-    } catch (e) {
-      lastErr = e
-      // 仅参数校验类失败（422）降档重试；网络/鉴权等其他错误直接抛
-      if (!(e instanceof Error && e.message.includes("422"))) throw e
+  const res = await getLiveDailyPnlApi(opts.venue, WINDOW_DAYS)
+  const days: DailyPnlMap = {}
+  // 服务器把无交易日也补成 0 行；只留有成交的日子，日历上其余自然显示空
+  for (const r of Array.isArray(res.days) ? res.days : []) {
+    if (r.trades > 0 || r.net !== 0) {
+      days[r.date] = { pnl: r.net, count: r.trades }
     }
   }
-  if (!bills) {
-    // 全部档位都被拒：参数本身有问题，给人话而不是裸 422
-    const raw = lastErr instanceof Error ? lastErr.message : ""
-    throw new Error(
-      raw.includes("422")
-        ? "服务器拒绝账单请求（limit 参数校验失败），请联系管理员或稍后重试"
-        : raw || "同步实盘账单失败",
-    )
-  }
-  let earliestTsMs: number | null = null
-  for (const b of bills) {
-    const ts = Number(b.ts_ms)
-    if (Number.isFinite(ts) && (earliestTsMs == null || ts < earliestTsMs)) {
-      earliestTsMs = ts
-    }
-  }
+  const dates = Object.keys(days).sort()
   const cache: DailyPnlCache = {
-    version: 2,
+    version: 3,
     venue: opts.venue,
     fetchedAt: Date.now(),
-    billCount: bills.length,
-    usedLimit,
-    earliestTsMs,
-    days: aggregateDailyPnl(bills),
+    earliestDate: dates.length > 0 ? dates[0] : null,
+    days,
   }
   saveDailyPnlCache(cache)
   return cache

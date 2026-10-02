@@ -7,8 +7,9 @@
  * 日历九宫格（每格当日盈亏，红盈绿亏 CN 口径，底色深浅=当日盈亏强度）→
  * 当月累计盈亏曲线（lightweight-charts）。
  *
- * 数据源：/api/live/bills（跟随当前实盘交易场所），按自然日在本地聚合
- * 「已实现盈亏 + 手续费」；聚合缓存仅存本机 localStorage。
+ * 数据源：/api/live/daily-pnl（服务器基于 OKX 成交明细聚合，覆盖约 90 天，
+ * 复用「实盘交易所接入」凭证，仅 OKX）；月度汇总与曲线在本地按月重算，
+ * 聚合缓存仅存本机 localStorage。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -201,6 +202,8 @@ export function PnlCalendar(): React.JSX.Element {
 
   useEffect(() => {
     if (!credential) return
+    // 服务器日收益统计目前仅 OKX 实现（其他场所返回空结构）
+    if (venue !== "okx") return
     const cached = loadDailyPnlCache(venue)
     setCache(cached)
     if (!cached || Date.now() - cached.fetchedAt > CACHE_FRESH_MS) void doRefresh()
@@ -281,13 +284,13 @@ export function PnlCalendar(): React.JSX.Element {
     }
   }, [cache, monthOffset])
 
-  /** 翻月下限：不早于最早一条账单所在月 */
+  /** 翻月下限：不早于最早有数据的日期所在月 */
   const canGoPrev = useMemo(() => {
-    const earliest = cache?.earliestTsMs ?? Date.now()
-    const e = new Date(earliest)
+    if (!cache?.earliestDate) return false
+    const [ey, em] = cache.earliestDate.split("-").map(Number)
     const target = new Date()
     return new Date(target.getFullYear(), target.getMonth() + monthOffset - 1, 1).getTime() >=
-      new Date(e.getFullYear(), e.getMonth(), 1).getTime()
+      new Date(ey, em - 1, 1).getTime()
   }, [cache, monthOffset])
 
   const s = monthView.summary
@@ -329,15 +332,9 @@ export function PnlCalendar(): React.JSX.Element {
 
   const coverageText = useMemo(() => {
     if (!cache) return ""
-    const parts: string[] = []
-    if (cache.earliestTsMs != null) {
-      const e = new Date(cache.earliestTsMs)
-      parts.push(`覆盖 ${e.getMonth() + 1}月${e.getDate()}日 起`)
-    }
-    if (cache.billCount > 0 && cache.usedLimit > 0 && cache.billCount >= cache.usedLimit) {
-      parts.push(`已达单次 ${cache.usedLimit} 条上限，较早账单未含`)
-    }
-    return parts.join(" · ")
+    if (!cache.earliestDate) return "近 90 天无成交记录"
+    const [, m, d] = cache.earliestDate.split("-")
+    return `覆盖 ${Number(m)}月${Number(d)}日 起（约近 90 天成交明细）`
   }, [cache])
 
   return (
@@ -385,7 +382,7 @@ export function PnlCalendar(): React.JSX.Element {
             variant="outline"
             size="sm"
             className="h-7 text-xs"
-            disabled={!credential || loading}
+            disabled={!credential || venue !== "okx" || loading}
             onClick={() => void doRefresh()}
           >
             {loading ? (
@@ -413,6 +410,14 @@ export function PnlCalendar(): React.JSX.Element {
           </Link>
         </div>
       )}
+      {credLoaded && credential && venue !== "okx" && (
+        <div className="mt-3 rounded-lg bg-[var(--bg-tertiary)]/50 px-4 py-6 text-center text-xs text-[var(--text-secondary)]">
+          日收益统计目前仅支持 OKX，当前实盘场所为 {venueName(venue)}。
+          切换方法：交易页左上角场所切换，或
+          <Link href="/assets" className="text-[var(--accent-info)] mx-1">资产页</Link>
+          配置 OKX 凭证。
+        </div>
+      )}
       {!credLoaded && !cache && (
         <p className="mt-3 text-[11px] text-[var(--text-muted)] flex items-center gap-1.5">
           <Loader2 className="w-3 h-3 animate-spin" /> 检查实盘凭证配置…
@@ -436,7 +441,7 @@ export function PnlCalendar(): React.JSX.Element {
         </div>
       )}
 
-      {credential && (
+      {credential && venue === "okx" && (
         <>
           {/* 汇总条：盈亏比 / 总盈利 / 总亏损 / 净盈亏 / 交易笔数 */}
           <div className="mt-3 grid grid-cols-2 lg:grid-cols-5 gap-2 rounded-lg bg-[var(--bg-tertiary)]/50 px-2 py-3">
@@ -517,11 +522,9 @@ export function PnlCalendar(): React.JSX.Element {
           </div>
 
           <p className="mt-2 text-[10px] text-[var(--text-muted)]">
-            口径：实盘账单「已实现盈亏 + 手续费」按自然日聚合；红=盈、绿=亏。
-            账单经业务服务器同步自 {venueName(venue)}
-            {credential.demo ? "（模拟盘）" : ""}，复用「实盘交易所接入」凭证；
-            {coverageText ? ` ${coverageText}。` : " "}
-            聚合与图表在本地计算。
+            口径：OKX 成交明细「平仓盈亏 − 手续费」按自然日聚合（不含资金费）；红=盈、绿=亏。
+            统计范围含 AI 任务与手动单；{coverageText}。
+            数据经业务服务器同步，月度汇总与曲线在本地计算。
           </p>
         </>
       )}
