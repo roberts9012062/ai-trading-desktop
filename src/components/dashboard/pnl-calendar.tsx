@@ -13,14 +13,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import {
-  ColorType,
-  CrosshairMode,
-  LineSeries,
-  LineType,
-  createChart,
-  type Time,
-} from "lightweight-charts"
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -64,92 +56,190 @@ function pnlColor(v: number): string {
 
 const pad = (n: number) => String(n).padStart(2, "0")
 
-/** 当月累计盈亏曲线：业务日字符串作 Time */
-function CumulativeChart({ points }: { points: { time: string; value: number }[] }): React.JSX.Element {
-  const containerRef = useRef<HTMLDivElement | null>(null)
+interface CumPoint {
+  time: string
+  value: number
+  /** 当日净盈亏（tooltip 用） */
+  day: number
+}
+
+/** Catmull-Rom 插值转三次贝塞尔：转折柔和，不过分振荡 */
+function smoothBezierPath(pts: [number, number][]): string {
+  if (pts.length < 2) return ""
+  let d = `M ${pts[0][0].toFixed(2)},${pts[0][1].toFixed(2)}`
+  for (let i = 0; i < pts.length - 1; i += 1) {
+    const p0 = pts[i - 1] ?? pts[i]
+    const p1 = pts[i]
+    const p2 = pts[i + 1]
+    const p3 = pts[i + 2] ?? p2
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6
+    const c1y = p1[1] + (p2[1] - p0[1]) / 6
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6
+    const c2y = p2[1] - (p3[1] - p1[1]) / 6
+    d += ` C ${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${p2[0].toFixed(2)},${p2[1].toFixed(2)}`
+  }
+  return d
+}
+
+/**
+ * 当月累计盈亏曲线：自绘 SVG 贝塞尔平滑曲线 + 渐变面积 + 悬停十字提示。
+ * 红=月末累计为盈、绿=为亏（CN 口径）；零轴虚线随数据域自适应。
+ */
+function CumulativeChart({ points }: { points: CumPoint[] }): React.JSX.Element {
+  const wrapRef = useRef<HTMLDivElement | null>(null)
+  const [width, setWidth] = useState(0)
+  const [hover, setHover] = useState<number | null>(null)
 
   useEffect(() => {
-    const el = containerRef.current
-    if (!el || points.length === 0) return
-    const chart = createChart(el, {
-      height: 170,
-      layout: {
-        background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "rgba(156,163,175,0.9)",
-        fontSize: 11,
-        fontFamily: "ui-sans-serif, system-ui, sans-serif",
-      },
-      localization: { locale: "zh-CN" },
-      grid: {
-        vertLines: { color: "rgba(255,255,255,0.03)", style: 1 },
-        horzLines: { color: "rgba(255,255,255,0.05)", style: 1 },
-      },
-      rightPriceScale: {
-        borderVisible: false,
-        scaleMargins: { top: 0.12, bottom: 0.1 },
-        entireTextOnly: true,
-      },
-      leftPriceScale: { visible: false },
-      timeScale: {
-        borderVisible: false,
-        timeVisible: false,
-        secondsVisible: false,
-        fixLeftEdge: true,
-        rightOffset: 2,
-      },
-      crosshair: {
-        mode: CrosshairMode.Magnet,
-        vertLine: {
-          color: "rgba(148,163,184,0.35)",
-          width: 1,
-          style: 2,
-          labelBackgroundColor: "rgba(30,41,59,0.95)",
-        },
-        horzLine: {
-          color: "rgba(148,163,184,0.25)",
-          width: 1,
-          style: 2,
-          labelBackgroundColor: "rgba(30,41,59,0.95)",
-        },
-      },
-      handleScroll: { mouseWheel: false, pressedMouseMove: false },
-      handleScale: { axisPressedMouseMove: false, mouseWheel: false, pinch: false },
-    })
-    const final = points[points.length - 1].value
-    const color = final >= 0 ? "#ef4444" : "#22c55e"
-    const series = chart.addSeries(LineSeries, {
-      color,
-      lineWidth: 2,
-      lineType: LineType.Simple,
-      priceLineVisible: false,
-      lastValueVisible: true,
-      crosshairMarkerVisible: true,
-      crosshairMarkerRadius: 4,
-      crosshairMarkerBorderWidth: 2,
-      crosshairMarkerBorderColor: "#1a1a1e",
-      crosshairMarkerBackgroundColor: color,
-    })
-    series.setData(points.map((p) => ({ time: p.time as Time, value: p.value })))
-    series.createPriceLine({
-      price: 0,
-      color: "rgba(148,163,184,0.45)",
-      lineWidth: 1,
-      lineStyle: 2,
-      axisLabelVisible: true,
-    })
-    chart.applyOptions({ width: el.clientWidth })
-    chart.timeScale().fitContent()
-    const ro = new ResizeObserver(() => {
-      if (containerRef.current) chart.applyOptions({ width: containerRef.current.clientWidth })
-    })
+    const el = wrapRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setWidth(el.clientWidth))
     ro.observe(el)
-    return () => {
-      ro.disconnect()
-      chart.remove()
-    }
-  }, [points])
+    setWidth(el.clientWidth)
+    return () => ro.disconnect()
+  }, [])
 
-  return <div ref={containerRef} className="w-full" />
+  const H = 176
+  const PAD = { l: 6, r: 46, t: 16, b: 20 }
+  const n = points.length
+  const innerW = Math.max(width - PAD.l - PAD.r, 10)
+  const innerH = H - PAD.t - PAD.b
+
+  const values = points.map((p) => p.value)
+  let vmin = Math.min(0, ...values)
+  let vmax = Math.max(0, ...values)
+  if (vmax - vmin < 1e-9) {
+    vmin -= 1
+    vmax += 1
+  } else {
+    const padY = (vmax - vmin) * 0.12
+    vmin -= padY
+    vmax += padY
+  }
+  const xAt = (i: number) => PAD.l + (n <= 1 ? innerW / 2 : (i / (n - 1)) * innerW)
+  const yAt = (v: number) => PAD.t + (1 - (v - vmin) / (vmax - vmin)) * innerH
+
+  const final = points[n - 1]?.value ?? 0
+  const color = final >= 0 ? "#ef4444" : "#22c55e"
+  const pts: [number, number][] = points.map((p, i) => [xAt(i), yAt(p.value)])
+  const linePath = smoothBezierPath(pts)
+  const areaPath =
+    linePath && n > 1
+      ? `${linePath} L ${xAt(n - 1).toFixed(2)},${(PAD.t + innerH).toFixed(2)} L ${xAt(0).toFixed(2)},${(PAD.t + innerH).toFixed(2)} Z`
+      : ""
+
+  // y 轴 4 档刻度（含 0 对齐零线）
+  const yTicks = [0, 1, 2, 3].map((k) => vmin + ((vmax - vmin) * k) / 3)
+  // x 轴约 5 个日期刻度
+  const xStep = Math.max(1, Math.ceil(n / 5))
+  const xTicks = points.map((_, i) => i).filter((i) => i % xStep === 0 || i === n - 1)
+  const zeroY = yAt(0)
+
+  const hoverP = hover != null && points[hover] ? points[hover] : null
+  const fmt = (v: number) =>
+    `${v > 0 ? "+" : ""}${Math.abs(v) >= 10000 ? (v / 10000).toFixed(2) + "万" : v.toFixed(2)}`
+
+  return (
+    <div ref={wrapRef} className="relative w-full" style={{ height: H }}>
+      <svg
+        width={width || "100%"}
+        height={H}
+        className="block"
+        onMouseMove={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect()
+          const x = e.clientX - rect.left - PAD.l
+          const idx = n <= 1 ? 0 : Math.round((x / innerW) * (n - 1))
+          setHover(Math.max(0, Math.min(n - 1, idx)))
+        }}
+        onMouseLeave={() => setHover(null)}
+      >
+        <defs>
+          <linearGradient id="pnl-cum-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.28" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        {/* 水平网格 + y 轴刻度 */}
+        {yTicks.map((t, i) => (
+          <g key={i}>
+            <line
+              x1={PAD.l} x2={PAD.l + innerW}
+              y1={yAt(t)} y2={yAt(t)}
+              stroke="rgba(255,255,255,0.045)" strokeWidth="1"
+            />
+            <text
+              x={PAD.l + innerW + 6} y={yAt(t) + 3.5}
+              fill="#6b7280" fontSize="10" className="font-num"
+              textAnchor="start"
+            >
+              {fmt(t)}
+            </text>
+          </g>
+        ))}
+        {/* 零轴虚线 */}
+        {vmin < 0 && vmax > 0 && (
+          <line
+            x1={PAD.l} x2={PAD.l + innerW}
+            y1={zeroY} y2={zeroY}
+            stroke="rgba(148,163,184,0.4)" strokeWidth="1" strokeDasharray="4 4"
+          />
+        )}
+        {/* x 轴日期 */}
+        {xTicks.map((i) => (
+          <text
+            key={i} x={xAt(i)} y={H - 6}
+            fill="#6b7280" fontSize="10"
+            textAnchor={i === 0 ? "start" : i === n - 1 ? "end" : "middle"}
+          >
+            {Number(points[i].time.slice(8))}日
+          </text>
+        ))}
+        {/* 渐变面积 + 贝塞尔曲线 */}
+        {areaPath && <path d={areaPath} fill="url(#pnl-cum-fill)" />}
+        {linePath && (
+          <path d={linePath} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" />
+        )}
+        {/* 末端点：光晕圈 + 实心点 */}
+        {n > 0 && (
+          <>
+            <circle cx={xAt(n - 1)} cy={yAt(points[n - 1].value)} r="7" fill={color} opacity="0.18" />
+            <circle cx={xAt(n - 1)} cy={yAt(points[n - 1].value)} r="3.4" fill={color} />
+          </>
+        )}
+        {/* 悬停十字线 + 高亮点 */}
+        {hoverP && hover != null && (
+          <g pointerEvents="none">
+            <line
+              x1={xAt(hover)} x2={xAt(hover)}
+              y1={PAD.t} y2={PAD.t + innerH}
+              stroke="rgba(148,163,184,0.35)" strokeWidth="1" strokeDasharray="3 3"
+            />
+            <circle cx={xAt(hover)} cy={yAt(hoverP.value)} r="4.5" fill={color} stroke="#1a1a1e" strokeWidth="2" />
+          </g>
+        )}
+      </svg>
+      {/* 悬浮提示：日期 · 当日 · 累计 */}
+      {hoverP && hover != null && (
+        <div
+          className="pointer-events-none absolute z-10 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)]/95 px-2 py-1 text-[10px] leading-relaxed shadow-lg whitespace-nowrap"
+          style={{
+            left: Math.min(Math.max(xAt(hover) - 60, 0), Math.max(width - 130, 0)),
+            top: Math.max(yAt(hoverP.value) - 58, 0),
+          }}
+        >
+          <div className="text-[var(--text-muted)]">{hoverP.time.slice(5).replace("-", "月")}日</div>
+          <div className="font-num">
+            <span className="text-[var(--text-muted)]">当日 </span>
+            <span className={hoverP.day > 0 ? "text-up" : hoverP.day < 0 ? "text-down" : "text-[var(--text-secondary)]"}>{fmt(hoverP.day)}</span>
+          </div>
+          <div className="font-num">
+            <span className="text-[var(--text-muted)]">累计 </span>
+            <span className={hoverP.value > 0 ? "text-up" : hoverP.value < 0 ? "text-down" : "text-[var(--text-secondary)]"}>{fmt(hoverP.value)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function dayKeyOf(d: Date): string {
@@ -266,12 +356,13 @@ export function PnlCalendar(): React.JSX.Element {
     const net = profit + loss
     const ratio = profit > 0 && loss === 0 ? Infinity : profit + loss === 0 ? null : profit / -loss
 
-    const cumulative: { time: string; value: number }[] = []
+    const cumulative: { time: string; value: number; day: number }[] = []
     let acc = 0
     const lastDay = monthOffset === 0 ? now.getDate() : daysInMonth
     for (let day = 1; day <= lastDay; day += 1) {
-      acc += cache?.days[`${year}-${pad(month + 1)}-${pad(day)}`]?.pnl ?? 0
-      cumulative.push({ time: `${year}-${pad(month + 1)}-${pad(day)}`, value: acc })
+      const dayPnl = cache?.days[`${year}-${pad(month + 1)}-${pad(day)}`]?.pnl ?? 0
+      acc += dayPnl
+      cumulative.push({ time: `${year}-${pad(month + 1)}-${pad(day)}`, value: acc, day: dayPnl })
     }
 
     return {
