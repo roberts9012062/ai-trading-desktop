@@ -11,6 +11,7 @@ export function HunterPanel() {
   const groups = useHunterStore(s => s.groups)
   const visible = groups.filter(g => g.status !== "stopped")
   const progress = useHunterStore(s => s.progress)
+  const watches = useHunterStore(s => s.watches)
   const control = useHunterStore(s => s.control)
   const connectionError = useHunterStore(s => s.error)
   const [busy, setBusy] = useState<string | null>(null)
@@ -32,8 +33,10 @@ export function HunterPanel() {
     {visible.map(g => <article key={g.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4 space-y-3">
       <div className="flex justify-between gap-3 flex-wrap">
         <div><strong className="text-sm">{g.name}</strong><span className="ml-2 text-xs text-[var(--text-muted)]">{labels[g.status]} · {hunterAccountLabel(g.runtime.execution_account?.execution_mode ?? (g.trading_mode === "virtual" ? "virtual" : undefined))} · {g.config.venue.toUpperCase()} · {g.config.leverage ?? 1} 倍{g.config.margin_mode === "cross" ? "全仓" : "逐仓"} · {g.config.brain === "rules" ? "规则" : g.config.brain === "jev" ? "Jev" : "AI 大模型"}</span>
+          <p className="text-xs text-[var(--text-muted)] mt-1">{g.config.strategy_version === "hunter-v2" ? "均衡版 · 突破回踩 / 趋势回调 · 周期独立扫描" : "原版 · 突破回踩"}</p>
           <p className="text-xs text-[var(--text-muted)] mt-1 whitespace-pre-line">{progress[g.id] ?? "等待桌面扫描；已挂载持仓由服务器管理"}</p></div>
         <div className="flex gap-2 flex-wrap">
+          {(g.status === "running" || g.status === "paused") && g.config.strategy_version !== "hunter-v2" && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade")}>启用均衡版</Button>}
           {(g.status === "running" || g.status === "paused") && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, g.status === "running" ? "pause" : "resume")}>{g.status === "running" ? "暂停搜索" : "恢复搜索"}</Button>}
           {g.status !== "stopped" && g.status !== "stopping" && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "stop")}>停止搜索</Button>}
           {g.opportunities.some(o => !o.finished_at) && <Button size="sm" variant="outline" disabled={busy === g.id || g.status === "stopping"} onClick={() => void action(g.id, "stop_close")}>停止并平仓</Button>}
@@ -49,12 +52,17 @@ export function HunterPanel() {
       </div>
       <p className="text-[11px] text-[var(--text-muted)]">统计样本来自这个猎手实际成交并完成平仓、核对收益后的交易；未开仓结束的任务不计入。没有交易样本不会阻止搜索或首笔开仓。行情来自服务器转接的 OKX K 线。</p>
       {g.blocks.length > 0 && <p className="text-xs text-amber-400">{g.blocks.join("；")}</p>}
+      {g.config.strategy_version === "hunter-v2" && <details>
+        <summary className="text-xs cursor-pointer">候选观察池（{watches[g.id]?.length ?? 0}）</summary>
+        <p className="text-[11px] text-[var(--text-muted)] mt-2">进入观察池表示排名和趋势通过；等待入场确认，仍须通过服务器复核。排名、趋势失效或已有持仓后移出。</p>
+        <div className="flex flex-wrap gap-2 mt-2">{(watches[g.id] ?? []).map(w => <span key={w.cycle+":"+w.symbol+":"+w.direction} className="text-xs rounded border border-[var(--border)] px-2 py-1">{w.symbol.toUpperCase()} · {CYCLES[w.cycle].label} · {w.direction === "long" ? "多" : "空"} · {w.stage}</span>)}</div>
+      </details>}
       <details>
         <summary className="text-xs cursor-pointer">查看交易任务（{g.opportunities.length}）与止损</summary>
         <div className="overflow-x-auto mt-2"><table className="w-full text-xs text-left">
           <thead><tr className="text-[var(--text-muted)]"><th className="p-2">币种 / 周期</th><th>状态</th><th>入场 / 止损</th><th>净收益</th></tr></thead>
           <tbody>{g.opportunities.map(o => <tr key={o.id} className="border-t border-[var(--border)]">
-            <td className="p-2">{o.symbol.toUpperCase()} · {CYCLES[o.cycle].label} · {o.plan.direction === "long" ? "多" : "空"} · {o.plan.leverage ?? 1} 倍{o.plan.margin_mode === "cross" ? "全仓" : "逐仓"}</td>
+            <td className="p-2">{o.symbol.toUpperCase()} · {CYCLES[o.cycle].label} · {o.plan.direction === "long" ? "多" : "空"} · {o.plan.leverage ?? 1} 倍{o.plan.margin_mode === "cross" ? "全仓" : "逐仓"} · {o.plan.entry_kind === "pullback" ? "趋势回调" : "突破回踩"}</td>
             <td>{({ mounted: "已挂载", opening: "开仓中", holding: "持仓管理", reconciling: "成交核对", closed: "已结束", cancelled: "未开仓结束" } as Record<string, string>)[o.status] ?? o.status}</td>
             <td>{o.plan.entry.toPrecision(7)} / {(o.runtime.stop ?? o.plan.stop).toPrecision(7)}</td>
             <td>{money(o.net_profit)}<span className="block text-[var(--text-muted)]">{o.runtime.note ?? o.runtime.reason ?? ""}</span></td>

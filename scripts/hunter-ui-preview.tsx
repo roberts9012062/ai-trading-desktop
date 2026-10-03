@@ -11,6 +11,7 @@ import type { Hunter, HunterConfig } from "@/lib/hunter/api"
 import { Button } from "@/components/ui/button"
 
 let groups: Hunter[] = []
+let nextHunter = 0
 if (location.hostname !== "127.0.0.1" || location.port !== "5187") {
   throw new Error("界面验收仅允许隔离地址 127.0.0.1:5187，防止覆盖正常登录状态")
 }
@@ -25,7 +26,7 @@ globalThis.fetch = async (input, init) => {
     { symbol: "btcusdt", name: "BTC / USDT" }, { symbol: "ethusdt", name: "ETH / USDT" },
     { symbol: "solusdt", name: "SOL / USDT" }, { symbol: "dogeusdt", name: "DOGE / USDT" },
   ])
-  if (url.endsWith("/capabilities")) return Response.json({ live_qualified: false, trading_mode: tradingMode, execution_mode: executionMode, can_start: true, reason: "" })
+  if (url.endsWith("/capabilities")) return Response.json({ supported_versions: ["hunter-v1", "hunter-v2"], live_qualified: false, trading_mode: tradingMode, execution_mode: executionMode, can_start: true, reason: "" })
   if (url.endsWith("/api/ai/models")) return Response.json([
     { id: "fixture-chat", display_name: "验收大模型", capabilities: ["chat"], provider_api_type: "openai" },
     { id: "fixture-jev", display_name: "验收 Jev", capabilities: ["decision"], provider_api_type: "jev" },
@@ -33,7 +34,7 @@ globalThis.fetch = async (input, init) => {
   if (url.endsWith("/groups")) {
     if (init?.method === "POST") {
       const config = JSON.parse(String(init.body)) as HunterConfig
-      groups = [{ id: "fixture-hunter", name: config.name, status: "running", trading_mode: tradingMode,
+      groups = [{ id: "fixture-hunter-" + (++nextHunter), name: config.name, status: "running", trading_mode: tradingMode,
         config, capital: config.capital, equity: config.capital, blocks: [], runtime: { execution_account: { execution_mode: executionMode } },
         stats: { trades: 0, win_rate: null, profit_factor: null, payoff: null }, opportunities: [] }]
       document.getElementById("submitted")!.textContent = JSON.stringify(config, null, 2)
@@ -43,7 +44,8 @@ globalThis.fetch = async (input, init) => {
   }
   if (url.endsWith("/control")) {
     const { action } = JSON.parse(String(init?.body))
-    groups[0].status = action === "pause" ? "paused" : action === "resume" ? "running" : "stopped"
+    if (action === "upgrade") groups[0].config.strategy_version = "hunter-v2"
+    else groups[0].status = action === "pause" ? "paused" : action === "resume" ? "running" : "stopped"
     return Response.json(groups[0])
   }
   throw new Error("界面验收禁止外部 API：" + url)

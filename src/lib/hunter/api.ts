@@ -1,14 +1,15 @@
-import type { Bar, Cycle, Direction } from "./rules"
+import type { Bar, Cycle, Direction, RuleVersion, EntryKind } from "./rules"
 
 export interface HunterConfig {
   name: string; capital: number; leverage: number; venue: "okx"; margin_mode: "isolated" | "cross"; cycles: Cycle[];
   brain: "rules" | "llm" | "jev"; model_id: string | null; rule_fallback: boolean;
   direction: "long" | "both"; whitelist: string[]; blacklist: string[];
   pool_size: number; max_positions: number; scan_seconds: number;
+  strategy_version?: RuleVersion;
 }
 export interface Opportunity {
   id: string; task_id: string | null; symbol: string; cycle: Cycle; status: string;
-  plan: { entry: number; stop: number; quantity: number; risk_budget: number; direction: Direction; leverage?: number; margin?: number; margin_mode?: "isolated" | "cross" };
+  plan: { entry: number; stop: number; quantity: number; risk_budget: number; direction: Direction; leverage?: number; margin?: number; margin_mode?: "isolated" | "cross"; entry_kind?: EntryKind };
   runtime: { stop?: number; last_price?: number; reason?: string; note?: string; unrealized?: number };
   net_profit: number; finished_at: string | null;
 }
@@ -20,11 +21,16 @@ export interface Hunter {
   opportunities: Opportunity[];
 }
 export interface HunterData { bars: Record<string, Bar[]>; market: Bar[]; market_week: Bar[]; now: number }
+export interface DeltaBars { reset: boolean; rows: Bar[] }
+export interface RankingSnapshot { symbol: string; history_ok: boolean; relative: number | null; error?: string }
+export interface ContextSnapshot { symbol: string; bars: Record<string, DeltaBars>; market: DeltaBars; market_week: DeltaBars; now: number; error?: string }
+export interface SnapshotBody { cycle: Cycle; phase: "ranking" | "context"; symbols: string[]; cursors?: Record<string, Record<string, number>> }
 export interface HunterTicker { symbol: string; price: number; bid: number; ask: number; turnover: number; spread: number; ts_ms: number }
 export interface HunterSymbol { symbol: string; name: string }
 export interface HunterCapabilities {
   live_qualified: boolean; trading_mode: string; reason: string;
   can_start?: boolean; execution_mode?: "virtual" | "okx_demo" | "okx_live" | "unavailable";
+  supported_versions?: RuleVersion[];
 }
 
 export function canStartHunter(cap: HunterCapabilities): boolean {
@@ -62,6 +68,7 @@ export const hunterApi = {
   create: (config: HunterConfig) => request<Hunter>("/groups", { method: "POST", body: JSON.stringify(config) }),
   universe: (id: string, signal?: AbortSignal) => request<HunterTicker[]>("/groups/" + id + "/universe", {}, signal),
   data: (id: string, symbol: string, cycle: Cycle, signal?: AbortSignal) => request<HunterData>("/groups/" + id + "/data?" + new URLSearchParams({ symbol, cycle }), {}, signal),
-  mount: (id: string, body: { symbol: string; cycle: Cycle; direction: Direction; signal_at: number }, signal?: AbortSignal) => request<{ id: string; task_id: string; duplicate: boolean }>("/groups/" + id + "/mount", { method: "POST", body: JSON.stringify(body) }, signal),
-  control: (id: string, action: "pause" | "resume" | "stop" | "stop_close") => request<Hunter>("/groups/" + id + "/control", { method: "POST", body: JSON.stringify({ action }) }),
+  snapshot: <T extends RankingSnapshot | ContextSnapshot>(id: string, body: SnapshotBody, signal?: AbortSignal) => request<{ items: T[] }>("/groups/" + id + "/snapshot", { method: "POST", body: JSON.stringify(body) }, signal),
+  mount: (id: string, body: { symbol: string; cycle: Cycle; direction: Direction; signal_at: number; entry_kind?: EntryKind }, signal?: AbortSignal) => request<{ id: string; task_id: string; duplicate: boolean }>("/groups/" + id + "/mount", { method: "POST", body: JSON.stringify(body) }, signal),
+  control: (id: string, action: "pause" | "resume" | "stop" | "stop_close" | "upgrade") => request<Hunter>("/groups/" + id + "/control", { method: "POST", body: JSON.stringify({ action }) }),
 }

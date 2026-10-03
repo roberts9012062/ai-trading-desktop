@@ -2,6 +2,9 @@ export type Cycle = "short" | "medium" | "long"
 export type Direction = "long" | "short"
 export type Bar = [number, number, number, number, number, number]
 export const RULE_VERSION = "hunter-v1"
+export const BALANCED_VERSION = "hunter-v2"
+export type RuleVersion = typeof RULE_VERSION | typeof BALANCED_VERSION
+export type EntryKind = "breakout" | "pullback"
 export const CYCLES = {
   short: { label: "短线", setup: "15m", execution: "5m", trend: "1h", setupSec: 900, executionSec: 300, lookback: 20, volume: 1.5, wait: 12, atrMult: 1.5, maxStop: .03, risk: .002, target: 2, ttl: 60, maxHold: 43200, idle: 7200, trail: 2, budget: .25 },
   medium: { label: "中线", setup: "4h", execution: "1h", trend: "1d", setupSec: 14400, executionSec: 3600, lookback: 20, volume: 1.2, wait: 12, atrMult: 2, maxStop: .08, risk: .003, target: 3, ttl: 300, maxHold: 1814400, idle: 259200, trail: 2.5, budget: .35 },
@@ -49,9 +52,14 @@ export function sizePosition(equity: number, cycle: Cycle, entry: number, stop: 
   const risk_budget = equity * c.risk, notional = Math.min(risk_budget / (d + cost), equity * .2)
   return { entry, stop, quantity: notional / entry, risk_budget, cost_rate: cost, distance: Math.abs(entry - stop), notional, leverage, margin: notional / leverage }
 }
-export interface Signal { direction: Direction; entry: number; stop: number; breakout: number; atr: number; signal_at: number; expires_at: number; reason: string }
-export function findSignal(setup: Bar[], execution: Bar[], cycle: Cycle, direction: Direction, now: number): Signal | null {
-  const c = CYCLES[cycle], sign = direction === "long" ? 1 : -1
+export interface Signal { direction: Direction; entry: number; stop: number; breakout: number; atr: number; signal_at: number; expires_at: number; reason: string; entry_kind?: EntryKind }
+export function cycleRules(cycle: Cycle, version: RuleVersion = RULE_VERSION) {
+  const c = CYCLES[cycle]
+  return version === BALANCED_VERSION && cycle === "short" ? { ...c, volume: 1.3, ttl: 180 } : c
+}
+export const rankFraction = (version: RuleVersion = RULE_VERSION) => version === BALANCED_VERSION ? .3 : .2
+export function findSignal(setup: Bar[], execution: Bar[], cycle: Cycle, direction: Direction, now: number, version: RuleVersion = RULE_VERSION): Signal | null {
+  const c = cycleRules(cycle, version), sign = direction === "long" ? 1 : -1
   for (let i = setup.length - 1; i >= c.lookback && i >= setup.length - c.wait - 5; i--) {
     const b = setup[i], prev = setup.slice(i - c.lookback, i), p = direction === "long" ? Math.max(...prev.map(x => x[2])) : Math.min(...prev.map(x => x[3]))
     const avg = setup.slice(Math.max(0, i - 20), i).reduce((s, x) => s + x[5], 0) / 20, a = atr(setup.slice(0, i + 1))
@@ -80,4 +88,60 @@ export function findSignal(setup: Bar[], execution: Bar[], cycle: Cycle, directi
     }
   }
   return null
+}
+
+function targetClear(setup: Bar[], before: number, entry: number, stop: number, cycle: Cycle, direction: Direction) {
+  const sign = direction === "long" ? 1 : -1, target = entry + sign*CYCLES[cycle].target*Math.abs(entry-stop)
+  const history = setup.filter(b => b[0] < before).slice(-120)
+  for (let k = 2; k < history.length-2; k++) {
+    const v = direction === "long" ? history[k][2] : history[k][3]
+    const neighbours = [...history.slice(k-2, k), ...history.slice(k+1, k+3)]
+    if (neighbours.every(x => direction === "long" ? v > x[2] : v < x[3]) && sign*(v-entry) > 0 && sign*(target-v) > 0) return false
+  }
+  return true
+}
+
+function pullbackSignal(setup: Bar[], execution: Bar[], cycle: Cycle, direction: Direction, now: number): Signal | null {
+  const c = cycleRules(cycle, BALANCED_VERSION), sign = direction === "long" ? 1 : -1
+  if (execution.length < 65) return null
+  const f = ema(execution.map(b => b[4]), 20), s = ema(execution.map(b => b[4]), 60)
+  for (let k = execution.length-1; k > Math.max(63, execution.length-4); k--) {
+    const confirm = execution[k], at = confirm[0]/1000+c.executionSec
+    if (at > now || now > at+c.ttl || sign*(f[k]-s[k]) <= 0 || sign*(f[k]-f[k-3]) <= 0) continue
+    for (let j = k-1; j > Math.max(59, k-4); j--) {
+      const ret = execution[j], a = atr(execution.slice(0, j+1)), offset = sign*((direction === "long" ? ret[3] : ret[2])-f[j])
+      const approach = execution.slice(j-4, j).some((b, n) => sign*(b[4]-f[j-4+n]) >= .5*a)
+      if (a <= 0 || !approach || offset < -.5*a || offset > .25*a || sign*(ret[4]-f[j]) < 0) continue
+      if (sign*(confirm[4]-(direction === "long" ? ret[2] : ret[3])) <= 0 || sign*(confirm[4]-confirm[1]) <= 0 || sign*(confirm[4]-f[k]) <= 0) continue
+      const path = execution.slice(j, k+1), extreme = direction === "long" ? Math.min(...path.map(b => b[3])) : Math.max(...path.map(b => b[2]))
+      const stop = direction === "long" ? Math.min(extreme-.25*a, confirm[4]-c.atrMult*a) : Math.max(extreme+.25*a, confirm[4]+c.atrMult*a)
+      if (targetClear(setup, ret[0], confirm[4], stop, cycle, direction)) return { direction, entry: confirm[4], stop, breakout: f[j], atr: a,
+        signal_at: at, expires_at: at+c.ttl, entry_kind: "pullback", reason: "趋势通过；EMA20回调、企稳收盘确认" }
+    }
+  }
+  return null
+}
+
+export function entrySignal(setup: Bar[], execution: Bar[], cycle: Cycle, direction: Direction, now: number, version: RuleVersion = RULE_VERSION): Signal | null {
+  if (version !== BALANCED_VERSION) return findSignal(setup, execution, cycle, direction, now)
+  const c = cycleRules(cycle, version)
+  setup = closedBars(setup, c.setupSec, now); execution = closedBars(execution, c.executionSec, now)
+  const breakout = findSignal(setup, execution, cycle, direction, now, version)
+  if (breakout) breakout.entry_kind = "breakout"
+  const pullback = pullbackSignal(setup, execution, cycle, direction, now)
+  return !breakout ? pullback : !pullback || breakout.signal_at >= pullback.signal_at ? breakout : pullback
+}
+
+export function watchStage(setup: Bar[], execution: Bar[], cycle: Cycle, direction: Direction, now: number) {
+  const c = cycleRules(cycle, BALANCED_VERSION), sign = direction === "long" ? 1 : -1
+  for (let i = setup.length-1; i >= c.lookback && i >= setup.length-c.wait-5; i--) {
+    const b = setup[i], prev = setup.slice(i-c.lookback, i), p = direction === "long" ? Math.max(...prev.map(x => x[2])) : Math.min(...prev.map(x => x[3]))
+    const a = atr(setup.slice(0, i+1)), avg = setup.slice(i-20, i).reduce((v, x) => v+x[5], 0)/20
+    const expires = b[0]/1000+c.setupSec+c.wait*c.executionSec+c.ttl
+    if (expires < now || a <= 0 || avg <= 0 || sign*(b[4]-p) <= 0 || b[5] < avg*c.volume) continue
+    const after = execution.filter(x => x[0] >= b[0]+c.setupSec*1000).slice(0, c.wait)
+    const retest = after.some(x => { const d = sign*((direction === "long" ? x[3] : x[2])-p); return d >= -.5*a && d <= .25*a && sign*(x[4]-p) >= 0 })
+    return { stage: retest ? "等待突破确认" : "等待突破回踩", expires }
+  }
+  return { stage: "趋势回调观察", expires: now+c.executionSec*3 }
 }

@@ -3,6 +3,8 @@ import { CYCLES, findSignal, trend, validateLeverage, type Direction } from "./r
 import { useHunterStore } from "@/stores/hunter"
 import { useAuthStore } from "@/stores/auth"
 import { useAITradingStore } from "@/stores/ai-trading"
+import { BalancedDiscovery, nextCycleScan } from "./discovery"
+import { BALANCED_VERSION, type Cycle } from "./rules"
 
 let stopRuntime: (() => void) | null = null
 
@@ -90,18 +92,46 @@ export function startHunterRuntime(): () => void {
   let scanAbort: AbortController | undefined
   let releaseLock: (() => void) | undefined
   const next: Record<string, number> = {}
+  const jobs = new Map<string, AbortController>()
+  const discoveries = new Map<string, BalancedDiscovery>()
   const iteration = async () => {
     if (rootAbort.signal.aborted) return
     try {
       await useHunterStore.getState().refresh(rootAbort.signal)
-      for (const group of useHunterStore.getState().groups) {
+      const groups = useHunterStore.getState().groups
+      for (const id of discoveries.keys()) if (!groups.some(g => g.id === id && g.status === "running" && g.config.strategy_version === BALANCED_VERSION)) discoveries.delete(id)
+      for (const group of groups) {
         if (rootAbort.signal.aborted) break
+        if (group.status === "running" && group.config.strategy_version === BALANCED_VERSION) {
+          if (!discoveries.has(group.id)) discoveries.set(group.id, new BalancedDiscovery(group.id))
+          // Launch independently: a slow long-cycle history read never blocks the timer.
+          for (const cycle of ["short", "medium", "long"] as Cycle[]) {
+            const key = group.id+":"+cycle
+            if (!group.config.cycles.includes(cycle) || jobs.has(key) || (next[key] ?? 0) > Date.now()) continue
+            const controller = new AbortController(), started = Date.now()
+            jobs.set(key, controller)
+            const cancel = () => controller.abort()
+            rootAbort.signal.addEventListener("abort", cancel, { once: true })
+            const unsubscribe = useHunterStore.subscribe(s => {
+              const latest = s.groups.find(g => g.id === group.id)
+              if (latest?.status !== "running" || latest.config.strategy_version !== group.config.strategy_version || !latest.config.cycles.includes(cycle)) cancel()
+            })
+            void discoveries.get(group.id)!.scan(group, cycle, controller.signal).catch(e => {
+              if (!controller.signal.aborted) useHunterStore.getState().setProgress(group.id, CYCLES[cycle].label+"扫描异常："+(e instanceof Error ? e.message : "行情不可用"))
+            }).finally(() => {
+              controller.abort(); jobs.delete(key); unsubscribe(); rootAbort.signal.removeEventListener("abort", cancel)
+              next[key] = nextCycleScan(cycle, group.config.scan_seconds, started, Date.now())
+            })
+          }
+          continue
+        }
         if (group.status !== "running" || (next[group.id] ?? 0) > Date.now()) continue
         scanAbort = new AbortController()
         const cancel = () => scanAbort?.abort()
         rootAbort.signal.addEventListener("abort", cancel, { once: true })
         const unsubscribe = useHunterStore.subscribe(s => {
-          if (s.groups.find(g => g.id === group.id)?.status !== "running") cancel()
+          const latest = s.groups.find(g => g.id === group.id)
+          if (latest?.status !== "running" || latest.config.strategy_version !== group.config.strategy_version) cancel()
         })
         try { await scanHunter(group, scanAbort.signal) } finally {
           unsubscribe(); rootAbort.signal.removeEventListener("abort", cancel)
@@ -131,6 +161,8 @@ export function startHunterRuntime(): () => void {
   }
   const stop = () => {
     rootAbort.abort(); scanAbort?.abort()
+    for (const controller of jobs.values()) controller.abort()
+    discoveries.clear()
     if (timer) clearTimeout(timer)
     releaseLock?.()
   }
