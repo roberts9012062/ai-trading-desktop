@@ -1,5 +1,5 @@
 /**
- * Release 收尾(仅 CI):查资产 → 生成 latest.json(直接下载链接) →
+ * Release 收尾(仅 CI):查资产 → 生成 latest.json(资产 API 链接) →
  * 上传到 Release → 更新 secret gist(updater 的永久清单地址)。
  *
  * 用法:node scripts/gh-release-finalize.mjs <tag> <notes> <version>
@@ -26,7 +26,7 @@ const exeAsset = release.assets.find((a) => a.name.includes("-setup.exe"))
 const sigAsset = release.assets.find((a) => a.name.endsWith(".sig"))
 if (!exeAsset || !sigAsset) throw new Error("Release 缺少 setup.exe / .sig 资产")
 
-// 2) 生成 latest.json(下载 URL = 直接下载链接,Tauri Updater 要求)
+// 2) 私有 Release 经资产 API 下载，与 updater 的鉴权头保持一致。
 const signature = readFileSync(
   join(root, "update-dist", sigAsset.name),
   "utf8",
@@ -38,7 +38,7 @@ const latest = {
   platforms: {
     "windows-x86_64": {
       signature,
-      url: exeAsset.browser_download_url, // https://github.com/.../releases/download/v{version}/{filename}
+      url: exeAsset.url, // https://api.github.com/repos/.../releases/assets/{id}
     },
   },
 }
@@ -59,4 +59,4 @@ execSync(`gh api -X PATCH gists/${GIST_ID} --input "${gistBody}"`, {
   encoding: "utf8",
 })
 console.log(`gist 已更新: https://gist.githubusercontent.com/${REPO.split("/")[0]}/${GIST_ID}/raw/latest.json`)
-console.log(`latest.json -> 下载链接 ${exeAsset.browser_download_url}`)
+console.log(`latest.json -> 下载链接 ${exeAsset.url}`)
