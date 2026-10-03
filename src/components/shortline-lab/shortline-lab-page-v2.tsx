@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { ChevronDown } from "lucide-react"
 import { createRunner } from "@/lib/mining/runner"
 import type { MiningTask } from "@/lib/mining/types"
 import {
@@ -66,6 +67,100 @@ const REJECT_REASON_LABELS: Record<string, string> = {
 }
 
 type Stage = "idle" | "backfill" | "mining" | "completed" | "failed" | "paused"
+
+/** 币种选择器:输入框 + 自建全量下拉。原生 datalist 会按输入框已有内容过滤,
+ *  值已存在时下拉只剩精确匹配——用户必须先清空才能再看到列表,改为:
+ *  点击/聚焦即展示全量列表,输入中才按前缀/包含过滤;仍支持自定义符号。 */
+function SymbolPicker({ value, onChange, disabled }: {
+  value: string
+  onChange: (v: string) => void
+  disabled?: boolean
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  // null = 全量列表(点击/聚焦打开时);有值 = 用户正在输入,按包含匹配过滤
+  const [filter, setFilter] = useState<string | null>(null)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false)
+    }
+    document.addEventListener("mousedown", onDown)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onDown)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [open])
+
+  const query = (filter ?? "").toUpperCase()
+  const list = query ? SHORTLINE_SYMBOLS.filter((s) => s.includes(query)) : SHORTLINE_SYMBOLS
+  return (
+    <div className="relative" ref={ref}>
+      <input
+        value={value}
+        disabled={disabled}
+        placeholder="ETHUSDT"
+        onChange={(e) => {
+          const v = e.target.value.toUpperCase()
+          onChange(v)
+          setFilter(v)
+          setOpen(true)
+        }}
+        onFocus={() => {
+          setFilter(null)
+          setOpen(true)
+        }}
+        className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 pr-9 text-sm text-white
+                   placeholder:text-gray-500 focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
+      />
+      <button
+        type="button"
+        tabIndex={-1}
+        disabled={disabled}
+        aria-label="展开币种列表"
+        onClick={() => {
+          setOpen(!open)
+          setFilter(null)
+        }}
+        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300
+                   cursor-pointer disabled:opacity-50"
+      >
+        <ChevronDown className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && !disabled && (
+        <div
+          className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto rounded-xl border border-white/10
+                     bg-[#0F131C] shadow-2xl shadow-black/40"
+        >
+          {list.length === 0 ? (
+            <div className="px-4 py-3 text-xs text-gray-500">无匹配币种（可直接输入自定义符号）</div>
+          ) : (
+            list.map((sym) => (
+              <button
+                type="button"
+                key={sym}
+                onClick={() => {
+                  onChange(sym)
+                  setOpen(false)
+                  setFilter(null)
+                }}
+                className={`block w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors cursor-pointer
+                            ${sym === value ? "text-[#38BDF8]" : "text-gray-300"}`}
+              >
+                {sym}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function ShortlineLabPageV2() {
   // ── 核心参数（简化：只保留必需项） ──
@@ -147,7 +242,7 @@ export default function ShortlineLabPageV2() {
 
   // ── 一键启动完整流程 ──
   const onStartMining = async () => {
-    if (stage !== "idle") return
+    if (formLocked || taskBusy) return
     abortRef.current = new AbortController()
     setError(null)
 
@@ -378,7 +473,12 @@ export default function ShortlineLabPageV2() {
   }
 
   const taskBusy = activeTask?.status === "running" || activeTask?.status === "pending"
-  const canStart = stage === "idle" && !taskBusy
+  // 表单只在回填/挖掘进行中锁定;completed/failed/paused 等终态直接解锁。
+  // 修复前:历史完成任务在页面加载时把 stage 钉在 completed,而所有控件
+  // disabled={stage !== "idle"}——整页表单永久锁死,高级参数点不开、
+  // 币种点不动,必须先找到进度卡里的「重置」才能解锁。
+  const formLocked = stage === "backfill" || stage === "mining"
+  const canStart = !formLocked && !taskBusy
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0A0D12] via-[#0F131C] to-[#161D2B] p-6">
@@ -393,24 +493,22 @@ export default function ShortlineLabPageV2() {
 
         {/* 参数卡片 */}
         <div className="bg-[#1E2636]/50 backdrop-blur-sm rounded-2xl border border-white/5 p-6 space-y-4">
-          <h2 className="text-sm font-medium text-gray-300">配置参数</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium text-gray-300">配置参数</h2>
+            {formLocked && (
+              <span className="text-xs text-amber-400/80">挖掘进行中，参数已锁定</span>
+            )}
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* 币种 */}
             <div className="space-y-2">
               <label className="text-xs text-gray-400">币种</label>
-              <input
-                list="shortline-symbol-options"
+              <SymbolPicker
                 value={symbol}
-                onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                disabled={stage !== "idle"}
-                className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white
-                         placeholder:text-gray-500 focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
-                placeholder="ETHUSDT"
+                onChange={(v) => setSymbol(v)}
+                disabled={formLocked}
               />
-              <datalist id="shortline-symbol-options">
-                {SHORTLINE_SYMBOLS.map((sym) => <option key={sym} value={sym} />)}
-              </datalist>
             </div>
 
             {/* 周期 */}
@@ -419,7 +517,7 @@ export default function ShortlineLabPageV2() {
               <select
                 value={timeframe}
                 onChange={(e) => setTimeframe(e.target.value as ShortlineTimeframe)}
-                disabled={stage !== "idle"}
+                disabled={formLocked}
                 className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white
                          focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
               >
@@ -435,7 +533,7 @@ export default function ShortlineLabPageV2() {
               <select
                 value={engine}
                 onChange={(e) => setEngine(e.target.value as "native-gpu" | "cpu")}
-                disabled={stage !== "idle"}
+                disabled={formLocked}
                 className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white
                          focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
               >
@@ -458,12 +556,15 @@ export default function ShortlineLabPageV2() {
           {/* 高级参数（可折叠） */}
           <div className="pt-4 border-t border-white/5">
             <button
+              type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
-              disabled={stage !== "idle"}
-              className="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-300 transition-colors disabled:opacity-50"
+              disabled={formLocked}
+              title={formLocked ? "挖掘进行中，参数已锁定" : undefined}
+              className="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-300 transition-colors
+                         cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span className={`transform transition-transform ${showAdvanced ? "rotate-90" : ""}`}>▶</span>
-              高级参数设置
+              高级参数设置{formLocked ? "（挖掘中锁定）" : ""}
             </button>
 
             {showAdvanced && (
@@ -481,7 +582,7 @@ export default function ShortlineLabPageV2() {
                     step={50}
                     value={population}
                     onChange={(e) => setPopulation(Math.min(30000, Math.max(50, Number(e.target.value))))}
-                    disabled={stage !== "idle"}
+                    disabled={formLocked}
                     className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white
                              focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
                   />
@@ -501,7 +602,7 @@ export default function ShortlineLabPageV2() {
                     step={10}
                     value={generations}
                     onChange={(e) => setGenerations(Math.min(3000, Math.max(10, Number(e.target.value))))}
-                    disabled={stage !== "idle"}
+                    disabled={formLocked}
                     className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white
                              focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
                   />
@@ -521,7 +622,7 @@ export default function ShortlineLabPageV2() {
                     step={0.00005}
                     value={cost}
                     onChange={(e) => setCost(Math.min(0.001, Math.max(0.00005, Number(e.target.value))))}
-                    disabled={stage !== "idle"}
+                    disabled={formLocked}
                     className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white font-mono
                              focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
                   />
@@ -543,7 +644,7 @@ export default function ShortlineLabPageV2() {
                     max={8}
                     value={maxDepth}
                     onChange={(e) => setMaxDepth(Math.min(8, Math.max(3, Number(e.target.value))))}
-                    disabled={stage !== "idle"}
+                    disabled={formLocked}
                     className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white
                              focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
                   />
@@ -560,7 +661,7 @@ export default function ShortlineLabPageV2() {
                     step={0.05}
                     value={trainRatio}
                     onChange={(e) => setTrainRatio(Math.min(0.8, Math.max(0.5, Number(e.target.value))))}
-                    disabled={stage !== "idle"}
+                    disabled={formLocked}
                     className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white
                              focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
                   />
@@ -576,7 +677,7 @@ export default function ShortlineLabPageV2() {
                     max={5}
                     value={walkForwardFolds}
                     onChange={(e) => setWalkForwardFolds(Math.min(5, Math.max(2, Number(e.target.value))))}
-                    disabled={stage !== "idle"}
+                    disabled={formLocked}
                     className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white
                              focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
                   />
@@ -594,7 +695,7 @@ export default function ShortlineLabPageV2() {
                       setWalkForwardFolds(3)
                       setCost(0.0003)
                     }}
-                    disabled={stage !== "idle"}
+                    disabled={formLocked}
                     className="w-full rounded-xl bg-[#0F131C]/50 border border-white/10 px-4 py-2.5 text-sm text-gray-400
                              hover:text-gray-300 hover:border-white/20 transition-colors disabled:opacity-50"
                   >
@@ -964,8 +1065,9 @@ export default function ShortlineLabPageV2() {
           </div>
         )}
 
-        {/* 启动按钮 */}
-        {stage === "idle" && (
+        {/* 启动按钮(idle/终态都展示——历史任务把 stage 钉在 completed 时按钮
+            整个消失,页面看起来"点了没反应";挖掘进行中隐藏,由进度卡接管) */}
+        {!formLocked && (
           <button
             onClick={onStartMining}
             disabled={!canStart}
@@ -974,7 +1076,9 @@ export default function ShortlineLabPageV2() {
                      hover:shadow-[#38BDF8]/40 disabled:opacity-50 disabled:cursor-not-allowed
                      transition-all duration-300"
           >
-            {canStart ? "一键启动挖掘" : "任务运行中..."}
+            {canStart
+              ? "一键启动挖掘"
+              : "任务运行中..."}
           </button>
         )}
 
