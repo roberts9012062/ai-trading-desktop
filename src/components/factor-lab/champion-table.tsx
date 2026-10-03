@@ -22,6 +22,8 @@ interface ChampionTableProps {
   /** 组合相关性分析用的品种/周期（与挂载目标一致；未传时面板不分析） */
   comboSymbol?: string
   comboTimeframe?: string
+  /** 超级因子成员 tokens key 集合（组合因子测试通过的成员行加「超级」标） */
+  superMembers?: Set<string>
 }
 
 function tokenKey(tokens: number[]): string {
@@ -72,6 +74,7 @@ export function ChampionTable({
   onComboMount,
   comboSymbol,
   comboTimeframe,
+  superMembers,
 }: ChampionTableProps): React.JSX.Element {
   // 本地 pending：点击收藏后立即置灰，避免重复点击；网络失败由调用方负责回退
   const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set())
@@ -234,6 +237,14 @@ export function ChampionTable({
                       title="含本地专属特征：本机执行与回放（可收藏）"
                     >
                       本地
+                    </span>
+                  )}
+                  {superMembers?.has(key) && (
+                    <span
+                      className="mr-1 px-1 py-px rounded bg-amber-500/15 text-amber-400 text-[9px] font-num"
+                      title="超级因子成员：所在组合通过了验证区折检验(1×)与封存段 2× 成本压力"
+                    >
+                      超级
                     </span>
                   )}
                   {statusBadge && (

@@ -111,7 +111,8 @@ export async function* runNativeGpuSession(
       const strictTokens = [...head.values()].sort((a, b) => b.composite - a.composite).slice(0, 60).map(row => row.tokens)
       const { strict } = await client.strictEval(session, strictTokens)
       return client.precise(session, { evaluated, best_seen: bestSeen, prefetched_strict: strict,
-        trials: cfg.population * cfg.generations, final_generation: final, include_portfolio: final })
+        trials: cfg.population * cfg.generations, final_generation: final, include_portfolio: final,
+        combo_super: cfg.combo_super === true })
     }
     // Matches the M2 G3 warmup: numerical session setup does not seed archives.
     const warm = population.slice(0, 8).map(treeToTokens)

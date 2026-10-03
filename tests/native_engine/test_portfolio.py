@@ -96,6 +96,48 @@ class PortfolioTests(unittest.TestCase):
         self.assertIsNone(evaluate_portfolio(session, []))
         self.assertIsNone(evaluate_portfolio(session, [{'tokens': [0]}, {'tokens': [1]}]))
 
+    def test_combo_super_folds_dual_scale_and_legacy_shape(self):
+        config = {'research_profile': 'crypto_local_v2', 'selection_v2': True, 'walk_forward_folds': 3}
+        champions = [{'tokens': [0]}, {'tokens': [1]}, {'tokens': [5]}]
+        session = self.session(config)
+        # 关闭 combo_super:返回结构不含任何新字段(与旧口径逐位一致)
+        legacy = evaluate_portfolio(session, champions)
+        for key in ('combo_super', 'combo_source', 'super_passed', 'pass_mode',
+                    'wf_fold_sortinos', 'wf_fold_sortinos_ic', 'wf_stable'):
+            self.assertNotIn(key, legacy)
+        result = evaluate_portfolio(session, champions, combo_super=True, combo_source='quality')
+        self.assertTrue(result['combo_super'])
+        self.assertEqual(result['combo_source'], 'quality')
+        folds = result['wf_fold_sortinos']
+        self.assertEqual(len(folds), 3)
+        self.assertTrue(all(np.isfinite(f) for f in folds))
+        self.assertEqual(result['wf_stable'], all(f > 0 for f in folds))
+        # 判定语义:等权或 IC 加权「2× 封存>0 且折全正」任一成立即通过
+        equal_ok = result['equal_2x']['sortino'] > 0 and all(f > 0 for f in folds)
+        ic_folds = result['wf_fold_sortinos_ic']
+        ic_ok = (result['ic_weighted_2x'] is not None and result['ic_weighted_2x']['sortino'] > 0
+                 and (ic_folds is None or all(f > 0 for f in ic_folds)))
+        self.assertEqual(result['super_passed'], bool(equal_ok or ic_ok))
+        if result['super_passed']:
+            self.assertEqual(result['pass_mode'], 'equal' if equal_ok else 'ic_weighted')
+        # oracle:等权组合在验证区(v2 = [train_end, validation_end))三等分,
+        # 每折 1× Sortino 与 GPU 折检验逐位一致(同一 flows 公式)
+        bars = session.prepared['bars']
+        matrix = feature_matrix(bars)
+        positions = np.vstack([position_from_factor(execute_for_bars(row['tokens'], matrix, bars))
+                               for row in champions])
+        combo = positions.mean(axis=0)
+        close = np.array([b['close'] for b in bars])
+        returns = next_ret(close)
+        prev = np.roll(combo, 1); prev[0] = 0
+        pnl = combo*returns-np.abs(combo-prev)*session.prepared['cost']
+        periods = bars_per_year(bars, session.config['timeframe'])
+        train, lo, _, _ = portfolio_bounds(session)
+        span = lo-train
+        for i in range(3):
+            fs, fe = train+span*i//3, train+span*(i+1)//3
+            self.assertAlmostEqual(folds[i], _sortino(pnl[fs:fe], periods), delta=1e-9)
+
 
 if __name__ == '__main__':
     unittest.main()

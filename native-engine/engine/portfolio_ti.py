@@ -21,13 +21,18 @@ def portfolio_bounds(session):
     return train_end, len(meta['all_bars']) if sealed else train_end, n, 'holdout' if sealed else 'test'
 
 
-def evaluate_portfolio(session, champions, *, diagnostics=False):
+def evaluate_portfolio(session, champions, *, diagnostics=False, combo_super=False, combo_source=None):
     """All series/statistics stay on CUDA; only scalar reports leave the GPU.
 
     成员池可含研究级候选(仅未过 2× 成本压力的因子):组合对冲会降低净换手
     与成本拖累,组合书在加倍成本下的存活能力可以强于任何单个成员。
     equal/ic_weighted 各按 1× 与 2× 成本双口径在封存段计分,成员的
     research 标记一并输出,由上层判定"组合超级冠军"。
+
+    combo_super(组合因子勾选):追加折检验——组合仓位在验证区(v2:
+    [train_end, validation_end);旧口径:测试段)按任务折数均分,每折 1×
+    Sortino 全正且封存段 2× Sortino>0 才判 super_passed,与单因子资格门
+    同构(折 1×/封存压力 2×)。关闭时返回结构与原口径逐位一致。
     """
     if len(champions) < 2:
         return None
@@ -95,6 +100,24 @@ def evaluate_portfolio(session, champions, *, diagnostics=False):
             member_research.append(bool(reasons) and all(r in execution_only for r in reasons))
         equal_2x = metrics(0, 0, 2.0)
         weighted_2x = (metrics(1, 0, 2.0) if has_weights else None)
+        # 折检验(组合因子):组合仓位在验证区(v2)/测试段(旧口径)按任务折数
+        # 均分,每折 1× Sortino;区域不足折数或折数=0 时跳过(只验 2× 封存)。
+        fold_detail = None
+        folds = int((session.strict_metadata or {}).get('walk_forward_folds') or 0) if combo_super else 0
+        if folds > 0:
+            plan = session.strict_metadata.get('plan')
+            wf_lo = train_end
+            wf_hi = lo if (plan is not None and plan.sufficient) else hi
+            span = wf_hi - wf_lo
+            if span >= folds:
+                def _fold_sortinos(mode):
+                    program._portfolio_combine(positions, weights, combination, K, mode, 0, 0)
+                    program._portfolio_flows(report.source, combination, report.flows, session.prepared['cost'], 0)
+                    return [report._summarize(combination, 1, wf_lo + span * i // folds,
+                                              wf_lo + span * (i + 1) // folds, periods, 0)[0]['sortino']
+                            for i in range(folds)]
+                fold_detail = {'equal': _fold_sortinos(0),
+                               'ic_weighted': _fold_sortinos(1) if has_weights else None}
         result = {'n_factors': K, 'avg_abs_corr': round(float(avg_corr.to_numpy()[0]), 3),
                   'equal': equal, 'ic_weighted': weighted,
                   'best_single': max(singles, key=lambda row: row['sortino']),
@@ -104,6 +127,26 @@ def evaluate_portfolio(session, champions, *, diagnostics=False):
                   'member_research': member_research,
                   'any_member_research': any(member_research),
                   'segment': segment, 'eval_bars': hi-lo}
+        if combo_super:
+            def _mode_ok(stress, sortinos):
+                if stress is None or not (stress['sortino'] > 0):
+                    return False
+                return sortinos is None or all(s > 0.0 for s in sortinos)
+
+            equal_ok = _mode_ok(equal_2x, fold_detail['equal'] if fold_detail else None)
+            ic_ok = _mode_ok(weighted_2x, fold_detail['ic_weighted'] if fold_detail else None)
+            shown = (fold_detail or {}).get('ic_weighted' if (ic_ok and not equal_ok) else 'equal')
+            result['combo_super'] = True
+            result['combo_source'] = combo_source
+            result['super_passed'] = bool(equal_ok or ic_ok)
+            if equal_ok or ic_ok:
+                result['pass_mode'] = 'equal' if equal_ok else 'ic_weighted'
+            if fold_detail:
+                result['wf_fold_sortinos'] = shown
+                result['wf_fold_sortinos_ic'] = fold_detail['ic_weighted']
+                result['wf_stable'] = shown is None or all(s > 0.0 for s in shown)
+            else:
+                result['wf_stable'] = True
         if diagnostics:
             result['weights'] = weights.to_numpy().tolist()
         return result

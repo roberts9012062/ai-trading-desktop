@@ -34,6 +34,7 @@ import {
   releaseBarsSnapshot,
 } from "./data-source"
 import { resolveDevice } from "./device"
+import { comboSuperOutcome, selectComboMembers } from "./combo-super"
 import { defaultFactorRangeFor, factorMaxDaysFor } from "@/components/factor-lab/factor-range-limits"
 import {
   deleteLocalTask,
@@ -297,10 +298,19 @@ export class LocalMiningRunner implements MiningRunner {
     void this.#runLoop(next.id)
   }
 
-  /** 冠军组合评估(mine_portfolio 内核模式;<2 个冠军或失败返回 null) */
+  /** 冠军组合评估(mine_portfolio 内核模式;<2 个冠军或失败返回 null)。
+   *  勾选「组合因子」时先按优质/回捞分层选成员(≤5),内核追加 1×/2×
+   *  双口径与折检验,产出超级因子判定。 */
   async #evalPortfolio(rec: LocalTaskRecord): Promise<PortfolioResult | null> {
     if (rec.actualEngine === "native-gpu") return rec.portfolio ?? null
     if (rec.latest_champions.length < 2) return null
+    const comboSuper = rec.config.combo_super === true
+    let tokensList = rec.latest_champions.map((c) => c.tokens)
+    if (comboSuper) {
+      const selection = selectComboMembers(rec.latest_champions)
+      if (!selection) return null
+      tokensList = selection.members.map((c) => c.tokens)
+    }
     try {
       const snapshot = await getBarsSnapshot(rec.snapshotId)
       if (!snapshot) return null
@@ -312,12 +322,13 @@ export class LocalMiningRunner implements MiningRunner {
           symbol: rec.config.symbol,
           timeframe: rec.config.timeframe,
           cost: rec.config.cost ?? null,
-          tokens_list: rec.latest_champions.map((c) => c.tokens),
+          tokens_list: tokensList,
           // 只在样本外段评估(冠军在训练段挑出,全段组合指标含样本内虚高);
           // 增强遴选时只用封存段
           train_ratio: rec.config.train_ratio,
           ...(rec.config.test_recent_bars != null ? { test_recent_bars: rec.config.test_recent_bars } : {}),
           ...(rec.config.selection_v2 ? { selection_v2: true } : {}),
+          ...(comboSuper ? { combo_super: true, walk_forward_folds: rec.config.walk_forward_folds ?? 0 } : {}),
         },
         snapshot.bars,
         120_000,
@@ -417,8 +428,9 @@ export class LocalMiningRunner implements MiningRunner {
         rec.progress_pct = 100
         rec.completed_at = nowIso()
         // 深挖强化 M4:完成时对冠军做组合评估(等权/IC 加权 vs 最优单因子;
-        // best-effort,失败不阻断完成)
-        rec.portfolio = await this.#evalPortfolio(rec)
+        // best-effort,失败不阻断完成)。勾选「组合因子」的任务经统一出口:
+        // 无法组合时产出失败占位,任务面板据此显示「全部不合格」。
+        rec.portfolio = comboSuperOutcome(await this.#evalPortfolio(rec), rec.config.combo_super === true)
       }
       await putLocalTask(rec)
       this.#emit(toMiningTask(rec))

@@ -403,6 +403,11 @@ export function FactorLabPage(): React.JSX.Element {
             onComboMount={(cs) => openComboDialog(cs)}
             comboSymbol={s.lastReq?.symbol ?? s.symbol ?? ""}
             comboTimeframe={s.lastReq?.timeframe ?? s.result?.timeframe ?? ""}
+            superMembers={
+              s.result?.portfolio?.super_passed && s.result.portfolio.members
+                ? new Set(s.result.portfolio.members.map((m) => m.join(",")))
+                : undefined
+            }
           />
         </div>
         <SelectedFactorPanel

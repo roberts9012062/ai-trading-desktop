@@ -400,6 +400,41 @@ class GpuDedup:
                 m['candidate_status'] = 'holdout_passed'
 
 
+def combo_member_pool(qualified, *, combo_super, limit=5):
+    """组合成员池 = 执行级冠军 + 研究级候选(唯一拒因属于成本/执行压力门)。
+    组合对冲可降低净换手与成本拖累——单个成员扛不住 2× 成本,组合书
+    可能扛得住;组合本身在封存段按 1×/2× 双口径如实计分再分级。
+
+    combo_super(组合因子勾选):优质池按综合分截断 ≤limit;不足 2 个回捞
+    失败因子——先筛测试段(样本外)仍盈利者,再按综合分放宽。分层口径与
+    前端 src/lib/mining/combo-super.ts 同构。返回 (pool, combo_source)。"""
+    execution_only = {'holdout_stress_failed_or_missing', 'holdout_live_entry_failed',
+                      'live_fill_failed_or_missing', 'execution_failed_or_missing'}
+    pool = list(qualified['champions'])
+    research_pool, others = [], []
+    for c in qualified['rejected']:
+        reasons = ((c.get('qualification') or {}).get('reasons') or [])
+        (research_pool if (reasons and all(r in execution_only for r in reasons)) else others).append(c)
+    pool.extend(research_pool)
+    if not combo_super:
+        return pool, None
+    by_composite = lambda c: (c.get('composite') or 0.0)
+
+    def oos_evidence(c):
+        v = ((c.get('metrics') or {}).get('test_metrics') or {}).get('sortino')
+        return v if isinstance(v, (int, float)) else float('-inf')
+
+    pool = sorted(pool, key=by_composite, reverse=True)[:limit]
+    if len(pool) < 2:
+        profitable = sorted([c for c in others if oos_evidence(c) > 0],
+                            key=oos_evidence, reverse=True)
+        rescue = (profitable if len(profitable) + len(pool) >= 2
+                  else sorted(others, key=by_composite, reverse=True))
+        pool = (pool + rescue)[:limit]
+        return pool, ('rescued' if len(pool) >= 2 else None)
+    return pool, 'quality'
+
+
 def precise(session, payload):
     session._alive()
     # Resident-buffer estimate is UI metadata only. The pure-Python walk over
@@ -464,18 +499,11 @@ def precise(session, payload):
         from .portfolio_ti import evaluate_portfolio
         portfolio = None
         if final:
-            # 组合成员池 = 执行级冠军 + 研究级候选(唯一拒因属于成本/执行压力门)。
-            # 组合对冲可降低净换手与成本拖累——单个成员扛不住 2× 成本,组合书
-            # 可能扛得住;组合本身在封存段按 1×/2× 双口径如实计分再分级。
-            execution_only = {'holdout_stress_failed_or_missing', 'holdout_live_entry_failed',
-                              'live_fill_failed_or_missing', 'execution_failed_or_missing'}
-            pool = list(qualified['champions'])
-            for c in qualified['rejected']:
-                reasons = ((c.get('qualification') or {}).get('reasons') or [])
-                if reasons and all(r in execution_only for r in reasons):
-                    pool.append(c)
+            combo_super = bool(payload.get('combo_super'))
+            pool, combo_source = combo_member_pool(qualified, combo_super=combo_super)
             if len(pool) >= 2:
-                portfolio = evaluate_portfolio(session, pool)
+                portfolio = evaluate_portfolio(session, pool, combo_super=combo_super,
+                                               combo_source=combo_source)
         result['portfolio'] = portfolio
         if portfolio is not None:
             from .memory import session_buffer_mb

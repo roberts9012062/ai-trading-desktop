@@ -135,14 +135,24 @@ export class NativeEngineClient {
         candidate.metrics?.kernel_version !== "native-gpu-v1") throw invalid()
     }
     if (result.portfolio != null) {
-      if (payload.final_generation !== true || !payload.include_portfolio || result.champions.length < 2) throw invalid()
+      if (payload.final_generation !== true || !payload.include_portfolio) throw invalid()
       const numeric = (value: unknown): boolean => {
         if (typeof value === "number") return Number.isFinite(value)
         if (Array.isArray(value)) return value.every(numeric)
         if (value && typeof value === "object") return Object.values(value).every(numeric)
         return true
       }
-      if (!numeric(result.portfolio) || result.portfolio.n_factors !== result.champions.length) throw invalid()
+      if (!numeric(result.portfolio)) throw invalid()
+      if (payload.combo_super === true) {
+        // 组合因子:成员池按优质/回捞分层截断至 5,可含被拒候选——只校验
+        // 成员确属本代候选集且 2-5 个(与引擎侧 precise_ti 分层口径一致)
+        const pool = new Set(result.research_candidates.map((c) => c.tokens.join(",")))
+        const members = result.portfolio.members ?? []
+        if (result.portfolio.n_factors !== members.length || members.length < 2 || members.length > 5
+          || !members.every((tokens) => pool.has(tokens.join(",")))) throw invalid()
+      } else if (result.champions.length < 2 || result.portfolio.n_factors !== result.champions.length) {
+        throw invalid()
+      }
     }
     return result
   }

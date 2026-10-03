@@ -22,6 +22,8 @@ export interface NativePrecisePayload {
   candidates?: number[][]; evaluated?: NativeEvaluatedCandidate[]; best_seen?: NativeEvaluatedCandidate[]
   prefetched_strict?: NativeStrictVerdict[]; trials?: number; final_generation?: boolean
   include_portfolio?: boolean
+  /** 组合因子:末代组合优质/回捞因子(≤5)测超级因子(引擎侧分层同构 combo-super.ts) */
+  combo_super?: boolean
 }
 export interface NativeQualifiedCandidate extends NativeChampion {
   qualification: { status: "qualified" | "pending" | "rejected"; reasons: string[] }

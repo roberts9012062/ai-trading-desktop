@@ -56,6 +56,8 @@ export interface SearchFormPayload {
   walk_forward_folds?: number
   /** 本地增强挖掘(selection_v2 + evolve_v2):仅本地引擎生效,服务端忽略 */
   enhanced?: boolean
+  /** 组合因子:末代自动组合优质/回捞因子(≤5)测超级因子(勾选「组合因子」) */
+  combo_super?: boolean
   /** 冠军种子库 token(本地引擎注入种群头部;来自 G2 冻结合格冠军) */
   seed_tokens?: number[][]
   /** 长历史区间（YYYY-MM-DD，需与 end_date 成对；不传走近期数据） */
@@ -115,6 +117,8 @@ export function FactorSearchForm({
   const [walkForwardFolds, setWalkForwardFolds] = useState(3)
   // 本地增强挖掘(默认开;服务端引擎忽略)
   const [enhanced, setEnhanced] = useState(true)
+  // 组合因子(默认关):末代组合优质/回捞因子测超级因子,单因子全军覆没时的兜底
+  const [comboSuper, setComboSuper] = useState(false)
   // 冠军种子库(G2 冻结证据合格冠军):本地增强搜索默认注入
   const [useChampionSeeds, setUseChampionSeeds] = useState(true)
   const seedPick = useMemo(
@@ -207,6 +211,7 @@ export function FactorSearchForm({
       model_row_id: useCoach ? modelRowId : null,
       ...antiOverfitPayload(antiOverfitOn, trainRatio, testRecentBars, walkForwardFolds),
       enhanced,
+      combo_super: comboSuper,
       ...(localEngine && enhanced && useChampionSeeds && seedPick.seeds.length
         ? { seed_tokens: seedPick.seeds.map((s) => s.tokens) }
         : {}),
@@ -518,6 +523,21 @@ export function FactorSearchForm({
               />
               增强挖掘（仅本地引擎）：同一因子的不同写法先去重再验证，测试段后半封存只评估一次，进化加点/收缩变异
             </label>
+            <label className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={comboSuper}
+                onChange={(e) => setComboSuper(e.target.checked)}
+              />
+              组合因子：挖掘结束时自动把优质/回捞因子组合成超级因子继续测试（最多 5 个）
+            </label>
+            {comboSuper && (
+              <p className="text-[11px] text-[var(--text-muted)]">
+                优先组合优质因子（合格 + 研究级）；没有优质因子时回捞失败因子里样本外仍盈利者。
+                组合须通过「验证区每折 Sortino 为正 + 封存段 2× 成本仍盈利」才获得超级因子标志，
+                不通过则本次挖掘产出全部不合格。
+              </p>
+            )}
             {localEngine && enhanced && (
               <div className="space-y-1">
                 <label className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)] cursor-pointer">

@@ -165,6 +165,19 @@ export interface PortfolioResult {
   members?: number[][]
   member_research?: boolean[]
   any_member_research?: boolean
+  /** 组合因子(勾选「组合因子」的任务):末代自动组合测试超级因子 */
+  combo_super?: boolean
+  /** 成员来源:quality=优质因子(合格+研究级);rescued=无优质时从失败因子回捞 */
+  combo_source?: "quality" | "rescued"
+  /** 超级因子测试通过:等权或 IC 加权在验证区折全正(1×)且封存段 2× Sortino>0 */
+  super_passed?: boolean
+  /** 通过的组合口径(等权或 IC 加权) */
+  pass_mode?: "equal" | "ic_weighted"
+  /** 逐折 1× Sortino(验证区按任务折数均分;折数=0 时不产出);*_ic 为 IC 加权口径 */
+  wf_fold_sortinos?: number[]
+  wf_fold_sortinos_ic?: number[] | null
+  /** 折检验是否全正(折数=0 视为 true) */
+  wf_stable?: boolean
 }
 
 export interface SearchResult {

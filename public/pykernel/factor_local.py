@@ -460,6 +460,8 @@ def run_mine_portfolio(payload: dict, bars: list) -> str:
     cost = resolve_search_cost(payload, bars)
     eval_from: int | None = None
     segment = "full"
+    test_start: int | None = None
+    holdout_start: int | None = None
     if payload.get("train_ratio") or payload.get("test_recent_bars"):
         split_cfg = SearchConfig(
             train_ratio=float(payload.get("train_ratio") or 0.0),
@@ -467,11 +469,28 @@ def run_mine_portfolio(payload: dict, bars: list) -> str:
         )
         _train, test = _split_train_test(split_cfg, bars)
         if len(test) >= MIN_TEST_BARS:
-            eval_from, segment = len(bars) - len(test), "test"
+            test_start = len(bars) - len(test)
+            eval_from, segment = test_start, "test"
             n_hold = holdout_len(len(test)) if payload.get("selection_v2") else 0
             if n_hold:
-                eval_from, segment = len(bars) - n_hold, "holdout"
-    result = evaluate_portfolio(bars, timeframe, tokens_list, cost, eval_from=eval_from)
+                holdout_start = len(bars) - n_hold
+                eval_from, segment = holdout_start, "holdout"
+    # 组合因子(combo_super):折检验区域与评分段分离——v2 在验证区(测试段
+    # 去封存),组合在封存段按 1×/2× 双口径计分;旧口径在测试段折检。
+    combo_super = bool(payload.get("combo_super"))
+    folds = int(payload.get("walk_forward_folds") or 0) if combo_super else 0
+    wf_lo = wf_hi = None
+    if folds > 0:
+        if holdout_start is not None and test_start is not None:
+            wf_lo, wf_hi = test_start, holdout_start
+        elif eval_from is not None:
+            wf_lo, wf_hi = eval_from, len(bars)
+        else:
+            wf_lo, wf_hi = 0, len(bars)
+    result = evaluate_portfolio(
+        bars, timeframe, tokens_list, cost, eval_from=eval_from,
+        combo_super=combo_super, walk_forward_folds=folds, wf_lo=wf_lo, wf_hi=wf_hi,
+    )
     if result is not None and eval_from is not None:
         result["segment"] = segment
         result["eval_bars"] = len(bars) - eval_from

@@ -193,6 +193,7 @@ export function SuperFactorPage(): React.JSX.Element {
                     ...(p.origin === "local" && p.enhanced
                       ? { selection_v2: true, evolve_v2: true }
                       : {}),
+                    ...(p.origin === "local" && p.comboSuper ? { combo_super: true } : {}),
                     ...(p.origin === "local" && p.liveGate ? { live_entry_gate: LIVE_GATE_ENTRY } : {}),
                     ...(p.origin === "local" && p.jointTraining && p.crossPeers?.length
                       ? { joint_training: true }
@@ -268,6 +269,8 @@ interface ConfigFormProps {
     jointTraining?: boolean
     /** 增强挖掘(selection_v2 + evolve_v2,仅本地) */
     enhanced: boolean
+    /** 组合因子:末代自动组合优质/回捞因子(≤5)测超级因子(仅本地) */
+    comboSuper: boolean
     /** 实盘开仓口径验证(live_entry_gate,仅本地) */
     liveGate: boolean
     /** 数据渠道(okx/binance_spot/gate_spot;bars 快照与跨币种伙伴同渠道) */
@@ -334,6 +337,8 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
   // 本地增强挖掘(默认开:基准评测封存期表现优于原版)/实盘开仓口径验证(默认关)
   const [enhanced, setEnhanced] = useState(true)
   const [liveGate, setLiveGate] = useState(false)
+  // 组合因子(默认关):末代组合优质/回捞因子测超级因子,单因子全军覆没时的兜底
+  const [comboSuper, setComboSuper] = useState(false)
   // 当前命中的搜索力度预设;手动改参数后置 null(自定义)
   const [presetId, setPresetId] = useState<string | null>("standard")
   // 原生 GPU 自动升「达标」力度:G2 出合格的搜索量级;只在用户还停在标准档时
@@ -463,6 +468,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
           : {}),
         ...(crossPeers?.length ? { crossPeers, jointTraining } : {}),
         enhanced,
+        comboSuper,
         liveGate,
         data_channel: dataChannel,
       })
@@ -902,6 +908,21 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
           <p className="text-[10px] text-[var(--text-muted)] leading-tight">
             实盘按 ±1 手、信号超阈值才开仓；开启后冠军须在验证段按此口径也赚钱，排除「模拟赚钱、实盘不开仓」的弱信号因子。
           </p>
+          <label className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)] cursor-pointer">
+            <input
+              type="checkbox"
+              checked={comboSuper}
+              onChange={(e) => setComboSuper(e.target.checked)}
+            />
+            组合因子：挖掘结束时自动把优质/回捞因子组合成超级因子继续测试（最多 5 个）
+          </label>
+          {comboSuper && (
+            <p className="text-[10px] text-[var(--text-muted)] leading-tight">
+              优先组合优质因子（合格 + 研究级）；没有优质因子时回捞失败因子里样本外仍盈利者。
+              组合须通过「验证区每折 Sortino 为正 + 封存段 2× 成本仍盈利」才获得超级因子标志，
+              不通过则本次挖掘产出全部不合格。
+            </p>
+          )}
         </div>
       )}
 
@@ -1306,6 +1327,11 @@ function TaskDetailPanel(props: DetailProps): React.JSX.Element {
             onComboMount={openComboDialog}
             comboSymbol={task.symbol}
             comboTimeframe={task.timeframe}
+            superMembers={
+              task.portfolio?.super_passed && task.portfolio.members
+                ? new Set(task.portfolio.members.map((m) => m.join(",")))
+                : undefined
+            }
           />
         </div>
       )}

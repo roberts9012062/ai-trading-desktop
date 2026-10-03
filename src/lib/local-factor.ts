@@ -18,6 +18,7 @@ import type { Champion, FactorBacktestResult, SearchResult } from "@/lib/factor-
 import type { KlineBar } from "@/types"
 import type { NativeRecoveryBackendOptions } from "@/lib/mining/backends/native-recovery-backend"
 import { finalizeNativeSearch } from "@/lib/native-engine/finalize"
+import { comboSuperOutcome, selectComboMembers } from "@/lib/mining/combo-super"
 import type { GenerationStep } from "@/lib/mining/backends/types"
 
 export interface LocalFactorPayload {
@@ -44,6 +45,8 @@ export interface LocalFactorPayload {
   selection_v2?: boolean
   evolve_v2?: boolean
   live_entry_gate?: number
+  /** 组合因子:末代组合优质/回捞因子(≤5)测超级因子(见 MiningConfig 注释) */
+  combo_super?: boolean
   /** v2 研究契约(crypto_local_v2)与执行模型(方案 §3;经 _CFG_FIELDS 白名单透传) */
   research_profile?: string
   execution_model?: string
@@ -160,13 +163,22 @@ function toSearchResult(
   } as SearchResult
 }
 
-/** 搜索完成后对冠军做组合评估(等权/IC 加权 vs 最优单因子;best-effort,失败返回 null) */
+/** 搜索完成后对冠军做组合评估(等权/IC 加权 vs 最优单因子;best-effort,失败返回 null)。
+ *  勾选「组合因子」时先按优质/回捞分层选成员(≤5),内核追加 1×/2× 双口径
+ *  与折检验,产出超级因子判定。 */
 async function evaluatePortfolio(
   payload: LocalFactorPayload,
   bars: KlineBar[],
   champions: Champion[],
 ): Promise<SearchResult["portfolio"]> {
   if (champions.length < 2) return null
+  const comboSuper = payload.combo_super === true
+  let tokensList = champions.map((c) => c.tokens)
+  if (comboSuper) {
+    const selection = await selectComboMembers(champions)
+    if (!selection) return null
+    tokensList = selection.members.map((c) => c.tokens)
+  }
   try {
     const { ensurePyWorker } = await import("@/lib/py-worker")
     const res = (await ensurePyWorker().factorRun(
@@ -176,13 +188,14 @@ async function evaluatePortfolio(
         symbol: payload.symbol,
         timeframe: payload.timeframe,
         cost: payload.cost ?? null,
-        tokens_list: champions.map((c) => c.tokens),
+        tokens_list: tokensList,
         // 只在样本外段评估(增强遴选时只用封存段),避免样本内虚高
         ...(payload.train_ratio ? { train_ratio: payload.train_ratio } : {}),
         ...(payload.test_recent_bars != null ? { test_recent_bars: payload.test_recent_bars } : {}),
         ...(payload.selection_v2 ? { selection_v2: true } : {}),
         ...(researchProfileFor(payload) ? { research_profile: researchProfileFor(payload) } : {}),
         ...(payload.execution_model ? { execution_model: payload.execution_model } : {}),
+        ...(comboSuper ? { combo_super: true, walk_forward_folds: payload.walk_forward_folds ?? 0 } : {}),
       },
       bars,
       120_000,
@@ -214,6 +227,7 @@ export function buildSearchConfig(payload: LocalFactorPayload) {
     ...(payload.selection_v2 ? { selection_v2: true } : {}),
     ...(payload.evolve_v2 ? { evolve_v2: true } : {}),
     ...(payload.live_entry_gate ? { live_entry_gate: payload.live_entry_gate } : {}),
+    ...(payload.combo_super ? { combo_super: true } : {}),
     ...(researchProfileFor(payload) ? { research_profile: researchProfileFor(payload) } : {}),
     ...(payload.execution_model ? { execution_model: payload.execution_model } : {}),
     ...(payload.label_span != null ? { label_span: payload.label_span } : {}),
@@ -305,7 +319,9 @@ export async function prepareSearchBars(
   return bars
 }
 
-/** 冠军收尾:内核版本戳 + 组合评估 + SearchResult 组装(后台 runner 复用) */
+/** 冠军收尾:内核版本戳 + 组合评估 + SearchResult 组装(后台 runner 复用)。
+ *  勾选「组合因子」的任务经 comboSuperOutcome 统一出口:无法组合时产出
+ *  失败占位,供结果页展示「组合测试未通过——全部不合格」。 */
 export async function finalizeSearchResult(
   payload: LocalFactorPayload,
   bars: KlineBar[],
@@ -313,9 +329,17 @@ export async function finalizeSearchResult(
   engine?: LocalSearchEngine,
   nativePortfolio: SearchResult["portfolio"] = null,
 ): Promise<SearchResult> {
-  if (engine === "native-gpu") return finalizeNativeSearch(payload, bars, champions, nativePortfolio ?? null)
+  if (engine === "native-gpu") {
+    return finalizeNativeSearch(
+      payload, bars, champions,
+      comboSuperOutcome(nativePortfolio ?? null, payload.combo_super === true),
+    )
+  }
   await stampKernelVersion(champions)
-  const portfolio = await evaluatePortfolio(payload, bars, champions)
+  const portfolio = comboSuperOutcome(
+    (await evaluatePortfolio(payload, bars, champions)) ?? null,
+    payload.combo_super === true,
+  )
   return toSearchResult(payload, bars, champions, portfolio)
 }
 
