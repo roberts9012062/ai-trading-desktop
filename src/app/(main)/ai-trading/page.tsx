@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Award, LineChart, Plus, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CreateTaskDialog } from "@/components/ai-trading/form/create-task-dialog"
+import { CreateHunterDialog } from "@/components/hunter/create-hunter-dialog"
+import { HunterPanel } from "@/components/hunter/hunter-panel"
 import { CreateQuantDialog } from "@/components/ai-trading/form/create-quant-dialog"
 import { EditTaskDialog } from "@/components/ai-trading/form/edit-task-dialog"
 import { EditRulesDialog } from "@/components/ai-trading/form/edit-rules-dialog"
@@ -52,6 +54,7 @@ export default function AITradingPage(): React.JSX.Element {
   }, [])
 
   const [createOpen, setCreateOpen] = useState(false)
+  const [hunterOpen, setHunterOpen] = useState(false)
   const [quantOpen, setQuantOpen] = useState(false)
   // 任务收藏：星标弹窗 + 创建优秀任务
   const [favTask, setFavTask] = useState<AITradingTask | null>(null)
@@ -153,6 +156,10 @@ export default function AITradingPage(): React.JSX.Element {
             <Plus className="w-3.5 h-3.5" />
             创建 AI 交易
           </Button>
+          <Button size="sm" variant="outline" onClick={() => setHunterOpen(true)}>
+            <Plus className="w-3.5 h-3.5" />
+            创建多周期猎手
+          </Button>
         </div>
       </div>
 
@@ -163,6 +170,7 @@ export default function AITradingPage(): React.JSX.Element {
       )}
 
       <EquityChart tasks={tasks} series={equitySeries} profitBars={profitBars} />
+      <HunterPanel />
 
       <ProfitBarChart
         items={profitBars}
@@ -178,7 +186,7 @@ export default function AITradingPage(): React.JSX.Element {
           任务列表
         </h2>
         <TaskList
-          tasks={tasks}
+          tasks={tasks.filter(t => t.strategy_type !== "multi_cycle_hunter")}
           selectedId={selectedTaskId}
           onSelect={(id) => {
             void selectTask(id)
@@ -196,6 +204,7 @@ export default function AITradingPage(): React.JSX.Element {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
       />
+      <CreateHunterDialog open={hunterOpen} onClose={() => setHunterOpen(false)} />
 
       <CreateQuantDialog
         open={quantOpen}

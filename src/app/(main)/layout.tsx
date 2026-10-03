@@ -10,6 +10,7 @@ import { BigOrderToastPopup } from "@/components/notifications/big-order-toast"
 import { startVoiceBroadcastEngine } from "@/lib/voice-broadcast-engine"
 import { TaskAlertToastPopup } from "@/components/notifications/task-alert-toast"
 import { GlobalDialog } from "@/components/global-dialog"
+import { HunterRuntime } from "@/components/hunter/runtime"
 import { useKeyboardShortcuts } from "@/hooks/keyboard"
 import { useTabSync } from "@/hooks/sync"
 import { useAuthGuard } from "@/hooks/auth"
@@ -137,6 +138,7 @@ export default function MainLayout({
       <TaskAlertToastPopup />
       {/* 全局美化弹窗：showAlert / showConfirm 的渲染器 */}
       <GlobalDialog />
+      <HunterRuntime />
     </div>
   )
 }

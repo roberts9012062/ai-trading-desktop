@@ -27,27 +27,35 @@ export function desktopTokensToServerV3(tokens: readonly number[]): number[] {
  *  其余直连特征（funding/taker/lsr/OI 族）服务器富化管道已供给。 */
 export const SERVER_MISSING_FEATS = new Set([55, 57, 58])
 
-export function isResearchOnlyFactor(tokens: readonly number[], metrics?: Partial<FactorMetrics> | null): boolean {
+function hasServerMissingFeature(tokens: readonly number[]): boolean {
+  // 能力判定与编码出口使用相同的整条公式判据。v3 的 57/58 是
+  // STREAK/VWAP_DEV，不能按桌面 57/58 误读为强平/逐笔输入。
+  const v3 = tokens.some(t => t >= 128)
+  return tokens.some(t => v3
+    ? t >= 57 && t < 83 && SERVER_MISSING_FEATS.has(t - 21)
+    : SERVER_MISSING_FEATS.has(t))
+}
+
+/** 服务端信号的数据能力判定；不代表配方不能收藏。 */
+export function isResearchOnlyFactor(tokens: readonly number[], _metrics?: Partial<FactorMetrics> | null): boolean {
   // 2026-09-28 起服务器 v3 已供给 funding/taker/lsr/OI 族直连特征，
-  // 仅剩逐笔/强平类无源特征与 gate_usdt 渠道数据仍属本地研究范围；
-  // metrics.research_only 是按旧服务器能力算的存量标记，不再作为依据
-  return metrics?.data_channel === "gate_usdt"
-    || tokens.some((t) => SERVER_MISSING_FEATS.has(t))
+  // 仅剩逐笔/强平类无源特征需本地研究。研究渠道是数据来源记录，
+  // 任务使用服务器当前行情及富化管道；不能把 gate_usdt 来源或旧的
+  // research_only/local_only 标记当作永久的执行能力限制。
+  return hasServerMissingFeature(tokens)
 }
 
 export function requiresLocalFactorEngine(tokens: readonly number[], metrics?: Partial<FactorMetrics> | null): boolean {
-  if (metrics?.local_only === true) return true
   // 2026-09-28 起服务器 v3 已补齐桌面谱系算子与特征：
   // 算子 >=104、特征 36-54/59-61 均可挂载（desktopTokensToServerV3 转换）；
   // 仅服务器无数据源的 3 个直连特征仍需本地引擎
-  return tokens.some((t) => SERVER_MISSING_FEATS.has(t))
+  // local_only 与 research_only 都可能是旧能力标记，实际依赖才是依据。
+  return isResearchOnlyFactor(tokens, metrics)
 }
 
-export const RESEARCH_FACTOR_MESSAGE = "该因子依赖尚未接入实盘的直连数据，暂仅支持本地研究，不支持实盘收藏或挂载"
+export const RESEARCH_FACTOR_MESSAGE = "该配方可以收藏，但其逐笔成交或强平数据尚未接入服务器，暂不能挂载服务器任务；请替换缺少数据的成员"
 
 /** AI task factor_signal is produced by the server; local mining does not change that. */
 export function serverFactorBlockReason(tokens: readonly number[], metrics?: Partial<FactorMetrics> | null): string | null {
-  if (isResearchOnlyFactor(tokens, metrics)) return RESEARCH_FACTOR_MESSAGE
-  if (requiresLocalFactorEngine(tokens, metrics)) return "该公式含服务器无数据源的直连特征（逐笔/强平类），可收藏用于本地回放，暂不支持服务端因子信号"
-  return null
+  return requiresLocalFactorEngine(tokens, metrics) ? RESEARCH_FACTOR_MESSAGE : null
 }

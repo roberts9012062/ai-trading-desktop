@@ -73,8 +73,7 @@ interface CreateQuantDialogProps {
     tokenGroups: number[][]
     texts: string[]
   } | null
-  /** 创建成功回调（任务已入库）：因子实验室组合挂载用它把
-   *  含本地专属特征的组合切到本地引擎执行（switchTaskSite）。
+  /** 创建成功回调（服务器任务已入库），用于显示创建结果。
    *  回调自身负责消化错误（页面提示），不阻断弹窗关闭 */
   onCreated?: (task: AITradingTask) => void | Promise<void>
 }
@@ -304,19 +303,18 @@ export function CreateQuantDialog({
       model_row_id: decisionEnabled ? decisionModelRowId : null,
       strategy_type: decisionEnabled ? "decision" : quant.quantKind,
       // 组合因子：factor_tokens = list of lists（等权），单公式走 buildStrategyParams
-      strategy_params: combo
-        ? withServerFactorTokens({
-            factor_tokens:
-              combo.tokenGroups.length === 1 ? combo.tokenGroups[0] : combo.tokenGroups,
-          })
-        : decisionEnabled
+      strategy_params: decisionEnabled
           ? {
               decision_strategy: {
-                kind: quant.quantKind,
-                params: withServerFactorTokens(buildStrategyParams(quant)),
+                kind: combo ? "factor" : quant.quantKind,
+                params: withServerFactorTokens(combo
+                  ? { factor_tokens: combo.tokenGroups.length === 1 ? combo.tokenGroups[0] : combo.tokenGroups }
+                  : buildStrategyParams(quant)),
               },
             }
-          : withServerFactorTokens(buildStrategyParams(quant)),
+          : withServerFactorTokens(combo
+            ? { factor_tokens: combo.tokenGroups.length === 1 ? combo.tokenGroups[0] : combo.tokenGroups }
+            : buildStrategyParams(quant)),
       decision_interval_sec: decisionEnabled ? decisionIntervalSec : undefined,
       // 量化分析间隔：等于周期（默认）发 null=按K线收盘；决策模型忽略
       eval_interval_sec:
@@ -356,7 +354,7 @@ export function CreateQuantDialog({
       try {
         await onCreated?.(task)
       } catch {
-        // 任务已创建；后置处理（如本地引擎切换）失败不回滚创建，由回调方自行提示
+        // 服务器任务已创建；结果提示失败不回滚创建。
       }
       onClose()
     } catch (err) {

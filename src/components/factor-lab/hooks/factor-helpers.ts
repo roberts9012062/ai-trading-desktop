@@ -1,6 +1,6 @@
 /** 因子实验室纯辅助函数 —— 不含 React 状态 */
 
-import { SERVER_MISSING_FEATS, desktopTokensToServerV3 } from "@/lib/factor-access"
+import { isResearchOnlyFactor, desktopTokensToServerV3 } from "@/lib/factor-access"
 
 import type {
   Champion,
@@ -127,7 +127,7 @@ const FEAT_OFFSET = 64
  *  本地引擎执行。metrics.local_only 是按旧服务器能力打的存量标,不再
  *  作为依据(内核按旧口径打的标会把已支持的特征也拦成 local_only)。 */
 export function isLocalOnly(tokens: number[] | null | undefined, _metrics?: unknown): boolean {
-  return !!tokens?.some((t) => SERVER_MISSING_FEATS.has(t))
+  return isResearchOnlyFactor(tokens ?? [])
 }
 
 /** 默认空指标（补齐字段用） */

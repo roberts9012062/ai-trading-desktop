@@ -1,31 +1,35 @@
 /** AI 交易 API 客户端 */
 
 import { desktopTokensToServerV3, isResearchOnlyFactor, RESEARCH_FACTOR_MESSAGE } from "@/lib/factor-access"
-import { listFactorFavorites } from "@/lib/factor-lab-api"
 
-/** AI 任务的因子守卫:服务端因子信号回放不了直连衍生数据特征(research-only)。
- *  本地因子策略(strategy_type=factor)在本地引擎执行,不受此限制。 */
-async function guardAiFactorTokens(tokens: number[] | undefined): Promise<void> {
+type FactorTokens = number[] | number[][]
+
+/** 服务器任务按每个成员的编码检查实际数据能力。 */
+function guardServerFactorTokens(tokens: FactorTokens | undefined): void {
   if (!tokens || tokens.length === 0) return
-  // 1) 直接按 token 区间判(新公式,不依赖收藏元数据)
-  if (isResearchOnlyFactor(tokens, null)) throw new Error(RESEARCH_FACTOR_MESSAGE)
-  // 2) 已保存收藏的 research_only 标记(历史存量公式)
-  const favs = await listFactorFavorites().catch(() => [])
-  const key = tokens.join(",")
-  const hit = favs.find((f) => (f.tokens ?? []).join(",") === key)
-  if (hit && isResearchOnlyFactor(tokens, hit.metrics)) {
-    throw new Error(RESEARCH_FACTOR_MESSAGE)
-  }
+  // 按整条公式编码检查真实数据依赖，不再读取收藏中的旧权限标记。
+  const groups = Array.isArray(tokens[0]) ? tokens as number[][] : [tokens as number[]]
+  const blocked = groups.findIndex((group) => isResearchOnlyFactor(group))
+  if (blocked >= 0) throw new Error(`因子${blocked + 1}：${RESEARCH_FACTOR_MESSAGE}`)
 }
 
-/** AI 任务(strategy_type=ai)载荷中的因子 tokens;factor 策略/无 tokens 返回 undefined */
-function aiFactorTokensOf(payload: {
+function serverFactorTokensOf(payload: {
   strategy_type?: string
   strategy_params?: unknown
-}): number[] | undefined {
-  if (payload.strategy_type !== "ai") return undefined
+}): FactorTokens | undefined {
+  if (payload.strategy_type === "decision") {
+    const params = payload.strategy_params as { decision_strategy?: { kind?: string; params?: { factor_tokens?: FactorTokens } } } | undefined
+    return params?.decision_strategy?.kind === "factor" ? params.decision_strategy.params?.factor_tokens : undefined
+  }
+  if (payload.strategy_type !== "ai" && payload.strategy_type !== "factor") return undefined
   const params = payload.strategy_params as { factor_tokens?: unknown } | null | undefined
-  return Array.isArray(params?.factor_tokens) ? (params.factor_tokens as number[]) : undefined
+  return Array.isArray(params?.factor_tokens) ? (params.factor_tokens as FactorTokens) : undefined
+}
+
+function aiServerTokens(tokens: FactorTokens): FactorTokens {
+  return Array.isArray(tokens[0])
+    ? (tokens as number[][]).map(desktopTokensToServerV3)
+    : desktopTokensToServerV3(tokens as number[])
 }
 export type Timeframe = "1m" | "5m" | "15m" | "30m" | "60m" | "1d"
 export type SideMode = "long_only" | "short_only" | "both"
@@ -363,11 +367,11 @@ export async function fetchFundingSource(): Promise<FundingSourceInfo> {
 export async function createAITradingTask(
   payload: CreateTaskPayload,
 ): Promise<AITradingTask> {
-  await guardAiFactorTokens(aiFactorTokensOf(payload))
-  // 桌面谱系 token → 服务器 v3 编码（守卫按桌面编码判，转换幂等）
-  const params = payload.strategy_params as { factor_tokens?: number[] } | null | undefined
+  guardServerFactorTokens(serverFactorTokensOf(payload))
+  // 桌面谱系 token → 服务器 v3 编码（守卫兼容两种编码，转换幂等）
+  const params = payload.strategy_params as { factor_tokens?: FactorTokens } | null | undefined
   if (payload.strategy_type === "ai" && Array.isArray(params?.factor_tokens)) {
-    params.factor_tokens = desktopTokensToServerV3(params.factor_tokens)
+    params.factor_tokens = aiServerTokens(params.factor_tokens)
   }
   return request("/api/ai-trading/tasks", {
     method: "POST",
@@ -399,15 +403,13 @@ export async function updateAITradingTask(
   id: string,
   payload: UpdateTaskPayload,
 ): Promise<AITradingTask> {
-  // 编辑载荷改因子 token 时,先取任务详情确认是 AI 任务(factor 策略不限)再守卫
-  const tokens = (payload.strategy_params as { factor_tokens?: number[] } | undefined)
-    ?.factor_tokens
-  if (Array.isArray(tokens) && tokens.length > 0) {
+  // 改策略参数时按实际任务类型核对服务器能力，组合逐个成员检查。
+  if (payload.strategy_params) {
     const task = await request<AITradingTask>(`/api/ai-trading/tasks/${id}`)
-    if (task?.strategy_type === "ai") {
-      await guardAiFactorTokens(tokens)
-      ;(payload.strategy_params as { factor_tokens?: number[] }).factor_tokens =
-        desktopTokensToServerV3(tokens)
+    const tokens = serverFactorTokensOf({ strategy_type: task.strategy_type, strategy_params: payload.strategy_params })
+    guardServerFactorTokens(tokens)
+    if (task?.strategy_type === "ai" && tokens) {
+      ;(payload.strategy_params as { factor_tokens?: FactorTokens }).factor_tokens = aiServerTokens(tokens)
     }
   }
   return request(`/api/ai-trading/tasks/${id}`, {

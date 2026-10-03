@@ -11,7 +11,7 @@
  *
  * 桌面端适配（web fad6967 之外）：
  * - token 为桌面谱系编码，提交前经 desktopTokensToServerV3 转 v3（幂等）
- * - 组合含服务器无数据源的直连特征（逐笔/强平类）或 gate_usdt 渠道因子时，
+ * - 仅组合真实依赖服务器无数据源的直连特征（逐笔/强平类）时，
  *   服务端 similarity 无法计算 → 本地预检直接给说明，不发起注定 400 的请求
  */
 
@@ -24,7 +24,6 @@ import {
 import {
   desktopTokensToServerV3,
   isResearchOnlyFactor,
-  requiresLocalFactorEngine,
 } from "@/lib/factor-access"
 import { cn } from "@/lib/utils"
 
@@ -54,12 +53,9 @@ export function ComboSimilarityPanel({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // 服务端无法计算的成员（无数据源直连特征 / gate_usdt 渠道）：本地预检降级
-  const blocked = champions.some(
-    (c) =>
-      isResearchOnlyFactor(c.tokens, c.metrics) ||
-      requiresLocalFactorEngine(c.tokens, c.metrics),
-  )
+  // 只有真实缺少输入数据的公式才阻止服务端相似度分析。
+  const blockedIndex = champions.findIndex((c) => isResearchOnlyFactor(c.tokens, c.metrics))
+  const blocked = blockedIndex >= 0
 
   useEffect(() => {
     if (champions.length < 2 || !symbol || !timeframe || blocked) {
@@ -104,8 +100,8 @@ export function ComboSimilarityPanel({
   if (blocked) {
     return (
       <p className="text-[10px] text-amber-400/90">
-        组合含服务器无数据源的直连特征（逐笔/强平类）或 gate_usdt 渠道因子，
-        服务端无法计算相似度；该组合挂载后将自动切换本地引擎执行（需应用保持运行）。
+        因子{blockedIndex + 1}依赖服务器尚未接入的逐笔成交或强平数据，请替换该成员。
+        组合任务在服务器运行，无需本机保持开机。
       </p>
     )
   }

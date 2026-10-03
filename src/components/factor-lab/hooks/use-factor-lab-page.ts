@@ -1,7 +1,5 @@
 "use client"
 
-import { isResearchOnlyFactor, RESEARCH_FACTOR_MESSAGE } from "@/lib/factor-access"
-
 /**
  * 因子实验室页面状态与操作
  */
@@ -19,14 +17,13 @@ import {
   type FactorMetrics,
   type SearchResult,
 } from "@/lib/factor-lab-api"
-import { createAITradingTask as createTask, switchTaskSite } from "@/lib/ai-trading-api"
+import { createAITradingTask as createTask } from "@/lib/ai-trading-api"
 import { backtestFactorLocal, prepareSearchBars, type LocalSearchStep } from "@/lib/local-factor"
 import { factorLabRunner, type FactorSearchTask } from "@/lib/mining/factor-lab-runner"
 import { useFactorLabData } from "./use-factor-data"
 import {
   buildFactorTaskPayload,
   defaultSearchPayload,
-  isLocalOnly,
 } from "./factor-helpers"
 
 /** 本地引擎类型:本地 CPU(Pyodide) / 本地 GPU(WebGPU 粗排+内核精算)。
@@ -432,23 +429,13 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
       setError("该记录为旧内核口径产出（指标与当前口径不一致），禁止直接挂载实盘；请重新回测确认")
       return
     }
-    // 本地专属/直连衍生特征公式:服务端无法计算信号(实测 backtest-factor
-    // 对 taker 类直连特征返回 400) → 创建后自动切本地引擎执行(需应用保持运行)
-    const localOnly =
-      isLocalOnly(selected.tokens, selected.metrics) ||
-      isResearchOnlyFactor(selected.tokens, selected.metrics)
     setBuilding(true)
     setBuildMsg(null)
     try {
       const task = await createTask(
         buildFactorTaskPayload(lastReq.symbol, lastReq.timeframe, selected.tokens),
       )
-      if (localOnly) {
-        await switchTaskSite(task.id, "client")
-        setBuildMsg(`已创建并设为本地引擎执行：${task.name}（含本地专属特征，服务器无法计算；需应用保持运行）`)
-      } else {
-        setBuildMsg(`已创建：${task.name}（到 AI 交易页启动）`)
-      }
+      setBuildMsg(`已创建服务器任务：${task.name}（到 AI 交易页启动，关闭桌面端后继续运行）`)
     } catch (e) {
       setBuildMsg(errOf(e, "创建失败"))
     } finally {
@@ -517,10 +504,6 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     item: FavoriteInput,
     opts?: { name?: string; folderId?: string | null },
   ): Promise<void> {
-    if (isResearchOnlyFactor(item.tokens, item.metrics)) {
-      setError(RESEARCH_FACTOR_MESSAGE)
-      return
-    }
     if (item.metrics?.overfit_warning) {
       setError("该因子未通过样本外验证（测试段亏损），已禁止收藏")
       return

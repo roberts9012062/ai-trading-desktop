@@ -5,7 +5,6 @@
  * 左：配置表单 + 任务列表；右：选中任务的进度/冠军结果
  */
 
-import { isResearchOnlyFactor, RESEARCH_FACTOR_MESSAGE } from "@/lib/factor-access"
 import { CRYPTO_RESEARCH_NOTE } from "@/lib/mining/crypto-profile"
 import { useEffect, useState } from "react"
 import { Loader2, Pause, Play, Plus, Square, Trash2, X } from "lucide-react"
@@ -16,8 +15,7 @@ import { ChampionTable } from "@/components/factor-lab/champion-table"
 import { PortfolioCard } from "@/components/factor-lab/portfolio-card"
 import { addFactorFavorite, listFactorFavorites } from "@/lib/factor-lab-api"
 import type { Champion } from "@/lib/factor-lab-api"
-import { isLocalOnly } from "@/components/factor-lab/hooks/factor-helpers"
-import { switchTaskSite, type AITradingTask } from "@/lib/ai-trading-api"
+import type { AITradingTask } from "@/lib/ai-trading-api"
 import { CreateQuantDialog } from "@/components/ai-trading/form/create-quant-dialog"
 import { showAlert } from "@/stores/dialog"
 import {
@@ -1117,13 +1115,9 @@ function TaskDetailPanel(props: DetailProps): React.JSX.Element {
   }, [task?.status, task?.symbol, taskId])
 
   // 收藏冠军因子（复用 factor_lab 收藏 API，两个页面因子库打通）。
-  // 本地专属公式同样可收藏:服务端引擎已下线,全部任务本地执行,本机可回放
+  // 收藏保存配方与验证证据；交易执行能力在挂载时另行核对。
   async function handleFavorite(c: Champion): Promise<void> {
     if (!task) return
-    if (isResearchOnlyFactor(c.tokens, c.metrics)) {
-      await showAlert({ title: "仅支持研究", description: RESEARCH_FACTOR_MESSAGE })
-      return
-    }
     const key = c.tokens.join(",")
     // 本地立即置灰，避免重复点击
     setFavoritedKeys((prev) => new Set(prev).add(key))
@@ -1154,13 +1148,12 @@ function TaskDetailPanel(props: DetailProps): React.JSX.Element {
   }
 
   // 组合挂载 → 任务配置弹窗（与因子实验室同款；web fad6967 同步）。
-  // localOnly：任一成员含本地专属/直连衍生特征 → 创建后整组切本地引擎执行
+  // 任务始终挂载服务器；数据能力由创建入口逐成员检查。
   const [comboPreset, setComboPreset] = useState<{
     symbol: string
     timeframe: string
     tokenGroups: number[][]
     texts: string[]
-    localOnly: boolean
   } | null>(null)
 
   function openComboDialog(cs: Champion[]): void {
@@ -1183,31 +1176,12 @@ function TaskDetailPanel(props: DetailProps): React.JSX.Element {
       timeframe: task.timeframe,
       tokenGroups: cs.map((c) => c.tokens),
       texts: cs.map((c) => c.text ?? ""),
-      localOnly: cs.some(
-        (c) => isLocalOnly(c.tokens, c.metrics) || isResearchOnlyFactor(c.tokens, c.metrics),
-      ),
     })
   }
 
-  // 组合任务创建成功后置处理：本地专属特征组合切本地引擎（需应用保持运行）
+  // 服务器任务不依赖桌面端保持运行。
   async function afterComboCreated(t: AITradingTask): Promise<void> {
-    if (!comboPreset?.localOnly) {
-      await showAlert({ title: "已创建组合任务", description: `${t.name}（到 AI 交易页启动）` })
-      return
-    }
-    try {
-      await switchTaskSite(t.id, "client")
-      await showAlert({
-        title: "已创建并设为本地引擎执行",
-        description: `${t.name}（含本地专属特征成员，服务器无法计算；需应用保持运行）`,
-      })
-    } catch (e) {
-      await showAlert({
-        title: "已创建，但切换本地引擎失败",
-        description: `${t.name}：${e instanceof Error ? e.message : "未知错误"}（请到任务里手动切换本机执行）`,
-        variant: "destructive",
-      })
-    }
+    await showAlert({ title: "已创建服务器组合任务", description: `${t.name}（到 AI 交易页启动，关闭桌面端后继续运行）` })
   }
 
   if (!task) {

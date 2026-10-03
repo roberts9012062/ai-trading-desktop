@@ -24,11 +24,9 @@ import { useEffect, useMemo, useState } from "react"
 import {
   championFromFavorite,
   championFromHistory,
-  isLocalOnly,
 } from "./hooks/factor-helpers"
 import type { Champion } from "@/lib/factor-lab-api"
-import { isResearchOnlyFactor } from "@/lib/factor-access"
-import { switchTaskSite, type AITradingTask } from "@/lib/ai-trading-api"
+import type { AITradingTask } from "@/lib/ai-trading-api"
 import { CreateQuantDialog } from "@/components/ai-trading/form/create-quant-dialog"
 import type { LocalSearchStep } from "@/lib/local-factor"
 import { useNativeAvailability } from "@/lib/native-engine/use-native-availability"
@@ -201,13 +199,12 @@ export function FactorLabPage(): React.JSX.Element {
   }
 
   // 组合挂载走任务配置弹窗（与单因子任务同款配置；web fad6967 同款流程）。
-  // localOnly：任一成员含本地专属/直连衍生特征 → 创建后整组切本地引擎执行
+  // 任务始终挂载服务器；数据能力由创建入口逐成员检查。
   const [comboPreset, setComboPreset] = useState<{
     symbol: string
     timeframe: string
     tokenGroups: number[][]
     texts: string[]
-    localOnly: boolean
   } | null>(null)
 
   function openComboDialog(cs: Champion[]): void {
@@ -231,24 +228,12 @@ export function FactorLabPage(): React.JSX.Element {
       timeframe,
       tokenGroups: cs.map((c) => c.tokens),
       texts: cs.map((c) => c.text ?? ""),
-      localOnly: cs.some(
-        (c) => isLocalOnly(c.tokens, c.metrics) || isResearchOnlyFactor(c.tokens, c.metrics),
-      ),
     })
   }
 
-  // 组合任务创建成功后置处理：本地专属特征组合切本地引擎（需应用保持运行）
+  // 服务器任务不依赖桌面端保持运行。
   async function afterComboCreated(task: AITradingTask): Promise<void> {
-    if (!comboPreset?.localOnly) {
-      s.setBuildMsg(`已创建组合任务：${task.name}（到 AI 交易页启动）`)
-      return
-    }
-    try {
-      await switchTaskSite(task.id, "client")
-      s.setBuildMsg(`已创建并设为本地引擎执行：${task.name}（含本地专属特征成员，服务器无法计算；需应用保持运行）`)
-    } catch (e) {
-      s.setBuildMsg(`已创建 ${task.name}，但切换本地引擎失败：${e instanceof Error ? e.message : "未知错误"}（请到任务里手动切换本机执行）`)
-    }
+    s.setBuildMsg(`已创建服务器组合任务：${task.name}（到 AI 交易页启动，关闭桌面端后继续运行）`)
   }
 
   return (

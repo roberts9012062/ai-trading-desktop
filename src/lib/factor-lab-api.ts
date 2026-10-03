@@ -1,4 +1,3 @@
-import { isResearchOnlyFactor, RESEARCH_FACTOR_MESSAGE } from "./factor-access"
 /** 因子实验室 API 客户端 */
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
@@ -475,7 +474,7 @@ export async function addFactorFavorite(payload: {
   note?: string
   folder_id?: string | null
 }): Promise<FactorFavoriteItem> {
-  if (isResearchOnlyFactor(payload.tokens, payload.metrics)) throw new Error(RESEARCH_FACTOR_MESSAGE)
+  // 收藏持久化配方与验证证据，不执行交易；服务端信号能力在挂载时检查。
   return request<FactorFavoriteItem>("/api/factor-lab/favorites", {
     method: "POST",
     body: JSON.stringify(payload),
