@@ -3,6 +3,7 @@ import { Crosshair } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useHunterStore } from "@/stores/hunter"
 import { CYCLES } from "@/lib/hunter/rules"
+import { hunterAccountLabel } from "@/lib/hunter/api"
 
 const money = (n: number) => n.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const labels = { running: "搜索中", paused: "搜索暂停", stopping: "正在退出持仓", stopped: "搜索已停止" }
@@ -29,7 +30,7 @@ export function HunterPanel() {
     {connectionError && <p role="alert" className="text-xs text-red-400">{connectionError}</p>}
     {groups.map(g => <article key={g.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4 space-y-3">
       <div className="flex justify-between gap-3 flex-wrap">
-        <div><strong className="text-sm">{g.name}</strong><span className="ml-2 text-xs text-[var(--text-muted)]">{labels[g.status]} · {g.config.venue.toUpperCase()} · {g.config.leverage ?? 1} 倍{g.config.margin_mode === "cross" ? "全仓" : "逐仓"} · {g.config.brain === "rules" ? "规则" : g.config.brain === "jev" ? "Jev" : "AI 大模型"}</span>
+        <div><strong className="text-sm">{g.name}</strong><span className="ml-2 text-xs text-[var(--text-muted)]">{labels[g.status]} · {hunterAccountLabel(g.runtime.execution_account?.execution_mode ?? (g.trading_mode === "virtual" ? "virtual" : undefined))} · {g.config.venue.toUpperCase()} · {g.config.leverage ?? 1} 倍{g.config.margin_mode === "cross" ? "全仓" : "逐仓"} · {g.config.brain === "rules" ? "规则" : g.config.brain === "jev" ? "Jev" : "AI 大模型"}</span>
           <p className="text-xs text-[var(--text-muted)] mt-1">{progress[g.id] ?? "等待桌面扫描；已挂载持仓由服务器管理"}</p></div>
         <div className="flex gap-2 flex-wrap">
           {(g.status === "running" || g.status === "paused") && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, g.status === "running" ? "pause" : "resume")}>{g.status === "running" ? "暂停搜索" : "恢复搜索"}</Button>}
@@ -54,11 +55,11 @@ export function HunterPanel() {
             <td className="p-2">{o.symbol.toUpperCase()} · {CYCLES[o.cycle].label} · {o.plan.direction === "long" ? "多" : "空"} · {o.plan.leverage ?? 1} 倍{o.plan.margin_mode === "cross" ? "全仓" : "逐仓"}</td>
             <td>{({ mounted: "已挂载", opening: "开仓中", holding: "持仓管理", reconciling: "成交核对", closed: "已结束", cancelled: "未开仓结束" } as Record<string, string>)[o.status] ?? o.status}</td>
             <td>{o.plan.entry.toPrecision(7)} / {(o.runtime.stop ?? o.plan.stop).toPrecision(7)}</td>
-            <td>{money(o.net_profit)}<span className="block text-[var(--text-muted)]">{o.runtime.reason ?? ""}</span></td>
+            <td>{money(o.net_profit)}<span className="block text-[var(--text-muted)]">{o.runtime.note ?? o.runtime.reason ?? ""}</span></td>
           </tr>)}</tbody>
         </table></div>
       </details>
-      <p className="text-[11px] text-[var(--text-muted)]">模拟研究 · 成交手续费已计入，资金费和模型费尚未模拟结算；尚未取得独立盈利验证。停止搜索不会关闭已有持仓保护。</p>
+      <p className="text-[11px] text-[var(--text-muted)]">{g.trading_mode === "live" ? "OKX API 执行 · 成交费用及已对账资金费计入收益，模型调用费另计" : "站内模拟研究 · 成交手续费已计入，资金费和模型费尚未模拟结算"}；尚未取得独立盈利验证。停止搜索不会关闭已有持仓保护。</p>
     </article>)}
   </section>
 }

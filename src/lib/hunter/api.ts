@@ -9,19 +9,32 @@ export interface HunterConfig {
 export interface Opportunity {
   id: string; task_id: string | null; symbol: string; cycle: Cycle; status: string;
   plan: { entry: number; stop: number; quantity: number; risk_budget: number; direction: Direction; leverage?: number; margin?: number; margin_mode?: "isolated" | "cross" };
-  runtime: { stop?: number; last_price?: number; reason?: string; unrealized?: number };
+  runtime: { stop?: number; last_price?: number; reason?: string; note?: string; unrealized?: number };
   net_profit: number; finished_at: string | null;
 }
 export interface Hunter {
   id: string; name: string; status: "running" | "paused" | "stopping" | "stopped";
   trading_mode: string; config: HunterConfig; capital: number; equity: number; blocks: string[];
-  runtime: { realized?: number; unrealized?: number; qualification?: string };
+  runtime: { realized?: number; unrealized?: number; qualification?: string; execution_account?: { execution_mode: "virtual" | "okx_demo" | "okx_live" } };
   stats: { trades: number; win_rate: number | null; profit_factor: number | null; payoff: number | null };
   opportunities: Opportunity[];
 }
 export interface HunterData { bars: Record<string, Bar[]>; market: Bar[]; market_week: Bar[]; now: number }
 export interface HunterTicker { symbol: string; price: number; bid: number; ask: number; turnover: number; spread: number; ts_ms: number }
 export interface HunterSymbol { symbol: string; name: string }
+export interface HunterCapabilities {
+  live_qualified: boolean; trading_mode: string; reason: string;
+  can_start?: boolean; execution_mode?: "virtual" | "okx_demo" | "okx_live" | "unavailable";
+}
+
+export function canStartHunter(cap: HunterCapabilities): boolean {
+  return cap.can_start ?? cap.trading_mode === "virtual"
+}
+
+export function hunterAccountLabel(mode?: HunterCapabilities["execution_mode"]): string {
+  return ({ virtual: "站内模拟交易", okx_demo: "OKX API 模拟盘", okx_live: "OKX API 实盘",
+    unavailable: "未配置有效 OKX API" } as const)[mode ?? "unavailable"]
+}
 
 async function request<T>(path: string, init: RequestInit = {}, signal?: AbortSignal): Promise<T> {
   const token = localStorage.getItem("access_token")
@@ -44,7 +57,7 @@ async function request<T>(path: string, init: RequestInit = {}, signal?: AbortSi
 }
 export const hunterApi = {
   symbols: (signal?: AbortSignal) => request<HunterSymbol[]>("/symbols", {}, signal),
-  capabilities: () => request<{ live_qualified: boolean; trading_mode: string; reason: string }>("/capabilities"),
+  capabilities: () => request<HunterCapabilities>("/capabilities"),
   list: (signal?: AbortSignal) => request<Hunter[]>("/groups", {}, signal),
   create: (config: HunterConfig) => request<Hunter>("/groups", { method: "POST", body: JSON.stringify(config) }),
   universe: (id: string, signal?: AbortSignal) => request<HunterTicker[]>("/groups/" + id + "/universe", {}, signal),

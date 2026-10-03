@@ -8,7 +8,7 @@ import { chatModelsOnly, decisionModelsOnly } from "@/lib/decision-model"
 import type { AIModel } from "@/types"
 import { useAuthStore } from "@/stores/auth"
 import { useHunterStore } from "@/stores/hunter"
-import { hunterApi, type HunterConfig, type HunterSymbol } from "@/lib/hunter/api"
+import { hunterApi, canStartHunter, hunterAccountLabel, type HunterCapabilities, type HunterConfig, type HunterSymbol } from "@/lib/hunter/api"
 import { HunterSymbolMultiSelect } from "./symbol-multi-select"
 import { CYCLES, validateLeverage, type Cycle } from "@/lib/hunter/rules"
 
@@ -29,6 +29,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [ready, setReady] = useState(false)
+  const [capabilities, setCapabilities] = useState<HunterCapabilities | null>(null)
   const mode = useAuthStore(s => s.user?.trading_mode)
   const create = useHunterStore(s => s.create)
   const patch = (values: Partial<HunterConfig>) => setConfig(s => ({ ...s, ...values }))
@@ -46,16 +47,17 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
   useEffect(() => {
     if (!open) return
     let cancelled = false
-    setReady(false); setError(null)
+    setReady(false); setCapabilities(null); setError(null)
     void hunterApi.capabilities().then(cap => {
       if (!cancelled) {
-        setReady(true)
-        if (cap.trading_mode === "live" && !cap.live_qualified) setError("当前为实盘账户。这套新策略尚未通过独立验证，请切换模拟账户后开始。")
+        setCapabilities(cap)
+        setReady(canStartHunter(cap))
+        if (!canStartHunter(cap)) setError(cap.reason || "服务器尚未接入猎手的 OKX API 执行，请更新服务器后重试。")
       }
     }).catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : "服务器模块不可用") })
     void getAIModels().then(list => { if (!cancelled) setModels(list) }).catch(() => { if (!cancelled) setModels([]) })
     return () => { cancelled = true }
-  }, [open])
+  }, [open, mode])
   const choices = config.brain === "jev" ? decisionModelsOnly(models) : chatModelsOnly(models)
   const submit = async () => {
     setError(null)
@@ -76,7 +78,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
         <DialogDescription>桌面寻找机会，服务器接管交易。没有合格机会时保持空仓。</DialogDescription>
       </DialogHeader>
       <div className="rounded-md border border-[var(--border)] p-3 text-xs text-[var(--text-secondary)]">
-        当前账户：{mode === "virtual" ? "模拟交易" : "实盘交易"}。新策略验证状态：未验证。
+        当前账户：{capabilities ? hunterAccountLabel(capabilities.execution_mode ?? (capabilities.trading_mode === "virtual" ? "virtual" : undefined)) : "读取中…"}。新策略验证状态：未验证。
         桌面关闭后暂停搜索，服务器继续管理已挂载任务。杠杆可选 1–50 倍，默认 1 倍；资金可选逐仓或全仓。
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -100,7 +102,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
         </label>)}
         <p className="text-xs text-[var(--text-muted)]">保留 20% 资金；单币仓位不超过 20%；合计初始风险不超过 1.2%。目标盈亏比不代表实际收益。</p>
         <p className="text-xs text-[var(--text-muted)]">保证金 = 仓位名义价值 ÷ 杠杆；手续费按完整仓位计算。杠杆不提高单笔风险预算或单币名义仓位上限；止损及估算成本超过初始保证金 50% 的机会会跳过，不会强行缩短结构止损。</p>
-        <p className="text-xs text-[var(--text-muted)]">两种模式都遵守单笔止损与策略总风险限额。模式同步保存到服务器子任务；现有模拟撮合使用统一资金账本，尚未复现 OKX 逐仓和全仓的完整强平差异。</p>
+        <p className="text-xs text-[var(--text-muted)]">两种模式都遵守单笔止损与策略总风险限额。OKX API 模拟盘和实盘按交易设置中的凭证类型执行，并向交易所提交所选保证金模式和保护单；站内模拟撮合使用统一资金账本。</p>
       </fieldset>
       <details className="rounded-md border border-[var(--border)] p-3 text-xs space-y-2">
         <summary className="cursor-pointer text-sm">下单、止盈和亏损平仓标准</summary>
@@ -138,7 +140,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
       <p className="text-xs text-[var(--text-muted)]">这套规则不依赖因子挖掘。CPU/GPU 研究继续使用现有超级因子功能，未验证或无法在服务器复现的结果不会自动用于交易。</p>
       {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
       <div className="flex justify-end gap-2"><Button variant="outline" disabled={busy} onClick={onClose}>取消</Button>
-        <Button disabled={busy || !ready || mode !== "virtual"} onClick={() => void submit()}>{busy ? "创建中…" : "开始执行"}</Button></div>
+        <Button disabled={busy || !ready} onClick={() => void submit()}>{busy ? "创建中…" : "开始执行"}</Button></div>
     </DialogContent>
   </Dialog>
 }
