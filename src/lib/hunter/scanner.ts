@@ -7,6 +7,7 @@ import { useAITradingStore } from "@/stores/ai-trading"
 let stopRuntime: (() => void) | null = null
 
 export async function scanHunter(group: Hunter, abort: AbortSignal): Promise<void> {
+  const started = Date.now(), summaries: string[] = []
   const progress = (text: string) => { if (!abort.aborted) useHunterStore.getState().setProgress(group.id, text) }
   if (group.config.venue !== "okx") { progress("多周期猎手行情仅支持 OKX，已停止新机会搜索"); return }
   const active = group.opportunities.filter(o => !o.finished_at)
@@ -18,31 +19,37 @@ export async function scanHunter(group: Hunter, abort: AbortSignal): Promise<voi
     if (abort.aborted) return
     if (group.blocks.some(x => x.includes(cycle))) { progress("该周期处于风控冷却"); continue }
     const c = CYCLES[cycle], candidates: { symbol: string; data: HunterData; relative: number }[] = []
-    let cursor = 0, incomplete = false
+    let cursor = 0, incomplete = false, historyMissing = 0, spreadRejected = 0, failed = 0, trendPassed = 0, signals = 0, dataFailure = ""
     const worker = async () => {
       while (cursor < ticker.length) {
         if (abort.aborted || useHunterStore.getState().groups.find(g => g.id === group.id)?.status !== "running") return
         const q = ticker[cursor++]
         const cap = cycle === "short" ? .0005 : cycle === "medium" ? .001 : .0015
-        if (q.spread > cap) continue
-        progress(c.label + "扫描 " + q.symbol.toUpperCase())
+        if (q.spread > cap) { spreadRejected++; continue }
+        progress(c.label + "扫描 " + q.symbol.toUpperCase() + "（" + cursor + "/" + ticker.length + "）")
         try {
           const data = await hunterApi.data(group.id, q.symbol, cycle, abort)
           const daily = data.bars["1d"]
-          if (!daily?.length || data.now - daily[0][0]/1000 < (cycle === "long" ? 365 : 180) * 86400) continue
+          if (!daily?.length || data.now - daily[0][0]/1000 < (cycle === "long" ? 365 : 180) * 86400) { historyMissing++; continue }
           const history = cycle === "short" ? data.bars["1h"] : daily
           const n = cycle === "short" ? 24 : cycle === "medium" ? 7 : 30
-          if (!history || history.length <= n) continue
+          if (!history || history.length <= n) { historyMissing++; continue }
           candidates.push({ symbol: q.symbol, data, relative: history.at(-1)![4] / history.at(-1-n)![4] - 1 })
         } catch (e) {
           if (abort.aborted) return
           incomplete = true
-          progress(q.symbol + " 跳过：" + (e instanceof Error ? e.message : "数据不可用"))
+          failed++
+          dataFailure = q.symbol.toUpperCase() + "：" + (e instanceof Error ? e.message : "数据不可用")
+          progress("行情失败：" + dataFailure)
         }
       }
     }
     await Promise.all(Array.from({ length: Math.min(3, ticker.length) }, worker))
-    if (incomplete) { rejection = c.label + "币池行情不完整，本轮不挂载"; continue }
+    if (incomplete) {
+      rejection = c.label + "币池行情不完整，本轮不挂载；" + dataFailure
+      summaries.push(c.label + "：币池 " + ticker.length + "，行情失败 " + failed + "，排名未完成")
+      continue
+    }
     for (const direction of directions) {
       const ranked = [...candidates].sort((a, b) => direction === "long" ? b.relative-a.relative : a.relative-b.relative)
       for (const x of ranked.slice(0, Math.max(1, Math.floor(ranked.length*.2)))) {
@@ -50,8 +57,10 @@ export async function scanHunter(group: Hunter, abort: AbortSignal): Promise<voi
         if (active.some(o => o.symbol === x.symbol)) continue
         const { data } = x
         if (!trend(data.bars[c.trend], cycle, direction, data.bars["1w"]) || !trend(data.market, cycle, direction, data.market_week)) continue
+        trendPassed++
         const signal = findSignal(data.bars[c.setup], data.bars[c.execution], cycle, direction, Date.now()/1000)
         if (!signal) continue
+        signals++
         progress("发现 " + x.symbol.toUpperCase() + " " + c.label + "机会，服务器复核中")
         try {
           validateLeverage(group.config.leverage ?? 1, Math.abs(signal.entry - signal.stop) / signal.entry)
@@ -68,8 +77,9 @@ export async function scanHunter(group: Hunter, abort: AbortSignal): Promise<voi
         }
       }
     }
+    summaries.push(c.label + "：币池 " + ticker.length + "，价差排除 " + spreadRejected + "，历史不足 " + historyMissing + "，历史合格 " + candidates.length + "，排名后趋势通过 " + trendPassed + "，有效信号 " + signals)
   }
-  progress(rejection || "本轮无合格机会，等待下一轮")
+  progress((rejection || (ticker.length ? "本轮无合格机会，等待下一轮" : "币池为空，请检查黑白名单及流动性条件")) + "（用时 " + Math.round((Date.now()-started)/1000) + " 秒）\n" + summaries.join("\n"))
 }
 
 /** One desktop owner across navigation/windows; logout/mode change aborts work. */

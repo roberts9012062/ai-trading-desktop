@@ -5,6 +5,7 @@ import "../src/app/globals.css"
 import { CreateHunterDialog } from "@/components/hunter/create-hunter-dialog"
 import { HunterPanel } from "@/components/hunter/hunter-panel"
 import { useAuthStore } from "@/stores/auth"
+import { useHunterStore } from "@/stores/hunter"
 import type { User } from "@/types"
 import type { Hunter, HunterConfig } from "@/lib/hunter/api"
 import { Button } from "@/components/ui/button"
@@ -49,9 +50,10 @@ globalThis.fetch = async (input, init) => {
 }
 function Preview() {
   const [open, setOpen] = useState(false)
+  const hunterExists = useHunterStore(s => s.groups.some(g => g.status !== "stopped"))
   return <main className="p-6 space-y-5 max-w-5xl mx-auto">
     <p className="text-xs text-[var(--text-muted)]">隔离界面验收 · 全部 API 使用本地夹具</p>
-    <div className="flex gap-2"><Button>创建 AI 交易</Button><Button variant="outline" onClick={() => setOpen(true)}>创建多周期猎手</Button></div>
+    <div className="flex gap-2"><Button>创建 AI 交易</Button><Button variant="outline" disabled={hunterExists} onClick={() => setOpen(true)}>创建多周期猎手</Button></div>
     <HunterPanel />
     <CreateHunterDialog open={open} onClose={() => setOpen(false)} />
     <details><summary>已提交参数</summary><pre id="submitted" className="text-xs whitespace-pre-wrap" /></details>

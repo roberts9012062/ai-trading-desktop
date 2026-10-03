@@ -32,6 +32,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
   const [capabilities, setCapabilities] = useState<HunterCapabilities | null>(null)
   const mode = useAuthStore(s => s.user?.trading_mode)
   const create = useHunterStore(s => s.create)
+  const existingHunter = useHunterStore(s => s.groups.find(g => g.status !== "stopped"))
   const patch = (values: Partial<HunterConfig>) => setConfig(s => ({ ...s, ...values }))
   useEffect(() => {
     if (!open) return
@@ -61,6 +62,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
   const choices = config.brain === "jev" ? decisionModelsOnly(models) : chatModelsOnly(models)
   const submit = async () => {
     setError(null)
+    if (existingHunter) { setError("当前账户已有未停止的多周期猎手，请先停止后再创建"); return }
     if (!Number.isFinite(config.capital) || config.capital <= 0 || !config.cycles.length) { setError("请输入有效资金并选择至少一个周期"); return }
     try { validateLeverage(config.leverage) } catch (e) { setError(e instanceof Error ? e.message : "杠杆无效"); return }
     if (config.brain !== "rules" && !choices.some(m => m.id === config.model_id)) { setError("请选择对应类型的模型"); return }
@@ -75,7 +77,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
     <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>创建多周期猎手</DialogTitle>
-        <DialogDescription>桌面寻找机会，服务器接管交易。没有合格机会时保持空仓。</DialogDescription>
+        <DialogDescription>桌面寻找机会，服务器接管交易。同一账户同时只能运行一个猎手。</DialogDescription>
       </DialogHeader>
       <div className="rounded-md border border-[var(--border)] p-3 text-xs text-[var(--text-secondary)]">
         当前账户：{capabilities ? hunterAccountLabel(capabilities.execution_mode ?? (capabilities.trading_mode === "virtual" ? "virtual" : undefined)) : "读取中…"}。新策略验证状态：未验证。
@@ -139,8 +141,9 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
       </details>
       <p className="text-xs text-[var(--text-muted)]">这套规则不依赖因子挖掘。CPU/GPU 研究继续使用现有超级因子功能，未验证或无法在服务器复现的结果不会自动用于交易。</p>
       {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
+      {existingHunter && <p role="alert" className="text-xs text-amber-400">当前账户已有未停止的猎手“{existingHunter.name}”，请先停止后再创建。</p>}
       <div className="flex justify-end gap-2"><Button variant="outline" disabled={busy} onClick={onClose}>取消</Button>
-        <Button disabled={busy || !ready} onClick={() => void submit()}>{busy ? "创建中…" : "开始执行"}</Button></div>
+        <Button disabled={busy || !ready || Boolean(existingHunter)} onClick={() => void submit()}>{busy ? "创建中…" : "开始执行"}</Button></div>
     </DialogContent>
   </Dialog>
 }

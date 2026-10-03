@@ -22,6 +22,7 @@ import { TaskList } from "@/components/ai-trading/task-list"
 import type { AITradingTask } from "@/lib/ai-trading-api"
 import { useAITradingStore } from "@/stores/ai-trading"
 import { useMarketStore } from "@/stores/market"
+import { useHunterStore } from "@/stores/hunter"
 
 /** AI 交易主页面 */
 export default function AITradingPage(): React.JSX.Element {
@@ -55,6 +56,7 @@ export default function AITradingPage(): React.JSX.Element {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [hunterOpen, setHunterOpen] = useState(false)
+  const hunterExists = useHunterStore(s => s.groups.some(g => g.status !== "stopped"))
   const [quantOpen, setQuantOpen] = useState(false)
   // 任务收藏：星标弹窗 + 创建优秀任务
   const [favTask, setFavTask] = useState<AITradingTask | null>(null)
@@ -156,7 +158,7 @@ export default function AITradingPage(): React.JSX.Element {
             <Plus className="w-3.5 h-3.5" />
             创建 AI 交易
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setHunterOpen(true)}>
+          <Button size="sm" variant="outline" disabled={hunterExists} title={hunterExists ? "请先停止当前猎手后再创建" : undefined} onClick={() => setHunterOpen(true)}>
             <Plus className="w-3.5 h-3.5" />
             创建多周期猎手
           </Button>

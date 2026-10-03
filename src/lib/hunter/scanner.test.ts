@@ -44,4 +44,26 @@ describe("hunter discovery ownership", () => {
     expect(hunterApi.data).not.toHaveBeenCalled()
     expect(hunterApi.mount).not.toHaveBeenCalled()
   })
+  it("explains an empty scan without treating missing history as a trading sample", async () => {
+    const g = group()
+    useHunterStore.setState({ groups: [g] })
+    vi.mocked(hunterApi.universe).mockResolvedValue([{ symbol: "ethusdt", spread: 0 }] as never)
+    vi.mocked(hunterApi.data).mockResolvedValue(data)
+    await scanHunter(g, new AbortController().signal)
+    const report = useHunterStore.getState().progress[g.id]
+    expect(report).toContain("历史不足 1")
+    expect(report).toContain("有效信号 0")
+    expect(hunterApi.mount).not.toHaveBeenCalled()
+  })
+  it("keeps the data failure reason visible rather than reporting no signal", async () => {
+    const g = group()
+    useHunterStore.setState({ groups: [g] })
+    vi.mocked(hunterApi.universe).mockResolvedValue([{ symbol: "ethusdt", spread: 0 }] as never)
+    vi.mocked(hunterApi.data).mockRejectedValue(new Error("OKX 行情限流"))
+    await scanHunter(g, new AbortController().signal)
+    const report = useHunterStore.getState().progress[g.id]
+    expect(report).toContain("行情失败 1")
+    expect(report).toContain("OKX 行情限流")
+    expect(hunterApi.mount).not.toHaveBeenCalled()
+  })
 })
