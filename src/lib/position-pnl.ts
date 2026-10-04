@@ -30,3 +30,13 @@ export function positionPnl(
   }
   return estimatePositionPnl(pos, last)
 }
+
+/** Show exchange PnL even when the desktop quote stream is missing. Never use entry as current price. */
+export function positionDisplay(pos: PaperPositionItem, mode: "live" | "virtual", quote: number | undefined): {last: number | null; pnl: number | null; pct: number | null} {
+  const valid = (value: number | null | undefined): value is number => value != null && Number.isFinite(value) && value > 0
+  const last = valid(quote) ? quote : mode === "live" && valid(pos.mark_price) ? pos.mark_price : null
+  const exchangePnl = mode === "live" && pos.unrealized_pnl != null && Number.isFinite(pos.unrealized_pnl)
+  const pnl = exchangePnl ? pos.unrealized_pnl! : last != null ? estimatePositionPnl(pos, last) : null
+  const cost = pos.avg_price * pos.quantity * (pos.multiplier || 1)
+  return {last, pnl, pct: pnl != null && cost > 0 ? pnl / cost * 100 : null}
+}

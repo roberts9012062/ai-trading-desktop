@@ -160,6 +160,8 @@ export async function getLivePositionsApi(venue: string): Promise<PaperPositionI
     margin: Number(p.margin),
     realized_pnl: 0,
     unrealized_pnl: Number(p.unrealized_pnl),
+    mark_price: p.mark_price == null ? null : Number(p.mark_price),
+    task_id: (p.task_id as string | null) ?? null,
     multiplier: 1,
     margin_rate: 0,
     liquidation_price: Number(p.liquidation_price ?? 0),

@@ -1,4 +1,9 @@
 import { createRoot } from "react-dom/client"
+import { useState } from "react"
+import PositionsPage from "@/app/(main)/positions/page"
+import { usePaperTradingStore } from "@/stores/paper-trading"
+import { useMarketStore } from "@/stores/market"
+import type { PaperPositionItem } from "@/lib/paper-api"
 import "../src/app/globals.css"
 import { HunterPanel } from "@/components/hunter/hunter-panel"
 import { ProfitBarChart } from "@/components/ai-trading/profit/profit-bar-chart"
@@ -17,13 +22,24 @@ const hunter = { id: "preview-hunter", name: "AI 多周期猎手", status: "runn
 useAITradingStore.setState({tasks})
 useHunterStore.setState({ groups: [hunter], refresh: async () => {} })
 function Preview() {
+  const [selected,setSelected] = useState("")
   const currentTasks = useAITradingStore(s => s.tasks)
   const groups = useHunterStore(s => s.groups)
+  const viewBars = bars.map(bar => currentTasks.find(task => task.id === bar.task_id)?.status === "stopped" ? {...bar,status:"stopped",has_open_position:false,realized:bar.total_pnl,unrealized:0} : bar)
   return <main className="mx-auto max-w-6xl p-5 space-y-4">
     <div className="flex justify-between text-xs text-[var(--text-muted)]"><span>猎手分组 · 隔离模拟数据</span><button onClick={() => { useHunterStore.setState({groups: [{...hunter, runtime: {...hunter.runtime}}]}); useAITradingStore.setState({tasks: tasks.map(t => ({...t}))}) }}>模拟轮询</button></div>
-    <HunterPanel />
-    <ProfitBarChart items={bars} totalRealized={30} totalUnrealized={17} totalPnl={47} openPositionCount={3} loading={false} hunters={groups} tasks={currentTasks} />
-    <EquityLegend tasks={currentTasks} series={{}} profitBars={bars} hunters={groups} highlightTaskId={null} onHighlightChange={() => {}} />
+    <button onClick={() => {
+      useAITradingStore.setState({tasks: currentTasks.map(t => t.id === "child-1" ? {...t,status:"stopped",position_qty:0,position_direction:null,position_unrealized:0,has_open_position:false} : t)})
+      useHunterStore.setState({groups: groups.map(g => ({...g,opportunities:g.opportunities.map(o => o.task_id === "child-1" ? {...o,finished_at:new Date().toISOString(),status:"closed"} : o)}))})
+    }}>模拟ETH结束</button>
+    <HunterPanel onSelectTask={setSelected} /><output data-testid="selected-hunter-task">{selected}</output>
+    <ProfitBarChart items={viewBars} totalRealized={viewBars.reduce((s,b)=>s+(b.realized??0),0)} totalUnrealized={viewBars.reduce((s,b)=>s+(b.unrealized??0),0)} totalPnl={47} openPositionCount={currentTasks.filter(t=>(t.position_qty??0)>0).length} loading={false} hunters={groups} tasks={currentTasks} />
+    <EquityLegend tasks={currentTasks.filter(t=>(t.position_qty??0)>0)} allTasks={currentTasks} series={{}} profitBars={viewBars} hunters={groups} highlightTaskId={null} onHighlightChange={() => {}} />
   </main>
 }
-createRoot(document.getElementById("root")!).render(<Preview />)
+if (new URLSearchParams(location.search).has("positions")) {
+  useAITradingStore.setState({loadTasks:async()=>{}})
+  useMarketStore.setState({quotes:{}})
+  usePaperTradingStore.setState({mode:"live",refresh:async()=>{},positions:[{id:"axsholding",symbol:"axsusdt",symbol_name:"AXS",direction:"short",source:"quant",task_name:"AI多周期猎手·axsusdt·short",task_id:"axstask",quantity:2,available_quantity:2,avg_price:5,mark_price:4.8,unrealized_pnl:.37,margin:2,multiplier:1,leverage:5,margin_mode:"isolated"} as PaperPositionItem]})
+}
+createRoot(document.getElementById("root")!).render(new URLSearchParams(location.search).has("positions") ? <PositionsPage /> : <Preview />)

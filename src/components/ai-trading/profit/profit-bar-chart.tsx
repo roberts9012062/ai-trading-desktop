@@ -9,6 +9,7 @@ import { useMemo, useState } from "react"
 import type { ProfitCloseBar, AITradingTask } from "@/lib/ai-trading-api"
 import type { Hunter } from "@/lib/hunter/api"
 import { groupHunterRows } from "@/lib/hunter/profit-groups"
+import { visibleHunterChildren } from "@/lib/hunter/task-visibility"
 import { TaskIcon } from "@/components/ai-trading/task-icon"
 import {
   barWidthPct,
@@ -48,11 +49,12 @@ export function ProfitBarChart({
 }: ProfitBarChartProps): React.JSX.Element {
   const bars = useMemo(() => buildTaskProfitBars(items), [items])
   const grouped = useMemo(() => groupHunterRows(bars, tasks, hunters).map(group => {
-    if (!group.hunter) return { ...group, bar: group.children[0] }
+    if (!group.hunter) return { ...group, visibleChildren: group.children, bar: group.children[0] }
+    const visibleChildren = visibleHunterChildren(group.children, tasks, group.hunter)
     const realized = group.children.reduce((sum, child) => sum + child.realized, 0)
     const unrealized = group.children.reduce((sum, child) => sum + child.unrealized, 0)
-    return { ...group, bar: { ...group.children[0], taskId: group.id, name: group.hunter.name, symbolName: `${group.children.length} 个子任务`, symbol: "", modelDisplayName: group.hunter.name, modelId: null, providerName: null, icon: null, strategyType: "multi_cycle_hunter", realized, unrealized, totalPnl: group.children.reduce((sum, child) => sum + child.totalPnl, 0), hasOpen: group.children.some(child => child.hasOpen), status: group.hunter.status } }
-  }), [bars, tasks, hunters])
+    return { ...group, visibleChildren, bar: { ...group.children[0], taskId: group.id, name: group.hunter.name, symbolName: `${visibleChildren.length} 个运行子任务`, symbol: "", modelDisplayName: group.hunter.name, modelId: null, providerName: null, icon: null, strategyType: "multi_cycle_hunter", realized, unrealized, totalPnl: group.children.reduce((sum, child) => sum + child.totalPnl, 0), hasOpen: group.children.some(child => child.hasOpen), status: group.hunter.status } }
+  }).filter(group => !group.hunter || group.hunter.status !== "stopped" || group.visibleChildren.length > 0), [bars, tasks, hunters])
   const hasGroups = grouped.some(group => group.hunter)
   const [hoverId, setHoverId] = useState<string | null>(null)
 
@@ -148,10 +150,11 @@ export function ProfitBarChart({
               {grouped.map(group => group.hunter ? <details key={group.id} className="rounded-lg border border-[var(--border)] p-1" data-testid="hunter-profit-group" data-hunter-id={group.hunter.id}>
                 <summary className="cursor-pointer list-none" aria-label={`${group.hunter.name}收益组，点击展开`}>
                   <TaskBarRow bar={group.bar} maxAbs={maxAbs} active={hoverId === group.id} onHover={setHoverId} />
-                  <p className="px-2 pb-1 text-[10px] text-[var(--text-muted)]">{group.children.length} 个子任务 · 点击展开 / 收起</p>
+                  <p className="px-2 pb-1 text-[10px] text-[var(--text-muted)]">{group.visibleChildren.length} 个运行子任务 · 点击展开 / 收起</p>
                 </summary>
                 <div className="ml-3 mt-2 border-l border-[var(--border)] pl-2 space-y-2" data-testid="hunter-profit-children">
-                  {group.children.map(bar => <TaskBarRow key={bar.taskId} bar={bar} maxAbs={maxAbs} active={hoverId === bar.taskId} onHover={setHoverId} />)}
+                  {group.visibleChildren.map(bar => <TaskBarRow key={bar.taskId} bar={bar} maxAbs={maxAbs} active={hoverId === bar.taskId} onHover={setHoverId} />)}
+                  {!group.visibleChildren.length && <p className="text-xs text-[var(--text-muted)]">暂无运行子任务 · 历史收益已计入汇总</p>}
                 </div>
               </details> : (
                 <TaskBarRow

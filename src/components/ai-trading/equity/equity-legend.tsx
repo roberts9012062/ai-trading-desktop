@@ -14,6 +14,7 @@ import { taskLivePnl } from "./equity-data"
 import { buildTaskProfitBars } from "../profit/profit-bar-data"
 import type { Hunter } from "@/lib/hunter/api"
 import { groupHunterRows } from "@/lib/hunter/profit-groups"
+import { visibleHunterChildren } from "@/lib/hunter/task-visibility"
 
 interface EquityLegendProps {
   tasks: AITradingTask[]
@@ -183,10 +184,11 @@ export function EquityLegend({
 
   const rows = mode === "floating" ? floatingRows : totalRows
   const grouped = useMemo(() => groupHunterRows(rows, allTasks, hunters).map(group => {
-    if (!group.hunter) return { ...group, row: group.children[0] }
-    const row = { ...group.children[0], taskId: group.id, displayName: group.hunter.name, modelId: null, providerName: null, icon: null, strategyType: "multi_cycle_hunter", tagText: `${group.children.length} 个子任务`, tagClass: "bg-sky-500/15 text-sky-300", symbol: "", symbolName: "猎手收益汇总", footnote: "点击展开各币收益明细", value: group.children.reduce((sum, child) => sum + child.value, 0) }
-    return { ...group, row }
-  }).sort((a, b) => b.row.value - a.row.value), [rows, allTasks, hunters])
+    if (!group.hunter) return { ...group, visibleChildren: group.children, row: group.children[0] }
+    const visibleChildren = visibleHunterChildren(group.children, allTasks, group.hunter)
+    const row = { ...group.children[0], taskId: group.id, displayName: group.hunter.name, modelId: null, providerName: null, icon: null, strategyType: "multi_cycle_hunter", tagText: `${visibleChildren.length} 个运行子任务`, tagClass: "bg-sky-500/15 text-sky-300", symbol: "", symbolName: "猎手收益汇总", footnote: "点击展开各币收益明细", value: group.children.reduce((sum, child) => sum + child.value, 0) }
+    return { ...group, visibleChildren, row }
+  }).filter(group => !group.hunter || group.hunter.status !== "stopped" || group.visibleChildren.length > 0).sort((a, b) => b.row.value - a.row.value), [rows, allTasks, hunters])
   const maxAbs = useMemo(() => {
     let m = 1
     for (const r of [...rows, ...grouped.map(group => group.row)]) m = Math.max(m, Math.abs(r.value))
@@ -224,7 +226,8 @@ export function EquityLegend({
               <LegendCard row={group.row} rank={rank} maxAbs={maxAbs} highlightTaskId={highlightTaskId} onHighlightChange={onHighlightChange} summary />
             </summary>
             <div className="mt-2 space-y-2">
-              {group.children.map((row, index) => <LegendCard key={row.taskId} row={row} task={tasks.find(t => t.id === row.taskId)} rank={index} maxAbs={maxAbs} highlightTaskId={highlightTaskId} onHighlightChange={onHighlightChange} />)}
+              {group.visibleChildren.map((row, index) => <LegendCard key={row.taskId} row={row} task={tasks.find(t => t.id === row.taskId)} rank={index} maxAbs={maxAbs} highlightTaskId={highlightTaskId} onHighlightChange={onHighlightChange} />)}
+              {!group.visibleChildren.length && <p className="text-xs text-[var(--text-muted)]">暂无运行子任务 · 历史收益已计入汇总</p>}
             </div>
           </details> : (
             <LegendCard

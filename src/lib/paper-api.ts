@@ -87,6 +87,8 @@ export interface PaperPositionItem {
   updated_at: string
   /** 实盘扩展：浮动盈亏 / 强平价 / 杠杆（virtual 模式无） */
   unrealized_pnl?: number
+  mark_price?: number | null
+  task_id?: string | null
   liquidation_price?: number
   leverage?: number
   /** 实盘扩展：归属任务名（后端按开仓镜像判定来源；手动持仓无） */

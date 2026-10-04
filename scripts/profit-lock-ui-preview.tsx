@@ -18,6 +18,7 @@ import { MemoryRouter } from "react-router-dom"
 import { useMarketStore } from "@/stores/market"
 import { useHunterStore } from "@/stores/hunter"
 import type { Hunter } from "@/lib/hunter/api"
+import { updateEquityTraces } from "@/components/ai-trading/equity/equity-wave-data"
 if (location.hostname !== "127.0.0.1" || location.port !== "5187") throw new Error("只能在隔离验收端口5187运行")
 useAuthStore.setState({ user: { id: "ui-fixture", username: "UI验收", role: "admin", trading_mode: "virtual" } as User, accessToken: "ui-fixture-only" })
 localStorage.setItem("access_token", "ui-fixture-only")
@@ -52,10 +53,15 @@ function HeaderPreview() {
       { ...base, id: "fixture-quant-task", name: "量化任务验收", strategy_type: "ma_cross" } as AITradingTask,
     ], selectedTaskId: null, loadTasks: async () => {}, loadEquity: async () => {}, loadProfitBars: async () => {} })
     if (new URLSearchParams(location.search).has("polling")) {
+      const hunterOnly = new URLSearchParams(location.search).has("hunter-only")
+      if (hunterOnly) useAITradingStore.setState({tasks: []})
       const counts = { tasks: 0, equity: 0, profit: 0 }
       Object.assign(window, { wavePollCounts: counts })
       useAITradingStore.setState({
-        loadTasks: async () => { counts.tasks++; useAITradingStore.setState(s => ({ tasks: s.tasks.map(t => ({ ...t, note: String(counts.tasks) })) })) },
+        loadTasks: async () => { counts.tasks++; useAITradingStore.setState(s => {
+          const nextTasks = hunterOnly && counts.tasks >= 3 ? [{...base,id:"mounted-hunter-child",name:"新挂载AXS空单",strategy_type:"multi_cycle_hunter",position_qty:2,position_direction:"short",position_avg_price:5,position_last_price:4.8,position_unrealized:.37,position_opened_at:base.created_at} as AITradingTask] : s.tasks.map(t => ({ ...t, note: String(counts.tasks) }))
+          return {tasks:nextTasks,...(hunterOnly ? {equityTraces:updateEquityTraces(s.equityTraces,nextTasks,Date.now())} : {})}
+        }) },
         loadEquity: async () => { counts.equity++ },
         loadProfitBars: async () => { counts.profit++ },
       })

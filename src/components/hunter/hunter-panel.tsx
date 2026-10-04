@@ -8,13 +8,14 @@ import { useAITradingStore } from "@/stores/ai-trading"
 import { CYCLES } from "@/lib/hunter/rules"
 import { hunterAccountLabel } from "@/lib/hunter/api"
 import { HunterProfitSummary } from "./hunter-profit-summary"
+import { visibleHunterOpportunities } from "@/lib/hunter/task-visibility"
 
 const money = (n: number) => n.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const labels = { running: "搜索中", paused: "搜索暂停", stopping: "正在退出持仓", stopped: "搜索已停止" }
-export function HunterPanel() {
+export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => void } = {}) {
   const groups = useHunterStore(s => s.groups)
   const tasks = useAITradingStore(s => s.tasks)
-  const visible = groups.filter(g => g.status !== "stopped")
+  const visible = groups.filter(g => g.status !== "stopped" || visibleHunterOpportunities(g.opportunities, tasks).length > 0)
   const progress = useHunterStore(s => s.progress)
   const watches = useHunterStore(s => s.watches)
   const control = useHunterStore(s => s.control)
@@ -36,7 +37,9 @@ export function HunterPanel() {
     <div className="flex gap-2 items-center text-sm font-medium"><Crosshair className="w-4 h-4" />多周期猎手</div>
     {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
     {connectionError && <p role="alert" className="text-xs text-red-400">{connectionError}</p>}
-    {visible.map(g => <article key={g.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4 space-y-3">
+    {visible.map(g => {
+      const activeOps = visibleHunterOpportunities(g.opportunities, tasks)
+      return <article key={g.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4 space-y-3">
       <div className="flex justify-between gap-3 flex-wrap">
         <div><strong className="text-sm">{g.name}</strong><span className="ml-2 text-xs text-[var(--text-muted)]">{labels[g.status]} · {hunterAccountLabel(g.runtime.execution_account?.execution_mode ?? (g.trading_mode === "virtual" ? "virtual" : undefined))} · {g.config.venue.toUpperCase()} · {g.config.leverage ?? 1} 倍{g.config.margin_mode === "cross" ? "全仓" : "逐仓"} · {g.config.brain === "rules" ? "规则" : g.config.brain === "jev" ? "Jev" : "AI 大模型"}</span>
           <p className="text-xs text-[var(--text-muted)] mt-1">{g.config.strategy_version === "hunter-v4" ? "波段持有版 · 计划净3:1 / 多周期延续 / 确认反转退出" : g.config.strategy_version === "hunter-v3" ? "机会增强版 · 突破回踩 / 趋势回调 / 短线延续 · 小时覆盖检查" : g.config.strategy_version === "hunter-v2" ? "均衡版 · 突破回踩 / 趋势回调 · 周期独立扫描" : "原版 · 突破回踩"}</p>
@@ -52,8 +55,9 @@ export function HunterPanel() {
         </div>
       </div>
       <HunterProfitSummary hunter={g} />
+      {!activeOps.length && <p className="text-xs text-[var(--text-muted)]">暂无运行子任务 · {g.status === "running" ? "继续搜索新机会" : "搜索已暂停"} · 已结束任务已从明细清理，成交记录可在订单中查看</p>}
       <details data-testid="hunter-statistics-group" className="rounded-lg border border-[var(--border)] p-3">
-      <summary className="cursor-pointer text-xs text-[var(--text-secondary)]">展开猎手明细 · {g.opportunities.length} 个交易任务</summary>
+      <summary className="cursor-pointer text-xs text-[var(--text-secondary)]">展开猎手明细 · {activeOps.length} 个运行子任务</summary>
       <div className="mt-3 space-y-3">
       {(g.config.strategy_version === "hunter-v3" || g.config.strategy_version === "hunter-v4") && <div className="rounded-md border border-[var(--border)] p-3 text-xs space-y-1" aria-label="小时扫描检查">
         {g.runtime.discovery ? <>
@@ -66,7 +70,7 @@ export function HunterPanel() {
         {g.config.pool_size < 50 && <p className="text-[var(--text-muted)]">当前币池上限 {g.config.pool_size}。扩大至50个币可增加机会覆盖；升级保留当前设置。</p>}
       </div>}
       {g.config.profit_lock?.enabled && !g.opportunities.some(o => !o.finished_at) && <p className="text-xs text-emerald-400">锁利已开启 · 等待新持仓</p>}
-      {g.opportunities.filter(o => !o.finished_at).map(o => {
+      {activeOps.map(o => {
         const task = tasks.find(t => t.id === o.task_id)
         return task?.close_rules?.profit_lock?.enabled || task?.profit_lock_state?.closing ? <div key={o.id} className="min-w-0">
           <p className="text-[11px] text-[var(--text-muted)]">{o.symbol.toUpperCase()} · {CYCLES[o.cycle].label}</p>
@@ -90,19 +94,24 @@ export function HunterPanel() {
         <div className="flex flex-wrap gap-2 mt-2">{(watches[g.id] ?? []).map(w => <span key={w.cycle+":"+w.symbol+":"+w.direction} className="text-xs rounded border border-[var(--border)] px-2 py-1">{w.symbol.toUpperCase()} · {CYCLES[w.cycle].label} · {w.direction === "long" ? "多" : "空"} · {w.stage}</span>)}</div>
       </details>}
       <div>
-        <p className="text-xs">交易任务（{g.opportunities.length}）与止损</p>
+        <p className="text-xs">运行交易任务（{activeOps.length}）与止损</p>
         <div className="overflow-x-auto mt-2"><table className="w-full text-xs text-left">
-          <thead><tr className="text-[var(--text-muted)]"><th className="p-2">币种 / 周期</th><th>状态</th><th>入场 / 止损</th><th>净收益</th></tr></thead>
-          <tbody>{g.opportunities.map(o => <tr key={o.id} className="border-t border-[var(--border)]">
-            <td className="p-2">{o.symbol.toUpperCase()} · {CYCLES[o.cycle].label} · {o.plan.direction === "long" ? "多" : "空"} · {o.plan.leverage ?? 1} 倍{o.plan.margin_mode === "cross" ? "全仓" : "逐仓"} · {o.plan.entry_kind === "continuation" ? "趋势延续" : o.plan.entry_kind === "pullback" ? "趋势回调" : "突破回踩"}<span className="block text-[var(--text-muted)]">{o.plan.version ?? "hunter-v1"}</span></td>
+          <thead><tr className="text-[var(--text-muted)]"><th className="p-2">币种 / 周期</th><th>状态</th><th>现价 / 浮动盈亏</th><th>入场 / 止损</th><th>净收益</th></tr></thead>
+          <tbody>{activeOps.map(o => {
+            const task = tasks.find(t => t.id === o.task_id)
+            const price = task?.position_last_price ?? o.runtime.last_price
+            const floating = (task?.position_qty ?? 0) > 0 ? task?.position_unrealized : o.runtime.unrealized
+            return <tr key={o.id} className="border-t border-[var(--border)]" data-testid="hunter-active-task">
+            <td className="p-2"><button type="button" className="text-left hover:underline" disabled={!task || !onSelectTask} onClick={() => task && onSelectTask?.(task.id)}>{o.symbol.toUpperCase()} · {CYCLES[o.cycle].label} · {o.plan.direction === "long" ? "多" : "空"} · {o.plan.leverage ?? 1} 倍{o.plan.margin_mode === "cross" ? "全仓" : "逐仓"} · {o.plan.entry_kind === "continuation" ? "趋势延续" : o.plan.entry_kind === "pullback" ? "趋势回调" : "突破回踩"}</button><span className="block text-[var(--text-muted)]">{o.plan.version ?? "hunter-v1"} · 点击查看任务记录</span></td>
             <td>{({ mounted: "已挂载", opening: "开仓中", holding: "持仓管理", reconciling: "成交核对", closed: "已结束", cancelled: "未开仓结束" } as Record<string, string>)[o.status] ?? o.status}</td>
+            <td className="font-num">{price != null && price > 0 ? price.toPrecision(7) : "等待报价"}<span className="block">{floating != null ? money(floating) + " USDT" : "等待持仓同步"}</span>{task && <span className="block text-[var(--text-muted)]">持仓 {task.position_qty ?? 0} 币</span>}</td>
             <td>{o.plan.entry.toPrecision(7)} / {(o.runtime.stop ?? o.plan.stop).toPrecision(7)}{o.plan.target_price && <span className="block text-[var(--text-muted)]">净目标 {o.plan.target_price.toPrecision(7)} · ≥{o.plan.min_net_rr}:1</span>}{o.plan.version === "hunter-v4" && <span className="block text-emerald-400">{o.runtime.stop !== undefined && (o.plan.direction === "long" ? o.runtime.stop > (o.runtime.entry ?? o.plan.entry) : o.runtime.stop < (o.runtime.entry ?? o.plan.entry)) ? `盈利保护在 ${o.runtime.stop.toPrecision(7)} 平仓` : "初始结构止损保护"} · {o.runtime.swing?.reason ?? "等待持仓趋势判断"}</span>}</td>
             <td>{money(o.net_profit)}<span className="block text-[var(--text-muted)]">{o.runtime.note ?? o.runtime.reason ?? ""}</span></td>
-          </tr>)}</tbody>
+          </tr>})}</tbody>
         </table></div>
       </div>
       <p className="text-[11px] text-[var(--text-muted)]">{g.trading_mode === "live" ? "OKX API 执行 · 成交费用及已对账资金费计入收益，模型调用费另计" : "站内模拟研究 · 成交手续费已计入，资金费和模型费尚未模拟结算"}；尚未取得独立盈利验证。停止搜索不会关闭已有持仓保护。</p>
       </div></details>
-    </article>)}
+    </article>})}
   </section>
 }

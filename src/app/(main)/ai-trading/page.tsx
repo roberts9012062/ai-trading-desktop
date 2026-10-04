@@ -25,6 +25,7 @@ import { useAITradingStore } from "@/stores/ai-trading"
 import { useMarketStore } from "@/stores/market"
 import { useHunterStore } from "@/stores/hunter"
 import { useAuthStore } from "@/stores/auth"
+import { hunterNeedsTaskPoll } from "@/lib/hunter/task-visibility"
 
 /** AI 交易主页面 */
 export default function AITradingPage(): React.JSX.Element {
@@ -87,7 +88,7 @@ export default function AITradingPage(): React.JSX.Element {
     })
   }, [accountKey, loadTasks, loadEquity, loadProfitBars])
 
-  const shouldPoll = tasks.some(t => t.status === "running" || (t.position_qty ?? 0) > 0 || t.has_open_position)
+  const shouldPoll = hunterNeedsTaskPoll(hunterGroups) || tasks.some(t => t.status === "running" || (t.position_qty ?? 0) > 0 || t.has_open_position)
   // Refreshes must not restart the slower timer every time tasks changes.
   useEffect(() => {
     if (!shouldPoll) return
@@ -176,7 +177,7 @@ export default function AITradingPage(): React.JSX.Element {
       )}
 
       <EquityChart tasks={tasks} series={equitySeries} traces={equityTraces} profitBars={profitBars} hunters={hunterGroups} />
-      <HunterPanel />
+      <HunterPanel onSelectTask={id => void selectTask(id)} />
 
       <ProfitBarChart
         items={profitBars}

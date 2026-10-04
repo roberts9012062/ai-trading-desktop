@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table"
 import { Search, Loader2 } from "lucide-react"
 import type { PaperPositionItem } from "@/lib/paper-api"
+import { positionDisplay } from "@/lib/position-pnl"
 
 type Source = "manual" | "ai" | "quant"
 
@@ -30,17 +31,6 @@ const SOURCE_CFG: Record<string, { label: string; cls: string }> = {
 
 function mmLabel(mode: string | null | undefined): string {
   return mode === "isolated" ? "逐仓" : mode === "cross" ? "全仓" : ""
-}
-
-function calcPnl(pos: PaperPositionItem, current: number) {
-  if (current <= 0 || pos.avg_price <= 0) return { pnl: 0, pct: 0 }
-  const mult = pos.multiplier || 10
-  const pnl =
-    pos.direction === "long"
-      ? (current - pos.avg_price) * pos.quantity * mult
-      : (pos.avg_price - current) * pos.quantity * mult
-  const cost = pos.avg_price * pos.quantity * mult
-  return { pnl, pct: cost > 0 ? (pnl / cost) * 100 : 0 }
 }
 
 /** 平仓 ai/quant 仓后，反查 running 任务并停止 */
@@ -67,6 +57,7 @@ export default function PositionsPage(): React.JSX.Element {
   const submitting = usePaperTradingStore((s) => s.submitting)
   const refresh = usePaperTradingStore((s) => s.refresh)
   const closePosition = usePaperTradingStore((s) => s.closePosition)
+  const mode = usePaperTradingStore((s) => s.mode)
   const quotes = useMarketStore((s) => s.quotes)
   const tasks = useAITradingStore((s) => s.tasks)
   const loadTasks = useAITradingStore((s) => s.loadTasks)
@@ -118,7 +109,7 @@ export default function PositionsPage(): React.JSX.Element {
       }
       // 平仓成功，ai/quant 仓继续停止对应 running 任务
       if (src !== "manual") {
-        const match = findRunningTask(tasks, p.symbol, src)
+        const match = p.task_id ? tasks.find(t => t.id === p.task_id && t.status === "running") : findRunningTask(tasks, p.symbol, src)
         if (match) {
           try {
             await stopTask(match.id, true)
@@ -144,7 +135,7 @@ export default function PositionsPage(): React.JSX.Element {
 
   const totalPnl = filtered.reduce((sum, p) => {
     const q = quotes[p.symbol] ?? quotes[p.symbol.toLowerCase()]
-    return sum + calcPnl(p, q?.last_price ?? 0).pnl
+    return sum + (positionDisplay(p, mode, q?.last_price).pnl ?? 0)
   }, 0)
   const totalMargin = filtered.reduce((sum, r) => sum + r.margin, 0)
 
@@ -210,9 +201,9 @@ export default function PositionsPage(): React.JSX.Element {
             <TableBody>
               {filtered.map((p) => {
                 const quote = quotes[p.symbol] ?? quotes[p.symbol.toLowerCase()]
-                const current = quote?.last_price ?? 0
-                const { pnl, pct } = calcPnl(p, current)
-                const isUp = pnl >= 0
+                const { last, pnl, pct } = positionDisplay(p, mode, quote?.last_price)
+                const current = last ?? 0
+                const isUp = (pnl ?? 0) >= 0
                 const src = (p.source as string) || "manual"
                 const cfg = SOURCE_CFG[src] || SOURCE_CFG.manual
                 const lev = Number(p.leverage ?? 0)
@@ -277,13 +268,13 @@ export default function PositionsPage(): React.JSX.Element {
                     <TableCell
                       className={cn("font-num font-medium", isUp ? "text-up" : "text-down")}
                     >
-                      {current > 0 ? (
+                      {pnl != null ? (
                         <>
                           {isUp ? "+" : ""}
                           {pnl.toFixed(2)}
                           <span className="text-xs ml-1 opacity-70">
                             ({isUp ? "+" : ""}
-                            {pct.toFixed(2)}%)
+                            {(pct ?? 0).toFixed(2)}%)
                           </span>
                         </>
                       ) : (
