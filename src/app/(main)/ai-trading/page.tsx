@@ -24,11 +24,14 @@ import type { AITradingTask } from "@/lib/ai-trading-api"
 import { useAITradingStore } from "@/stores/ai-trading"
 import { useMarketStore } from "@/stores/market"
 import { useHunterStore } from "@/stores/hunter"
+import { useAuthStore } from "@/stores/auth"
 
 /** AI 交易主页面 */
 export default function AITradingPage(): React.JSX.Element {
+  const accountKey = useAuthStore(s => s.user ? JSON.stringify([s.user.id, s.user.trading_mode]) : null)
   const tasks = useAITradingStore((s) => s.tasks)
   const equitySeries = useAITradingStore((s) => s.equitySeries)
+  const equityTraces = useAITradingStore((s) => s.equityTraces)
   const profitBars = useAITradingStore((s) => s.profitBars)
   const profitTotalRealized = useAITradingStore((s) => s.profitTotalRealized)
   const profitTotalUnrealized = useAITradingStore((s) => s.profitTotalUnrealized)
@@ -76,19 +79,17 @@ export default function AITradingPage(): React.JSX.Element {
   }, [loadTaskFavs])
 
   useEffect(() => {
+    if (!accountKey) return
     void loadTasks().then(() => {
       void loadEquity()
       void loadProfitBars()
     })
-  }, [loadTasks, loadEquity, loadProfitBars])
+  }, [accountKey, loadTasks, loadEquity, loadProfitBars])
 
-  // 运行中/有仓：1s 刷任务与总收益柱（含浮盈），5s 刷曲线
+  const shouldPoll = tasks.some(t => t.status === "running" || (t.position_qty ?? 0) > 0 || t.has_open_position)
+  // Refreshes must not restart the slower timer every time tasks changes.
   useEffect(() => {
-    const hasRunning = tasks.some((t) => t.status === "running")
-    const hasOpenPos = tasks.some(
-      (t) => (t.position_qty ?? 0) > 0 || t.has_open_position,
-    )
-    if (!hasRunning && !hasOpenPos) return
+    if (!shouldPoll) return
     const taskTimer = setInterval(() => {
       void loadTasks({ silent: true })
     }, 1000)
@@ -103,7 +104,7 @@ export default function AITradingPage(): React.JSX.Element {
       clearInterval(profitTimer)
       clearInterval(equityTimer)
     }
-  }, [tasks, loadTasks, loadEquity, loadProfitBars])
+  }, [shouldPoll, loadTasks, loadEquity, loadProfitBars])
 
   const selectedTask = useMemo(
     () => tasks.find((t) => t.id === selectedTaskId) ?? null,
@@ -173,7 +174,7 @@ export default function AITradingPage(): React.JSX.Element {
         </div>
       )}
 
-      <EquityChart tasks={tasks} series={equitySeries} profitBars={profitBars} />
+      <EquityChart tasks={tasks} series={equitySeries} traces={equityTraces} profitBars={profitBars} />
       <HunterPanel />
 
       <ProfitBarChart

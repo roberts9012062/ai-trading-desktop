@@ -16,6 +16,7 @@ import { buildTaskProfitBars } from "../profit/profit-bar-data"
 interface EquityLegendProps {
   tasks: AITradingTask[]
   series: Record<string, EquityPoint[]>
+  values?: Map<string, number>
   /** 总收益榜数据源（/profit-bars 或 showcase profit_items） */
   profitBars: ProfitCloseBar[]
   highlightTaskId: string | null
@@ -70,6 +71,7 @@ function fmtPx(p: number): string {
 export function EquityLegend({
   tasks,
   series,
+  values,
   profitBars,
   highlightTaskId,
   onHighlightChange,
@@ -86,7 +88,7 @@ export function EquityLegend({
   const floatingRows = useMemo<LegendRow[]>(() => {
     return tasks
       .map((task, idx) => {
-        const last = taskLivePnl(task, series[task.id] ?? [])
+        const last = values?.get(task.id) ?? taskLivePnl(task, series[task.id] ?? [])
         const color = resolveSeriesColor(
           task.model_id,
           task.provider_name,
@@ -124,7 +126,7 @@ export function EquityLegend({
         }
       })
       .sort((a, b) => b.value - a.value)
-  }, [tasks, series])
+  }, [tasks, series, values])
 
   // 总收益榜：全部任务，value=已实现+浮盈
   const totalRows = useMemo<LegendRow[]>(() => {

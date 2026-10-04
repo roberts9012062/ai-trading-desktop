@@ -2,6 +2,8 @@
 
 import { create } from "zustand"
 import { useAuthStore } from "@/stores/auth"
+import { updateEquityTraces, type EquityTraces } from "@/components/ai-trading/equity/equity-wave-data"
+import { clearWaveCache, readWaveCache, saveWaveCache } from "@/components/ai-trading/equity/equity-wave-cache"
 import {
   createAITradingTask,
   fetchEquitySeries,
@@ -31,6 +33,8 @@ import {
 interface AITradingState {
   tasks: AITradingTask[]
   equitySeries: Record<string, EquityPoint[]>
+  equityTraces: EquityTraces
+  waveOwner: string | null
   /** 总收益柱：平仓 + 浮盈 */
   profitBars: ProfitCloseBar[]
   profitTotalRealized: number
@@ -69,6 +73,15 @@ interface AITradingState {
   refreshDetail: (opts?: { silent?: boolean }) => Promise<void>
 }
 
+function currentWaveOwner(): string | null {
+  const user = useAuthStore.getState().user
+  return user ? JSON.stringify([user.id, user.trading_mode]) : null
+}
+let taskRequest = 0
+let taskApplied = 0
+let equityRequest = 0
+let sessionGeneration = 0
+
 /** AI 交易状态 */
 export const useAITradingStore = create<AITradingState>((set, get) => ({
   setProfitLock: async (id, config) => {
@@ -79,6 +92,8 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
   },
   tasks: [],
   equitySeries: {},
+  equityTraces: {},
+  waveOwner: null,
   profitBars: [],
   profitTotalRealized: 0,
   profitTotalUnrealized: 0,
@@ -93,12 +108,22 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
   detailLoading: false,
 
   loadTasks: async (opts) => {
+    const owner = currentWaveOwner()
+    const generation = sessionGeneration
+    const request = ++taskRequest
     const silent = Boolean(opts?.silent)
     if (!silent) set({ loading: true, error: null })
     try {
       const data = await listAITradingTasks()
-      set({ tasks: data.items, loading: false, error: null })
+      if (generation !== sessionGeneration || currentWaveOwner() !== owner || request < taskApplied) return
+      taskApplied = request
+      const now = Date.now()
+      const previous = get().waveOwner === owner ? get().equityTraces : owner ? readWaveCache(owner) : {}
+      const equityTraces = updateEquityTraces(previous, data.items, now)
+      set({ tasks: data.items, equityTraces, waveOwner: owner, loading: false, error: null })
+      if (owner) saveWaveCache(owner, equityTraces, now)
     } catch (err) {
+      if (generation !== sessionGeneration || currentWaveOwner() !== owner || request < taskApplied) return
       // 静默轮询失败不刷红、不改 loading，避免闪屏
       if (silent) return
       set({
@@ -109,6 +134,9 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
   },
 
   loadEquity: async () => {
+    const owner = currentWaveOwner()
+    const generation = sessionGeneration
+    const request = ++equityRequest
     const { tasks } = get()
     const ids = tasks.map((t) => t.id)
     if (ids.length === 0) {
@@ -117,6 +145,7 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
     }
     try {
       const data = await fetchEquitySeries(ids, 500)
+      if (generation !== sessionGeneration || currentWaveOwner() !== owner || request !== equityRequest) return
       set({ equitySeries: data.series })
     } catch {
       // 曲线失败不阻断主列表
@@ -124,10 +153,13 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
   },
 
   loadProfitBars: async (opts) => {
+    const owner = currentWaveOwner()
+    const generation = sessionGeneration
     const silent = Boolean(opts?.silent)
     if (!silent) set({ profitLoading: true })
     try {
       const data = await fetchProfitBars(500)
+      if (generation !== sessionGeneration || currentWaveOwner() !== owner) return
       set({
         profitBars: data.items,
         profitTotalRealized: data.total_realized,
@@ -137,6 +169,7 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
         profitLoading: false,
       })
     } catch {
+      if (generation !== sessionGeneration || currentWaveOwner() !== owner) return
       if (!silent) set({ profitLoading: false })
     }
   },
@@ -242,3 +275,11 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
     }
   },
 }))
+
+// Account/mode boundaries also invalidate in-flight responses and cached position traces.
+useAuthStore.subscribe((state, previous) => {
+  if (state.user?.id === previous.user?.id && state.user?.trading_mode === previous.user?.trading_mode) return
+  sessionGeneration++
+  clearWaveCache()
+  useAITradingStore.setState({ tasks: [], equityTraces: {}, equitySeries: {}, waveOwner: null, profitBars: [], profitTotalRealized: 0, profitTotalUnrealized: 0, profitTotalPnl: 0, profitOpenCount: 0, profitLoading: false, loading: false })
+})

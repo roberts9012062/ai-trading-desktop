@@ -51,6 +51,15 @@ function HeaderPreview() {
       { ...base, id: "fixture-live-task", name: "AI任务验收" } as AITradingTask,
       { ...base, id: "fixture-quant-task", name: "量化任务验收", strategy_type: "ma_cross" } as AITradingTask,
     ], selectedTaskId: null, loadTasks: async () => {}, loadEquity: async () => {}, loadProfitBars: async () => {} })
+    if (new URLSearchParams(location.search).has("polling")) {
+      const counts = { tasks: 0, equity: 0, profit: 0 }
+      Object.assign(window, { wavePollCounts: counts })
+      useAITradingStore.setState({
+        loadTasks: async () => { counts.tasks++; useAITradingStore.setState(s => ({ tasks: s.tasks.map(t => ({ ...t, note: String(counts.tasks) })) })) },
+        loadEquity: async () => { counts.equity++ },
+        loadProfitBars: async () => { counts.profit++ },
+      })
+    }
     useHunterStore.setState({ groups: new URLSearchParams(location.search).has("empty") ? [] : [{ id: "fixture-hunter", name: "多周期猎手验收", status: "running", trading_mode: "virtual", config: { venue: "okx", leverage: 5, margin_mode: "isolated", brain: "rules", strategy_version: "hunter-v2" }, capital: 100, equity: 100, blocks: [], runtime: {}, stats: { trades: 0, win_rate: null, profit_factor: null, payoff: null }, opportunities: [] } as unknown as Hunter], refresh: async () => {} })
     const poll = () => useAITradingStore.setState(s => ({ tasks: s.tasks.map(t => ({ ...t, note: "模拟轮询" })) }))
     const remove = () => { useAITradingStore.setState({ tasks: [] }); useHunterStore.setState({ groups: [] }) }
