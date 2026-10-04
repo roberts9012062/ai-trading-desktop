@@ -45,6 +45,8 @@ import {
 } from "@/components/ai-trading/form/margin-leverage-fields"
 import { useMarketStore } from "@/stores/market"
 import { useAuthStore } from "@/stores/auth"
+import { DEFAULT_FORECAST, forecastConfig, isForecast, type ForecastConfig } from "@/lib/ai-forecast"
+import { ForecastOptions } from "./forecast-options"
 
 /** 实盘模式创建任务：官方接口真实下单提示横幅 */
 function LiveExecBanner(): React.JSX.Element | null {
@@ -80,6 +82,8 @@ export function CreateTaskDialog({
   prefillFrom = null,
 }: CreateTaskDialogProps): React.JSX.Element {
   const createTask = useAITradingStore((s) => s.createTask)
+  const [tradeMode, setTradeMode] = useState<'realtime'|'forecast'>('realtime')
+  const [forecast, setForecast] = useState<ForecastConfig>(DEFAULT_FORECAST)
   const [models, setModels] = useState<AIModel[]>([])
   const [modelRowId, setModelRowId] = useState("")
   const [icon, setIcon] = useState<string | null>(null)
@@ -126,6 +130,8 @@ export function CreateTaskDialog({
   useEffect(() => {
     if (!open || !prefillFrom) return
     const t = prefillFrom
+    setTradeMode(isForecast(t)?'forecast':'realtime')
+    if(isForecast(t))setForecast(forecastConfig(t))
     setName(`${t.name || "克隆任务"}-克隆`)
     setIcon(t.icon ?? null)
     const ftParam = (t.strategy_params ?? {}) as Record<string, unknown>
@@ -190,6 +196,9 @@ export function CreateTaskDialog({
 
   async function handleSubmit(): Promise<void> {
     setError(null)
+    if(tradeMode==='forecast' && (extraTfs.length>2 || timeframe==='1d' || Number(barsLimit)<30 || Number(barsLimit)>100 || !forecast.indicators.length)) {
+      setError('预测交易最多 3 个分时周期、30–100 根 K 线，至少一条技术线');return
+    }
     if (!modelRowId) {
       setError("请选择 AI 模型")
       return
@@ -272,7 +281,7 @@ export function CreateTaskDialog({
       model_row_id: modelRowId,
       strategy_type: "ai",
       icon,
-      strategy_params:
+      strategy_params: tradeMode==='forecast'?{mode:'forecast',forecast:{...forecast,timeframes:[timeframe,...extraTfs],bar_count:Number(barsLimit),direction_mode:sideMode==='long_only'?'long':sideMode==='short_only'?'short':'any'}}:
         (factorTokens && factorTokens.length) || refStrategies.length
           ? {
               ...(factorTokens && factorTokens.length
@@ -289,14 +298,14 @@ export function CreateTaskDialog({
       extra_timeframes: extraTfs,
       ai_bars_limit: Math.min(240, Math.max(10, Math.floor(Number(barsLimit) || 40))),
       side_mode: sideMode,
-      position_mode: apiPositionMode,
+      position_mode: tradeMode==='forecast'?'fixed_margin':apiPositionMode,
       fixed_qty: qLo,
       qty_min: qLo,
       qty_max: qHi,
       // 所有模式统一保证金 sizing：half/full/capital_pct 忽略每笔保证金值、按预算比例，
       // 但必须传正值让引擎走 margin 模式（旧手数路径会把小数数量截成 0）
       margin_per_trade: marginModel.marginPerTrade,
-      leverage: marginModel.leverage,
+      leverage: tradeMode==='forecast'?Math.min(50,marginModel.leverage):marginModel.leverage,
       margin_mode: marginModel.marginMode,
       funding_source:
         funding.info && funding.info.source === "live" && funding.info.balance_usdt != null
@@ -370,8 +379,14 @@ export function CreateTaskDialog({
       >
         <DialogHeader className="shrink-0 space-y-1 pr-6">
           <DialogTitle>创建 AI 交易任务</DialogTitle>
+          <div className="flex gap-2" role="group" aria-label="AI交易方式">
+            {(['realtime','forecast'] as const).map(mode=><Button key={mode} type="button" size="sm" variant={tradeMode===mode?'default':'outline'} onClick={()=>{
+              setTradeMode(mode)
+              if(mode==='forecast'){if(timeframe==='1d')setTimeframe('5m');setExtraTfs(v=>v.filter(tf=>tf!=='1d').slice(0,2));setBarsLimit('60');setPositionMode('fixed_margin');setMarginModel(v=>({...v,leverage:Math.min(50,v.leverage)}))}
+            }}>{mode==='realtime'?'AI 实时交易':'AI 预测交易'}</Button>)}
+          </div>
           <p className="text-[11px] text-amber-400/90 text-left font-normal">
-            模型按 K 线周期自主交易；资金仓额度控制风险上限。
+            {tradeMode==='forecast'?'AI 预测方向与进场价，OKX 条件单触发，止盈止损平仓后结束。':'模型按 K 线周期自主交易；资金仓额度控制风险上限。'}
           </p>
           <LiveExecBanner />
         </DialogHeader>
@@ -400,7 +415,7 @@ export function CreateTaskDialog({
                 <div>点头像更换；默认按模型自动匹配</div>
               </div>
             </div>
-            <AiFactorMount
+            {tradeMode==='realtime' && <><AiFactorMount
               value={factorTokens}
               onChange={setFactorTokens}
               symbol={symbol}
@@ -408,7 +423,8 @@ export function CreateTaskDialog({
             <AiQuantRefPicker
               value={refStrategies}
               onChange={setRefStrategies}
-            />
+            /></>}
+            {tradeMode==='forecast' && <ForecastOptions value={forecast} onChange={setForecast}/>}
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1 col-span-2 sm:col-span-1">
                 <Label>任务名称（可选）</Label>
@@ -460,7 +476,7 @@ export function CreateTaskDialog({
                     setExtraTfs((prev) => prev.filter((x) => x !== tf))
                   }}
                 >
-                  {TIMEFRAMES.map((t) => (
+                  {TIMEFRAMES.filter(t=>tradeMode!=='forecast'||t!=='1d').map((t) => (
                     <option key={t} value={t}>
                       {t}
                     </option>
@@ -484,7 +500,7 @@ export function CreateTaskDialog({
             <div className="space-y-1.5">
               <Label>多周期共振（最多选 3 个附加周期）</Label>
               <div className="flex flex-wrap gap-1.5">
-                {TIMEFRAMES.filter((t) => t !== timeframe).map((t) => {
+                {TIMEFRAMES.filter((t) => t !== timeframe && (tradeMode!=='forecast'||t!=='1d')).map((t) => {
                   const active = extraTfs.includes(t)
                   return (
                     <button
@@ -494,7 +510,7 @@ export function CreateTaskDialog({
                         setExtraTfs((prev) =>
                           prev.includes(t)
                             ? prev.filter((x) => x !== t)
-                            : prev.length >= 3
+                            : prev.length >= (tradeMode==='forecast'?2:3)
                               ? prev
                               : [...prev, t],
                         )
@@ -503,7 +519,7 @@ export function CreateTaskDialog({
                         active
                           ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
                           : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]"
-                      } ${!active && extraTfs.length >= 3 ? "opacity-40" : ""}`}
+                      } ${!active && extraTfs.length >= (tradeMode==='forecast'?2:3) ? "opacity-40" : ""}`}
                     >
                       {t}
                     </button>
@@ -516,11 +532,11 @@ export function CreateTaskDialog({
             </div>
 
             <div className="space-y-1">
-              <Label>AI 每周期 K 线根数（10-240，默认 40）</Label>
+              <Label>{tradeMode==='forecast'?'预测每周期 K 线根数（30–100）':'AI 每周期 K 线根数（10-240，默认 40）'}</Label>
               <Input
                 type="number"
-                min={10}
-                max={240}
+                min={tradeMode==='forecast'?30:10}
+                max={tradeMode==='forecast'?100:240}
                 value={barsLimit}
                 onChange={(e) => setBarsLimit(e.target.value)}
                 className="h-9 text-sm"
@@ -549,6 +565,7 @@ export function CreateTaskDialog({
               <select
                 className="w-full h-9 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-sm"
                 value={positionMode}
+                disabled={tradeMode==='forecast'}
                 onChange={(e) => onPositionModeChange(e.target.value)}
               >
                 <option value="fixed_margin">指定每笔保证金</option>
@@ -564,6 +581,7 @@ export function CreateTaskDialog({
 
             <div className="rounded-md border border-[var(--border)] p-2.5">
               <MarginLeverageFields
+                maxLeverage={tradeMode==='forecast'?50:100}
                 value={marginModel}
                 onChange={setMarginModel}
                 lastPrice={lastPrice}

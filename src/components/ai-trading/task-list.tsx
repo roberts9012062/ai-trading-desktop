@@ -1,6 +1,9 @@
 "use client"
 
 import { Star } from "lucide-react"
+import { useState } from "react"
+import { ForecastChartDialog } from "./forecast-chart"
+import { isForecast, forecastState, FORECAST_STAGES } from "@/lib/ai-forecast"
 import { cn } from "@/lib/utils"
 import type { AITradingTask } from "@/lib/ai-trading-api"
 import { TaskIcon } from "@/components/ai-trading/task-icon"
@@ -46,6 +49,7 @@ export function TaskList({
   onFavorite,
 }: TaskListProps): React.JSX.Element {
   const quotes = useMarketStore((s) => s.quotes)
+  const [forecastId,setForecastId]=useState<string|null>(null)
 
   if (tasks.length === 0) {
     return (
@@ -56,7 +60,7 @@ export function TaskList({
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+    <><div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
       {tasks.map((task) => {
         const sk = statusKey(task)
         const sym = (task.symbol || "").toLowerCase()
@@ -235,6 +239,10 @@ export function TaskList({
             </div>
 
             <TaskProfitLockStatus task={task} />
+            {isForecast(task)&&<div className="mt-2 flex items-center justify-between text-xs">
+              <span className="text-[var(--text-muted)]">AI 预测 · {FORECAST_STAGES[forecastState(task).stage??'watching']??'等待预测'}</span>
+              <button type="button" className="rounded border border-[var(--border)] px-3 py-1 hover:text-[var(--primary)]" onClick={e=>{e.stopPropagation();setForecastId(task.id)}}>查看</button>
+            </div>}
 
             {task.note && (
               <p className="mt-1.5 text-[11px] text-amber-400/90 truncate">
@@ -284,6 +292,6 @@ export function TaskList({
           </div>
         )
       })}
-    </div>
+    </div><ForecastChartDialog task={tasks.find(t=>t.id===forecastId)??null} onClose={()=>setForecastId(null)}/></>
   )
 }

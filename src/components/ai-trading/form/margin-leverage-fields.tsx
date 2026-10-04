@@ -31,8 +31,9 @@ export function MarginLeverageFields(props: {
   scaleIn?: boolean
   /** 只调杠杆（保证金=预算比例） */
   budgetOnly?: boolean
+  maxLeverage?: number
 }): React.JSX.Element {
-  const { value, onChange, lastPrice, scaleIn, budgetOnly } = props
+  const { value, onChange, lastPrice, scaleIn, budgetOnly, maxLeverage = 100 } = props
   const qty =
     lastPrice && lastPrice > 0 && value.marginPerTrade > 0
       ? (value.marginPerTrade * value.leverage) / lastPrice
@@ -69,15 +70,15 @@ export function MarginLeverageFields(props: {
           <Input
             type="range"
             min={1}
-            max={100}
+            max={maxLeverage}
             step={1}
             value={value.leverage}
             onChange={(e) =>
-              onChange({ ...value, leverage: Math.max(1, Math.min(100, Number(e.target.value) || 1)) })
+              onChange({ ...value, leverage: Math.max(1, Math.min(maxLeverage, Number(e.target.value) || 1)) })
             }
             className="h-1.5 flex-1 accent-[var(--primary)]"
           />
-          {[5, 10, 20, 50, 100].map((v) => (
+          {[5, 10, 20, 50, 100].filter(v=>v<=maxLeverage).map((v) => (
             <button
               key={v}
               type="button"

@@ -13,6 +13,8 @@ import { useAiMarketStore } from "@/stores/ai-market"
 import { useAiMarketIndicatorStore } from "@/stores/ai-market-indicator"
 import { useAppStore, migrateStaleContract } from "@/stores/app"
 import { useMarketStore } from "@/stores/market"
+import {ForecastKline} from '@/components/ai-trading/forecast-chart'
+import {isForecast} from '@/lib/ai-forecast'
 
 /**
  * AI 看盘行情 —— 行情页的任务化变体
@@ -26,6 +28,7 @@ export default function AiMarketPage(): React.JSX.Element {
   const marks = useAiMarketStore((s) => s.marks)
   const tasks = useAiMarketStore((s) => s.tasks)
   const selectedTaskId = useAiMarketStore((s) => s.selectedTaskId)
+  const forecastTask=tasks.find(t=>t.id===selectedTaskId&&isForecast(t))
 
   // 页面合约隔离：行情页切过合约后回到本页时，重新断言本页选中任务
   // 对应的合约（任务选择本身已持久化于 ai-market-selected-task）。
@@ -54,11 +57,12 @@ export default function AiMarketPage(): React.JSX.Element {
         <NewsTicker />
 
         <div className="flex-1 min-h-0">
-          <KlineChart
+          {forecastTask?<ForecastKline task={forecastTask}/>:<KlineChart
+            forecastTasks={tasks}
             tradeMarks={marks}
             userTradeLines="all"
             indicatorStore={useAiMarketIndicatorStore}
-          />
+          />}
         </div>
 
         <div className="h-[240px] shrink-0 border-t border-[var(--border)]">

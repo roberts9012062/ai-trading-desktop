@@ -34,6 +34,8 @@ import type {
   SubIndicatorId,
 } from "./indicators/registry"
 import { useTradeLines } from "./lines/use-trade-lines"
+import { useForecastLines } from "./lines/use-forecast-lines"
+import type { AITradingTask } from "@/lib/ai-trading-api"
 import { setCurrentKlinePeriod } from "./current-period"
 import { prefetchKlineHistory } from "./use-kline-history"
 import { KlineHoverBookPanel } from "./hover-book-panel"
@@ -74,6 +76,7 @@ function chartPrecision(decimals: number | undefined, lastClose: number | undefi
 }
 
 export interface KlineChartProps {
+  forecastTasks?: AITradingTask[]
   /** 任务 K 线交易标记（AI 看盘页传入；不传则无标记，行为同行情页） */
   tradeMarks?: TaskTradeMark[]
   /**
@@ -91,6 +94,7 @@ export interface KlineChartProps {
 
 /** K 线图组件（含均线叠加 + MACD 副图 + 实时更新） */
 export function KlineChart({
+  forecastTasks = [],
   tradeMarks,
   userTradeLines = "all",
   indicatorStore = useIndicatorStore as IndicatorStoreHook,
@@ -319,6 +323,7 @@ export function KlineChart({
     enabled: userTradeLines !== "off",
     source: userTradeLines === "manual" ? "manual" : "all",
   })
+  useForecastLines({seriesRef,tasks:forecastTasks,symbol:activeContract,ready:chartReady+seriesReady})
 
   // 任务交易标记（AI 看盘页）：
   // - 蜡烛周期：吸附到当前周期 bar，任务/周期/历史变化时重建

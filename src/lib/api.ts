@@ -449,6 +449,11 @@ export async function getKlineApi(
   return request<KlineResponse>(`/api/market/kline?${params}`)
 }
 
+/** Forecast prices and candles both use OKX, proxied through the task server. */
+export function getForecastKlineApi(taskId:string):Promise<KlineResponse> {
+  return request<KlineResponse>(`/api/ai-trading/tasks/${encodeURIComponent(taskId)}/forecast-kline`)
+}
+
 // ===== 新闻 API =====
 
 /** 获取最新全量新闻（最近 20 条） */

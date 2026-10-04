@@ -52,6 +52,8 @@ import {
   type QuantParamsState,
 } from "@/lib/quant-strategy"
 import { KindParams } from "@/components/ai-trading/form/create-quant-params"
+import {DEFAULT_FORECAST,forecastConfig,isForecast,type ForecastConfig} from '@/lib/ai-forecast'
+import {ForecastOptions} from './forecast-options'
 
 /** K 线周期 → 分钟（分析间隔上限） */
 const TF_MINUTES: Record<string, number> = {
@@ -109,6 +111,9 @@ export function EditTaskDialog({
   onClose,
 }: EditTaskDialogProps): React.JSX.Element {
   const updateTask = useAITradingStore((s) => s.updateTask)
+  const prediction=Boolean(task&&isForecast(task))
+  const [forecast,setForecast]=useState<ForecastConfig>(DEFAULT_FORECAST)
+  useEffect(()=>{if(task&&isForecast(task))setForecast(forecastConfig(task))},[task])
   const [models, setModels] = useState<AIModel[]>([])
   const [modelRowId, setModelRowId] = useState("")
   const [symbol, setSymbol] = useState("")
@@ -327,7 +332,7 @@ export function EditTaskDialog({
     const payload: UpdateTaskPayload = {
       name: name.trim(),
       icon,
-      strategy_params: quantMode
+      strategy_params: prediction ? {mode:'forecast',forecast:{...forecast,timeframes:[timeframe,...extraTfs],bar_count:Number(barsLimit),direction_mode:sideMode==='long_only'?'long':sideMode==='short_only'?'short':'any'}} : quantMode
         ? factorMode
           ? {
               ...(factorTokens && factorTokens.length
@@ -368,13 +373,13 @@ export function EditTaskDialog({
         ? (task.ai_bars_limit ?? 40)
         : Math.min(240, Math.max(10, Math.floor(Number(barsLimit) || 40))),
       side_mode: sideMode,
-      position_mode: apiPositionMode,
+      position_mode: prediction?'fixed_margin':apiPositionMode,
       fixed_qty: qLo,
       qty_min: qLo,
       qty_max: qHi,
       // 所有模式统一保证金 sizing（旧手数路径会把小数数量截成 0）
       margin_per_trade: marginModel.marginPerTrade,
-      leverage: marginModel.leverage,
+      leverage: prediction?Math.min(50,marginModel.leverage):marginModel.leverage,
       margin_mode: marginModel.marginMode,
       funding_source:
         funding.info && funding.info.source === "live" && funding.info.balance_usdt != null
@@ -456,14 +461,15 @@ export function EditTaskDialog({
               <div>点头像更换</div>
             </div>
           </div>
-          {(!quantMode || factorMode) && !decisionMode && (
+          {prediction&&<ForecastOptions value={forecast} onChange={setForecast}/>}
+          {(!quantMode || factorMode) && !decisionMode && !prediction && (
             <AiFactorMount
               value={factorTokens}
               onChange={setFactorTokens}
               symbol={symbol}
             />
           )}
-          {!quantMode && !factorMode && !decisionMode && (
+          {!quantMode && !factorMode && !decisionMode && !prediction && (
             <AiQuantRefPicker
               value={refStrategies}
               onChange={setRefStrategies}
@@ -560,7 +566,7 @@ export function EditTaskDialog({
                   setExtraTfs((prev) => prev.filter((x) => x !== tf))
                 }}
               >
-                {TIMEFRAMES.map((t) => (
+                {TIMEFRAMES.filter(t=>!prediction||t!=='1d').map((t) => (
                   <option key={t} value={t}>
                     {t}
                   </option>
@@ -586,7 +592,7 @@ export function EditTaskDialog({
               <div className="space-y-1.5">
                 <Label>多周期共振（最多选 3 个附加周期）</Label>
                 <div className="flex flex-wrap gap-1.5">
-                  {TIMEFRAMES.filter((t) => t !== timeframe).map((t) => {
+                  {TIMEFRAMES.filter((t) => t !== timeframe&&(!prediction||t!=='1d')).map((t) => {
                     const active = extraTfs.includes(t)
                     return (
                       <button
@@ -596,7 +602,7 @@ export function EditTaskDialog({
                           setExtraTfs((prev) =>
                             prev.includes(t)
                               ? prev.filter((x) => x !== t)
-                              : prev.length >= 3
+                              : prev.length >= (prediction?2:3)
                                 ? prev
                                 : [...prev, t],
                           )
@@ -618,11 +624,11 @@ export function EditTaskDialog({
               </div>
 
               <div className="space-y-1">
-                <Label>AI 每周期 K 线根数（10-240，默认 40）</Label>
+                <Label>{prediction?'预测 K 线根数（30-100）':'AI 每周期 K 线根数（10-240，默认 40）'}</Label>
                 <Input
                   type="number"
-                  min={10}
-                  max={240}
+                  min={prediction?30:10}
+                  max={prediction?100:240}
                   value={barsLimit}
                   onChange={(e) => setBarsLimit(e.target.value)}
                   className="h-9 text-sm"
@@ -735,6 +741,7 @@ export function EditTaskDialog({
           <FundingSourceBadge info={funding.info} onReload={funding.reload} />
           <div className="rounded-md border border-[var(--border)] p-2.5">
             <MarginLeverageFields
+              maxLeverage={prediction?50:100}
               value={marginModel}
               onChange={setMarginModel}
               lastPrice={lastPrice}
