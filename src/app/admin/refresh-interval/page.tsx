@@ -210,7 +210,7 @@ export default function AdminRefreshIntervalPage(): React.JSX.Element {
       </Card>
 
       <div className="flex justify-end">
-        <Button onClick={() => void handleSave()} disabled={saving}>
+        <Button validateNumbers onClick={() => void handleSave()} disabled={saving}>
           {saving ? "保存中…" : "保存"}
         </Button>
       </div>

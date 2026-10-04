@@ -625,7 +625,7 @@ export function EditTaskDialog({
 
               <div className="space-y-1">
                 <Label>{prediction?'预测 K 线根数（30-100）':'AI 每周期 K 线根数（10-240，默认 40）'}</Label>
-                <Input
+                <Input required
                   type="number"
                   min={prediction?30:10}
                   max={prediction?100:240}
@@ -806,7 +806,7 @@ export function EditTaskDialog({
           <Button variant="outline" onClick={onClose} disabled={submitting}>
             取消
           </Button>
-          <Button onClick={() => void handleSubmit()} disabled={submitting}>
+          <Button validateNumbers onClick={() => void handleSubmit()} disabled={submitting}>
             {submitting ? "保存中…" : "保存修改"}
           </Button>
         </div>

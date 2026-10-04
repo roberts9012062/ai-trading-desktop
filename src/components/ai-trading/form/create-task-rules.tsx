@@ -148,7 +148,7 @@ export function CreateTaskRules({
             />
             最大收益平仓
           </label>
-          <Input
+          <Input type="number"
             placeholder="20"
             disabled={!value.bottomTpOn}
             value={value.bottomTpPct}
@@ -167,7 +167,7 @@ export function CreateTaskRules({
             />
             最大止损
           </label>
-          <Input
+          <Input type="number"
             placeholder="10"
             disabled={!value.bottomSlOn}
             value={value.bottomSlPct}
@@ -188,7 +188,7 @@ export function CreateTaskRules({
         <div className="grid grid-cols-2 gap-2">
           <div>
             <Label className="text-[11px]">持仓收益%平仓</Label>
-            <Input
+            <Input type="number"
               placeholder="如 5"
               value={value.pnlPct}
               onChange={(e) => patch({ pnlPct: e.target.value })}
@@ -196,7 +196,7 @@ export function CreateTaskRules({
           </div>
           <div>
             <Label className="text-[11px]">总收益%平仓</Label>
-            <Input
+            <Input type="number"
               placeholder="如 10"
               value={value.totalPnlPct}
               onChange={(e) => patch({ totalPnlPct: e.target.value })}
@@ -261,7 +261,7 @@ export function CreateTaskRules({
               <div className="grid grid-cols-3 gap-1.5">
                 <div>
                   <Label className="text-[10px]">快线周期</Label>
-                  <Input
+                  <Input type="number"
                     placeholder="5"
                     value={value.maFast}
                     onChange={(e) => patch({ maFast: e.target.value })}
@@ -269,7 +269,7 @@ export function CreateTaskRules({
                 </div>
                 <div>
                   <Label className="text-[10px]">慢线周期</Label>
-                  <Input
+                  <Input type="number"
                     placeholder="20"
                     value={value.maSlow}
                     onChange={(e) => patch({ maSlow: e.target.value })}
@@ -301,7 +301,7 @@ export function CreateTaskRules({
                 <div className="grid grid-cols-3 gap-1.5">
                   <div>
                     <Label className="text-[10px]">左分型根数</Label>
-                    <Input
+                    <Input type="number"
                       placeholder="3"
                       value={value.swingLeft}
                       onChange={(e) => patch({ swingLeft: e.target.value })}
@@ -309,7 +309,7 @@ export function CreateTaskRules({
                   </div>
                   <div>
                     <Label className="text-[10px]">右确认根数</Label>
-                    <Input
+                    <Input type="number"
                       placeholder="3"
                       value={value.swingRight}
                       onChange={(e) => patch({ swingRight: e.target.value })}
@@ -317,7 +317,7 @@ export function CreateTaskRules({
                   </div>
                   <div>
                     <Label className="text-[10px]">预确认右侧根数</Label>
-                    <Input
+                    <Input type="number"
                       placeholder="3"
                       value={value.swingMinRight}
                       onChange={(e) => patch({ swingMinRight: e.target.value })}
@@ -370,7 +370,7 @@ export function CreateTaskRules({
                 <div className="grid grid-cols-2 gap-1.5">
                   <div>
                     <Label className="text-[10px]">平多阈值</Label>
-                    <Input
+                    <Input type="number"
                       placeholder={factorPh}
                       value={value.factorExitLong}
                       onChange={(e) => patch({ factorExitLong: e.target.value })}
@@ -378,7 +378,7 @@ export function CreateTaskRules({
                   </div>
                   <div>
                     <Label className="text-[10px]">平空阈值</Label>
-                    <Input
+                    <Input type="number"
                       placeholder={factorPh}
                       value={value.factorExitShort}
                       onChange={(e) => patch({ factorExitShort: e.target.value })}
@@ -402,7 +402,7 @@ export function CreateTaskRules({
         <div className="grid grid-cols-2 gap-2">
           <div>
             <Label className="text-[11px]">亏损%</Label>
-            <Input
+            <Input type="number"
               placeholder="如 3"
               value={value.lossPct}
               onChange={(e) => patch({ lossPct: e.target.value })}
@@ -410,7 +410,7 @@ export function CreateTaskRules({
           </div>
           <div>
             <Label className="text-[11px]">亏损额度(元)</Label>
-            <Input
+            <Input type="number"
               placeholder="如 5000"
               value={value.lossAmount}
               onChange={(e) => patch({ lossAmount: e.target.value })}

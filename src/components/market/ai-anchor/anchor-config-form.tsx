@@ -4,6 +4,7 @@
  * AI 看盘主播配置表单 —— 模型/品种/分时段/根数/间隔/技术线 → 看盘
  */
 
+import { withNumericValidation } from "@/lib/numeric-input"
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { ChevronDown, Play } from "lucide-react"
@@ -404,7 +405,7 @@ export function AnchorConfigForm({
       <button
         type="button"
         disabled={acting || models.length === 0}
-        onClick={handleStart}
+        onClick={withNumericValidation(handleStart)}
         className="w-full h-9 rounded-md bg-[var(--primary)] text-white text-xs font-medium hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
       >
         <Play className="w-3.5 h-3.5" />

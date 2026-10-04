@@ -533,7 +533,7 @@ export function CreateTaskDialog({
 
             <div className="space-y-1">
               <Label>{tradeMode==='forecast'?'预测每周期 K 线根数（30–100）':'AI 每周期 K 线根数（10-240，默认 40）'}</Label>
-              <Input
+              <Input required
                 type="number"
                 min={tradeMode==='forecast'?30:10}
                 max={tradeMode==='forecast'?100:240}
@@ -661,7 +661,7 @@ export function CreateTaskDialog({
           <Button variant="outline" onClick={onClose} disabled={submitting}>
             取消
           </Button>
-          <Button onClick={() => void handleSubmit()} disabled={submitting}>
+          <Button validateNumbers onClick={() => void handleSubmit()} disabled={submitting}>
             {submitting ? "创建中…" : "创建"}
           </Button>
         </div>

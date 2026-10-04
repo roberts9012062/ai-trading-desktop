@@ -1,5 +1,6 @@
 "use client"
 
+import { withNumericReset } from "@/lib/numeric-input"
 import { useIndicatorStore } from "@/stores/indicator"
 import { DEFAULT_INDICATOR_CONFIG } from "@/types/indicator"
 import { ColorField, NumberField } from "./indicator-form-fields"
@@ -235,11 +236,11 @@ export function IndicatorPivotV2Tab({
             </button>
             <button
               type="button"
-              onClick={() =>
+              onClick={withNumericReset(() =>
                 store.updatePivotV2({
                   ...DEFAULT_INDICATOR_CONFIG.pivotV2,
                   enabled: pivot.enabled,
-                })
+                }))
               }
               className="flex-1 px-3 py-1 text-xs rounded bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
             >

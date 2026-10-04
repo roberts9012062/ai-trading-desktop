@@ -4,6 +4,7 @@
  * 指标设置 —— 均线页（自弹窗内联拆出；onHighlight 联动右侧示意图闪烁）
  */
 
+import { NumericInput } from "@/components/ui/numeric-input"
 import { useIndicatorStore } from "@/stores/indicator"
 import type { IndicatorStoreHook } from "@/types/indicator"
 import { PRESET_COLORS } from "@/types/indicator"
@@ -27,7 +28,7 @@ export function IndicatorMaTab({
           className="space-y-2 py-2 border-b border-[var(--border)] last:border-0"
         >
           <div className="flex items-center gap-2">
-            <input
+            <NumericInput
               type="number"
               value={line.period}
               min={2}

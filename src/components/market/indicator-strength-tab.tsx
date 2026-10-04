@@ -5,6 +5,7 @@
  * V1 参数区行为与改造前完全一致；v2 时渲染 IndicatorStrengthV2Tab。
  */
 
+import { withNumericReset } from "@/lib/numeric-input"
 import { useIndicatorStore } from "@/stores/indicator"
 import { DEFAULT_INDICATOR_CONFIG, type IndicatorStoreHook } from "@/types/indicator"
 import { ColorField, NumberField } from "./indicator-form-fields"
@@ -154,7 +155,7 @@ function StrengthV1Panel({
       {/* 只重置本指标块（参数与颜色回默认，enabled 保持当前值，不动其他指标） */}
       <button
         type="button"
-        onClick={() => upd({ ...DEFAULT_INDICATOR_CONFIG.strength, enabled: s.enabled })}
+        onClick={withNumericReset(() => upd({ ...DEFAULT_INDICATOR_CONFIG.strength, enabled: s.enabled }))}
         className="mt-4 px-3 py-1 text-xs rounded bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
       >
         恢复默认

@@ -1,5 +1,6 @@
 "use client"
 
+import { NumericInput } from "@/components/ui/numeric-input"
 import { usePaperTradingStore } from "@/stores/paper-trading"
 import { formatShanghaiTime } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -423,7 +424,7 @@ function OrderTable(props: {
                     <span className="text-xs text-[var(--text-secondary)]">
                       {o.symbol} 改单（保留排队位置）
                     </span>
-                    <input
+                    <NumericInput
                       type="number"
                       step="any"
                       min="0"
@@ -432,7 +433,7 @@ function OrderTable(props: {
                       onChange={(e) => setNewPrice(e.target.value)}
                       className="w-28 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-xs font-num"
                     />
-                    <input
+                    <NumericInput
                       type="number"
                       step="any"
                       min="0"
@@ -441,7 +442,7 @@ function OrderTable(props: {
                       onChange={(e) => setNewQty(e.target.value)}
                       className="w-28 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-xs font-num"
                     />
-                    <Button size="sm" disabled={amendBusy} onClick={() => void doAmend(o)}>
+                    <Button validateNumbers size="sm" disabled={amendBusy} onClick={() => void doAmend(o)}>
                       {amendBusy ? "提交中…" : "确认改单"}
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => setAmendFor(null)}>

@@ -693,7 +693,7 @@ export function CreateQuantDialog({
             <Button type="button" variant="outline" onClick={onClose}>
               取消
             </Button>
-            <Button
+            <Button validateNumbers
               type="button"
               disabled={submitting}
               onClick={() => void handleSubmit()}

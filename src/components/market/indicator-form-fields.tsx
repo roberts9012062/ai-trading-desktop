@@ -1,5 +1,6 @@
 "use client"
 
+import { NumericInput } from "@/components/ui/numeric-input"
 import {
   PRESET_COLORS,
   type IndicatorLineStyle,
@@ -29,7 +30,7 @@ export function NumberField({
   return (
     <label className="flex items-center justify-between text-sm text-[var(--text-primary)]">
       {label}
-      <input
+      <NumericInput
         type="number"
         value={value}
         min={min}

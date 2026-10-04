@@ -84,8 +84,8 @@ export function ProfitLockTemplatePicker({ id, value, onChange }: {
     <Label htmlFor={id + "-template-name"}>模板名称</Label>
     <Input id={id + "-template-name"} maxLength={80} placeholder="例如：短线锁利、长线锁利" value={name} disabled={busy} onChange={e => setName(e.target.value)} />
     <div className="flex flex-wrap gap-2">
-      <Button type="button" size="sm" variant="outline" disabled={!owner || busy} onClick={() => void mutate("new")}>另存为新模板</Button>
-      {custom && <><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void mutate("update")}>更新此模板</Button><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void mutate("delete")}>删除此模板</Button></>}
+      <Button validateNumbers type="button" size="sm" variant="outline" disabled={!owner || busy} onClick={() => void mutate("new")}>另存为新模板</Button>
+      {custom && <><Button validateNumbers type="button" size="sm" variant="outline" disabled={busy} onClick={() => void mutate("update")}>更新此模板</Button><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void mutate("delete")}>删除此模板</Button></>}
     </div>
     {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
     {notice && <p role="status" className="text-xs text-emerald-500">{notice}</p>}

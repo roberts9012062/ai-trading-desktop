@@ -13,7 +13,7 @@ export function ProfitLockSettings({ value = DEFAULT_PROFIT_LOCK, onChange }: {
   const unit = value.unit === "percent" ? "%" : "USDT"
   const activation = Number(value.activation), gap = Number(value.giveback)
   const valid = Number.isFinite(activation) && Number.isFinite(gap) && activation > gap && gap > 0
-  return <fieldset className="rounded-md border border-emerald-500/30 p-3 space-y-3">
+  return <fieldset data-numeric-scope className="rounded-md border border-emerald-500/30 p-3 space-y-3">
     <legend className="px-1 text-sm font-medium">锁利润</legend>
     <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={value.enabled} onChange={e => patch({ enabled: e.target.checked })} />开启锁利润</label>
     {value.enabled && <>
@@ -26,8 +26,8 @@ export function ProfitLockSettings({ value = DEFAULT_PROFIT_LOCK, onChange }: {
           <option value="percent">百分比 · 实际投入保证金</option><option value="usdt">USDT · 本轮净利润</option>
         </select></div>
         <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1"><Label htmlFor={id + "-activation"}>激活盈利（{unit}）</Label><Input id={id + "-activation"} type="number" min={value.unit === "percent" ? 3 : .01} step="any" value={value.activation} onChange={e => patch({ activation: e.target.value })} /></div>
-          <div className="space-y-1"><Label htmlFor={id + "-gap"}>允许回撤（{unit}）</Label><Input id={id + "-gap"} type="number" min={value.unit === "percent" ? 1 : .01} step="any" value={value.giveback} onChange={e => patch({ giveback: e.target.value })} /></div>
+          <div className="space-y-1"><Label htmlFor={id + "-activation"}>激活盈利（{unit}）</Label><Input required id={id + "-activation"} type="number" min={value.unit === "percent" ? 3 : .01} step="any" value={value.activation} onChange={e => patch({ activation: e.target.value })} /></div>
+          <div className="space-y-1"><Label htmlFor={id + "-gap"}>允许回撤（{unit}）</Label><Input required id={id + "-gap"} type="number" min={value.unit === "percent" ? 1 : .01} step="any" value={value.giveback} onChange={e => patch({ giveback: e.target.value })} /></div>
         </div>
         <p className={valid ? "text-xs text-[var(--text-muted)]" : "text-xs text-amber-500"}>{valid ? `激活时锁住${Number((activation-gap).toFixed(4))}${unit}，之后按最高净利润减${gap}${unit}上移。` : "激活阈值必须大于允许回撤；百分比激活至少3%、回撤至少1%。"}例如激活3%、回撤1%：盈利10%时锁9%。</p>
       </>}

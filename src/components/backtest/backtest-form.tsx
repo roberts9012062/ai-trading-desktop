@@ -461,7 +461,7 @@ export function BacktestForm({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label>止损 %（可选）</Label>
-          <Input
+          <Input type="number"
             value={lossPct}
             placeholder="如 3"
             onChange={(e) => setLossPct(e.target.value)}
@@ -469,7 +469,7 @@ export function BacktestForm({
         </div>
         <div className="space-y-2">
           <Label>止盈 %（可选）</Label>
-          <Input
+          <Input type="number"
             value={pnlPct}
             placeholder="如 5"
             onChange={(e) => setPnlPct(e.target.value)}
@@ -490,7 +490,7 @@ export function BacktestForm({
         <div className="text-sm text-[var(--accent-danger)]">{error}</div>
       )}
 
-      <Button
+      <Button validateNumbers
         className="w-full"
         disabled={submitting}
         onClick={() => handleSubmit()}

@@ -7,6 +7,8 @@
  * 同一指标可重复添加（如 MA20 + MA60 两条均线）。
  */
 
+import { NumericInput } from "@/components/ui/numeric-input"
+import { withNumericValidation } from "@/lib/numeric-input"
 import { useState } from "react"
 import { X } from "lucide-react"
 import type { AnchorIndicatorItem, AnchorParamSpec } from "@/lib/ai-anchor-api"
@@ -116,7 +118,7 @@ export function AnchorIndicatorPicker({
               <span className="text-[10px] text-[var(--text-muted)] w-16 shrink-0">
                 {spec.label}
               </span>
-              <input
+              <NumericInput
                 type="number"
                 value={params[spec.key] ?? spec.default}
                 min={spec.min}
@@ -138,7 +140,7 @@ export function AnchorIndicatorPicker({
           <div className="flex gap-1.5 pt-0.5">
             <button
               type="button"
-              onClick={commit}
+              onClick={withNumericValidation(commit)}
               className="px-2.5 py-0.5 rounded text-[11px] bg-[var(--primary)] text-white hover:opacity-90 cursor-pointer"
             >
               {editIndex == null ? "添加" : "更新"}

@@ -1,10 +1,12 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
+import { NumericInput } from "./numeric-input"
 
 const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
   ({ className, type, ...props }, ref) => {
+    const Component = type === "number" ? NumericInput : "input"
     return (
-      <input
+      <Component
         type={type}
         className={cn(
           "flex h-9 w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-1 text-sm text-[var(--text-primary)] shadow-sm transition-colors",

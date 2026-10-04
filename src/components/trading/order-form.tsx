@@ -233,7 +233,7 @@ export function OrderPanel(): React.JSX.Element {
         </div>
       )}
       <div className="mt-auto px-3 pb-3 pt-2">
-        <Button
+        <Button validateNumbers
           variant={
             p.direction === "buy"
               ? "buy"

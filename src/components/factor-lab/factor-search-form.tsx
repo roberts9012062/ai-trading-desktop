@@ -285,7 +285,7 @@ export function FactorSearchForm({
             label="种群（10-30000）"
             help={FACTOR_HELP.population}
           />
-          <Input
+          <Input required step={1}
             id="fl-pop"
             type="number"
             min={10}
@@ -303,7 +303,7 @@ export function FactorSearchForm({
             label="代数（3-1000）"
             help={FACTOR_HELP.generations}
           />
-          <Input
+          <Input required step={1}
             id="fl-gen"
             type="number"
             min={3}

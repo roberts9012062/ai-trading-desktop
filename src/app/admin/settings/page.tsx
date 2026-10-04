@@ -411,7 +411,7 @@ export default function AdminSettingsPage(): React.JSX.Element {
       <Separator />
 
       <div className="flex justify-end gap-3">
-        <Button onClick={() => void handleSave()} disabled={saving}>
+        <Button validateNumbers onClick={() => void handleSave()} disabled={saving}>
           {saving ? "保存中…" : "保存设置"}
         </Button>
       </div>

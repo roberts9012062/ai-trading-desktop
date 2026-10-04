@@ -5,6 +5,7 @@
  * 由 IndicatorStrengthTab 的版本切换器在 v2 时渲染（范式同 IndicatorPivotV2Tab）。
  */
 
+import { withNumericReset } from "@/lib/numeric-input"
 import { useIndicatorStore } from "@/stores/indicator"
 import { DEFAULT_INDICATOR_CONFIG, type IndicatorStoreHook } from "@/types/indicator"
 import { ColorField, NumberField } from "./indicator-form-fields"
@@ -111,7 +112,7 @@ export function IndicatorStrengthV2Tab({
       {/* 只重置本指标块（参数与颜色回默认，enabled 保持当前值，不动其他指标） */}
       <button
         type="button"
-        onClick={() => upd({ ...DEFAULT_INDICATOR_CONFIG.strengthV2, enabled: s.enabled })}
+        onClick={withNumericReset(() => upd({ ...DEFAULT_INDICATOR_CONFIG.strengthV2, enabled: s.enabled }))}
         className="mt-4 px-3 py-1 text-xs rounded bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
       >
         恢复默认

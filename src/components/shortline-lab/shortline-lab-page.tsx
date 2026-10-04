@@ -8,6 +8,8 @@
  * evaluator 代码;纯预览不下单) → 挂载到服务器(M-D4 接线)。
  */
 
+import { NumericInput } from "@/components/ui/numeric-input"
+import { withNumericValidation } from "@/lib/numeric-input"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createRunner } from "@/lib/mining/runner"
 import type { MiningTask } from "@/lib/mining/types"
@@ -452,7 +454,7 @@ export default function ShortlineLabPage() {
           {/* 3 种群：10–30000（与因子实验室同界），上限注释 */}
           <label className="space-y-1">
             <span className="text-[var(--text-muted)]">③ 种群数量（10 – 30000）</span>
-            <input type="number" value={population} min={10} max={30000} step={10}
+            <NumericInput type="number" value={population} min={10} max={30000} step={10}
               onChange={(e) => setPopulation(Number(e.target.value))}
               onBlur={() => setPopulation(Math.min(30000, Math.max(10, Math.round(population) || 300)))}
               className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 font-num" />
@@ -464,7 +466,7 @@ export default function ShortlineLabPage() {
           {/* 4 代数：3–1000（与因子实验室同界），上限注释 */}
           <label className="space-y-1">
             <span className="text-[var(--text-muted)]">④ 代数（3 – 1000）</span>
-            <input type="number" value={generations} min={3} max={1000} step={5}
+            <NumericInput type="number" value={generations} min={3} max={1000} step={5}
               onChange={(e) => setGenerations(Number(e.target.value))}
               onBlur={() => setGenerations(Math.min(1000, Math.max(3, Math.round(generations) || 30)))}
               className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 font-num" />
@@ -475,7 +477,7 @@ export default function ShortlineLabPage() {
           {/* 5 成本（bp/单边）与 cadence */}
           <label className="space-y-1">
             <span className="text-[var(--text-muted)]">⑤ 成本（bp/单边）</span>
-            <input type="number" value={costBp} min={1} max={50}
+            <NumericInput type="number" value={costBp} min={1} max={50}
               onChange={(e) => setCostBp(Number(e.target.value))}
               className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 font-num" />
             <span className="text-[10px] text-[var(--text-muted)] block leading-4">
@@ -504,7 +506,7 @@ export default function ShortlineLabPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button onClick={onCreateTask} disabled={creating || Boolean(activeTask)}
+          <button onClick={withNumericValidation(onCreateTask)} disabled={creating || Boolean(activeTask)}
             className="px-3 py-1.5 rounded-md bg-[var(--primary)] text-white text-xs disabled:opacity-40">
             {activeTask ? "已有任务运行中" : creating ? "准备任务中…" : "创建挖掘任务"}
           </button>

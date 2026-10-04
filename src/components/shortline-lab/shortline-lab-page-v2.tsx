@@ -10,6 +10,8 @@
  * - 现代界面：卡片式布局，减少视觉噪音
  */
 
+import { NumericInput } from "@/components/ui/numeric-input"
+import { withNumericValidation, withNumericReset } from "@/lib/numeric-input"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { createRunner } from "@/lib/mining/runner"
@@ -575,7 +577,7 @@ export default function ShortlineLabPageV2() {
                     <span>种群规模</span>
                     <span className="text-gray-600">max 30000</span>
                   </label>
-                  <input
+                  <NumericInput
                     type="number"
                     min={50}
                     max={30000}
@@ -595,7 +597,7 @@ export default function ShortlineLabPageV2() {
                     <span>进化代数</span>
                     <span className="text-gray-600">max 3000</span>
                   </label>
-                  <input
+                  <NumericInput
                     type="number"
                     min={10}
                     max={3000}
@@ -615,7 +617,7 @@ export default function ShortlineLabPageV2() {
                     <span>单位换手成本</span>
                     <span className="text-gray-600">0.5-10 bp</span>
                   </label>
-                  <input
+                  <NumericInput
                     type="number"
                     min={0.00005}
                     max={0.001}
@@ -638,7 +640,7 @@ export default function ShortlineLabPageV2() {
                     <span>公式最大深度</span>
                     <span className="text-gray-600">3-8</span>
                   </label>
-                  <input
+                  <NumericInput
                     type="number"
                     min={3}
                     max={8}
@@ -654,7 +656,7 @@ export default function ShortlineLabPageV2() {
                 {/* 训练集比例 */}
                 <div className="space-y-2">
                   <label className="text-xs text-gray-400">训练集比例</label>
-                  <input
+                  <NumericInput
                     type="number"
                     min={0.5}
                     max={0.8}
@@ -671,7 +673,7 @@ export default function ShortlineLabPageV2() {
                 {/* Walk-Forward 折数 */}
                 <div className="space-y-2">
                   <label className="text-xs text-gray-400">WF 验证折数</label>
-                  <input
+                  <NumericInput
                     type="number"
                     min={2}
                     max={5}
@@ -687,14 +689,14 @@ export default function ShortlineLabPageV2() {
                 {/* 重置按钮 */}
                 <div className="flex items-end">
                   <button
-                    onClick={() => {
+                    onClick={withNumericReset(() => {
                       setPopulation(600)
                       setGenerations(40)
                       setMaxDepth(5)
                       setTrainRatio(0.7)
                       setWalkForwardFolds(3)
                       setCost(0.0003)
-                    }}
+                    })}
                     disabled={formLocked}
                     className="w-full rounded-xl bg-[#0F131C]/50 border border-white/10 px-4 py-2.5 text-sm text-gray-400
                              hover:text-gray-300 hover:border-white/20 transition-colors disabled:opacity-50"
@@ -728,7 +730,7 @@ export default function ShortlineLabPageV2() {
               )}
               {(stage === "completed" || stage === "failed" || stage === "paused") && (
                 <button
-                  onClick={onReset}
+                  onClick={withNumericReset(onReset)}
                   className="text-xs text-gray-400 hover:text-gray-300 px-3 py-1 rounded-lg border border-white/10"
                 >
                   重置
@@ -1069,7 +1071,7 @@ export default function ShortlineLabPageV2() {
             整个消失,页面看起来"点了没反应";挖掘进行中隐藏,由进度卡接管) */}
         {!formLocked && (
           <button
-            onClick={onStartMining}
+            onClick={withNumericValidation(onStartMining)}
             disabled={!canStart}
             className="w-full rounded-2xl bg-gradient-to-r from-[#38BDF8] to-[#6EE7B7] px-6 py-4 text-base
                      font-semibold text-[#0A0D12] shadow-lg shadow-[#38BDF8]/20

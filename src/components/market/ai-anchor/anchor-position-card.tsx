@@ -7,6 +7,8 @@
  * 未填写或清除后恢复普通播报，行为与从前完全一致。
  */
 
+import { NumericInput } from "@/components/ui/numeric-input"
+import { withNumericValidation } from "@/lib/numeric-input"
 import { useState } from "react"
 import { ChevronDown, ChevronRight, Wallet } from "lucide-react"
 import { getPaperPositions } from "@/lib/paper-api"
@@ -162,14 +164,14 @@ export function AnchorPositionCard(): React.JSX.Element {
           </div>
 
           <div className="flex gap-1.5">
-            <input
+            <NumericInput type="number"
               value={priceText}
               onChange={(e) => setPriceText(e.target.value)}
               inputMode="decimal"
               placeholder="开仓价"
               className="flex-1 min-w-0 h-7 px-2 rounded text-[11px] font-num bg-[var(--bg-secondary)] border border-[var(--border)] outline-none focus:border-[var(--primary)]"
             />
-            <input
+            <NumericInput type="number"
               value={qtyText}
               onChange={(e) => setQtyText(e.target.value)}
               inputMode="decimal"
@@ -184,7 +186,7 @@ export function AnchorPositionCard(): React.JSX.Element {
             <button
               type="button"
               disabled={busy || acting}
-              onClick={() => void handleSave()}
+              onClick={withNumericValidation(() => void handleSave())}
               className="flex-1 h-7 rounded text-[11px] bg-[var(--primary)] text-white hover:opacity-90 disabled:opacity-50 cursor-pointer"
             >
               {busy ? "保存中…" : "保存"}

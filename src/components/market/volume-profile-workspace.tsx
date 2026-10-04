@@ -1,5 +1,7 @@
 "use client"
 
+import { withNumericReset } from "@/lib/numeric-input"
+import { NumericInput } from "@/components/ui/numeric-input"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -296,7 +298,7 @@ export function VolumeProfileWorkspace(): React.JSX.Element {
 
         <div className="flex items-center gap-1">
           <span className="text-[var(--text-muted)]">≥</span>
-          <input
+          <NumericInput
             type="number"
             min={0}
             value={minVolume || ""}
@@ -313,7 +315,7 @@ export function VolumeProfileWorkspace(): React.JSX.Element {
 
         <div className="flex items-center gap-1">
           <span className="text-[var(--text-muted)]">悬殊比 ≥</span>
-          <input
+          <NumericInput
             type="number"
             min={1}
             step={0.5}
@@ -363,10 +365,10 @@ export function VolumeProfileWorkspace(): React.JSX.Element {
 
         <button
           type="button"
-          onClick={() => {
+          onClick={withNumericReset(() => {
             setMinVolume(0)
             setOnlySkew(false)
-          }}
+          })}
           disabled={!filterActive}
           className="px-1.5 py-0.5 rounded text-[11px] bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-primary)] cursor-pointer disabled:opacity-40"
         >

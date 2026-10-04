@@ -7,6 +7,7 @@
  * 条件参数持久化在 localStorage，刷新后恢复。
  */
 
+import { withNumericReset, withNumericValidation } from "@/lib/numeric-input"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Filter, Play, RotateCcw, Loader2 } from "lucide-react"
@@ -202,7 +203,7 @@ export function ScreenerWorkspace(): React.JSX.Element {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={resetConditions}
+            onClick={withNumericReset(resetConditions)}
             disabled={running}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] disabled:opacity-50 cursor-pointer"
           >
@@ -211,7 +212,7 @@ export function ScreenerWorkspace(): React.JSX.Element {
           </button>
           <button
             type="button"
-            onClick={() => void run()}
+            onClick={withNumericValidation(() => void run())}
             disabled={running || conditions.length === 0}
             className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-medium bg-[var(--primary)] text-white hover:opacity-90 disabled:opacity-50 cursor-pointer"
           >
@@ -285,7 +286,7 @@ export function ScreenerWorkspace(): React.JSX.Element {
               <button
                 type="button"
                 className="ml-2 text-[var(--accent-info)] hover:underline cursor-pointer"
-                onClick={() => void run()}
+                onClick={withNumericValidation(() => void run())}
               >
                 重试
               </button>

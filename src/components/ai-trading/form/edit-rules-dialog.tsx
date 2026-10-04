@@ -187,7 +187,7 @@ export function EditRulesDialog({
           {/* 杠杆倍数：运行中可改，仅影响后续新开仓 */}
           <div className="rounded-md border border-[var(--border)] p-2.5 space-y-1.5">
             <Label className="text-[11px]">杠杆倍数</Label>
-            <Input
+            <Input type="number"
               placeholder="如 5（1~100）"
               value={leverage}
               onChange={(e) => setLeverage(e.target.value)}
@@ -205,7 +205,7 @@ export function EditRulesDialog({
           <Button variant="outline" onClick={onClose} disabled={submitting}>
             取消
           </Button>
-          <Button onClick={() => void handleSubmit()} disabled={submitting}>
+          <Button validateNumbers onClick={() => void handleSubmit()} disabled={submitting}>
             {submitting ? "保存中…" : "保存"}
           </Button>
         </div>

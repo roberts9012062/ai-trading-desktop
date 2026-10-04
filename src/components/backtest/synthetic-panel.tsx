@@ -7,6 +7,7 @@
  * 目标品种（决定价格量级）+ 回放速度。点击「生成 K 线」后回调 onGenerated。
  */
 
+import { NumericInput } from "@/components/ui/numeric-input"
 import { useEffect, useState } from "react"
 import { Sparkles, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -333,7 +334,7 @@ export function SyntheticPanel({
         </div>
         <div className="space-y-2">
           <Label>手数</Label>
-          <input
+          <NumericInput
             type="number"
             min={1}
             className="w-full h-9 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-sm"
@@ -345,7 +346,7 @@ export function SyntheticPanel({
 
       <div className="space-y-2">
         <Label>初始资金</Label>
-        <input
+        <NumericInput
           type="number"
           min={10000}
           step={10000}
@@ -427,7 +428,7 @@ export function SyntheticPanel({
         <div className="text-sm text-[var(--accent-danger)]">{error}</div>
       )}
 
-      <Button className="w-full" disabled={generating} onClick={() => void handleGenerate()}>
+      <Button validateNumbers className="w-full" disabled={generating} onClick={() => void handleGenerate()}>
         {generating ? (
           <>
             <Loader2 className="w-4 h-4 mr-2 animate-spin" />

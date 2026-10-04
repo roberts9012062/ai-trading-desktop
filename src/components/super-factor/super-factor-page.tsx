@@ -5,6 +5,7 @@
  * 左：配置表单 + 任务列表；右：选中任务的进度/冠军结果
  */
 
+import { NumericInput } from "@/components/ui/numeric-input"
 import { CRYPTO_RESEARCH_NOTE } from "@/lib/mining/crypto-profile"
 import { useEffect, useState } from "react"
 import { Loader2, Pause, Play, Plus, Square, Trash2, X } from "lucide-react"
@@ -637,7 +638,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
           <p className="text-[10px] text-[var(--text-muted)] leading-tight">
             每一代同时尝试多少个因子公式。本地 GPU 大种群一批粗排(强显卡可上万),建议按预设填。
           </p>
-          <input
+          <NumericInput required min={10} max={30000} step={1}
             type="number"
             inputMode="numeric"
             value={population}
@@ -655,7 +656,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
           <p className="text-[10px] text-[var(--text-muted)] leading-tight">
             迭代多少轮。每轮保留好因子再衍生新公式,越多越易找到优解;长跑可随时暂停续挖。
           </p>
-          <input
+          <NumericInput required min={3} max={1000} step={1}
             type="number"
             inputMode="numeric"
             value={generations}
@@ -676,7 +677,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
           <p className="text-[10px] text-[var(--text-muted)] leading-tight">
             因子公式最复杂能到几层嵌套。越深越灵活但越易过拟合，建议 4。
           </p>
-          <input
+          <NumericInput required min={2} max={6} step={1}
             type="number"
             inputMode="numeric"
             value={maxDepth}
@@ -694,7 +695,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
           <p className="text-[10px] text-[var(--text-muted)] leading-tight">
             历史数据按多大比例做训练，剩下留作验证。0.7 = 前70%训练、后30%验证，建议 0.7。
           </p>
-          <input
+          <NumericInput required min={0} max={0.9}
             type="number"
             inputMode="decimal"
             step={0.05}
@@ -710,7 +711,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
           <p className="text-[10px] text-[var(--text-muted)] leading-tight">
             把历史切几段滚动验证，要求每段都赚钱才算数，越严越不易过拟合。0=关闭，建议 3。
           </p>
-          <input
+          <NumericInput required min={0} max={6} step={1}
             type="number"
             inputMode="numeric"
             value={walkForwardFolds}
@@ -733,7 +734,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
             种群分成 N 个岛独立进化、定期交换好因子，显著提高多样性、降低早熟。
             仅本地 GPU 生效；本地 CPU 与服务器任务自动忽略。
           </p>
-          <input
+          <NumericInput required min={1} max={8} step={1}
             type="number"
             inputMode="numeric"
             value={islands}

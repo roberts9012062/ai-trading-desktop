@@ -121,7 +121,7 @@ export function PriceAlertForm(props: {
           value={target}
           onChange={(e) => setTarget(e.target.value)}
         />
-        <Button size="sm" disabled={submitting} onClick={() => void submit()}>
+        <Button validateNumbers size="sm" disabled={submitting} onClick={() => void submit()}>
           {submitting ? "添加中…" : "新增"}
         </Button>
       </div>

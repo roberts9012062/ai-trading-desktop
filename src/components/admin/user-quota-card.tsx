@@ -128,7 +128,7 @@ export function UserQuotaCard({ userId }: UserQuotaCardProps): React.JSX.Element
         {error && (
           <p className="text-xs text-[var(--accent-danger)]">{error}</p>
         )}
-        <Button onClick={() => void handleSave()} disabled={saving}>
+        <Button validateNumbers onClick={() => void handleSave()} disabled={saving}>
           {saving ? "保存中…" : "保存配额"}
         </Button>
       </CardContent>

@@ -153,7 +153,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
       {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
       {existingHunter && <p role="alert" className="text-xs text-amber-400">当前账户已有未停止的猎手“{existingHunter.name}”，请先停止后再创建。</p>}
       <div className="flex justify-end gap-2"><Button variant="outline" disabled={busy} onClick={onClose}>取消</Button>
-        <Button disabled={busy || !ready || Boolean(existingHunter)} onClick={() => void submit()}>{busy ? "创建中…" : "开始执行"}</Button></div>
+        <Button validateNumbers disabled={busy || !ready || Boolean(existingHunter)} onClick={() => void submit()}>{busy ? "创建中…" : "开始执行"}</Button></div>
     </DialogContent>
   </Dialog>
 }

@@ -1,5 +1,6 @@
 "use client"
 
+import { NumericInput } from "@/components/ui/numeric-input"
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { cn, formatShanghaiTime } from "@/lib/utils"
@@ -299,7 +300,7 @@ function LiveAssetsView(): React.JSX.Element {
                 合约账户 → 资金账户
               </button>
             </div>
-            <input
+            <NumericInput
               type="number"
               min="0"
               step="any"
@@ -308,7 +309,7 @@ function LiveAssetsView(): React.JSX.Element {
               onChange={(e) => setTransferAmt(e.target.value)}
               className="w-28 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-xs font-num"
             />
-            <Button size="sm" disabled={fundBusy} onClick={() => void doTransfer()}>
+            <Button validateNumbers size="sm" disabled={fundBusy} onClick={() => void doTransfer()}>
               {fundBusy ? "划转中…" : "确认划转"}
             </Button>
           </div>
@@ -418,7 +419,7 @@ function LiveAssetsView(): React.JSX.Element {
                           <span className="text-xs text-[var(--text-secondary)]">
                             {p.symbol} {p.direction === "long" ? "多" : "空"} 补挂条件单（触发后市价平仓）
                           </span>
-                          <input
+                          <NumericInput
                             type="number"
                             step="any"
                             min="0"
@@ -427,7 +428,7 @@ function LiveAssetsView(): React.JSX.Element {
                             onChange={(e) => setTpPrice(e.target.value)}
                             className="w-28 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-xs font-num"
                           />
-                          <input
+                          <NumericInput
                             type="number"
                             step="any"
                             min="0"
@@ -436,7 +437,7 @@ function LiveAssetsView(): React.JSX.Element {
                             onChange={(e) => setSlPrice(e.target.value)}
                             className="w-28 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-xs font-num"
                           />
-                          <Button size="sm" disabled={fundBusy} onClick={() => void doTpsl()}>
+                          <Button validateNumbers size="sm" disabled={fundBusy} onClick={() => void doTpsl()}>
                             {fundBusy ? "提交中…" : "挂出"}
                           </Button>
                           <Button variant="ghost" size="sm" onClick={() => setTpslFor(null)}>

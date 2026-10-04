@@ -16,6 +16,7 @@
  * 组件只读写 useDrawingStore，不直接操作 canvas。重绘由 overlay hook 订阅 store 触发。
  */
 
+import { NumericInput } from "@/components/ui/numeric-input"
 import { useEffect, useRef, useState } from "react"
 import {
   MousePointer2,
@@ -267,7 +268,7 @@ export function DrawingToolbar({ symbol, period }: DrawingToolbarProps): React.J
           <span className="w-px h-5 bg-[var(--border)]" />
           <div className="flex items-center gap-1">
             <span className="text-[10px] text-[var(--text-muted)]">左端</span>
-            <input
+            <NumericInput
               type="number"
               step={tickSize}
               value={leftText}
@@ -281,7 +282,7 @@ export function DrawingToolbar({ symbol, period }: DrawingToolbarProps): React.J
             {!isRay && (
               <>
                 <span className="text-[10px] text-[var(--text-muted)]">右端</span>
-                <input
+                <NumericInput
                   type="number"
                   step={tickSize}
                   value={rightText}

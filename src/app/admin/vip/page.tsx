@@ -8,6 +8,7 @@
  * - 订单流水
  */
 
+import { NumericInput } from "@/components/ui/numeric-input"
 import { useEffect, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -236,7 +237,7 @@ export default function AdminVipPage(): React.JSX.Element {
               ).map(([key, label]) => (
                 <label key={key} className="flex items-center gap-1.5">
                   <span className="text-[var(--text-secondary)]">{label}</span>
-                  <input
+                  <NumericInput
                     type="number"
                     min="0"
                     value={limits[key]}
@@ -248,7 +249,7 @@ export default function AdminVipPage(): React.JSX.Element {
                   <span className="text-[10px] text-[var(--text-muted)]">次/天</span>
                 </label>
               ))}
-              <Button size="sm" disabled={busy} onClick={() => void saveLimits()}>
+              <Button validateNumbers size="sm" disabled={busy} onClick={() => void saveLimits()}>
                 保存
               </Button>
               <span className="text-[10px] text-[var(--text-muted)] self-center">0 = 不限</span>
@@ -285,14 +286,14 @@ export default function AdminVipPage(): React.JSX.Element {
                   onChange={(e) => setDraft({ ...draft, name: e.target.value })}
                   className="flex-1 min-w-40 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2"
                 />
-                <input
+                <NumericInput required
                   type="number"
                   placeholder="天数"
                   value={draft.duration_days}
                   onChange={(e) => setDraft({ ...draft, duration_days: e.target.value })}
                   className="w-20 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 font-num"
                 />
-                <input
+                <NumericInput required
                   type="number"
                   placeholder="价格"
                   value={draft.price}
@@ -308,7 +309,7 @@ export default function AdminVipPage(): React.JSX.Element {
                   />
                   上架
                 </label>
-                <Button size="sm" disabled={busy} onClick={() => void saveDraft()}>
+                <Button validateNumbers size="sm" disabled={busy} onClick={() => void saveDraft()}>
                   {busy ? "保存中…" : "保存礼包"}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>

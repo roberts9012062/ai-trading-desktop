@@ -4,6 +4,7 @@
  * 筛选条件卡片 —— 单个指标条件的操作类型 / 参数 / 窗口编辑
  */
 
+import { NumericInput } from "@/components/ui/numeric-input"
 import { Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -43,7 +44,7 @@ function NumField({
       <span className="text-[11px] text-[var(--text-muted)] whitespace-nowrap">
         {label}
       </span>
-      <input
+      <NumericInput
         type="number"
         value={value}
         min={min}

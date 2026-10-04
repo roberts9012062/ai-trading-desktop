@@ -281,7 +281,7 @@ export function TradeSettingsPanel(): React.JSX.Element {
           )}
 
           <div className="flex justify-end gap-2 pt-1">
-            <Button
+            <Button resetNumbers
               variant="outline"
               size="sm"
               className="gap-1"
@@ -291,7 +291,7 @@ export function TradeSettingsPanel(): React.JSX.Element {
               <RotateCcw className="w-3.5 h-3.5" />
               恢复默认
             </Button>
-            <Button
+            <Button validateNumbers
               size="sm"
               className="gap-1"
               disabled={saving}

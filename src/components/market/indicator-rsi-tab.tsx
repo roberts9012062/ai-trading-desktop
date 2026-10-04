@@ -4,6 +4,7 @@
  * 指标设置 —— RSI 页（自弹窗内联拆出；onHighlight 联动右侧示意图闪烁）
  */
 
+import { withNumericReset } from "@/lib/numeric-input"
 import { useIndicatorStore } from "@/stores/indicator"
 import type { IndicatorStoreHook } from "@/types/indicator"
 import { ColorField, NumberField } from "./indicator-form-fields"
@@ -49,7 +50,7 @@ export function IndicatorRsiTab({
       )}
       <button
         type="button"
-        onClick={store.resetToDefault}
+        onClick={withNumericReset(store.resetToDefault)}
         className="mt-4 px-3 py-1 text-xs rounded bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
       >
         恢复默认

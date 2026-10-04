@@ -49,7 +49,7 @@ export function LiveProfitLockControl({ targetId, name, config, onSave, disabled
         </div>
         <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border)]">
           <Button type="button" variant="outline" disabled={busy} onClick={() => setOpen(false)}>取消</Button>
-          <Button type="button" disabled={busy} onClick={() => void save()}>{busy ? "保存中…" : "保存并生效"}</Button>
+          <Button validateNumbers type="button" disabled={busy} onClick={() => void save()}>{busy ? "保存中…" : "保存并生效"}</Button>
         </div>
       </DialogContent>
     </Dialog>

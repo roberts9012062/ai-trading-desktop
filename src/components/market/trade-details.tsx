@@ -1,5 +1,7 @@
 "use client"
 
+import { withNumericReset } from "@/lib/numeric-input"
+import { NumericInput } from "@/components/ui/numeric-input"
 import { useState } from "react"
 import { Filter, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -132,7 +134,7 @@ export function TradeDetails({ listClassName }: TradeDetailsProps): React.JSX.El
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[var(--text-muted)]">最小手数 ≥</span>
-            <input
+            <NumericInput
               type="number"
               min={0}
               value={filter.minVolume || ""}
@@ -146,7 +148,7 @@ export function TradeDetails({ listClassName }: TradeDetailsProps): React.JSX.El
             {(filter.direction !== "all" || filter.minVolume > 0) && (
               <button
                 type="button"
-                onClick={() => setFilter({ direction: "all", minVolume: 0 })}
+                onClick={withNumericReset(() => setFilter({ direction: "all", minVolume: 0 }))}
                 className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
               >
                 重置
