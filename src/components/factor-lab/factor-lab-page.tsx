@@ -402,7 +402,7 @@ export function FactorLabPage(): React.JSX.Element {
           building={s.building}
           buildMsg={s.buildMsg}
           favoritedKeys={favoritedKeys}
-          onBuildTask={() => void s.handleBuildTask()}
+          onBuildTask={(profitLock) => void s.handleBuildTask(profitLock)}
           onFavorite={() => {
             if (s.selected) setFavPending(championToFavoriteInput(s.selected))
           }}

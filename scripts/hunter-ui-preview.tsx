@@ -9,6 +9,7 @@ import { useHunterStore } from "@/stores/hunter"
 import type { User } from "@/types"
 import type { Hunter, HunterConfig } from "@/lib/hunter/api"
 import { Button } from "@/components/ui/button"
+import { templateFixture } from "./profit-lock-template-fixture"
 
 let groups: Hunter[] = []
 let nextHunter = 0
@@ -21,6 +22,8 @@ const user = { id: "ui-fixture", username: "UI 验收", role: "admin", trading_m
 useAuthStore.setState({ user, accessToken: "ui-fixture-only" })
 localStorage.setItem("access_token", "ui-fixture-only")
 globalThis.fetch = async (input, init) => {
+  const templates = templateFixture(input, init)
+  if (templates) return templates
   const url = String(input)
   if (url.endsWith("/api/hunter/symbols")) return Response.json([
     { symbol: "btcusdt", name: "BTC / USDT" }, { symbol: "ethusdt", name: "ETH / USDT" },

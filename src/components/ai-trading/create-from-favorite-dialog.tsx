@@ -23,6 +23,8 @@ import {
 } from "@/lib/strategy-favorites-api"
 import { TaskIcon } from "@/components/ai-trading/task-icon"
 import { cn } from "@/lib/utils"
+import { ProfitLockSettings } from "./form/profit-lock-settings"
+import { buildProfitLockConfig, profitLockFromConfig, type ProfitLockFormState } from "@/lib/profit-lock"
 
 /** 相同任务判定键：品种+周期+策略类型+模型+策略参数 */
 function configKey(t: {
@@ -98,12 +100,14 @@ export function CreateFromFavoriteDialog({
   const [creatingId, setCreatingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [doneMsg, setDoneMsg] = useState<string | null>(null)
+  const [profitLocks, setProfitLocks] = useState<Record<string, ProfitLockFormState>>({})
 
   useEffect(() => {
     if (!open) return
     setLoading(true)
     setError(null)
     setDoneMsg(null)
+    setProfitLocks({})
     void listTaskFavorites()
       .then(setFavs)
       .catch(() => setFavs([]))
@@ -130,6 +134,8 @@ export function CreateFromFavoriteDialog({
     setError(null)
     try {
       const payload = payloadFromSnapshot(fav, existNames)
+      const profitLock = buildProfitLockConfig(profitLocks[fav.id] ?? profitLockFromConfig(payload.close_rules?.profit_lock))
+      payload.close_rules = { ...payload.close_rules!, profit_lock: profitLock ?? null }
       await createTask(payload)
       setDoneMsg(`已创建：${payload.name}`)
       setFavs((list) => list.filter((x) => x.id !== fav.id))
@@ -165,11 +171,13 @@ export function CreateFromFavoriteDialog({
             const running = runningKeys.has(configKey(snap))
             const task = (fav.task ?? snap) as Record<string, unknown>
             const busy = creatingId === fav.id
+            const profitLock = profitLocks[fav.id] ?? profitLockFromConfig((snap.close_rules as AITradingTask["close_rules"] | undefined)?.profit_lock)
             return (
               <div
                 key={fav.id}
-                className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-2.5"
+                className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-2.5 space-y-2"
               >
+                <div className="flex items-center gap-2">
                 <TaskIcon
                   icon={(task.icon as string) ?? null}
                   strategyType={String(task.strategy_type ?? "ai")}
@@ -204,6 +212,8 @@ export function CreateFromFavoriteDialog({
                 >
                   {busy ? "创建中…" : "创建"}
                 </Button>
+                </div>
+                <ProfitLockSettings value={profitLock} onChange={value => setProfitLocks(previous => ({ ...previous, [fav.id]: value }))} />
               </div>
             )
           })}

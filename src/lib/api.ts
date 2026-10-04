@@ -2,6 +2,20 @@ import type { AuthResponse, LoginRequest, RegisterRequest, User, NewsItem, Artic
 import type { IndicatorConfig } from "@/types/indicator"
 import type { KlineBar } from "@/types"
 import { getBinanceKlineApi } from "@/lib/binance-kline"
+import type { ProfitLockTemplate } from "@/lib/profit-lock-templates"
+import type { ProfitLockConfig } from "@/lib/ai-trading-api"
+
+export function listProfitLockTemplates(): Promise<ProfitLockTemplate[]> {
+  return request("/api/profit-lock-templates")
+}
+export function saveProfitLockTemplate(body: { name: string; config: ProfitLockConfig }, id?: string): Promise<ProfitLockTemplate> {
+  return request(`/api/profit-lock-templates${id ? `/${encodeURIComponent(id)}` : ""}`, {
+    method: id ? "PUT" : "POST", body: JSON.stringify(body),
+  })
+}
+export function deleteProfitLockTemplate(id: string): Promise<{ deleted: boolean }> {
+  return request(`/api/profit-lock-templates/${encodeURIComponent(id)}`, { method: "DELETE" })
+}
 
 // 空字符串 = 同域（Next rewrites /api → BACKEND_URL），避免 localhost↔127.0.0.1 CORS
 // 生产可设 NEXT_PUBLIC_API_URL 为完整后端地址

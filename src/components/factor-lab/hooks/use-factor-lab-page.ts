@@ -18,6 +18,7 @@ import {
   type SearchResult,
 } from "@/lib/factor-lab-api"
 import { createAITradingTask as createTask } from "@/lib/ai-trading-api"
+import type { ProfitLockConfig } from "@/lib/ai-trading-api"
 import { backtestFactorLocal, prepareSearchBars, type LocalSearchStep } from "@/lib/local-factor"
 import { factorLabRunner, type FactorSearchTask } from "@/lib/mining/factor-lab-runner"
 import { useFactorLabData } from "./use-factor-data"
@@ -95,7 +96,7 @@ export interface FactorLabPageState {
     user_hint: string
   }) => Promise<void>
   selectFactor: (c: Champion, p?: SearchFormPayload) => Promise<void>
-  handleBuildTask: () => Promise<void>
+  handleBuildTask: (profitLock?: ProfitLockConfig) => Promise<void>
   handleFavoriteChampion: (c: Champion) => Promise<void>
   handleFavoriteHistory: (c: FavoriteInput) => Promise<void>
   /** 弹窗保存：选名称与文件夹后收藏 */
@@ -415,7 +416,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     }
   }
 
-  async function handleBuildTask(): Promise<void> {
+  async function handleBuildTask(profitLock?: ProfitLockConfig): Promise<void> {
     if (!selected || !lastReq) return
     if (selected.metrics?.overfit_warning) {
       setError("该因子未通过样本外验证（测试段亏损），已禁止挂载实盘")
@@ -432,9 +433,9 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     setBuilding(true)
     setBuildMsg(null)
     try {
-      const task = await createTask(
-        buildFactorTaskPayload(lastReq.symbol, lastReq.timeframe, selected.tokens),
-      )
+      const payload = buildFactorTaskPayload(lastReq.symbol, lastReq.timeframe, selected.tokens)
+      if (profitLock) payload.close_rules = { ...payload.close_rules!, profit_lock: { ...profitLock } }
+      const task = await createTask(payload)
       setBuildMsg(`已创建服务器任务：${task.name}（到 AI 交易页启动，关闭桌面端后继续运行）`)
     } catch (e) {
       setBuildMsg(errOf(e, "创建失败"))

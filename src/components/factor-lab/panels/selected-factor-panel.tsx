@@ -8,6 +8,10 @@ import { FactorEquityChart } from "../factor-equity-chart"
 import { FACTOR_HELP, HelpTip, MetricCard } from "../help-tip"
 import type { Champion, FactorBacktestResult } from "@/lib/factor-lab-api"
 import { cn } from "@/lib/utils"
+import { useEffect, useState } from "react"
+import { ProfitLockSettings } from "@/components/ai-trading/form/profit-lock-settings"
+import { DEFAULT_PROFIT_LOCK, buildProfitLockConfig } from "@/lib/profit-lock"
+import type { ProfitLockConfig } from "@/lib/ai-trading-api"
 
 interface SelectedFactorPanelProps {
   selected: Champion | null
@@ -16,7 +20,7 @@ interface SelectedFactorPanelProps {
   building: boolean
   buildMsg: string | null
   favoritedKeys?: Set<string>
-  onBuildTask: () => void
+  onBuildTask: (profitLock?: ProfitLockConfig) => void
   onFavorite: () => void
   onCopyTokens: () => void
 }
@@ -41,6 +45,10 @@ export function SelectedFactorPanel(
   )
   // 兜底回退因子（测试段亏损/WF 不稳健）：禁止收藏与挂载实盘
   const overfit = Boolean(selected?.metrics?.overfit_warning)
+  const [profitLock, setProfitLock] = useState({ ...DEFAULT_PROFIT_LOCK })
+  const [lockError, setLockError] = useState("")
+  const selectedKey = selected?.tokens.join(",")
+  useEffect(() => { setProfitLock({ ...DEFAULT_PROFIT_LOCK }); setLockError("") }, [selectedKey])
   return (
     <div className="space-y-3">
       <h2 className="text-sm font-medium text-[var(--text-secondary)]">
@@ -155,10 +163,15 @@ export function SelectedFactorPanel(
               })}
             </div>
           )}
+          <ProfitLockSettings value={profitLock} onChange={setProfitLock} />
+          {lockError && <p role="alert" className="text-xs text-red-400">{lockError}</p>}
           <div className="flex items-center gap-2 pt-1 flex-wrap">
             <button
               type="button"
-              onClick={onBuildTask}
+              onClick={() => {
+                try { const config = buildProfitLockConfig(profitLock); setLockError(""); onBuildTask(config) }
+                catch (e) { setLockError(e instanceof Error ? e.message : "锁利设置无效") }
+              }}
               disabled={building || overfit}
               title={overfit ? "未通过样本外验证，禁止挂载实盘" : undefined}
               className="text-[11px] px-2.5 py-1 rounded-md border border-[var(--primary)]/40 bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20 disabled:opacity-50"

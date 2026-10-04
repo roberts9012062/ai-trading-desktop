@@ -2,6 +2,7 @@ import { useId } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DEFAULT_PROFIT_LOCK, type ProfitLockFormState } from "@/lib/profit-lock"
+import { ProfitLockTemplatePicker } from "./profit-lock-template-picker"
 
 const selectClass = "w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1.5 text-xs"
 export function ProfitLockSettings({ value = DEFAULT_PROFIT_LOCK, onChange }: {
@@ -16,6 +17,7 @@ export function ProfitLockSettings({ value = DEFAULT_PROFIT_LOCK, onChange }: {
     <legend className="px-1 text-sm font-medium">锁利润</legend>
     <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={value.enabled} onChange={e => patch({ enabled: e.target.checked })} />开启锁利润</label>
     {value.enabled && <>
+      <ProfitLockTemplatePicker id={id} value={value} onChange={onChange} />
       <div className="space-y-1"><Label htmlFor={id + "-mode"}>锁利模式</Label><select id={id + "-mode"} className={selectClass} value={value.mode} onChange={e => patch({ mode: e.target.value as ProfitLockFormState["mode"] })}>
         <option value="auto">自动 · 净收益达到5%激活</option><option value="manual">手动 · 自定义激活与回撤</option>
       </select></div>
