@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import type { AITradingTask } from "@/lib/ai-trading-api"
 import { TaskIcon } from "@/components/ai-trading/task-icon"
 import { TaskActions } from "@/components/ai-trading/task-actions"
+import { TaskProfitLockStatus } from "@/components/ai-trading/profit-lock-status"
 import { useMarketStore } from "@/stores/market"
 import {
   livePnl,
@@ -232,6 +233,8 @@ export function TaskList({
                 </div>
               </div>
             </div>
+
+            <TaskProfitLockStatus task={task} />
 
             {task.note && (
               <p className="mt-1.5 text-[11px] text-amber-400/90 truncate">

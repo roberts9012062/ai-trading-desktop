@@ -3,6 +3,8 @@ import { Crosshair } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useHunterStore } from "@/stores/hunter"
 import { LiveProfitLockControl } from "@/components/ai-trading/form/live-profit-lock-control"
+import { TaskProfitLockStatus } from "@/components/ai-trading/profit-lock-status"
+import { useAITradingStore } from "@/stores/ai-trading"
 import { CYCLES } from "@/lib/hunter/rules"
 import { hunterAccountLabel } from "@/lib/hunter/api"
 
@@ -10,6 +12,7 @@ const money = (n: number) => n.toLocaleString("zh-CN", { minimumFractionDigits: 
 const labels = { running: "搜索中", paused: "搜索暂停", stopping: "正在退出持仓", stopped: "搜索已停止" }
 export function HunterPanel() {
   const groups = useHunterStore(s => s.groups)
+  const tasks = useAITradingStore(s => s.tasks)
   const visible = groups.filter(g => g.status !== "stopped")
   const progress = useHunterStore(s => s.progress)
   const watches = useHunterStore(s => s.watches)
@@ -45,6 +48,14 @@ export function HunterPanel() {
           {g.opportunities.some(o => !o.finished_at) && <Button size="sm" variant="outline" disabled={busy === g.id || g.status === "stopping"} onClick={() => void action(g.id, "stop_close")}>停止并平仓</Button>}
         </div>
       </div>
+      {g.config.profit_lock?.enabled && !g.opportunities.some(o => !o.finished_at) && <p className="text-xs text-emerald-400">锁利已开启 · 等待新持仓</p>}
+      {g.opportunities.filter(o => !o.finished_at).map(o => {
+        const task = tasks.find(t => t.id === o.task_id)
+        return task?.close_rules?.profit_lock?.enabled || task?.profit_lock_state?.closing ? <div key={o.id} className="min-w-0">
+          <p className="text-[11px] text-[var(--text-muted)]">{o.symbol.toUpperCase()} · {CYCLES[o.cycle].label}</p>
+          <TaskProfitLockStatus task={task!} />
+        </div> : null
+      })}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
         <div>策略净值<span className="block text-base mt-1">{money(g.equity)} USDT</span></div>
         <div>已实现净收益<span className="block text-base mt-1">{money(g.runtime.realized ?? 0)}</span></div>

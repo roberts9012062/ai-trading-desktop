@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { TaskIcon } from "@/components/ai-trading/task-icon"
+import { TaskProfitLockStatus } from "@/components/ai-trading/profit-lock-status"
 import type {
   AITradingTask,
   EquityPoint,
@@ -209,6 +210,7 @@ export function EquityLegend({
             <LegendCard
               key={row.taskId}
               row={row}
+              task={tasks.find(task => task.id === row.taskId)}
               rank={rank}
               maxAbs={maxAbs}
               highlightTaskId={highlightTaskId}
@@ -257,12 +259,14 @@ function CountBadge({ n }: { n: number }): React.JSX.Element | null {
 
 function LegendCard({
   row,
+  task,
   rank,
   maxAbs,
   highlightTaskId,
   onHighlightChange,
 }: {
   row: LegendRow
+  task?: AITradingTask
   rank: number
   maxAbs: number
   highlightTaskId: string | null
@@ -361,6 +365,7 @@ function LegendCard({
       <div className="mt-1 text-[10px] text-[var(--text-muted)] truncate">
         {row.footnote}
       </div>
+      {task && <TaskProfitLockStatus task={task} />}
     </div>
   )
 }

@@ -55,11 +55,13 @@ function HeaderPreview() {
     const poll = () => useAITradingStore.setState(s => ({ tasks: s.tasks.map(t => ({ ...t, note: "模拟轮询" })) }))
     const remove = () => { useAITradingStore.setState({ tasks: [] }); useHunterStore.setState({ groups: [] }) }
     const changeAccount = () => useAuthStore.setState({ user: { id: "another-fixture-user", username: "另一个验收账户", role: "user", trading_mode: "virtual" } as User })
+    const lockUpdate = (event: Event) => useAITradingStore.setState(s => ({ tasks: s.tasks.map(t => t.id === "fixture-live-task" ? { ...t, ...((event as CustomEvent).detail ?? {}) } : t) }))
     window.addEventListener("fixture-task-poll", poll)
     window.addEventListener("fixture-remove-targets", remove)
     window.addEventListener("fixture-account-change", changeAccount)
+    window.addEventListener("fixture-lock-update", lockUpdate)
     setReady(true)
-    return () => { window.removeEventListener("fixture-task-poll", poll); window.removeEventListener("fixture-remove-targets", remove); window.removeEventListener("fixture-account-change", changeAccount) }
+    return () => { window.removeEventListener("fixture-task-poll", poll); window.removeEventListener("fixture-remove-targets", remove); window.removeEventListener("fixture-account-change", changeAccount); window.removeEventListener("fixture-lock-update", lockUpdate) }
   }, [])
   // Wait for fixture-only store methods before mounting the actual page.
   if (!ready) return <p>验收准备中</p>
