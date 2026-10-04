@@ -2,6 +2,8 @@ import { hunterApi, type ContextSnapshot, type DeltaBars, type Hunter, type Hunt
 import { BALANCED_VERSION, CYCLES, closedBars, entrySignal, rankFraction, trend, validateLeverage, watchStage, type Bar, type Cycle, type Direction } from "./rules"
 import { useHunterStore } from "@/stores/hunter"
 import { useAITradingStore } from "@/stores/ai-trading"
+import { ADAPTIVE_VERSION } from "./rules"
+import { marketAllows } from "./adaptive"
 
 /** Bounded priority for data reads; queued short jobs precede medium/long jobs. */
 export class ReadQueue {
@@ -63,7 +65,7 @@ export class BalancedDiscovery {
   constructor(private groupId: string) {}
   private current(group: Hunter, signal: AbortSignal) {
     const latest = useHunterStore.getState().groups.find(g => g.id === this.groupId)
-    return !signal.aborted && latest?.status === "running" && latest.config.strategy_version === group.config.strategy_version
+    return !signal.aborted && latest?.status === "running" && latest.config.strategy_version === group.config.strategy_version && latest.config.pool_size === group.config.pool_size
   }
   private report(cycle: Cycle, message: string, signal: AbortSignal) {
     if (signal.aborted) return
@@ -97,26 +99,36 @@ export class BalancedDiscovery {
 
   async scan(group: Hunter, cycle: Cycle, signal: AbortSignal): Promise<void> {
     const started = Date.now()
-    const done = (message: string) => this.report(cycle, message+"（用时 "+Math.round((Date.now()-started)/1000)+" 秒）", signal)
+    const version = group.config.strategy_version ?? BALANCED_VERSION, adaptive = version === ADAPTIVE_VERSION
+    const counts: Record<string, number> = {}, signalKeys: string[] = []
+    const done = async (message: string) => {
+      this.report(cycle, message+"（用时 "+Math.round((Date.now()-started)/1000)+" 秒）", signal)
+      if (adaptive && this.current(group, signal)) {
+        try { await hunterApi.report(group.id, { cycle, scan_id: crypto.randomUUID(), elapsed: Math.min(3600, (Date.now()-started)/1000), counts, signals: signalKeys.slice(0, 50), note: message.slice(0, 500) }, signal) }
+        catch (e) { if (!signal.aborted) this.report(cycle, message+"；扫描统计同步失败："+(e instanceof Error ? e.message : "连接异常"), signal) }
+      }
+    }
     if (!this.current(group, signal)) return
     // No stale UI watch entries survive an incomplete/currently running scan.
     useHunterStore.getState().setWatch(group.id, cycle, [])
-    if (group.blocks.some(b => b.includes(cycle))) { done("风控冷却中"); return }
-    if (group.opportunities.filter(o => !o.finished_at).length >= group.config.max_positions) { done("持仓任务已满"); return }
+    if (group.blocks.some(b => b.includes(cycle))) { await done("风控冷却中"); return }
+    if (group.opportunities.filter(o => !o.finished_at).length >= group.config.max_positions) { await done("持仓任务已满"); return }
     this.report(cycle, "读取币池排名…", signal)
     const ticker = await this.reads.run(cycle, signal, () => hunterApi.universe(group.id, signal))
     if (!this.current(group, signal)) return
     const cap = cycle === "short" ? .0005 : cycle === "medium" ? .001 : .0015
     const pool = ticker.filter(q => q.spread <= cap), spreadRejected = ticker.length-pool.length
-    if (!pool.length) { done("币池为空或价差不合格"); return }
+    counts.pool = pool.length
+    if (!pool.length) { await done("币池为空或价差不合格"); return }
     const ranks = await this.batch<RankingSnapshot>(cycle, "ranking", pool.map(q => q.symbol), signal)
     if (!this.current(group, signal)) return
     const failures = ranks.filter(r => r.error)
-    if (failures.length) { done("排名未完成，行情失败 "+failures.length+"；"+failures[0].symbol.toUpperCase()+"："+failures[0].error); return }
+    counts.failed = failures.length
+    if (failures.length && (!adaptive || failures.length > pool.length*.2)) { await done("排名未完成，行情失败 "+failures.length+"；"+failures[0].symbol.toUpperCase()+"："+failures[0].error); return }
     if (ranks.some(r => r.history_ok && (r.relative === null || !Number.isFinite(r.relative)))) throw new Error("排名行情无效")
-    const eligible = ranks.filter(r => r.history_ok), directions: Direction[] = group.config.direction === "both" ? ["long", "short"] : ["long"]
+    const eligible = ranks.filter(r => !r.error && r.history_ok), directions: Direction[] = group.config.direction === "both" ? ["long", "short"] : ["long"]
     const candidates = directions.flatMap(direction => [...eligible].sort((a, b) => direction === "long" ? b.relative!-a.relative! || a.symbol.localeCompare(b.symbol) : a.relative!-b.relative! || a.symbol.localeCompare(b.symbol))
-      .slice(0, Math.max(1, Math.floor(eligible.length*rankFraction(BALANCED_VERSION)))).map(r => ({ symbol: r.symbol, direction })))
+      .slice(0, Math.max(1, Math.floor(eligible.length*rankFraction(version, cycle)))).map(r => ({ symbol: r.symbol, direction })))
       .filter(r => !group.opportunities.some(o => !o.finished_at && o.symbol === r.symbol))
     const allowed = new Set(candidates.map(x => cycle+":"+x.symbol+":"+x.direction))
     for (const [key, entry] of this.watch) if (key.startsWith(cycle+":") && (!allowed.has(key) || entry.expires < Date.now()/1000)) this.watch.delete(key)
@@ -127,7 +139,7 @@ export class BalancedDiscovery {
     const symbols = [...new Set(candidates.map(r => r.symbol))]
     const contexts = symbols.length ? await this.batch<ContextSnapshot>(cycle, "context", symbols, signal) : []
     if (!this.current(group, signal)) return
-    let failed = 0, trendPassed = 0, found = 0, mounted = 0, rejection = "", waiting = 0, pullbacks = 0
+    let failed = failures.length, trendPassed = 0, found = 0, mounted = 0, rejection = "", waiting = 0, pullbacks = 0, ownRejected = 0, marketRejected = 0, leverageRejected = 0
     const discard = (symbol: string) => {
       this.cache.delete(cycle+":"+symbol)
       for (const key of this.watch.keys()) if (key.startsWith(cycle+":"+symbol+":")) this.watch.delete(key)
@@ -143,15 +155,18 @@ export class BalancedDiscovery {
       if (contexts.find(i => i.symbol === candidate.symbol)?.error) continue
       const key = cycle+":"+candidate.symbol, data = this.cache.get(key), watchKey = key+":"+candidate.direction
       if (!data) continue
-      if (!trend(data.bars[c.trend], cycle, candidate.direction, data.bars["1w"]) || !trend(data.market, cycle, candidate.direction, data.market_week)) { this.watch.delete(watchKey); continue }
+      if (!trend(data.bars[c.trend], cycle, candidate.direction, data.bars["1w"])) { ownRejected++; this.watch.delete(watchKey); continue }
+      if (!marketAllows(data.market, cycle, candidate.direction, data.market_week, version)) { marketRejected++; this.watch.delete(watchKey); continue }
       trendPassed++
       const at = Date.now()/1000
       this.watch.set(watchKey, watchStage(data.bars[c.setup], data.bars[c.execution], cycle, candidate.direction, at))
-      const entry = entrySignal(data.bars[c.setup], data.bars[c.execution], cycle, candidate.direction, at, BALANCED_VERSION)
+      const entry = entrySignal(data.bars[c.setup], data.bars[c.execution], cycle, candidate.direction, at, version)
       if (!entry) continue
       found++
+      signalKeys.push(candidate.symbol+":"+candidate.direction+":"+Math.floor(entry.signal_at))
       try {
-        validateLeverage(group.config.leverage ?? 1, Math.abs(entry.entry-entry.stop)/entry.entry)
+        try { validateLeverage(group.config.leverage ?? 1, Math.abs(entry.entry-entry.stop)/entry.entry) }
+        catch (e) { leverageRejected++; throw e }
         const mount = this.mounts.catch(() => {}).then(async () => {
           if (!this.current(group, signal)) return false
           // Other cycles may have mounted while this candidate waited.
@@ -163,6 +178,7 @@ export class BalancedDiscovery {
           // Reconcile reservations even if the group was stopped during the request.
           if (!signal.aborted) { await useHunterStore.getState().refresh(signal); await useAITradingStore.getState().loadTasks({ silent: true }) }
           if (result.skipped) { rejection = result.reason ?? "锁利冷却中"; return false }
+          if (result.duplicate) { rejection = "该信号已处理，等待新的收盘信号"; return false }
           return true
         })
         this.mounts = mount
@@ -175,6 +191,7 @@ export class BalancedDiscovery {
         const [, symbol, direction] = key.split(":")
         return { symbol, direction: direction as Direction, cycle, ...entry }
       }))
-    done("币池 "+ticker.length+"，价差排除 "+spreadRejected+"，历史不足 "+(ranks.length-eligible.length)+"，排名候选 "+candidates.length+"，趋势通过 "+trendPassed+"，突破观察 "+waiting+"，回调观察 "+pullbacks+"，有效信号 "+found+"，已挂载 "+mounted+(failed ? "，行情失败 "+failed : "")+(rejection ? "；"+rejection : "；等待下一次收盘或复查"))
+    Object.assign(counts, { eligible: eligible.length, candidates: candidates.length, trend: candidates.length-ownRejected, market: trendPassed, found, mounted, failed, leverage: leverageRejected })
+    await done("币池 "+ticker.length+"，价差排除 "+spreadRejected+"，历史不足 "+(ranks.length-eligible.length-failures.length)+"，排名候选 "+candidates.length+"，自身趋势排除 "+ownRejected+"，大盘排除 "+marketRejected+"，趋势通过 "+trendPassed+"，突破观察 "+waiting+"，回调观察 "+pullbacks+"，规则信号 "+found+"，已挂载 "+mounted+(leverageRejected ? "，杠杆风险排除 "+leverageRejected : "")+(failed ? "，行情失败 "+failed : "")+(rejection ? "；"+rejection : "；等待下一次收盘或复查"))
   }
 }

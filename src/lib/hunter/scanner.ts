@@ -4,7 +4,7 @@ import { useHunterStore } from "@/stores/hunter"
 import { useAuthStore } from "@/stores/auth"
 import { useAITradingStore } from "@/stores/ai-trading"
 import { BalancedDiscovery, nextCycleScan } from "./discovery"
-import { BALANCED_VERSION, type Cycle } from "./rules"
+import { BALANCED_VERSION, ADAPTIVE_VERSION, type Cycle } from "./rules"
 
 let stopRuntime: (() => void) | null = null
 
@@ -100,10 +100,10 @@ export function startHunterRuntime(): () => void {
     try {
       await useHunterStore.getState().refresh(rootAbort.signal)
       const groups = useHunterStore.getState().groups
-      for (const id of discoveries.keys()) if (!groups.some(g => g.id === id && g.status === "running" && g.config.strategy_version === BALANCED_VERSION)) discoveries.delete(id)
+      for (const id of discoveries.keys()) if (!groups.some(g => g.id === id && g.status === "running" && [BALANCED_VERSION, ADAPTIVE_VERSION].includes(g.config.strategy_version!))) discoveries.delete(id)
       for (const group of groups) {
         if (rootAbort.signal.aborted) break
-        if (group.status === "running" && group.config.strategy_version === BALANCED_VERSION) {
+        if (group.status === "running" && [BALANCED_VERSION, ADAPTIVE_VERSION].includes(group.config.strategy_version!)) {
           if (!discoveries.has(group.id)) discoveries.set(group.id, new BalancedDiscovery(group.id))
           // Launch independently: a slow long-cycle history read never blocks the timer.
           for (const cycle of ["short", "medium", "long"] as Cycle[]) {
@@ -115,7 +115,7 @@ export function startHunterRuntime(): () => void {
             rootAbort.signal.addEventListener("abort", cancel, { once: true })
             const unsubscribe = useHunterStore.subscribe(s => {
               const latest = s.groups.find(g => g.id === group.id)
-              if (latest?.status !== "running" || latest.config.strategy_version !== group.config.strategy_version || !latest.config.cycles.includes(cycle)) cancel()
+              if (latest?.status !== "running" || latest.config.strategy_version !== group.config.strategy_version || latest.config.pool_size !== group.config.pool_size || !latest.config.cycles.includes(cycle)) cancel()
             })
             void discoveries.get(group.id)!.scan(group, cycle, controller.signal).catch(e => {
               if (!controller.signal.aborted) useHunterStore.getState().setProgress(group.id, CYCLES[cycle].label+"扫描异常："+(e instanceof Error ? e.message : "行情不可用"))

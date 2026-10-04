@@ -17,8 +17,8 @@ import { CYCLES, validateLeverage, type Cycle } from "@/lib/hunter/rules"
 const selectClass = "w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm"
 const initial: HunterConfig = {
   name: "AI 多周期猎手", capital: 1000, leverage: 1, venue: "okx", margin_mode: "isolated", cycles: ["short", "medium", "long"],
-  brain: "rules", model_id: null, rule_fallback: false, direction: "long", whitelist: [], blacklist: [],
-  pool_size: 30, max_positions: 4, scan_seconds: 60, strategy_version: "hunter-v2",
+  brain: "rules", model_id: null, rule_fallback: false, direction: "both", whitelist: [], blacklist: [],
+  pool_size: 50, max_positions: 4, scan_seconds: 60, strategy_version: "hunter-v3",
 }
 
 export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -66,7 +66,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
   const submit = async () => {
     setError(null)
     if (existingHunter) { setError("当前账户已有未停止的多周期猎手，请先停止后再创建"); return }
-    if (config.strategy_version === "hunter-v2" && !capabilities?.supported_versions?.includes("hunter-v2")) { setError("服务器尚未支持均衡版，请更新服务器或选择原版规则"); return }
+    if (config.strategy_version !== "hunter-v1" && !capabilities?.supported_versions?.includes(config.strategy_version!)) { setError("服务器尚未支持所选规则版本，请更新服务器或选择旧版规则"); return }
     if (!Number.isFinite(config.capital) || config.capital <= 0 || !config.cycles.length) { setError("请输入有效资金并选择至少一个周期"); return }
     try { validateLeverage(config.leverage) } catch (e) { setError(e instanceof Error ? e.message : "杠杆无效"); return }
     if (config.brain !== "rules" && !choices.some(m => m.id === config.model_id)) { setError("请选择对应类型的模型"); return }
@@ -90,8 +90,8 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1"><Label htmlFor="hunter-profile">入场规则</Label><select id="hunter-profile" className={selectClass} value={config.strategy_version ?? "hunter-v1"} onChange={e => patch({ strategy_version: e.target.value as HunterConfig["strategy_version"] })}>
-          <option value="hunter-v2">均衡版 · 突破回踩 + 趋势回调</option><option value="hunter-v1">原版 · 突破回踩</option>
-        </select><p className="text-xs text-[var(--text-muted)]">均衡版：排名前/后 30%，短线量能 1.3 倍、信号有效 180 秒；周期独立扫描，候选进入观察池。尚未完成盈利验证。</p></div>
+          <option value="hunter-v3">机会增强版 · 突破回踩 + 回调 + 短线延续</option><option value="hunter-v2">均衡版 · 突破回踩 + 趋势回调</option><option value="hunter-v1">原版 · 突破回踩</option>
+        </select><p className="text-xs text-[var(--text-muted)]">{config.strategy_version === "hunter-v3" ? "短线排名前/后50%，增加趋势延续入口；BTC横盘可筛选自身趋势币，逆向趋势或冲击继续拦截。建议50个币＋短线＋双向，按小时显示信号与挂载结果，未达目标会提示；不因超时强制下单。" : "均衡版：排名前/后30%，短线量能1.3倍、信号有效180秒；原版保持原有条件。"} 尚未完成盈利验证。</p></div>
         <div className="space-y-1"><Label htmlFor="hunter-name">名称</Label><Input id="hunter-name" maxLength={120} value={config.name} onChange={e => patch({ name: e.target.value })} /></div>
         <div className="space-y-1"><Label htmlFor="hunter-capital">策略资金（USDT）</Label><Input id="hunter-capital" type="number" min={1} value={config.capital} onChange={e => patch({ capital: Number(e.target.value) })} /></div>
         <div className="space-y-1"><Label htmlFor="hunter-margin-mode">资金保证金模式</Label><select id="hunter-margin-mode" className={selectClass} value={config.margin_mode} onChange={e => patch({ margin_mode: e.target.value as HunterConfig["margin_mode"] })}>
@@ -117,7 +117,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
       <ProfitLockSettings value={profitLock} onChange={setProfitLock} />
       <details className="rounded-md border border-[var(--border)] p-3 text-xs space-y-2">
         <summary className="cursor-pointer text-sm">下单、止盈和亏损平仓标准</summary>
-        <p>只使用已收盘 K 线：大盘与币种趋势同向，相对强弱进入币池前/后 {config.strategy_version === "hunter-v2" ? "30%" : "20%"}。{config.strategy_version === "hunter-v2" ? "放量突破回踩确认，或 EMA20 趋势回调企稳确认后申请挂载。" : "放量突破、回踩及收盘确认后申请挂载。"}服务器再次复核报价、成本、风险预算及已有仓位。</p>
+        <p>只使用已收盘 K 线：币种趋势、上市时长和流动性合格，相对强弱进入合格区间。{config.strategy_version === "hunter-v3" ? "短线排名前/后50%，允许BTC横盘，拦截反向趋势及市场冲击；突破回踩、EMA20回调或短线趋势延续收盘确认后申请挂载，中长线保留均衡版条件。" : config.strategy_version === "hunter-v2" ? "排名前/后30%，大盘与币种同向；放量突破回踩或EMA20趋势回调企稳确认后申请挂载。" : "排名前/后20%，大盘与币种同向；放量突破、回踩及收盘确认后申请挂载。"}服务器再次复核报价、成本、风险预算及已有仓位，成本不得超过止损距离的20%。</p>
         <p>R 为实际入场价到初始止损的价格距离。短线：2R 平 30%，3R 平 30%；中线：3R 平 25%，5R 平 25%；长线：4R 平 20%，6R 平 20%。剩余仓位随趋势移动止损，实际整笔盈亏比单独统计。</p>
         <p>触及止损、累计净亏损达到单笔预算、结构/趋势失效、保护缺失或超过持仓期限时平仓。止损只能收紧，禁止亏损加仓。日亏损 2% 或周亏损 5% 暂停搜索，峰值回撤 8% 停止并退出持仓；某周期连亏 3 笔冷却 24 小时。</p>
         <p>盈利验收需独立样本外正期望和扣除全部成本后 PF ≥ 1.2，并通过执行验收；当前尚未取得这些证据。</p>
@@ -139,7 +139,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
           <div><Label htmlFor="hunter-pool">扫描币池数量（5～50）</Label><Input id="hunter-pool" type="number" min={5} max={50} value={config.pool_size} onChange={e => patch({ pool_size: Number(e.target.value) })} /></div>
           <div><Label htmlFor="hunter-slots">最多持仓任务（1～4）</Label><Input id="hunter-slots" type="number" min={1} max={4} value={config.max_positions} onChange={e => patch({ max_positions: Number(e.target.value) })} /></div>
-          <div><Label htmlFor="hunter-interval">扫描复查间隔（秒）</Label><Input id="hunter-interval" type="number" min={30} max={3600} value={config.scan_seconds} onChange={e => patch({ scan_seconds: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">均衡版短线按此间隔复查；中线至少 5 分钟，长线至少 30 分钟。执行 K 线收盘后优先更新。</p></div>
+          <div><Label htmlFor="hunter-interval">扫描复查间隔（秒）</Label><Input id="hunter-interval" type="number" min={30} max={3600} value={config.scan_seconds} onChange={e => patch({ scan_seconds: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">新版短线按此间隔复查；中线至少5分钟，长线至少30分钟。执行K线收盘后优先更新。</p></div>
           <HunterSymbolMultiSelect id="hunter-white" label="白名单" value={config.whitelist} options={symbols}
             onChange={whitelist => patch({ whitelist })} max={50} loading={symbolsLoading} error={symbolsError}
             onRetry={() => setSymbolsReload(n => n + 1)} hint="留空不限制币种；选中后只搜索这些币种，最多 50 个。" />

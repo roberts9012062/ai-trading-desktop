@@ -11,7 +11,7 @@ interface HunterState {
   refresh: (signal?: AbortSignal) => Promise<void>;
   create: (cfg: HunterConfig) => Promise<void>;
   setProfitLock: (id: string, config: ProfitLockConfig) => Promise<void>;
-  control: (id: string, action: "pause" | "resume" | "stop" | "stop_close" | "upgrade") => Promise<void>;
+  control: (id: string, action: "pause" | "resume" | "stop" | "stop_close" | "upgrade" | "upgrade_adaptive", poolSize?: number) => Promise<void>;
   setProgress: (id: string, message: string) => void;
   setWatch: (id: string, cycle: Cycle, entries: HunterWatch[]) => void;
   reset: () => void;
@@ -43,9 +43,9 @@ export const useHunterStore = create<HunterState>((set) => ({
     if (started !== generation) throw new Error("会话已切换，请在当前账户重新查看猎手")
     set(s => ({ groups: [group, ...s.groups], error: null }))
   },
-  control: async (id, action) => {
+  control: async (id, action, poolSize) => {
     const started = generation
-    const group = await hunterApi.control(id, action)
+    const group = await hunterApi.control(id, action, poolSize)
     if (started !== generation) throw new Error("会话已切换，请在当前账户重新查看猎手")
     set(s => ({ groups: s.groups.map(g => g.id === id ? group : g), error: null,
       watches: { ...s.watches, [id]: group.status === "running" ? s.watches[id] ?? [] : [] } }))

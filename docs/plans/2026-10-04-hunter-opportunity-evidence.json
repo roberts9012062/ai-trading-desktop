@@ -1,0 +1,279 @@
+{
+  "end": 1791090000,
+  "snapshot_symbols": 48,
+  "universe_sizes": {
+    "hunter-v2": 18,
+    "hunter-v3": 48
+  },
+  "assumptions": {
+    "round_trip_cost": 0.001,
+    "leverage": 5,
+    "pool_size": 50,
+    "hours": 24,
+    "direction": "both",
+    "fixed_current_liquidity_universe": true,
+    "historical_funding_spread_depth_not_available": true,
+    "simulation_of_orders_and_profit": false
+  },
+  "counts": {
+    "hunter-v3_rule_signals": 216,
+    "hunter-v3_eligible_signals": 123,
+    "hunter-v3_risk_or_cost_rejected": 93,
+    "hunter-v2_rule_signals": 10,
+    "hunter-v2_risk_or_cost_rejected": 8,
+    "hunter-v2_eligible_signals": 2
+  },
+  "coverage": {
+    "hunter-v2": {
+      "hour_blocks": 24,
+      "hour_blocks_with_signal": 2,
+      "rolling_windows": 277,
+      "rolling_windows_with_signal": 24,
+      "signals_per_hour": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "hunter-v3": {
+      "hour_blocks": 24,
+      "hour_blocks_with_signal": 23,
+      "rolling_windows": 277,
+      "rolling_windows_with_signal": 258,
+      "signals_per_hour": [
+        9,
+        6,
+        0,
+        5,
+        1,
+        2,
+        4,
+        12,
+        2,
+        7,
+        8,
+        6,
+        5,
+        6,
+        4,
+        6,
+        6,
+        4,
+        9,
+        3,
+        8,
+        5,
+        1,
+        4
+      ]
+    }
+  },
+  "examples": [
+    {
+      "symbol": "penguusdt",
+      "at": 1791003900,
+      "direction": "short",
+      "kind": "pullback"
+    },
+    {
+      "symbol": "litusdt",
+      "at": 1791003900,
+      "direction": "short",
+      "kind": "breakout"
+    },
+    {
+      "symbol": "taousdt",
+      "at": 1791003900,
+      "direction": "short",
+      "kind": "pullback"
+    },
+    {
+      "symbol": "zamausdt",
+      "at": 1791003900,
+      "direction": "short",
+      "kind": "pullback"
+    },
+    {
+      "symbol": "enausdt",
+      "at": 1791003900,
+      "direction": "short",
+      "kind": "pullback"
+    },
+    {
+      "symbol": "arbusdt",
+      "at": 1791003900,
+      "direction": "short",
+      "kind": "pullback"
+    },
+    {
+      "symbol": "ondousdt",
+      "at": 1791003900,
+      "direction": "short",
+      "kind": "breakout"
+    },
+    {
+      "symbol": "ondousdt",
+      "at": 1791006300,
+      "direction": "short",
+      "kind": "continuation"
+    },
+    {
+      "symbol": "litusdt",
+      "at": 1791006900,
+      "direction": "short",
+      "kind": "pullback"
+    },
+    {
+      "symbol": "litusdt",
+      "at": 1791007500,
+      "direction": "short",
+      "kind": "pullback"
+    },
+    {
+      "symbol": "litusdt",
+      "at": 1791007800,
+      "direction": "short",
+      "kind": "pullback"
+    },
+    {
+      "symbol": "litusdt",
+      "at": 1791008100,
+      "direction": "short",
+      "kind": "pullback"
+    },
+    {
+      "symbol": "taousdt",
+      "at": 1791008100,
+      "direction": "short",
+      "kind": "pullback"
+    },
+    {
+      "symbol": "ondousdt",
+      "at": 1791008100,
+      "direction": "short",
+      "kind": "pullback"
+    },
+    {
+      "symbol": "ondousdt",
+      "at": 1791008400,
+      "direction": "short",
+      "kind": "pullback"
+    },
+    {
+      "symbol": "uselessusdt",
+      "at": 1791015600,
+      "direction": "short",
+      "kind": "continuation"
+    },
+    {
+      "symbol": "pepeusdt",
+      "at": 1791015900,
+      "direction": "short",
+      "kind": "breakout"
+    },
+    {
+      "symbol": "pepeusdt",
+      "at": 1791016200,
+      "direction": "short",
+      "kind": "breakout"
+    },
+    {
+      "symbol": "pepeusdt",
+      "at": 1791016500,
+      "direction": "short",
+      "kind": "breakout"
+    },
+    {
+      "symbol": "taousdt",
+      "at": 1791018000,
+      "direction": "short",
+      "kind": "pullback"
+    }
+  ],
+  "public_snapshot_sha256": "f9564c4deb22ef7ffd9f70328c4b0300e41b8a4653295da260ff86c9f36419a8",
+  "stress_cost_015": {
+    "hour_blocks": 24,
+    "hour_blocks_with_signal": 23,
+    "rolling_windows": 277,
+    "rolling_windows_with_signal": 254,
+    "signals_per_hour": [
+      3,
+      2,
+      0,
+      1,
+      1,
+      2,
+      3,
+      9,
+      2,
+      7,
+      7,
+      6,
+      5,
+      6,
+      4,
+      6,
+      6,
+      4,
+      6,
+      2,
+      7,
+      5,
+      1,
+      4
+    ]
+  },
+  "pool30_cost_012": {
+    "hour_blocks": 24,
+    "hour_blocks_with_signal": 18,
+    "rolling_windows": 277,
+    "rolling_windows_with_signal": 201,
+    "signals_per_hour": [
+      2,
+      1,
+      0,
+      0,
+      1,
+      0,
+      3,
+      10,
+      1,
+      5,
+      2,
+      2,
+      0,
+      2,
+      1,
+      5,
+      4,
+      1,
+      4,
+      2,
+      2,
+      0,
+      2,
+      0
+    ]
+  }
+}

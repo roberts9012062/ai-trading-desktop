@@ -18,10 +18,13 @@ export interface Opportunity {
 export interface Hunter {
   id: string; name: string; status: "running" | "paused" | "stopping" | "stopped";
   trading_mode: string; config: HunterConfig; capital: number; equity: number; blocks: string[];
-  runtime: { realized?: number; unrealized?: number; qualification?: string; execution_account?: { execution_mode: "virtual" | "okx_demo" | "okx_live" } };
+  runtime: { realized?: number; unrealized?: number; qualification?: string; execution_account?: { execution_mode: "virtual" | "okx_demo" | "okx_live" }; discovery?: DiscoveryStatus | null };
   stats: { trades: number; win_rate: number | null; profit_factor: number | null; payoff: number | null };
   opportunities: Opportunity[];
 }
+export interface ScanReport { cycle: Cycle; scan_id: string; elapsed: number; counts: Record<string, number>; signals: string[]; note: string }
+export interface DiscoveryStatus { started_at: number; last_report_at: number; hour_signals: number; hour_mounted: number; overdue: boolean; stale: boolean;
+  cycles: Partial<Record<Cycle, { at: number; elapsed: number; counts: Record<string, number>; note: string }>> }
 export interface HunterData { bars: Record<string, Bar[]>; market: Bar[]; market_week: Bar[]; now: number }
 export interface DeltaBars { reset: boolean; rows: Bar[] }
 export interface RankingSnapshot { symbol: string; history_ok: boolean; relative: number | null; error?: string }
@@ -64,6 +67,7 @@ async function request<T>(path: string, init: RequestInit = {}, signal?: AbortSi
   return response.json() as Promise<T>
 }
 export const hunterApi = {
+  report: (id: string, report: ScanReport, signal?: AbortSignal) => request<{ ok: boolean }>("/groups/" + id + "/scan-report", { method: "POST", body: JSON.stringify(report) }, signal),
   setProfitLock: (id: string, profit_lock: ProfitLockConfig) => request<ProfitLockUpdateResult>("/groups/" + encodeURIComponent(id) + "/profit-lock", { method: "PATCH", body: JSON.stringify({ profit_lock }) }),
   symbols: (signal?: AbortSignal) => request<HunterSymbol[]>("/symbols", {}, signal),
   capabilities: () => request<HunterCapabilities>("/capabilities"),
@@ -73,5 +77,5 @@ export const hunterApi = {
   data: (id: string, symbol: string, cycle: Cycle, signal?: AbortSignal) => request<HunterData>("/groups/" + id + "/data?" + new URLSearchParams({ symbol, cycle }), {}, signal),
   snapshot: <T extends RankingSnapshot | ContextSnapshot>(id: string, body: SnapshotBody, signal?: AbortSignal) => request<{ items: T[] }>("/groups/" + id + "/snapshot", { method: "POST", body: JSON.stringify(body) }, signal),
   mount: (id: string, body: { symbol: string; cycle: Cycle; direction: Direction; signal_at: number; entry_kind?: EntryKind }, signal?: AbortSignal) => request<{ id?: string; task_id?: string; duplicate?: boolean; skipped?: boolean; reason?: string }>("/groups/" + id + "/mount", { method: "POST", body: JSON.stringify(body) }, signal),
-  control: (id: string, action: "pause" | "resume" | "stop" | "stop_close" | "upgrade") => request<Hunter>("/groups/" + id + "/control", { method: "POST", body: JSON.stringify({ action }) }),
+  control: (id: string, action: "pause" | "resume" | "stop" | "stop_close" | "upgrade" | "upgrade_adaptive", pool_size?: number) => request<Hunter>("/groups/" + id + "/control", { method: "POST", body: JSON.stringify({ action, ...(pool_size === undefined ? {} : { pool_size }) }) }),
 }

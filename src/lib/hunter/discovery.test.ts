@@ -8,7 +8,7 @@ import * as rules from "./rules"
 
 vi.mock("@/stores/ai-trading", () => ({ useAITradingStore: { getState: () => ({ loadTasks: vi.fn() }) } }))
 vi.mock("@/stores/auth", () => ({ useAuthStore: { getState: () => ({ user: { id: "user", trading_mode: "virtual" } }) } }))
-vi.mock("./api", () => ({ hunterApi: { universe: vi.fn(), data: vi.fn(), snapshot: vi.fn(), mount: vi.fn() } }))
+vi.mock("./api", () => ({ hunterApi: { universe: vi.fn(), data: vi.fn(), snapshot: vi.fn(), mount: vi.fn(), report: vi.fn().mockResolvedValue(undefined) } }))
 const group = (): Hunter => ({ id: "hunter", status: "running", blocks: [], opportunities: [],
   config: { strategy_version: "hunter-v2", venue: "okx", cycles: ["short", "medium", "long"], direction: "long", max_positions: 4, scan_seconds: 60 } }) as unknown as Hunter
 const rows: Bar[] = Array.from({ length: 5 }, (_, i) => [i*300000, 100, 102, 98, 101, 10])
@@ -76,6 +76,22 @@ it("loads entry context only for the 30% ranked candidates", async () => {
   await new BalancedDiscovery(g.id).scan(g, "short", new AbortController().signal)
   expect(contextCalls).toEqual(["coin9usdt", "coin8usdt", "coin7usdt"])
   expect(hunterApi.mount).not.toHaveBeenCalled()
+})
+
+it("adaptive ranking continues with one isolated failure at 80% coverage and reports the blocker", async () => {
+  const g = group(); g.config.strategy_version = "hunter-v3"; useHunterStore.setState({ groups: [g] })
+  const symbols = Array.from({ length: 10 }, (_, i) => "coin"+i+"usdt")
+  vi.mocked(hunterApi.universe).mockResolvedValue(symbols.map(symbol => ({ symbol, spread: 0 })) as never)
+  const contextCalls: string[] = []
+  vi.mocked(hunterApi.snapshot).mockImplementation(async (_id, body) => {
+    if (body.phase === "ranking") return { items: body.symbols.map(symbol => symbol === symbols[0] ? { symbol, error: "限流" } : { symbol, history_ok: true, relative: symbols.indexOf(symbol) }) } as never
+    contextCalls.push(...body.symbols)
+    return { items: body.symbols.map(symbol => ({ symbol, error: "test context" })) } as never
+  })
+  await new BalancedDiscovery(g.id).scan(g, "short", new AbortController().signal)
+  expect(contextCalls).toEqual(["coin9usdt", "coin8usdt", "coin7usdt", "coin6usdt"])
+  expect(hunterApi.report).toHaveBeenCalled()
+  expect(useHunterStore.getState().progress[g.id]).toContain("行情失败")
 })
 
 it("runs the short cycle again while the long cycle is still reading", async () => {

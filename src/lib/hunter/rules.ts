@@ -3,8 +3,10 @@ export type Direction = "long" | "short"
 export type Bar = [number, number, number, number, number, number]
 export const RULE_VERSION = "hunter-v1"
 export const BALANCED_VERSION = "hunter-v2"
-export type RuleVersion = typeof RULE_VERSION | typeof BALANCED_VERSION
-export type EntryKind = "breakout" | "pullback"
+export const ADAPTIVE_VERSION = "hunter-v3"
+export type RuleVersion = typeof RULE_VERSION | typeof BALANCED_VERSION | typeof ADAPTIVE_VERSION
+export type EntryKind = "breakout" | "pullback" | "continuation"
+import { adaptiveEntry } from "./adaptive"
 export const CYCLES = {
   short: { label: "短线", setup: "15m", execution: "5m", trend: "1h", setupSec: 900, executionSec: 300, lookback: 20, volume: 1.5, wait: 12, atrMult: 1.5, maxStop: .03, risk: .002, target: 2, ttl: 60, maxHold: 43200, idle: 7200, trail: 2, budget: .25 },
   medium: { label: "中线", setup: "4h", execution: "1h", trend: "1d", setupSec: 14400, executionSec: 3600, lookback: 20, volume: 1.2, wait: 12, atrMult: 2, maxStop: .08, risk: .003, target: 3, ttl: 300, maxHold: 1814400, idle: 259200, trail: 2.5, budget: .35 },
@@ -55,9 +57,9 @@ export function sizePosition(equity: number, cycle: Cycle, entry: number, stop: 
 export interface Signal { direction: Direction; entry: number; stop: number; breakout: number; atr: number; signal_at: number; expires_at: number; reason: string; entry_kind?: EntryKind }
 export function cycleRules(cycle: Cycle, version: RuleVersion = RULE_VERSION) {
   const c = CYCLES[cycle]
-  return version === BALANCED_VERSION && cycle === "short" ? { ...c, volume: 1.3, ttl: 180 } : c
+  return (version === BALANCED_VERSION || version === ADAPTIVE_VERSION) && cycle === "short" ? { ...c, volume: 1.3, ttl: version === ADAPTIVE_VERSION ? 240 : 180 } : c
 }
-export const rankFraction = (version: RuleVersion = RULE_VERSION) => version === BALANCED_VERSION ? .3 : .2
+export const rankFraction = (version: RuleVersion = RULE_VERSION, cycle: Cycle = "short") => version === ADAPTIVE_VERSION && cycle === "short" ? .5 : version === BALANCED_VERSION || version === ADAPTIVE_VERSION ? .3 : .2
 export function findSignal(setup: Bar[], execution: Bar[], cycle: Cycle, direction: Direction, now: number, version: RuleVersion = RULE_VERSION): Signal | null {
   const c = cycleRules(cycle, version), sign = direction === "long" ? 1 : -1
   for (let i = setup.length - 1; i >= c.lookback && i >= setup.length - c.wait - 5; i--) {
@@ -123,6 +125,7 @@ function pullbackSignal(setup: Bar[], execution: Bar[], cycle: Cycle, direction:
 }
 
 export function entrySignal(setup: Bar[], execution: Bar[], cycle: Cycle, direction: Direction, now: number, version: RuleVersion = RULE_VERSION): Signal | null {
+  if (version === ADAPTIVE_VERSION) return cycle === "short" ? adaptiveEntry(setup, execution, direction, now) : entrySignal(setup, execution, cycle, direction, now, BALANCED_VERSION)
   if (version !== BALANCED_VERSION) return findSignal(setup, execution, cycle, direction, now)
   const c = cycleRules(cycle, version)
   setup = closedBars(setup, c.setupSec, now); execution = closedBars(execution, c.executionSec, now)
