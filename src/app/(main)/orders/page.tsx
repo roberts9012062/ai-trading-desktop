@@ -19,6 +19,7 @@ import React, { useEffect, useMemo, useState } from "react"
 import type { PaperOrderItem } from "@/lib/paper-api"
 import { paperActionLabel } from "@/lib/trade-labels"
 import { amendLiveOrderApi, getStoredVenue } from "@/lib/live-api"
+import { canCancelLiveOrder } from "@/lib/live-order-merge"
 
 function StatusBadge({ status }: { status: string }): React.JSX.Element {
   const map: Record<
@@ -31,6 +32,7 @@ function StatusBadge({ status }: { status: string }): React.JSX.Element {
     cancelled: { label: "已撤单", variant: "destructive" },
     rejected: { label: "已拒绝", variant: "outline" },
     error: { label: "下单异常", variant: "outline" },
+    unconfirmed: { label: "待对账", variant: "outline" },
   }
   const cfg = map[status] ?? { label: status, variant: "outline" as const }
   return <Badge variant={cfg.variant}>{cfg.label}</Badge>
@@ -62,6 +64,7 @@ function leveragedAmounts(o: PaperOrderItem): {
 /** 订单管理 —— 挂单 / 历史 / 成交 */
 export default function OrdersPage(): React.JSX.Element {
   const orders = usePaperTradingStore((s) => s.orders)
+  const mode = usePaperTradingStore((s) => s.mode)
   const loading = usePaperTradingStore((s) => s.loading)
   const submitting = usePaperTradingStore((s) => s.submitting)
   const lastMessage = usePaperTradingStore((s) => s.lastMessage)
@@ -150,22 +153,22 @@ export default function OrdersPage(): React.JSX.Element {
         <TabsContent value="pending" className="flex-1 overflow-auto mt-3">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs text-[var(--text-muted)]">
-              挂单会在 K 线上显示价格线；撤单后线同步消失
+              普通委托与条件单同步显示；条件单请在所属任务或交易所管理
             </p>
             <Button
               variant="destructive"
               size="sm"
-              disabled={submitting || pending.length === 0}
+              disabled={submitting || !pending.some(o => mode !== "live" || canCancelLiveOrder(o))}
               onClick={() => void cancelAllPending()}
             >
-              一键全撤
+              {mode === "live" ? "全撤普通委托" : "一键全撤"}
             </Button>
           </div>
           <OrderTable
             rows={pending}
             showCancel
             submitting={submitting}
-            emptyText="暂无挂单。可在交易页用限价/市价下单。"
+            emptyText={error ? "挂单查询失败，无法确认当前挂单，请刷新重试。" : "暂无未成交的普通委托或未触发的条件单。"}
             onCancel={(id) => void cancel(id)}
           />
         </TabsContent>
@@ -281,6 +284,7 @@ function OrderTable(props: {
   const showAmend = props.showCancel && mode === "live"
 
   async function doAmend(o: PaperOrderItem): Promise<void> {
+    if (o.order_kind === "algo" || o.can_amend === false) return
     const px = Number(newPrice) || null
     const qty = Number(newQty) || null
     if (!px && !qty) {
@@ -353,10 +357,17 @@ function OrderTable(props: {
                 </Badge>
               </TableCell>
               <TableCell className="text-xs text-[var(--text-secondary)]">
-                {o.order_type === "limit" ? "限价" : "市价"}
+                {({limit:"限价",market:"市价",trigger:"触发进场",conditional:"止盈/止损",oco:"止盈止损 OCO",move_order_stop:"移动止盈止损"} as Record<string,string>)[o.order_type] ?? o.order_type}
               </TableCell>
-              <TableCell className="font-num text-sm">{o.price}</TableCell>
-              <TableCell className="font-num text-sm">{o.quantity}</TableCell>
+              <TableCell className="font-num text-sm">
+                {o.order_kind === "algo" ? <div className="text-xs space-y-1">
+                  {o.trigger_price != null && <div>触发 {o.trigger_price}</div>}
+                  {o.tp_price != null && <div className="text-[var(--accent-up)]">止盈 {o.tp_price}</div>}
+                  {o.sl_price != null && <div className="text-[var(--accent-danger)]">止损 {o.sl_price}</div>}
+                  {o.trigger_price == null && o.tp_price == null && o.sl_price == null && <div>动态触发</div>}
+                </div> : o.price}
+              </TableCell>
+              <TableCell className="font-num text-sm">{o.close_fraction === 1 ? "全部持仓" : o.quantity}</TableCell>
               <TableCell className="font-num text-sm">{o.filled_qty}</TableCell>
               <TableCell className="font-num text-sm">
                 {amt.lev > 0 ? `${amt.lev}x` : "—"}
@@ -384,27 +395,28 @@ function OrderTable(props: {
               </TableCell>
               {props.showCancel && (
                 <TableCell>
-                  <Button
+                  {o.order_kind === "algo" ? <span className="text-xs text-[var(--text-muted)]">条件单保护</span> : <Button
                     variant="ghost"
                     size="sm"
                     className="text-xs h-6 text-[var(--accent-danger)]"
                     disabled={
                       props.submitting ||
+                      o.can_cancel === false ||
                       (o.status !== "pending" && o.status !== "partially_filled")
                     }
                     onClick={() => props.onCancel?.(o.id)}
                   >
                     撤单
-                  </Button>
+                  </Button>}
                 </TableCell>
               )}
               {showAmend && (
                 <TableCell>
-                  <Button
+                  {o.order_kind === "algo" ? <span className="text-xs text-[var(--text-muted)]">任务自动管理</span> : <Button
                     variant="ghost"
                     size="sm"
                     className="text-xs h-6"
-                    disabled={o.status !== "pending" && o.status !== "partially_filled"}
+                    disabled={o.can_amend === false || (o.status !== "pending" && o.status !== "partially_filled")}
                     onClick={() => {
                       setAmendFor(amendFor === o.id ? null : o.id)
                       setNewPrice(String(o.price || ""))
@@ -413,7 +425,7 @@ function OrderTable(props: {
                     }}
                   >
                     {amendFor === o.id ? "收起" : "改单"}
-                  </Button>
+                  </Button>}
                 </TableCell>
               )}
             </TableRow>

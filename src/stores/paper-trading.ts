@@ -10,6 +10,7 @@
  */
 
 import { create } from "zustand"
+import { mergeLiveOrders, canCancelLiveOrder } from "@/lib/live-order-merge"
 import { getSessionStatusApi } from "@/lib/api"
 import {
   cancelLiveOrderApi,
@@ -162,25 +163,7 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
             getLiveOrdersApi(venue, true).catch(() => [] as PaperOrderItem[]),
             getLivePositionsApi(venue).catch(() => []),
           ])
-        // 交易所挂单列表为准；历史镜像补充已终态委托（按交易所订单号去重）
-        const seen = new Set(
-          openOrders
-            .map((o) => o.exchange_order_id || o.id)
-            .filter((k): k is string => Boolean(k))
-        )
-        const merged = [...openOrders]
-        for (const o of historyOrders) {
-          const key = o.exchange_order_id || o.id
-          if (key && seen.has(key)) continue
-          // 镜像仍标记挂单中但交易所挂单列表已无此单 → 已终结
-          if (o.status === "pending" || o.status === "partially_filled") {
-            o.status =
-              o.quantity > 0 && o.filled_qty >= o.quantity
-                ? "filled"
-                : "cancelled"
-          }
-          merged.push(o)
-        }
+        const merged = mergeLiveOrders(openOrders, historyOrders)
         set({
           mode,
           venue,
@@ -359,7 +342,8 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
     try {
       if (get().mode === "live") {
         const order = get().orders.find((o) => o.id === orderId)
-        await cancelLiveOrderApi(getStoredVenue(), orderId, order?.symbol ?? "")
+        if (!order || !canCancelLiveOrder(order)) throw new Error("该委托不能通过普通撤单接口撤销，请在所属任务或交易所管理条件单")
+        await cancelLiveOrderApi(getStoredVenue(), order.exchange_order_id || orderId, order.symbol)
         set({ submitting: false, lastMessage: "撤单请求已发送" })
       } else {
         await cancelPaperOrder(orderId)
@@ -376,7 +360,7 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
 
   cancelAllPending: async () => {
     const pending = get().orders.filter(
-      (o) => o.status === "pending" || o.status === "partially_filled"
+      (o) => get().mode === "live" ? canCancelLiveOrder(o) : (o.status === "pending" || o.status === "partially_filled")
     )
     if (pending.length === 0) {
       set({ lastMessage: "无待撤委托" })
@@ -388,7 +372,7 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
         let ok = 0
         for (const order of pending) {
           try {
-            await cancelLiveOrderApi(getStoredVenue(), order.id, order.symbol)
+            await cancelLiveOrderApi(getStoredVenue(), order.exchange_order_id || order.id, order.symbol)
             ok += 1
           } catch {
             // 单笔失败继续撤其余

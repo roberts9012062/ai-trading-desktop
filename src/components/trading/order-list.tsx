@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/table"
 import { Loader2 } from "lucide-react"
 import type { PaperOrderItem } from "@/lib/paper-api"
+import { canCancelLiveOrder } from "@/lib/live-order-merge"
 
 function statusLabel(status: string): string {
   const map: Record<string, string> = {
@@ -33,6 +34,7 @@ function statusLabel(status: string): string {
     new: "已报",
     open: "已报",
     partially_filled: "部成",
+    unconfirmed: "待对账",
     PARTIALLY_FILLED: "部成",
   }
   return map[status] ?? status
@@ -41,6 +43,7 @@ function statusLabel(status: string): string {
 /** 委托列表 —— 点击行切换 K 线到该合约 */
 export function OrderList(): React.JSX.Element {
   const orders = usePaperTradingStore((s) => s.orders)
+  const mode = usePaperTradingStore((s) => s.mode)
   const loading = usePaperTradingStore((s) => s.loading)
   const submitting = usePaperTradingStore((s) => s.submitting)
   const refresh = usePaperTradingStore((s) => s.refresh)
@@ -57,7 +60,7 @@ export function OrderList(): React.JSX.Element {
     return () => clearInterval(timer)
   }, [refresh])
 
-  const ACTIVE = new Set(["pending", "live", "NEW", "new", "open"])
+  const ACTIVE = new Set(["pending", "live", "NEW", "new", "open", "partially_filled"])
   const pending = orders.filter((o) => ACTIVE.has(o.status))
   const recent = orders.filter((o) => !ACTIVE.has(o.status)).slice(0, 20)
   const display: PaperOrderItem[] = [...pending, ...recent]
@@ -82,10 +85,10 @@ export function OrderList(): React.JSX.Element {
             variant="ghost"
             size="sm"
             className="text-xs h-6 text-[var(--accent-danger)]"
-            disabled={submitting || pending.length === 0}
+            disabled={submitting || !pending.some(o => mode !== "live" || canCancelLiveOrder(o))}
             onClick={() => void cancelAllPending()}
           >
-            一键全撤
+            {mode === "live" ? "全撤普通委托" : "一键全撤"}
           </Button>
         </div>
       </div>
@@ -143,9 +146,12 @@ export function OrderList(): React.JSX.Element {
                       {paperActionLabel(order.direction, order.offset)}
                     </Badge>
                   </TableCell>
-                  <TableCell className="font-num text-xs">{order.price}</TableCell>
+                  <TableCell className="font-num text-xs">{order.order_kind === "algo" ?
+                    <div>{order.trigger_price != null && <div>触发 {order.trigger_price}</div>}
+                      {order.tp_price != null && <div>止盈 {order.tp_price}</div>}
+                      {order.sl_price != null && <div>止损 {order.sl_price}</div>}</div> : order.price}</TableCell>
                   <TableCell className="font-num text-xs">
-                    {order.filled_qty}/{order.quantity}
+                    {order.close_fraction === 1 ? "全部持仓" : `${order.filled_qty}/${order.quantity}`}
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className="text-[10px]">
@@ -153,7 +159,7 @@ export function OrderList(): React.JSX.Element {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {["pending", "live", "NEW", "new", "open"].includes(order.status) ? (
+                    {order.order_kind === "algo" ? <span className="text-[10px] text-[var(--text-muted)]">条件单保护</span> : (mode === "live" ? canCancelLiveOrder(order) : ACTIVE.has(order.status)) ? (
                       <Button
                         variant="ghost"
                         size="sm"

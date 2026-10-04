@@ -194,7 +194,7 @@ export async function getLiveOrdersApi(
     `/api/live/orders?venue=${venue}&history=${history ? "true" : "false"}`
   )
   return res.orders.map((o, i) => ({
-    id: String(o.id ?? o.order_id ?? `${venue}-${i}`),
+    id: o.order_kind === "algo" ? `algo:${o.algo_id ?? o.order_id ?? o.id}` : String(o.id ?? o.order_id ?? `${venue}-${i}`),
     symbol: String(o.symbol),
     symbol_name: String(o.symbol_name ?? o.symbol),
     // 交易所挂单接口字段为 side；历史镜像为 direction
@@ -212,7 +212,13 @@ export async function getLiveOrdersApi(
     created_at: String(o.created_at ?? ""),
     updated_at: String(o.updated_at ?? o.created_at ?? ""),
     filled_at: (o.filled_at as string | null) ?? null,
-    exchange_order_id: o.exchange_order_id ?? o.order_id ?? "",
+    exchange_order_id: o.order_kind === "algo" ? "" : o.exchange_order_id ?? o.order_id ?? "",
+    order_kind: o.order_kind ?? "regular",
+    algo_id: o.algo_id ?? null,
+    trigger_price: o.trigger_price == null ? null : Number(o.trigger_price),
+    close_fraction: Number(o.close_fraction ?? 0),
+    can_cancel: o.can_cancel,
+    can_amend: o.can_amend,
     leverage: (o.leverage as number | null) ?? null,
     margin_mode: (o.margin_mode as string | null) ?? null,
     tp_price: (o.tp_price as number | null) ?? null,

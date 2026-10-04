@@ -66,6 +66,12 @@ export interface PaperOrderItem {
   sl_price?: number | null
   /** 实盘扩展：交易所订单号（挂单/历史合并去重用；virtual 无） */
   exchange_order_id?: string
+  order_kind?: 'regular' | 'algo'
+  algo_id?: string | null
+  trigger_price?: number | null
+  close_fraction?: number
+  can_cancel?: boolean
+  can_amend?: boolean
 }
 
 /** 模拟持仓 */
