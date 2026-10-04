@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Award, LineChart, Plus, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CreateTaskDialog } from "@/components/ai-trading/form/create-task-dialog"
+import { ProfitLockManager } from "@/components/ai-trading/form/profit-lock-manager"
 import { CreateHunterDialog } from "@/components/hunter/create-hunter-dialog"
 import { HunterPanel } from "@/components/hunter/hunter-panel"
 import { CreateQuantDialog } from "@/components/ai-trading/form/create-quant-dialog"
@@ -124,6 +125,7 @@ export default function AITradingPage(): React.JSX.Element {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <ProfitLockManager />
           <Button
             variant="outline"
             size="sm"

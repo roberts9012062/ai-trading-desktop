@@ -13,6 +13,11 @@ import { SelectedFactorPanel } from "@/components/factor-lab/panels/selected-fac
 import { CreateFromFavoriteDialog } from "@/components/ai-trading/create-from-favorite-dialog"
 import { templateFixture } from "./profit-lock-template-fixture"
 import { TaskActions } from "@/components/ai-trading/task-actions"
+import AITradingPage from "@/app/(main)/ai-trading/page"
+import { MemoryRouter } from "react-router-dom"
+import { useMarketStore } from "@/stores/market"
+import { useHunterStore } from "@/stores/hunter"
+import type { Hunter } from "@/lib/hunter/api"
 if (location.hostname !== "127.0.0.1" || location.port !== "5187") throw new Error("只能在隔离验收端口5187运行")
 useAuthStore.setState({ user: { id: "ui-fixture", username: "UI验收", role: "admin", trading_mode: "virtual" } as User, accessToken: "ui-fixture-only" })
 localStorage.setItem("access_token", "ui-fixture-only")
@@ -23,12 +28,42 @@ globalThis.fetch = async (input, init) => {
     if (failHotSave) { failHotSave = false; return Response.json({ detail: "模拟保存失败，请重试" }, { status: 503 }) }
     const body = JSON.parse(String(init?.body))
     document.getElementById("submitted")!.textContent = JSON.stringify(body)
-    return Response.json({ id: "fixture-live-task", profit_lock: body.profit_lock })
+    return Response.json({ id: String(input).split("/").at(-2), profit_lock: body.profit_lock })
+  }
+  if (String(input).endsWith("/profit-lock") && String(input).includes("/api/hunter/groups/")) {
+    const body = JSON.parse(String(init?.body))
+    document.getElementById("submitted")!.textContent = JSON.stringify(body)
+    return Response.json({ id: "fixture-hunter", profit_lock: body.profit_lock, affected_tasks: 0 })
   }
   const templates = templateFixture(input, init)
   if (templates) return templates
   if (String(input).endsWith("/api/ai-trading/task-favorites")) return Response.json({ items: [{ id: "fixture-favorite", snapshot: { name: "收藏任务验收", symbol: "btcusdt", timeframe: "15m", strategy_type: "ma_cross", close_rules: { pnl_pct: 6, ai_auto: false, profit_lock: { enabled: true, mode: "manual", unit: "usdt", activation: 10, giveback: 2, cooldown_signals: 3 } } } }] })
   throw new Error("锁利界面验收禁止真实API请求：" + String(input))
+}
+function HeaderPreview() {
+  const [ready, setReady] = useState(false)
+  const tasks = useAITradingStore(s => s.tasks)
+  const groups = useHunterStore(s => s.groups)
+  useEffect(() => {
+    useMarketStore.setState({ initWebSocket: () => {} })
+    const base = { symbol: "btcusdt", symbol_name: "BTC", timeframe: "15m", status: "running", strategy_type: "ai", position_qty: 0, position_direction: null, created_at: new Date().toISOString(), close_rules: { pnl_pct: 77, total_pnl_pct: null, session_close: false, ai_auto: true }, stop_rules: { loss_pct: 10, loss_amount: null, ai_auto: false } }
+    useAITradingStore.setState({ tasks: new URLSearchParams(location.search).has("empty") ? [] : [
+      { ...base, id: "fixture-live-task", name: "AI任务验收" } as AITradingTask,
+      { ...base, id: "fixture-quant-task", name: "量化任务验收", strategy_type: "ma_cross" } as AITradingTask,
+    ], selectedTaskId: null, loadTasks: async () => {}, loadEquity: async () => {}, loadProfitBars: async () => {} })
+    useHunterStore.setState({ groups: new URLSearchParams(location.search).has("empty") ? [] : [{ id: "fixture-hunter", name: "多周期猎手验收", status: "running", trading_mode: "virtual", config: { venue: "okx", leverage: 5, margin_mode: "isolated", brain: "rules", strategy_version: "hunter-v2" }, capital: 100, equity: 100, blocks: [], runtime: {}, stats: { trades: 0, win_rate: null, profit_factor: null, payoff: null }, opportunities: [] } as unknown as Hunter], refresh: async () => {} })
+    const poll = () => useAITradingStore.setState(s => ({ tasks: s.tasks.map(t => ({ ...t, note: "模拟轮询" })) }))
+    const remove = () => { useAITradingStore.setState({ tasks: [] }); useHunterStore.setState({ groups: [] }) }
+    const changeAccount = () => useAuthStore.setState({ user: { id: "another-fixture-user", username: "另一个验收账户", role: "user", trading_mode: "virtual" } as User })
+    window.addEventListener("fixture-task-poll", poll)
+    window.addEventListener("fixture-remove-targets", remove)
+    window.addEventListener("fixture-account-change", changeAccount)
+    setReady(true)
+    return () => { window.removeEventListener("fixture-task-poll", poll); window.removeEventListener("fixture-remove-targets", remove); window.removeEventListener("fixture-account-change", changeAccount) }
+  }, [])
+  // Wait for fixture-only store methods before mounting the actual page.
+  if (!ready) return <p>验收准备中</p>
+  return <MemoryRouter><AITradingPage /><pre id="submitted" className="text-xs whitespace-pre-wrap break-all" /><pre id="current-task" className="text-xs whitespace-pre-wrap break-all">{JSON.stringify({ tasks, groups }, null, 2)}</pre></MemoryRouter>
 }
 function LivePreview() {
   const tasks = useAITradingStore(s => s.tasks)
@@ -54,6 +89,7 @@ function Preview() {
   const entry = new URLSearchParams(location.search).get("entry")
   useEffect(() => { useAITradingStore.setState({ createTask: async payload => { setOutput(JSON.stringify(payload, null, 2)); return { ...payload, id: "fixture-task" } as AITradingTask } }) }, [])
   if (entry === "live") return <LivePreview />
+  if (entry === "header") return <HeaderPreview />
   if (entry === "favorite") return <><CreateFromFavoriteDialog open onClose={() => {}} /><pre id="submitted">{output}</pre></>
   if (entry === "factor") return <main className="max-w-lg mx-auto p-4"><SelectedFactorPanel selected={{ tokens: [1], text: "因子验收", composite: 1, metrics: { ann_ret: .1, sortino: 1, ts_ic: .1, max_dd: .1, n_trades: 10 } } as Champion} bt={null} btLoading={false} building={false} buildMsg={null} onFavorite={() => {}} onCopyTokens={() => {}} onBuildTask={profit_lock => setOutput(JSON.stringify({ profit_lock }))} /><pre id="submitted">{output}</pre></main>
   return <main className="mx-auto max-w-lg p-4 space-y-4">
