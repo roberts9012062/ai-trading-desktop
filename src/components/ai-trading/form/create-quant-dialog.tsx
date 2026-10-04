@@ -285,14 +285,15 @@ export function CreateQuantDialog({
       return params
     }
 
-    const closeRules = buildCloseRulesPayload(
-      rules,
-      decisionEnabled ? rules.modelExit : false,
-    )
-    if (decisionEnabled && rules.modelExit) closeRules.model_exit = true
-
+    let closeRules: ReturnType<typeof buildCloseRulesPayload>
     let bottom: ReturnType<typeof buildBottomPayload>
     try {
+      closeRules = buildCloseRulesPayload(
+        rules,
+        decisionEnabled ? rules.modelExit : false,
+      )
+      if (decisionEnabled && rules.modelExit) closeRules.model_exit = true
+
       bottom = buildBottomPayload(rules)
     } catch (err) {
       setError(err instanceof Error ? err.message : "兜底参数无效")

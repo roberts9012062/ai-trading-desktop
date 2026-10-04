@@ -25,6 +25,7 @@ import { useAITradingStore } from "@/stores/ai-trading"
 import {
   CreateTaskRules,
   buildBottomPayload,
+  buildCloseRulesPayload,
   rulesFromTask,
   type RuleFormState,
 } from "@/components/ai-trading/form/create-task-rules"
@@ -391,17 +392,7 @@ export function EditTaskDialog({
         quant || !fundStyle.customPromptEnabled
           ? null
           : fundStyle.customPrompt.trim(),
-      close_rules: {
-        pnl_pct: rules.pnlPct ? Number(rules.pnlPct) : null,
-        total_pnl_pct: rules.totalPnlPct ? Number(rules.totalPnlPct) : null,
-        session_close: rules.sessionClose,
-        ai_auto: decisionMode
-          ? rules.modelExit
-          : quant
-            ? false
-            : rules.closeAi,
-        ...(decisionMode && rules.modelExit ? { model_exit: true } : {}),
-      },
+      close_rules: buildCloseRulesPayload(rules, decisionMode ? rules.modelExit : quant ? false : rules.closeAi),
       stop_rules: {
         loss_pct: rules.lossPct ? Number(rules.lossPct) : null,
         loss_amount: rules.lossAmount ? Number(rules.lossAmount) : null,

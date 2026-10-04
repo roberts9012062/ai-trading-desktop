@@ -266,6 +266,11 @@ export function TaskDetailDrawer({
                     : ""}
                 </span>
               )}
+              {task.close_rules?.profit_lock?.enabled && <span className="text-emerald-500">
+                锁利 · {task.profit_lock_state?.closing ? "平仓成交待确认" : task.profit_lock_state?.closed ? "已平仓" : task.profit_lock_state?.activated ? `锁住 ${Number(task.profit_lock_state.locked_net ?? 0).toFixed(2)}U（${Number(task.profit_lock_state.locked_pct ?? 0).toFixed(2)}%）· 峰值 ${Number(task.profit_lock_state.peak_net ?? 0).toFixed(2)}U` : "等待激活"}
+                {Number(task.profit_lock_state?.cooldown_remaining ?? 0) > 0 ? ` · 冷却剩余${task.profit_lock_state?.cooldown_remaining}次` : ""}
+                {task.profit_lock_state?.error ? ` · ${task.profit_lock_state.error}` : ""}
+              </span>}
               {task.total_realized_pnl != null && task.total_realized_pnl !== 0 ? (
                 <span
                   className={

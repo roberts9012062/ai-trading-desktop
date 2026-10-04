@@ -2,12 +2,15 @@
 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ProfitLockSettings } from "./profit-lock-settings"
+import { buildProfitLockConfig, profitLockFromConfig, DEFAULT_PROFIT_LOCK, type ProfitLockFormState } from "@/lib/profit-lock"
 import type {
   CloseRules,
   IndicatorExitItem,
 } from "@/lib/ai-trading-api"
 
 export interface RuleFormState {
+  profitLock?: ProfitLockFormState
   pnlPct: string
   totalPnlPct: string
   sessionClose: boolean
@@ -45,6 +48,7 @@ export interface RuleFormState {
 
 /** 空白规则表单（各弹窗在此基础上覆盖自己的默认值） */
 export const EMPTY_RULE_FORM: RuleFormState = {
+  profitLock: DEFAULT_PROFIT_LOCK,
   pnlPct: "",
   totalPnlPct: "",
   sessionClose: false,
@@ -392,6 +396,7 @@ export function CreateTaskRules({
         )}
       </div>
 
+      <ProfitLockSettings value={value.profitLock} onChange={profitLock => patch({ profitLock })} />
       <div className="rounded-md border border-[var(--border)] p-2.5 space-y-2">
         <div className="text-xs font-medium text-[var(--text-secondary)]">止损</div>
         <div className="grid grid-cols-2 gap-2">
@@ -468,7 +473,9 @@ export function buildCloseRulesPayload(
   rules: RuleFormState,
   aiAuto: boolean,
 ): CloseRules {
+  const profitLock = buildProfitLockConfig(rules.profitLock)
   const out: CloseRules = {
+    ...(profitLock ? { profit_lock: profitLock } : {}),
     pnl_pct: rules.pnlPct ? Number(rules.pnlPct) : null,
     total_pnl_pct: rules.totalPnlPct ? Number(rules.totalPnlPct) : null,
     session_close: rules.sessionClose,
@@ -521,6 +528,7 @@ export function buildCloseRulesPayload(
 export function buildBottomPayload(
   rules: RuleFormState,
 ): { max_profit_pct: number | null; max_loss_pct: number | null } {
+  buildProfitLockConfig(rules.profitLock)
   const tp = rules.bottomTpOn ? Number(rules.bottomTpPct) : NaN
   const sl = rules.bottomSlOn ? Number(rules.bottomSlPct) : NaN
   if (rules.bottomTpOn && (!Number.isFinite(tp) || tp < 10)) {
@@ -555,6 +563,7 @@ export function rulesFromTask(task: {
   const fx = (c.factor_exit ?? null) as Record<string, unknown> | null
   return {
     pnlPct: c.pnl_pct != null ? String(c.pnl_pct) : "",
+    profitLock: profitLockFromConfig((c.profit_lock ?? undefined) as CloseRules["profit_lock"]),
     totalPnlPct: c.total_pnl_pct != null ? String(c.total_pnl_pct) : "",
     sessionClose: Boolean(c.session_close),
     closeAi: c.ai_auto !== false,

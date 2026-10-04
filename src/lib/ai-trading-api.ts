@@ -51,6 +51,7 @@ export interface FactorExitConfig {
   short_threshold: number
 }
 export interface CloseRules {
+  profit_lock?: ProfitLockConfig | null
   pnl_pct: number | null
   total_pnl_pct: number | null
   session_close: boolean
@@ -59,6 +60,18 @@ export interface CloseRules {
   model_exit?: boolean
   indicator_exits?: IndicatorExitItem[] | null
   factor_exit?: FactorExitConfig | null
+}
+export interface ProfitLockConfig {
+  enabled: boolean
+  mode: "auto" | "manual"
+  unit: "percent" | "usdt"
+  activation: number
+  giveback: number
+  cooldown_signals: number
+}
+export interface ProfitLockState {
+  activated?: boolean; net_profit?: number; net_pct?: number; peak_net?: number; peak_pct?: number;
+  locked_net?: number; locked_pct?: number; margin?: number; cooldown_remaining?: number; closed?: boolean; closing?: boolean; error?: string
 }
 export interface StopRules {
   loss_pct: number | null
@@ -74,6 +87,7 @@ export interface NBreakoutParams {
   lookback: number
 }
 export interface AITradingTask {
+  profit_lock_state?: ProfitLockState
   id: string
   user_id: string
   name: string

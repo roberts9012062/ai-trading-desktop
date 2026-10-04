@@ -66,10 +66,11 @@ export async function scanHunter(group: Hunter, abort: AbortSignal): Promise<voi
         progress("发现 " + x.symbol.toUpperCase() + " " + c.label + "机会，服务器复核中")
         try {
           validateLeverage(group.config.leverage ?? 1, Math.abs(signal.entry - signal.stop) / signal.entry)
-          await hunterApi.mount(group.id, { symbol: x.symbol, cycle, direction, signal_at: Math.floor(signal.signal_at) }, abort)
+          const mounted = await hunterApi.mount(group.id, { symbol: x.symbol, cycle, direction, signal_at: Math.floor(signal.signal_at) }, abort)
           if (abort.aborted) return
           await useHunterStore.getState().refresh(abort)
           await useAITradingStore.getState().loadTasks({ silent: true })
+          if (mounted.skipped) { rejection = mounted.reason ?? "锁利冷却中"; progress(rejection); continue }
           progress("机会已挂载；服务器管理交易，继续寻找下一机会")
           return // Refresh reservations before the next mount.
         } catch (e) {

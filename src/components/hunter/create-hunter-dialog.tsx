@@ -10,6 +10,8 @@ import { useAuthStore } from "@/stores/auth"
 import { useHunterStore } from "@/stores/hunter"
 import { hunterApi, canStartHunter, hunterAccountLabel, type HunterCapabilities, type HunterConfig, type HunterSymbol } from "@/lib/hunter/api"
 import { HunterSymbolMultiSelect } from "./symbol-multi-select"
+import { ProfitLockSettings } from "@/components/ai-trading/form/profit-lock-settings"
+import { DEFAULT_PROFIT_LOCK, buildProfitLockConfig } from "@/lib/profit-lock"
 import { CYCLES, validateLeverage, type Cycle } from "@/lib/hunter/rules"
 
 const selectClass = "w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm"
@@ -21,6 +23,7 @@ const initial: HunterConfig = {
 
 export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [config, setConfig] = useState<HunterConfig>(initial)
+  const [profitLock, setProfitLock] = useState(DEFAULT_PROFIT_LOCK)
   const [models, setModels] = useState<AIModel[]>([])
   const [symbols, setSymbols] = useState<HunterSymbol[]>([])
   const [symbolsLoading, setSymbolsLoading] = useState(false)
@@ -70,6 +73,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
     setBusy(true)
     try {
       await create({ ...config, name: config.name.trim(),
+        profit_lock: buildProfitLockConfig(profitLock),
         model_id: config.brain === "rules" ? null : config.model_id })
       onClose()
     } catch (e) { setError(e instanceof Error ? e.message : "创建失败") } finally { setBusy(false) }
@@ -110,6 +114,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
         <p className="text-xs text-[var(--text-muted)]">保证金 = 仓位名义价值 ÷ 杠杆；手续费按完整仓位计算。杠杆不提高单笔风险预算或单币名义仓位上限；止损及估算成本超过初始保证金 50% 的机会会跳过，不会强行缩短结构止损。</p>
         <p className="text-xs text-[var(--text-muted)]">两种模式都遵守单笔止损与策略总风险限额。OKX API 模拟盘和实盘按交易设置中的凭证类型执行，并向交易所提交所选保证金模式和保护单；站内模拟撮合使用统一资金账本。</p>
       </fieldset>
+      <ProfitLockSettings value={profitLock} onChange={setProfitLock} />
       <details className="rounded-md border border-[var(--border)] p-3 text-xs space-y-2">
         <summary className="cursor-pointer text-sm">下单、止盈和亏损平仓标准</summary>
         <p>只使用已收盘 K 线：大盘与币种趋势同向，相对强弱进入币池前/后 {config.strategy_version === "hunter-v2" ? "30%" : "20%"}。{config.strategy_version === "hunter-v2" ? "放量突破回踩确认，或 EMA20 趋势回调企稳确认后申请挂载。" : "放量突破、回踩及收盘确认后申请挂载。"}服务器再次复核报价、成本、风险预算及已有仓位。</p>

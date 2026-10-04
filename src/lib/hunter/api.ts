@@ -1,4 +1,5 @@
 import type { Bar, Cycle, Direction, RuleVersion, EntryKind } from "./rules"
+import type { ProfitLockConfig } from "../ai-trading-api"
 
 export interface HunterConfig {
   name: string; capital: number; leverage: number; venue: "okx"; margin_mode: "isolated" | "cross"; cycles: Cycle[];
@@ -6,6 +7,7 @@ export interface HunterConfig {
   direction: "long" | "both"; whitelist: string[]; blacklist: string[];
   pool_size: number; max_positions: number; scan_seconds: number;
   strategy_version?: RuleVersion;
+  profit_lock?: ProfitLockConfig;
 }
 export interface Opportunity {
   id: string; task_id: string | null; symbol: string; cycle: Cycle; status: string;
@@ -69,6 +71,6 @@ export const hunterApi = {
   universe: (id: string, signal?: AbortSignal) => request<HunterTicker[]>("/groups/" + id + "/universe", {}, signal),
   data: (id: string, symbol: string, cycle: Cycle, signal?: AbortSignal) => request<HunterData>("/groups/" + id + "/data?" + new URLSearchParams({ symbol, cycle }), {}, signal),
   snapshot: <T extends RankingSnapshot | ContextSnapshot>(id: string, body: SnapshotBody, signal?: AbortSignal) => request<{ items: T[] }>("/groups/" + id + "/snapshot", { method: "POST", body: JSON.stringify(body) }, signal),
-  mount: (id: string, body: { symbol: string; cycle: Cycle; direction: Direction; signal_at: number; entry_kind?: EntryKind }, signal?: AbortSignal) => request<{ id: string; task_id: string; duplicate: boolean }>("/groups/" + id + "/mount", { method: "POST", body: JSON.stringify(body) }, signal),
+  mount: (id: string, body: { symbol: string; cycle: Cycle; direction: Direction; signal_at: number; entry_kind?: EntryKind }, signal?: AbortSignal) => request<{ id?: string; task_id?: string; duplicate?: boolean; skipped?: boolean; reason?: string }>("/groups/" + id + "/mount", { method: "POST", body: JSON.stringify(body) }, signal),
   control: (id: string, action: "pause" | "resume" | "stop" | "stop_close" | "upgrade") => request<Hunter>("/groups/" + id + "/control", { method: "POST", body: JSON.stringify({ action }) }),
 }

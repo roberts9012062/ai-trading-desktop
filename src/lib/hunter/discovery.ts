@@ -159,9 +159,10 @@ export class BalancedDiscovery {
           const latest = useHunterStore.getState().groups.find(g => g.id === group.id)
           if (!this.current(group, signal) || !latest || latest.opportunities.filter(o => !o.finished_at).length >= latest.config.max_positions || latest.opportunities.some(o => !o.finished_at && o.symbol === candidate.symbol)) return false
           if (Date.now()/1000 > entry.expires_at) throw new Error("候选等待期间已过期")
-          await hunterApi.mount(group.id, { symbol: candidate.symbol, cycle, direction: candidate.direction, signal_at: Math.floor(entry.signal_at), entry_kind: entry.entry_kind }, signal)
+          const result = await hunterApi.mount(group.id, { symbol: candidate.symbol, cycle, direction: candidate.direction, signal_at: Math.floor(entry.signal_at), entry_kind: entry.entry_kind }, signal)
           // Reconcile reservations even if the group was stopped during the request.
           if (!signal.aborted) { await useHunterStore.getState().refresh(signal); await useAITradingStore.getState().loadTasks({ silent: true }) }
+          if (result.skipped) { rejection = result.reason ?? "锁利冷却中"; return false }
           return true
         })
         this.mounts = mount
