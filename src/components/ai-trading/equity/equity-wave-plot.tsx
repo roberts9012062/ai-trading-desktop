@@ -5,7 +5,8 @@ import type { AITradingTask } from "@/lib/ai-trading-api"
 import { resolveSeriesColor } from "@/lib/provider-avatar"
 import { EquityEndBadges } from "./equity-end-badges"
 import { formatBj } from "./equity-time"
-import { wavePath, waveTimeRange, type EquityTraces, type WaveSample } from "./equity-wave-data"
+import { wavePath, type EquityTraces, type WaveSample } from "./equity-wave-data"
+import { dayWaveSamples, displayWaveSamples, type WaveDay } from "./equity-wave-day"
 
 const HEIGHT = 340
 const TOP = 28, BOTTOM = 48, LEFT = 18, RIGHT = 80
@@ -14,8 +15,8 @@ function timeText(time: number, long = false): string {
   return formatBj(time / 1000, { ...(long ? { month: "2-digit", day: "2-digit" } as const : {}), hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
 }
 /** SVG x coordinates are proportional to actual observation time, including uneven intervals. */
-export function EquityWavePlot({ tasks, traces, highlightTaskId }: {
-  tasks: AITradingTask[]; traces: EquityTraces; highlightTaskId: string | null
+export function EquityWavePlot({ tasks, traces, highlightTaskId, day }: {
+  tasks: AITradingTask[]; traces: EquityTraces; highlightTaskId: string | null; day: WaveDay | null
 }): React.JSX.Element {
   const container = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(800)
@@ -29,8 +30,8 @@ export function EquityWavePlot({ tasks, traces, highlightTaskId }: {
   }, [])
 
   const model = useMemo(() => {
-    const samples = tasks.flatMap(t => traces[t.id]?.samples ?? [])
-    const range = waveTimeRange(samples)
+    const samples = tasks.flatMap(t => dayWaveSamples(traces[t.id]?.samples ?? [], day))
+    const range = day ?? { from: 0, to: 86400000 }
     let low = 0, high = 0
     for (const point of samples) { low = Math.min(low, point.value); high = Math.max(high, point.value) }
     const pad = Math.max(.1, (high - low) * .15)
@@ -38,22 +39,22 @@ export function EquityWavePlot({ tasks, traces, highlightTaskId }: {
     const x = (time: number) => LEFT + (time - range.from) / (range.to - range.from) * (width - LEFT - RIGHT)
     const y = (value: number) => TOP + (high - value) / (high - low) * (HEIGHT - TOP - BOTTOM)
     const lines = tasks.map((task, i) => {
-      const points = traces[task.id]?.samples ?? []
+      const points = dayWaveSamples(traces[task.id]?.samples ?? [], day)
       const color = resolveSeriesColor(task.model_id, task.provider_name, task.model_display_name, i)
-      return { task, points, color, path: wavePath(points, x, y) }
+      const displayPoints = displayWaveSamples(points, width - LEFT - RIGHT, range)
+      return { task, points, displayPoints, color, path: wavePath(displayPoints, x, y) }
     })
     return { range, low, high, x, y, lines, count: samples.length }
-  }, [tasks, traces, width])
+  }, [tasks, traces, width, day])
 
   const badges = model.lines.flatMap(line => {
     const last = line.points.at(-1)
     return last ? [{ taskId: line.task.id, left: model.x(last.time), top: model.y(last.value), value: last.value, color: line.color }] : []
   })
   const activeHover = hover && model.lines.find(line => line.task.id === hover.taskId && line.points.some(p => p.time === hover.sample.time && p.value === hover.sample.value))
-  const longAxis = model.range.to - model.range.from >= 86400000
 
   return <div ref={container} className="relative rounded-xl border border-white/5 bg-black/20 overflow-hidden" data-testid="equity-wave-plot">
-    <svg width="100%" height={HEIGHT} viewBox={`0 0 ${width} ${HEIGHT}`} role="img" aria-label="当前持仓浮动盈亏贝塞尔波段图，单位 USDT"
+    <svg width="100%" height={HEIGHT} viewBox={`0 0 ${width} ${HEIGHT}`} data-day-start={day?.from} data-day-end={day?.to} role="img" aria-label="北京时间00:00至24:00当前持仓浮动盈亏贝塞尔波段图，单位 USDT"
       onPointerLeave={() => setHover(null)}
       onPointerMove={event => {
         if (!model.count) return
@@ -81,13 +82,13 @@ export function EquityWavePlot({ tasks, traces, highlightTaskId }: {
       })}
       <line x1={LEFT} x2={width - RIGHT} y1={model.y(0)} y2={model.y(0)} stroke="rgba(148,163,184,.45)" strokeDasharray="4 5" />
       <text x={width - RIGHT + 12} y={18} fill="var(--text-muted)" fontSize={10}>浮盈 USDT</text>
-      {(width < 520 ? [0, .5, 1] : [0, .25, .5, .75, 1]).map((fraction, i) => {
-        const t = model.range.from + (model.range.to - model.range.from) * fraction, x = model.x(t)
-        return <g key={`x${i}`}><line x1={x} x2={x} y1={TOP} y2={HEIGHT - BOTTOM} stroke="rgba(148,163,184,.06)" />{model.count > 0 && <text x={x} y={HEIGHT - 20} textAnchor={fraction === 0 ? "start" : fraction === 1 ? "end" : "middle"} fill="var(--text-muted)" fontSize={10}>{timeText(t, longAxis)}</text>}</g>
+      {(width < 520 ? [0, 6, 12, 18, 24] : [0, 4, 8, 12, 16, 20, 24]).map(hour => {
+        const x = model.x(model.range.from + hour * 3600000)
+        return <g key={hour}><line x1={x} x2={x} y1={TOP} y2={HEIGHT - BOTTOM} stroke="rgba(148,163,184,.06)" /><text data-testid="wave-hour-tick" x={x} y={HEIGHT - 20} textAnchor={hour === 0 ? "start" : hour === 24 ? "end" : "middle"} fill="var(--text-muted)" fontSize={10}>{String(hour).padStart(2, "0")}:00</text></g>
       })}
       <g clipPath={`url(#${clipId})`}>
         {[...model.lines].sort((a, b) => Number(a.task.id === highlightTaskId) - Number(b.task.id === highlightTaskId)).map(line => <g key={line.task.id} opacity={highlightTaskId && highlightTaskId !== line.task.id ? .2 : 1}>
-          <path data-testid="equity-wave-path" data-task-id={line.task.id} data-sample-count={line.points.length} d={line.path} fill="none" stroke={line.color} strokeWidth={highlightTaskId === line.task.id ? 3 : 2.2} strokeLinecap="round" strokeLinejoin="round" />
+          <path data-testid="equity-wave-path" data-task-id={line.task.id} data-sample-count={line.points.length} data-display-count={line.displayPoints.length} d={line.path} fill="none" stroke={line.color} strokeWidth={highlightTaskId === line.task.id ? 3.2 : 2.5} strokeLinecap="round" strokeLinejoin="round" />
           {line.points.filter((_, i) => i === 0 || i === line.points.length - 1 || line.points[i].breakBefore).map(point => <circle key={point.time} cx={model.x(point.time)} cy={model.y(point.value)} r={3} fill={line.color} stroke="var(--bg-secondary)" strokeWidth={1.5} />)}
         </g>)}
       </g>
@@ -102,7 +103,7 @@ export function EquityWavePlot({ tasks, traces, highlightTaskId }: {
       <div className="mt-1 text-[var(--text-muted)]">{timeText(hover.sample.time, true)} · <span style={{ color: activeHover.color }}>{money(hover.sample.value)} USDT</span></div>
     </div>}
     {!model.count && <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2">
-      <span className="text-sm text-[var(--text-secondary)]">暂无持仓收益轨迹</span>
+      <span className="text-sm text-[var(--text-secondary)]">{tasks.length ? "今日轨迹等待有效采样" : "暂无持仓收益轨迹"}</span>
       <span className="text-xs text-[var(--text-muted)]">开仓后实时留痕，完整平仓后清除该笔轨迹</span>
     </div>}
     {model.count > 0 && model.lines.every(line => line.points.length <= 1) && <div className="pointer-events-none absolute bottom-12 left-4 text-[11px] text-[var(--text-muted)]">已记录首个真实收益点，等待后续采样形成波段</div>}

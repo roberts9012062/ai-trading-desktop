@@ -12,7 +12,7 @@ import type { User } from "@/types"
 if (location.hostname !== "127.0.0.1" || location.port !== "5187") throw new Error("仅限隔离验收端口5187")
 let clock = Date.parse("2026-10-04T04:00:00Z"), offline = false
 Date.now = () => clock
-const opening = clock - 240000
+const opening = clock - 43200000
 const owner = { id: "wave-ui-fixture", username: "UI验收", role: "user", trading_mode: "live" } as User
 useAuthStore.setState({ user: owner, accessToken: "ui-fixture-only" })
 localStorage.setItem("access_token", "ui-fixture-only")
@@ -23,9 +23,10 @@ let fixtureTasks = [
   { ...base, id: "wave-c", name: "量化 · 突破策略", model_display_name: "量化 · 突破策略", strategy_type: "ma_cross", model_id: null },
 ] as AITradingTask[]
 let traces: EquityTraces = {}
-for (let i = 0; i <= 80; i++) {
-  fixtureTasks = fixtureTasks.map((task, index) => ({ ...task, position_unrealized: index === 0 ? i * .17 + Math.sin(i / 6) * 1.9 : index === 1 ? 6 * Math.sin(i / 15) - i * .015 : 3 * Math.sin(i / 10) + i * .05 }))
-  traces = updateEquityTraces(traces, fixtureTasks, opening + i * 3000)
+for (let i = 0; i <= 4320; i++) {
+  const step = i / 54
+  fixtureTasks = fixtureTasks.map((task, index) => ({ ...task, position_unrealized: index === 0 ? step * .17 + Math.sin(step / 6) * 1.9 : index === 1 ? 6 * Math.sin(step / 15) - step * .015 : 3 * Math.sin(step / 10) + step * .05 }))
+  traces = updateEquityTraces(traces, fixtureTasks, opening + i * 10000)
 }
 useAITradingStore.setState({ tasks: fixtureTasks, equityTraces: traces, waveOwner: JSON.stringify([owner.id, owner.trading_mode]) })
 globalThis.fetch = async input => {
@@ -47,6 +48,7 @@ function Preview() {
       <button onClick={() => { offline = true; void refresh(20) }}>模拟网络中断</button>
       <button onClick={() => { offline = false; void refresh() }}>恢复报价</button>
       <button onClick={() => setVisible(!visible)}>隐藏/恢复图表</button>
+      <button onClick={() => { clock = Date.parse("2026-10-04T16:00:01Z"); document.dispatchEvent(new Event("visibilitychange")); void refresh() }}>推进到次日00:00</button>
     </div>
     {visible && <EquityChart tasks={tasks} series={{}} traces={waves} profitBars={bars} />}
   </main>

@@ -12,11 +12,15 @@ import { resolveSeriesColor } from "@/lib/provider-avatar"
 import { cn } from "@/lib/utils"
 import { taskLivePnl } from "./equity-data"
 import { buildTaskProfitBars } from "../profit/profit-bar-data"
+import type { Hunter } from "@/lib/hunter/api"
+import { groupHunterRows } from "@/lib/hunter/profit-groups"
 
 interface EquityLegendProps {
   tasks: AITradingTask[]
   series: Record<string, EquityPoint[]>
   values?: Map<string, number>
+  allTasks?: AITradingTask[]
+  hunters?: Hunter[]
   /** 总收益榜数据源（/profit-bars 或 showcase profit_items） */
   profitBars: ProfitCloseBar[]
   highlightTaskId: string | null
@@ -72,6 +76,8 @@ export function EquityLegend({
   tasks,
   series,
   values,
+  allTasks = tasks,
+  hunters = [],
   profitBars,
   highlightTaskId,
   onHighlightChange,
@@ -176,11 +182,16 @@ export function EquityLegend({
   }, [profitBars, taskIndexInChart])
 
   const rows = mode === "floating" ? floatingRows : totalRows
+  const grouped = useMemo(() => groupHunterRows(rows, allTasks, hunters).map(group => {
+    if (!group.hunter) return { ...group, row: group.children[0] }
+    const row = { ...group.children[0], taskId: group.id, displayName: group.hunter.name, modelId: null, providerName: null, icon: null, strategyType: "multi_cycle_hunter", tagText: `${group.children.length} 个子任务`, tagClass: "bg-sky-500/15 text-sky-300", symbol: "", symbolName: "猎手收益汇总", footnote: "点击展开各币收益明细", value: group.children.reduce((sum, child) => sum + child.value, 0) }
+    return { ...group, row }
+  }).sort((a, b) => b.row.value - a.row.value), [rows, allTasks, hunters])
   const maxAbs = useMemo(() => {
     let m = 1
-    for (const r of rows) m = Math.max(m, Math.abs(r.value))
+    for (const r of [...rows, ...grouped.map(group => group.row)]) m = Math.max(m, Math.abs(r.value))
     return m
-  }, [rows])
+  }, [rows, grouped])
 
   return (
     <div className="mt-3">
@@ -208,11 +219,18 @@ export function EquityLegend({
         </p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-          {rows.map((row, rank) => (
+          {grouped.map((group, rank) => group.hunter ? <details key={group.id} className="min-w-0" data-testid="hunter-legend-group">
+            <summary className="list-none cursor-pointer" aria-label={`${group.hunter.name}收益排行组，点击展开`}>
+              <LegendCard row={group.row} rank={rank} maxAbs={maxAbs} highlightTaskId={highlightTaskId} onHighlightChange={onHighlightChange} summary />
+            </summary>
+            <div className="mt-2 space-y-2">
+              {group.children.map((row, index) => <LegendCard key={row.taskId} row={row} task={tasks.find(t => t.id === row.taskId)} rank={index} maxAbs={maxAbs} highlightTaskId={highlightTaskId} onHighlightChange={onHighlightChange} />)}
+            </div>
+          </details> : (
             <LegendCard
-              key={row.taskId}
-              row={row}
-              task={tasks.find(task => task.id === row.taskId)}
+              key={group.id}
+              row={group.row}
+              task={tasks.find(task => task.id === group.id)}
               rank={rank}
               maxAbs={maxAbs}
               highlightTaskId={highlightTaskId}
@@ -266,6 +284,7 @@ function LegendCard({
   maxAbs,
   highlightTaskId,
   onHighlightChange,
+  summary = false,
 }: {
   row: LegendRow
   task?: AITradingTask
@@ -273,6 +292,7 @@ function LegendCard({
   maxAbs: number
   highlightTaskId: string | null
   onHighlightChange: (id: string | null) => void
+  summary?: boolean
 }): React.JSX.Element {
   const last = row.value
   const barPct = Math.min(100, (Math.abs(last) / maxAbs) * 100)
@@ -282,8 +302,8 @@ function LegendCard({
 
   return (
     <div
-      role="button"
-      tabIndex={0}
+      role={summary ? undefined : "button"}
+      tabIndex={summary ? undefined : 0}
       onMouseEnter={() => onHighlightChange(row.taskId)}
       onMouseLeave={() => onHighlightChange(null)}
       onFocus={() => onHighlightChange(row.taskId)}

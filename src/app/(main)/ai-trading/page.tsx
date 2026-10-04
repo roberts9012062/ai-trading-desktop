@@ -32,6 +32,7 @@ export default function AITradingPage(): React.JSX.Element {
   const tasks = useAITradingStore((s) => s.tasks)
   const equitySeries = useAITradingStore((s) => s.equitySeries)
   const equityTraces = useAITradingStore((s) => s.equityTraces)
+  const hunterGroups = useHunterStore(s => s.groups)
   const profitBars = useAITradingStore((s) => s.profitBars)
   const profitTotalRealized = useAITradingStore((s) => s.profitTotalRealized)
   const profitTotalUnrealized = useAITradingStore((s) => s.profitTotalUnrealized)
@@ -174,7 +175,7 @@ export default function AITradingPage(): React.JSX.Element {
         </div>
       )}
 
-      <EquityChart tasks={tasks} series={equitySeries} traces={equityTraces} profitBars={profitBars} />
+      <EquityChart tasks={tasks} series={equitySeries} traces={equityTraces} profitBars={profitBars} hunters={hunterGroups} />
       <HunterPanel />
 
       <ProfitBarChart
@@ -184,6 +185,8 @@ export default function AITradingPage(): React.JSX.Element {
         totalPnl={profitTotalPnl}
         openPositionCount={profitOpenCount}
         loading={profitLoading}
+        hunters={hunterGroups}
+        tasks={tasks}
       />
 
       <div>

@@ -11,8 +11,9 @@ it("renders observed position data consistently without deriving a day reset fro
   const props = { tasks: [task], series: {}, traces }
   const markup = renderToString(createElement(EquityChart, props))
   expect(markup).toContain("贝塞尔持仓波段")
-  expect(markup).toContain("data-sample-count=\"1\"")
-  expect(markup).not.toContain("00:00→24:00")
+  expect(markup).toContain("data-sample-count=\"0\"")
+  expect(markup).toContain("00:00→24:00")
+  expect(markup).toContain("24:00")
   expect(renderToString(createElement(EquityChart, props))).toBe(markup)
   const closed = renderToString(createElement(EquityChart, { ...props, tasks: [{ ...task, position_qty: 0, position_direction: null, has_open_position: false }] }))
   expect(closed).toContain("暂无持仓收益轨迹")

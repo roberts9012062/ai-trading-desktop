@@ -6,7 +6,9 @@
  */
 
 import { useMemo, useState } from "react"
-import type { ProfitCloseBar } from "@/lib/ai-trading-api"
+import type { ProfitCloseBar, AITradingTask } from "@/lib/ai-trading-api"
+import type { Hunter } from "@/lib/hunter/api"
+import { groupHunterRows } from "@/lib/hunter/profit-groups"
 import { TaskIcon } from "@/components/ai-trading/task-icon"
 import {
   barWidthPct,
@@ -23,6 +25,8 @@ interface ProfitBarChartProps {
   totalPnl: number
   openPositionCount: number
   loading: boolean
+  hunters?: Hunter[]
+  tasks?: AITradingTask[]
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -39,19 +43,28 @@ export function ProfitBarChart({
   totalPnl,
   openPositionCount,
   loading,
+  hunters = [],
+  tasks = [],
 }: ProfitBarChartProps): React.JSX.Element {
   const bars = useMemo(() => buildTaskProfitBars(items), [items])
+  const grouped = useMemo(() => groupHunterRows(bars, tasks, hunters).map(group => {
+    if (!group.hunter) return { ...group, bar: group.children[0] }
+    const realized = group.children.reduce((sum, child) => sum + child.realized, 0)
+    const unrealized = group.children.reduce((sum, child) => sum + child.unrealized, 0)
+    return { ...group, bar: { ...group.children[0], taskId: group.id, name: group.hunter.name, symbolName: `${group.children.length} 个子任务`, symbol: "", modelDisplayName: group.hunter.name, modelId: null, providerName: null, icon: null, strategyType: "multi_cycle_hunter", realized, unrealized, totalPnl: group.children.reduce((sum, child) => sum + child.totalPnl, 0), hasOpen: group.children.some(child => child.hasOpen), status: group.hunter.status } }
+  }), [bars, tasks, hunters])
+  const hasGroups = grouped.some(group => group.hunter)
   const [hoverId, setHoverId] = useState<string | null>(null)
 
   const maxAbs = useMemo(() => {
     let m = 0
-    for (const b of bars) m = Math.max(m, Math.abs(b.totalPnl))
+    for (const b of [...bars, ...grouped.map(group => group.bar)]) m = Math.max(m, Math.abs(b.totalPnl))
     return m > 0 ? m : 1
-  }, [bars])
+  }, [bars, grouped])
 
   const hover = useMemo(
-    () => bars.find((b) => b.taskId === hoverId) ?? null,
-    [bars, hoverId],
+    () => [...grouped.map(group => group.bar), ...bars].find((b) => b.taskId === hoverId) ?? null,
+    [bars, grouped, hoverId],
   )
   const displayTotal = hover ? hover.totalPnl : totalPnl
   const winCount = bars.filter((b) => b.totalPnl > 0).length
@@ -75,11 +88,11 @@ export function ProfitBarChart({
                 总收益柱状图
               </h3>
               <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-300">
-                一任务一柱 · 横向
+                {hasGroups ? "普通任务一柱 · 猎手一组" : "一任务一柱 · 横向"}
               </span>
             </div>
             <p className="text-[11px] text-[var(--text-muted)] mt-1">
-              每个任务一根横向柱：总收益 = 已实现 + 持仓浮盈
+              {hasGroups ? "猎手汇总为一根收益柱，点击展开各币明细；总收益 = 已实现 + 持仓浮盈" : "每个任务一根横向柱：总收益 = 已实现 + 持仓浮盈"}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -132,12 +145,20 @@ export function ProfitBarChart({
             </div>
           ) : (
             <div className="space-y-2">
-              {bars.map((bar) => (
+              {grouped.map(group => group.hunter ? <details key={group.id} className="rounded-lg border border-[var(--border)] p-1" data-testid="hunter-profit-group" data-hunter-id={group.hunter.id}>
+                <summary className="cursor-pointer list-none" aria-label={`${group.hunter.name}收益组，点击展开`}>
+                  <TaskBarRow bar={group.bar} maxAbs={maxAbs} active={hoverId === group.id} onHover={setHoverId} />
+                  <p className="px-2 pb-1 text-[10px] text-[var(--text-muted)]">{group.children.length} 个子任务 · 点击展开 / 收起</p>
+                </summary>
+                <div className="ml-3 mt-2 border-l border-[var(--border)] pl-2 space-y-2" data-testid="hunter-profit-children">
+                  {group.children.map(bar => <TaskBarRow key={bar.taskId} bar={bar} maxAbs={maxAbs} active={hoverId === bar.taskId} onHover={setHoverId} />)}
+                </div>
+              </details> : (
                 <TaskBarRow
-                  key={bar.taskId}
-                  bar={bar}
+                  key={group.id}
+                  bar={group.bar}
                   maxAbs={maxAbs}
-                  active={hoverId === bar.taskId}
+                  active={hoverId === group.id}
                   onHover={setHoverId}
                 />
               ))}

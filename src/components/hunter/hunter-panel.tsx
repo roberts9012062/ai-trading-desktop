@@ -7,6 +7,7 @@ import { TaskProfitLockStatus } from "@/components/ai-trading/profit-lock-status
 import { useAITradingStore } from "@/stores/ai-trading"
 import { CYCLES } from "@/lib/hunter/rules"
 import { hunterAccountLabel } from "@/lib/hunter/api"
+import { HunterProfitSummary } from "./hunter-profit-summary"
 
 const money = (n: number) => n.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const labels = { running: "搜索中", paused: "搜索暂停", stopping: "正在退出持仓", stopped: "搜索已停止" }
@@ -39,7 +40,7 @@ export function HunterPanel() {
       <div className="flex justify-between gap-3 flex-wrap">
         <div><strong className="text-sm">{g.name}</strong><span className="ml-2 text-xs text-[var(--text-muted)]">{labels[g.status]} · {hunterAccountLabel(g.runtime.execution_account?.execution_mode ?? (g.trading_mode === "virtual" ? "virtual" : undefined))} · {g.config.venue.toUpperCase()} · {g.config.leverage ?? 1} 倍{g.config.margin_mode === "cross" ? "全仓" : "逐仓"} · {g.config.brain === "rules" ? "规则" : g.config.brain === "jev" ? "Jev" : "AI 大模型"}</span>
           <p className="text-xs text-[var(--text-muted)] mt-1">{g.config.strategy_version === "hunter-v4" ? "波段持有版 · 计划净3:1 / 多周期延续 / 确认反转退出" : g.config.strategy_version === "hunter-v3" ? "机会增强版 · 突破回踩 / 趋势回调 / 短线延续 · 小时覆盖检查" : g.config.strategy_version === "hunter-v2" ? "均衡版 · 突破回踩 / 趋势回调 · 周期独立扫描" : "原版 · 突破回踩"}</p>
-          <p className="text-xs text-[var(--text-muted)] mt-1 whitespace-pre-line">{progress[g.id] ?? "等待桌面扫描；已挂载持仓由服务器管理"}</p></div>
+          <p className="text-xs text-[var(--text-muted)] mt-1 whitespace-pre-line line-clamp-1" title={progress[g.id]}>{progress[g.id] ?? "等待桌面扫描；已挂载持仓由服务器管理"}</p></div>
         <div className="flex gap-2 flex-wrap">
           <LiveProfitLockControl targetId={g.id} name={g.name} hunter config={g.config.profit_lock} disabled={busy === g.id} onSave={config => setProfitLock(g.id, config)} />
           {(g.status === "running" || g.status === "paused") && (g.config.strategy_version ?? "hunter-v1") === "hunter-v1" && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade")}>启用均衡版</Button>}
@@ -50,6 +51,10 @@ export function HunterPanel() {
           {g.opportunities.some(o => !o.finished_at) && <Button size="sm" variant="outline" disabled={busy === g.id || g.status === "stopping"} onClick={() => void action(g.id, "stop_close")}>停止并平仓</Button>}
         </div>
       </div>
+      <HunterProfitSummary hunter={g} />
+      <details data-testid="hunter-statistics-group" className="rounded-lg border border-[var(--border)] p-3">
+      <summary className="cursor-pointer text-xs text-[var(--text-secondary)]">展开猎手明细 · {g.opportunities.length} 个交易任务</summary>
+      <div className="mt-3 space-y-3">
       {(g.config.strategy_version === "hunter-v3" || g.config.strategy_version === "hunter-v4") && <div className="rounded-md border border-[var(--border)] p-3 text-xs space-y-1" aria-label="小时扫描检查">
         {g.runtime.discovery ? <>
           <p>近1小时：规则信号 {g.runtime.discovery.hour_signals} 个（待成本和模型复核） · 服务器已挂载 {g.runtime.discovery.hour_mounted} 个</p>
@@ -84,8 +89,8 @@ export function HunterPanel() {
         <p className="text-[11px] text-[var(--text-muted)] mt-2">进入观察池表示排名和趋势通过；等待入场确认，仍须通过服务器复核。排名、趋势失效或已有持仓后移出。</p>
         <div className="flex flex-wrap gap-2 mt-2">{(watches[g.id] ?? []).map(w => <span key={w.cycle+":"+w.symbol+":"+w.direction} className="text-xs rounded border border-[var(--border)] px-2 py-1">{w.symbol.toUpperCase()} · {CYCLES[w.cycle].label} · {w.direction === "long" ? "多" : "空"} · {w.stage}</span>)}</div>
       </details>}
-      <details>
-        <summary className="text-xs cursor-pointer">查看交易任务（{g.opportunities.length}）与止损</summary>
+      <div>
+        <p className="text-xs">交易任务（{g.opportunities.length}）与止损</p>
         <div className="overflow-x-auto mt-2"><table className="w-full text-xs text-left">
           <thead><tr className="text-[var(--text-muted)]"><th className="p-2">币种 / 周期</th><th>状态</th><th>入场 / 止损</th><th>净收益</th></tr></thead>
           <tbody>{g.opportunities.map(o => <tr key={o.id} className="border-t border-[var(--border)]">
@@ -95,8 +100,9 @@ export function HunterPanel() {
             <td>{money(o.net_profit)}<span className="block text-[var(--text-muted)]">{o.runtime.note ?? o.runtime.reason ?? ""}</span></td>
           </tr>)}</tbody>
         </table></div>
-      </details>
+      </div>
       <p className="text-[11px] text-[var(--text-muted)]">{g.trading_mode === "live" ? "OKX API 执行 · 成交费用及已对账资金费计入收益，模型调用费另计" : "站内模拟研究 · 成交手续费已计入，资金费和模型费尚未模拟结算"}；尚未取得独立盈利验证。停止搜索不会关闭已有持仓保护。</p>
+      </div></details>
     </article>)}
   </section>
 }
