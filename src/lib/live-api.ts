@@ -382,6 +382,12 @@ export interface DailyPnlRow {
   date: string // 北京自然日 YYYY-MM-DD
   pnl: number
   fee: number
+  /** 手续费净支出（返佣为负）；新服务器提供 */
+  fee_cost?: number
+  /** 已结算资金费收支：收入为正、支出为负 */
+  funding?: number
+  /** 毛平仓盈亏减手续费，加已结算资金费；避免客户端重复扣费 */
+  net_after_costs?: number
   /** 盈利平仓合计（逐笔 fillPnl>0） */
   win_pnl: number
   /** 亏损平仓合计（逐笔 fillPnl<0） */

@@ -5,6 +5,7 @@ import { useMarketStore } from "@/stores/market"
 import { usePaperTradingStore } from "@/stores/paper-trading"
 import { positionPnl } from "@/lib/position-pnl"
 import { getDailyPnlApi } from "@/lib/live-api"
+import { dailyNetPnl, paperTodayNetPnl } from "@/lib/daily-net-pnl"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
@@ -47,7 +48,7 @@ function MetricCell({
       >
         {value}
       </div>
-      <div className="text-[10px] text-[var(--text-muted)] truncate mt-0.5">
+      <div title={sub} className="text-[10px] text-[var(--text-muted)] truncate mt-0.5">
         {sub}
       </div>
     </div>
@@ -70,6 +71,7 @@ export function MetricsPanel(): React.JSX.Element {
     win: number
     loss: number
     fee: number
+    funding: number
     trades: number
   } | null>(null)
   useEffect(() => {
@@ -89,16 +91,18 @@ export function MetricsPanel(): React.JSX.Element {
         setOkxToday(
           row
             ? {
-                net: row.net,
+                net: dailyNetPnl(row),
                 win: row.win_pnl ?? 0,
                 loss: row.loss_pnl ?? 0,
-                fee: row.fee ?? 0,
+                fee: row.fee_cost ?? row.fee ?? 0,
+                funding: row.funding ?? 0,
                 trades: row.trades,
               }
-            : { net: 0, win: 0, loss: 0, fee: 0, trades: 0 }
+            : res.summary ? { net: 0, win: 0, loss: 0, fee: 0, funding: 0, trades: 0 } : null
         )
       } catch {
-        /* 拉取失败保持 null，回退镜像口径 */
+        /* 无权威费用数据时显示占位，避免把镜像毛盈亏冒充净利润 */
+        if (alive) setOkxToday(null)
       }
     }
     load()
@@ -109,8 +113,7 @@ export function MetricsPanel(): React.JSX.Element {
     }
   }, [mode])
 
-  /** 今日已实现盈利：实盘=OKX 成交口径（北京自然日，毛盈亏）；
-   *  虚拟盘=本地自然日已成交平仓单合计 */
+  /** 北京自然日扣费净利润：包含当日开/平仓手续费和已结算资金费。 */
   const todayRealized = useMemo(() => {
     if (mode === "live" && okxToday !== null) {
       return {
@@ -119,20 +122,11 @@ export function MetricsPanel(): React.JSX.Element {
         win: okxToday.win,
         loss: okxToday.loss,
         fee: okxToday.fee,
+        funding: okxToday.funding,
       }
     }
-    const dayStart = new Date()
-    dayStart.setHours(0, 0, 0, 0)
-    let sum = 0
-    let count = 0
-    for (const o of orders) {
-      if (o.offset !== "close" || o.status !== "filled") continue
-      const t = new Date(o.filled_at || o.updated_at || o.created_at).getTime()
-      if (!Number.isFinite(t) || t < dayStart.getTime()) continue
-      sum += Number(o.realized_pnl || 0)
-      count += 1
-    }
-    return { sum, count, win: null, loss: null, fee: null }
+    if (mode === "live") return { sum: NaN, count: 0, win: null, loss: null, fee: 0, funding: 0 }
+    return paperTodayNetPnl(orders)
   }, [mode, okxToday, orders])
 
   /** 持仓浮动盈亏合计 + 多空结构（按保证金权重）+ 保证金占用 */
@@ -200,17 +194,17 @@ export function MetricsPanel(): React.JSX.Element {
 
   const cells = [
     {
-      label: "今日平仓盈亏",
+      label: "今日平仓净利润",
       value: `${todayRealized.sum > 0 ? "+" : ""}${fmtMoney(todayRealized.sum)}`,
       valueClass: pnlColor(todayRealized.sum),
       sub:
         mode === "live" && todayRealized.win !== null
           ? todayRealized.count > 0
-            ? `赚 ${fmtMoney(todayRealized.win ?? 0)} · 亏 ${fmtMoney(Math.abs(todayRealized.loss ?? 0))} · 费 ${fmtMoney(todayRealized.fee ?? 0)}`
-            : "OKX 口径 · 今日暂无平仓"
-          : todayRealized.count > 0
-            ? `今日平仓 ${todayRealized.count} 笔`
-            : "今日暂无平仓",
+            ? `已计手续费 ${fmtMoney(todayRealized.fee)} · 资金费 ${todayRealized.funding > 0 ? "+" : ""}${fmtMoney(todayRealized.funding)}`
+            : `已扣费 · 资金费 ${todayRealized.funding > 0 ? "+" : ""}${fmtMoney(todayRealized.funding)}`
+          : mode === "live"
+            ? "交易所净利润暂不可用"
+            : `今日平仓 ${todayRealized.count} 笔 · 已计手续费 ${fmtMoney(todayRealized.fee)}`,
     },
     {
       label: "持仓浮动盈亏",
