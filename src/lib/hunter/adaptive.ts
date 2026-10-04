@@ -1,7 +1,7 @@
 import { atr, ema, closedBars, findSignal, trend, type Bar, type Cycle, type Direction, type RuleVersion, type Signal } from "./rules"
 
 export function marketAllows(rows: Bar[], cycle: Cycle, direction: Direction, weekly: Bar[] = [], version?: RuleVersion) {
-  if (version !== "hunter-v3" || cycle !== "short") return trend(rows, cycle, direction, weekly)
+  if ((version !== "hunter-v3" && version !== "hunter-v4") || cycle !== "short") return trend(rows, cycle, direction, weekly)
   if (rows.length < 64) return false
   const values = rows.map(b => b[4]), f = ema(values, 20), s = ema(values, 60), a = atr(rows), n = rows.length-1, sign = direction === "long" ? 1 : -1
   if (a <= 0) return false

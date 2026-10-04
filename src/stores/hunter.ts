@@ -11,7 +11,7 @@ interface HunterState {
   refresh: (signal?: AbortSignal) => Promise<void>;
   create: (cfg: HunterConfig) => Promise<void>;
   setProfitLock: (id: string, config: ProfitLockConfig) => Promise<void>;
-  control: (id: string, action: "pause" | "resume" | "stop" | "stop_close" | "upgrade" | "upgrade_adaptive", poolSize?: number) => Promise<void>;
+  control: (id: string, action: "pause" | "resume" | "stop" | "stop_close" | "upgrade" | "upgrade_adaptive" | "upgrade_swing", poolSize?: number) => Promise<void>;
   setProgress: (id: string, message: string) => void;
   setWatch: (id: string, cycle: Cycle, entries: HunterWatch[]) => void;
   reset: () => void;

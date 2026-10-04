@@ -1,0 +1,479 @@
+{
+  "snapshot_sha256": "f9564c4deb22ef7ffd9f70328c4b0300e41b8a4653295da260ff86c9f36419a8",
+  "hours": 24,
+  "assumptions": {
+    "short_only": true,
+    "fixed_current_liquidity_universe": true,
+    "fee_each_side": 0.0005,
+    "slippage_each_side": 0.0001,
+    "historical_funding_depth_absent": true,
+    "next_open_market_fills": true,
+    "stop_first": true,
+    "quote_peaks_close_only": true,
+    "live_orders": false,
+    "independent_validation": false
+  },
+  "results": [
+    {
+      "version": "hunter-v3",
+      "signals": 105,
+      "finished_trades": 26,
+      "wins": 7,
+      "losses": 19,
+      "realised_closed_net": -12.59615657103167,
+      "end_marked_equity": 996.3812592744852,
+      "max_drawdown": 0.020999462130423807,
+      "actual_average_payoff": 1.6748600037366725,
+      "profit_factor": 0.6170536855871952,
+      "open_positions": 1,
+      "rejections": {
+        "risk_cost": 69,
+        "entry_chase": 9
+      },
+      "trades": [
+        {
+          "symbol": "nearusdt",
+          "direction": "short",
+          "opened": 1791003600,
+          "finished": 1791003900,
+          "net": -1.4499449812456835,
+          "reason": "stop",
+          "net_r": -0.9868959609636552
+        },
+        {
+          "symbol": "litusdt",
+          "direction": "short",
+          "opened": 1791003600,
+          "finished": 1791005400,
+          "net": -1.9854433541026486,
+          "reason": "stop",
+          "net_r": -0.9927216770513241
+        },
+        {
+          "symbol": "zamausdt",
+          "direction": "short",
+          "opened": 1791003600,
+          "finished": 1791005700,
+          "net": -1.508436488634051,
+          "reason": "stop",
+          "net_r": -0.9874203547189845
+        },
+        {
+          "symbol": "litusdt",
+          "direction": "short",
+          "opened": 1791008100,
+          "finished": 1791013200,
+          "net": -1.881561607323872,
+          "reason": "stop",
+          "net_r": -0.9900525290992608
+        },
+        {
+          "symbol": "uselessusdt",
+          "direction": "short",
+          "opened": 1791015600,
+          "finished": 1791015900,
+          "net": -0.4832286742131954,
+          "reason": "structure_failed",
+          "net_r": -0.24311668262954733
+        },
+        {
+          "symbol": "pepeusdt",
+          "direction": "short",
+          "opened": 1791015900,
+          "finished": 1791018000,
+          "net": -0.9453379805513717,
+          "reason": "structure_failed",
+          "net_r": -0.654765781991971
+        },
+        {
+          "symbol": "ondousdt",
+          "direction": "short",
+          "opened": 1791003600,
+          "finished": 1791022200,
+          "net": -1.9829577801989908,
+          "reason": "stop",
+          "net_r": -0.9914788900994955
+        },
+        {
+          "symbol": "uniusdt",
+          "direction": "long",
+          "opened": 1791020400,
+          "finished": 1791026100,
+          "net": -1.9661251189213933,
+          "reason": "stop",
+          "net_r": -0.9909739505324906
+        },
+        {
+          "symbol": "grassusdt",
+          "direction": "long",
+          "opened": 1791024300,
+          "finished": 1791026400,
+          "net": -1.9650387270863237,
+          "reason": "stop",
+          "net_r": -0.9936833228935609
+        },
+        {
+          "symbol": "strkusdt",
+          "direction": "long",
+          "opened": 1791027300,
+          "finished": 1791030900,
+          "net": -1.9516818211729674,
+          "reason": "stop",
+          "net_r": -0.9898653974932665
+        },
+        {
+          "symbol": "zecusdt",
+          "direction": "short",
+          "opened": 1791031200,
+          "finished": 1791038700,
+          "net": 1.0677911490380185,
+          "reason": "stop",
+          "net_r": 0.6900415652132709
+        },
+        {
+          "symbol": "filusdt",
+          "direction": "long",
+          "opened": 1791039300,
+          "finished": 1791040500,
+          "net": -1.9325688965173307,
+          "reason": "stop",
+          "net_r": -0.9893457620728088
+        },
+        {
+          "symbol": "zrousdt",
+          "direction": "long",
+          "opened": 1791030300,
+          "finished": 1791044700,
+          "net": 0.0019868275392247933,
+          "reason": "stop",
+          "net_r": 0.0010082151030505028
+        },
+        {
+          "symbol": "grassusdt",
+          "direction": "long",
+          "opened": 1791031500,
+          "finished": 1791044700,
+          "net": -1.951505484703296,
+          "reason": "stop",
+          "net_r": -0.9921057501901508
+        },
+        {
+          "symbol": "wldusdt",
+          "direction": "long",
+          "opened": 1791027300,
+          "finished": 1791047700,
+          "net": -1.9589625239418131,
+          "reason": "stop",
+          "net_r": -0.9935580668936417
+        },
+        {
+          "symbol": "nightusdt",
+          "direction": "long",
+          "opened": 1791051600,
+          "finished": 1791052200,
+          "net": -1.9484844993715964,
+          "reason": "stop",
+          "net_r": -0.9902588245347925
+        },
+        {
+          "symbol": "strkusdt",
+          "direction": "long",
+          "opened": 1791053100,
+          "finished": 1791054000,
+          "net": -1.9564473227136285,
+          "reason": "stop",
+          "net_r": -0.9952880259098958
+        },
+        {
+          "symbol": "zamausdt",
+          "direction": "long",
+          "opened": 1791041100,
+          "finished": 1791057900,
+          "net": 5.186376736371976,
+          "reason": "stop",
+          "net_r": 2.633450859590587
+        },
+        {
+          "symbol": "pumpusdt",
+          "direction": "long",
+          "opened": 1791056700,
+          "finished": 1791063900,
+          "net": 0.634384025340889,
+          "reason": "time_exit",
+          "net_r": 0.32327796314919727
+        },
+        {
+          "symbol": "wldusdt",
+          "direction": "long",
+          "opened": 1791069300,
+          "finished": 1791070800,
+          "net": -1.6471458527313008,
+          "reason": "stop",
+          "net_r": -0.9876432503294404
+        },
+        {
+          "symbol": "bchusdt",
+          "direction": "long",
+          "opened": 1791071100,
+          "finished": 1791076500,
+          "net": -1.9530031615702825,
+          "reason": "stop",
+          "net_r": -0.9910822122342354
+        },
+        {
+          "symbol": "strkusdt",
+          "direction": "long",
+          "opened": 1791060900,
+          "finished": 1791077400,
+          "net": 4.540525182098314,
+          "reason": "stop",
+          "net_r": 2.314457181831842
+        },
+        {
+          "symbol": "opusdt",
+          "direction": "long",
+          "opened": 1791059400,
+          "finished": 1791078900,
+          "net": -1.941397827012172,
+          "reason": "stop",
+          "net_r": -0.9902763180156402
+        },
+        {
+          "symbol": "trumpusdt",
+          "direction": "short",
+          "opened": 1791076800,
+          "finished": 1791079200,
+          "net": -1.4834757766199331,
+          "reason": "stop",
+          "net_r": -0.9874303179676828
+        },
+        {
+          "symbol": "mubarakusdt",
+          "direction": "long",
+          "opened": 1791079200,
+          "finished": 1791082200,
+          "net": 5.966055998813147,
+          "reason": "stop",
+          "net_r": 3.03792438128432
+        },
+        {
+          "symbol": "monusdt",
+          "direction": "long",
+          "opened": 1791063000,
+          "finished": 1791089400,
+          "net": 2.899471388398611,
+          "reason": "stop",
+          "net_r": 1.4808323776349563
+        }
+      ]
+    },
+    {
+      "version": "hunter-v4",
+      "signals": 94,
+      "finished_trades": 21,
+      "wins": 7,
+      "losses": 14,
+      "realised_closed_net": -4.1596255395228425,
+      "end_marked_equity": 995.3165725240639,
+      "max_drawdown": 0.010281677948625365,
+      "actual_average_payoff": 1.549204359697012,
+      "profit_factor": 0.7746021798485061,
+      "open_positions": 1,
+      "rejections": {
+        "risk_cost": 25,
+        "net_target_room": 47
+      },
+      "trades": [
+        {
+          "symbol": "nearusdt",
+          "direction": "short",
+          "opened": 1791003600,
+          "finished": 1791005100,
+          "net": -1.9884308515637366,
+          "reason": "stop",
+          "net_r": -0.9942154257818683
+        },
+        {
+          "symbol": "litusdt",
+          "direction": "short",
+          "opened": 1791003600,
+          "finished": 1791010800,
+          "net": -0.14245745921984315,
+          "reason": "time_exit",
+          "net_r": -0.07122872960992156
+        },
+        {
+          "symbol": "pepeusdt",
+          "direction": "short",
+          "opened": 1791003600,
+          "finished": 1791010800,
+          "net": -0.9479850885519865,
+          "reason": "time_exit",
+          "net_r": -0.47399254427599324
+        },
+        {
+          "symbol": "adausdt",
+          "direction": "short",
+          "opened": 1791011400,
+          "finished": 1791018600,
+          "net": 0.29086177560490273,
+          "reason": "time_exit",
+          "net_r": 0.14588003395850033
+        },
+        {
+          "symbol": "zecusdt",
+          "direction": "short",
+          "opened": 1791013500,
+          "finished": 1791020700,
+          "net": -0.7538785173943311,
+          "reason": "time_exit",
+          "net_r": -0.5013344119231679
+        },
+        {
+          "symbol": "pepeusdt",
+          "direction": "short",
+          "opened": 1791015900,
+          "finished": 1791021000,
+          "net": -1.976862700695169,
+          "reason": "stop",
+          "net_r": -0.9912557097128413
+        },
+        {
+          "symbol": "adausdt",
+          "direction": "short",
+          "opened": 1791019500,
+          "finished": 1791022200,
+          "net": -1.6789387327619536,
+          "reason": "stop",
+          "net_r": -0.9887913193298321
+        },
+        {
+          "symbol": "grassusdt",
+          "direction": "long",
+          "opened": 1791024300,
+          "finished": 1791031500,
+          "net": -0.09433298619259005,
+          "reason": "time_exit",
+          "net_r": -0.04750844422501491
+        },
+        {
+          "symbol": "wldusdt",
+          "direction": "long",
+          "opened": 1791032700,
+          "finished": 1791039900,
+          "net": -0.9165718007816279,
+          "reason": "time_exit",
+          "net_r": -0.461652280156251
+        },
+        {
+          "symbol": "strkusdt",
+          "direction": "long",
+          "opened": 1791040200,
+          "finished": 1791045000,
+          "net": 4.974808658194333,
+          "reason": "stop",
+          "net_r": 2.5088704742459673
+        },
+        {
+          "symbol": "filusdt",
+          "direction": "long",
+          "opened": 1791039300,
+          "finished": 1791046500,
+          "net": -0.9314840375331938,
+          "reason": "time_exit",
+          "net_r": -0.4693160075477044
+        },
+        {
+          "symbol": "strkusdt",
+          "direction": "long",
+          "opened": 1791053100,
+          "finished": 1791054000,
+          "net": -2.001548234007144,
+          "reason": "stop",
+          "net_r": -0.9960520473916774
+        },
+        {
+          "symbol": "zamausdt",
+          "direction": "long",
+          "opened": 1791041100,
+          "finished": 1791057600,
+          "net": 6.8709314035139055,
+          "reason": "stop",
+          "net_r": 3.4547272101418955
+        },
+        {
+          "symbol": "bnbusdt",
+          "direction": "long",
+          "opened": 1791045900,
+          "finished": 1791060900,
+          "net": 1.270657769275677,
+          "reason": "swing_reversal",
+          "net_r": 0.8257717171158133
+        },
+        {
+          "symbol": "pumpusdt",
+          "direction": "long",
+          "opened": 1791056700,
+          "finished": 1791063900,
+          "net": 0.4907028455692388,
+          "reason": "time_exit",
+          "net_r": 0.24448641156218878
+        },
+        {
+          "symbol": "bchusdt",
+          "direction": "long",
+          "opened": 1791070500,
+          "finished": 1791072300,
+          "net": 0.12059216932381565,
+          "reason": "stop",
+          "net_r": 0.06779651280957855
+        },
+        {
+          "symbol": "monusdt",
+          "direction": "long",
+          "opened": 1791066300,
+          "finished": 1791073500,
+          "net": 0.27641508187334696,
+          "reason": "time_exit",
+          "net_r": 0.13786763214392508
+        },
+        {
+          "symbol": "strkusdt",
+          "direction": "long",
+          "opened": 1791069900,
+          "finished": 1791077400,
+          "net": -1.9976180604804439,
+          "reason": "stop",
+          "net_r": -0.9959401116037869
+        },
+        {
+          "symbol": "monusdt",
+          "direction": "long",
+          "opened": 1791078600,
+          "finished": 1791080100,
+          "net": -1.9855887045577585,
+          "reason": "stop",
+          "net_r": -0.9938242761499412
+        },
+        {
+          "symbol": "bchusdt",
+          "direction": "long",
+          "opened": 1791073500,
+          "finished": 1791080700,
+          "net": -1.0564735766672573,
+          "reason": "time_exit",
+          "net_r": -0.5265484636374375
+        },
+        {
+          "symbol": "trumpusdt",
+          "direction": "short",
+          "opened": 1791076800,
+          "finished": 1791081000,
+          "net": -1.9824244924710275,
+          "reason": "stop",
+          "net_r": -0.9909839240836444
+        }
+      ]
+    }
+  ]
+}

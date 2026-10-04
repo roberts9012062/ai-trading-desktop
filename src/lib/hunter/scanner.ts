@@ -4,7 +4,7 @@ import { useHunterStore } from "@/stores/hunter"
 import { useAuthStore } from "@/stores/auth"
 import { useAITradingStore } from "@/stores/ai-trading"
 import { BalancedDiscovery, nextCycleScan } from "./discovery"
-import { BALANCED_VERSION, ADAPTIVE_VERSION, type Cycle } from "./rules"
+import { BALANCED_VERSION, ADAPTIVE_VERSION, SWING_VERSION, type Cycle } from "./rules"
 
 let stopRuntime: (() => void) | null = null
 
@@ -100,10 +100,10 @@ export function startHunterRuntime(): () => void {
     try {
       await useHunterStore.getState().refresh(rootAbort.signal)
       const groups = useHunterStore.getState().groups
-      for (const id of discoveries.keys()) if (!groups.some(g => g.id === id && g.status === "running" && [BALANCED_VERSION, ADAPTIVE_VERSION].includes(g.config.strategy_version!))) discoveries.delete(id)
+      for (const id of discoveries.keys()) if (!groups.some(g => g.id === id && g.status === "running" && [BALANCED_VERSION, ADAPTIVE_VERSION, SWING_VERSION].includes(g.config.strategy_version!))) discoveries.delete(id)
       for (const group of groups) {
         if (rootAbort.signal.aborted) break
-        if (group.status === "running" && [BALANCED_VERSION, ADAPTIVE_VERSION].includes(group.config.strategy_version!)) {
+        if (group.status === "running" && [BALANCED_VERSION, ADAPTIVE_VERSION, SWING_VERSION].includes(group.config.strategy_version!)) {
           if (!discoveries.has(group.id)) discoveries.set(group.id, new BalancedDiscovery(group.id))
           // Launch independently: a slow long-cycle history read never blocks the timer.
           for (const cycle of ["short", "medium", "long"] as Cycle[]) {

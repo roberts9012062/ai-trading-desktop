@@ -90,8 +90,8 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1"><Label htmlFor="hunter-profile">入场规则</Label><select id="hunter-profile" className={selectClass} value={config.strategy_version ?? "hunter-v1"} onChange={e => patch({ strategy_version: e.target.value as HunterConfig["strategy_version"] })}>
-          <option value="hunter-v3">机会增强版 · 突破回踩 + 回调 + 短线延续</option><option value="hunter-v2">均衡版 · 突破回踩 + 趋势回调</option><option value="hunter-v1">原版 · 突破回踩</option>
-        </select><p className="text-xs text-[var(--text-muted)]">{config.strategy_version === "hunter-v3" ? "短线排名前/后50%，增加趋势延续入口；BTC横盘可筛选自身趋势币，逆向趋势或冲击继续拦截。建议50个币＋短线＋双向，按小时显示信号与挂载结果，未达目标会提示；不因超时强制下单。" : "均衡版：排名前/后30%，短线量能1.3倍、信号有效180秒；原版保持原有条件。"} 尚未完成盈利验证。</p></div>
+          <option value="hunter-v4">波段持有版 · 计划净3:1 + 多周期延续 + 确认反转</option><option value="hunter-v3">机会增强版 · 突破回踩 + 回调 + 短线延续</option><option value="hunter-v2">均衡版 · 突破回踩 + 趋势回调</option><option value="hunter-v1">原版 · 突破回踩</option>
+        </select><p className="text-xs text-[var(--text-muted)]">{config.strategy_version === "hunter-v4" ? "50币双向、多周期趋势延续；服务器按最差限价和全部预计成本复核净3:1空间。趋势未反转可持有浮亏至结构止损；禁止摊平。" : config.strategy_version === "hunter-v3" ? "短线排名前/后50%，增加趋势延续入口；BTC横盘可筛选自身趋势币，逆向趋势或冲击继续拦截。建议50个币＋短线＋双向，按小时显示信号与挂载结果，未达目标会提示；不因超时强制下单。" : "均衡版：排名前/后30%，短线量能1.3倍、信号有效180秒；原版保持原有条件。"} 尚未完成盈利验证。</p></div>
         <div className="space-y-1"><Label htmlFor="hunter-name">名称</Label><Input id="hunter-name" maxLength={120} value={config.name} onChange={e => patch({ name: e.target.value })} /></div>
         <div className="space-y-1"><Label htmlFor="hunter-capital">策略资金（USDT）</Label><Input id="hunter-capital" type="number" min={1} value={config.capital} onChange={e => patch({ capital: Number(e.target.value) })} /></div>
         <div className="space-y-1"><Label htmlFor="hunter-margin-mode">资金保证金模式</Label><select id="hunter-margin-mode" className={selectClass} value={config.margin_mode} onChange={e => patch({ margin_mode: e.target.value as HunterConfig["margin_mode"] })}>
@@ -106,8 +106,8 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
       <fieldset className="space-y-2"><legend className="text-sm font-medium">交易周期与风险预算</legend>
         {(Object.keys(CYCLES) as Cycle[]).map(cycle => <label key={cycle} className="flex gap-3 items-start rounded-md border border-[var(--border)] px-3 py-2 text-sm">
           <input type="checkbox" checked={config.cycles.includes(cycle)} onChange={e => patch({ cycles: e.target.checked ? [...config.cycles, cycle] : config.cycles.filter(c => c !== cycle) })} />
-          <span>{CYCLES[cycle].label} · 单笔风险 {CYCLES[cycle].risk*100}% · 第一目标 {CYCLES[cycle].target}R
-            <span className="block text-xs text-[var(--text-muted)]">预算上限 {CYCLES[cycle].budget*100}%；结构止损、分批止盈、移动止损及时间退出。</span>
+          <span>{CYCLES[cycle].label} · 单笔风险 {CYCLES[cycle].risk*100}% · {config.strategy_version === "hunter-v4" ? `扣费后目标 ≥ ${Math.max(3, CYCLES[cycle].target)}:1` : `第一目标 ${CYCLES[cycle].target}R`}
+            <span className="block text-xs text-[var(--text-muted)]">预算上限 {CYCLES[cycle].budget*100}%；{config.strategy_version === "hunter-v4" ? "全仓波段持有、盈利保护与确认反转退出。" : "结构止损、分批止盈、移动止损及时间退出。"}</span>
           </span>
         </label>)}
         <p className="text-xs text-[var(--text-muted)]">保留 20% 资金；单币仓位不超过 20%；合计初始风险不超过 1.2%。目标盈亏比不代表实际收益。</p>
@@ -117,10 +117,11 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
       <ProfitLockSettings value={profitLock} onChange={setProfitLock} />
       <details className="rounded-md border border-[var(--border)] p-3 text-xs space-y-2">
         <summary className="cursor-pointer text-sm">下单、止盈和亏损平仓标准</summary>
-        <p>只使用已收盘 K 线：币种趋势、上市时长和流动性合格，相对强弱进入合格区间。{config.strategy_version === "hunter-v3" ? "短线排名前/后50%，允许BTC横盘，拦截反向趋势及市场冲击；突破回踩、EMA20回调或短线趋势延续收盘确认后申请挂载，中长线保留均衡版条件。" : config.strategy_version === "hunter-v2" ? "排名前/后30%，大盘与币种同向；放量突破回踩或EMA20趋势回调企稳确认后申请挂载。" : "排名前/后20%，大盘与币种同向；放量突破、回踩及收盘确认后申请挂载。"}服务器再次复核报价、成本、风险预算及已有仓位，成本不得超过止损距离的20%。</p>
-        <p>R 为实际入场价到初始止损的价格距离。短线：2R 平 30%，3R 平 30%；中线：3R 平 25%，5R 平 25%；长线：4R 平 20%，6R 平 20%。剩余仓位随趋势移动止损，实际整笔盈亏比单独统计。</p>
+        <p>只使用已收盘 K 线：币种趋势、上市时长和流动性合格，相对强弱进入合格区间。{config.strategy_version === "hunter-v4" ? "保留三路短线入口，中长线增加受限趋势延续；重要阻力/支撑阻挡净3:1目标时跳过。" : config.strategy_version === "hunter-v3" ? "短线排名前/后50%，允许BTC横盘，拦截反向趋势及市场冲击；突破回踩、EMA20回调或短线趋势延续收盘确认后申请挂载，中长线保留均衡版条件。" : config.strategy_version === "hunter-v2" ? "排名前/后30%，大盘与币种同向；放量突破回踩或EMA20趋势回调企稳确认后申请挂载。" : "排名前/后20%，大盘与币种同向；放量突破、回踩及收盘确认后申请挂载。"}服务器再次复核报价、成本、风险预算及已有仓位，成本不得超过止损距离的20%。</p>
+        {config.strategy_version === "hunter-v4" ? <p>净风险单位包含初始止损与预计全部成本；达到1倍净风险保本、2倍至少锁0.5倍，3倍锁净峰值60%，继续持有波段。EMA20、MACD动量、RSI、连续结构破位与量能确认反转才退出；迟缓单独不平仓，确认回撤后收紧ATR保护。硬止损、盈利保护和用户锁利可先触发。退出后同币同向至少等两根执行K线和新信号。计划3:1不等于实际平均盈亏比3:1。</p> : <p>R 为实际入场价到初始止损的价格距离。短线：2R 平 30%，3R 平 30%；中线：3R 平 25%，5R 平 25%；长线：4R 平 20%，6R 平 20%。剩余仓位随趋势移动止损，实际整笔盈亏比单独统计。</p>}
         <p>触及止损、累计净亏损达到单笔预算、结构/趋势失效、保护缺失或超过持仓期限时平仓。止损只能收紧，禁止亏损加仓。日亏损 2% 或周亏损 5% 暂停搜索，峰值回撤 8% 停止并退出持仓；某周期连亏 3 笔冷却 24 小时。</p>
         <p>盈利验收需独立样本外正期望和扣除全部成本后 PF ≥ 1.2，并通过执行验收；当前尚未取得这些证据。</p>
+        {config.strategy_version === "hunter-v4" && <p>开发重放的21笔完整交易实际平均盈亏比约1.55、PF约0.77、净收益为负，未达到实际3:1。窗口仅24小时且缺少历史资金费和深度；后续需要独立样本验证。</p>}
       </details>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1"><Label htmlFor="hunter-brain">策略大脑</Label><select id="hunter-brain" className={selectClass} value={config.brain} onChange={e => patch({ brain: e.target.value as HunterConfig["brain"], model_id: null, rule_fallback: false })}>

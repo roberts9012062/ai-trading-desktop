@@ -2,7 +2,8 @@ import { hunterApi, type ContextSnapshot, type DeltaBars, type Hunter, type Hunt
 import { BALANCED_VERSION, CYCLES, closedBars, entrySignal, rankFraction, trend, validateLeverage, watchStage, type Bar, type Cycle, type Direction } from "./rules"
 import { useHunterStore } from "@/stores/hunter"
 import { useAITradingStore } from "@/stores/ai-trading"
-import { ADAPTIVE_VERSION } from "./rules"
+import { ADAPTIVE_VERSION, SWING_VERSION } from "./rules"
+import { directionQuality } from "./swing"
 import { marketAllows } from "./adaptive"
 
 /** Bounded priority for data reads; queued short jobs precede medium/long jobs. */
@@ -99,7 +100,7 @@ export class BalancedDiscovery {
 
   async scan(group: Hunter, cycle: Cycle, signal: AbortSignal): Promise<void> {
     const started = Date.now()
-    const version = group.config.strategy_version ?? BALANCED_VERSION, adaptive = version === ADAPTIVE_VERSION
+    const version = group.config.strategy_version ?? BALANCED_VERSION, adaptive = version === ADAPTIVE_VERSION || version === SWING_VERSION
     const counts: Record<string, number> = {}, signalKeys: string[] = []
     const done = async (message: string) => {
       this.report(cycle, message+"（用时 "+Math.round((Date.now()-started)/1000)+" 秒）", signal)
@@ -156,6 +157,7 @@ export class BalancedDiscovery {
       const key = cycle+":"+candidate.symbol, data = this.cache.get(key), watchKey = key+":"+candidate.direction
       if (!data) continue
       if (!trend(data.bars[c.trend], cycle, candidate.direction, data.bars["1w"])) { ownRejected++; this.watch.delete(watchKey); continue }
+      if (version === SWING_VERSION && !directionQuality(data.bars[c.trend], cycle, candidate.direction, data.bars["1w"])) { ownRejected++; this.watch.delete(watchKey); rejection = "方向效率不足或4小时大方向逆行"; continue }
       if (!marketAllows(data.market, cycle, candidate.direction, data.market_week, version)) { marketRejected++; this.watch.delete(watchKey); continue }
       trendPassed++
       const at = Date.now()/1000

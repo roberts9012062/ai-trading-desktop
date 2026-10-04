@@ -38,18 +38,19 @@ export function HunterPanel() {
     {visible.map(g => <article key={g.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4 space-y-3">
       <div className="flex justify-between gap-3 flex-wrap">
         <div><strong className="text-sm">{g.name}</strong><span className="ml-2 text-xs text-[var(--text-muted)]">{labels[g.status]} · {hunterAccountLabel(g.runtime.execution_account?.execution_mode ?? (g.trading_mode === "virtual" ? "virtual" : undefined))} · {g.config.venue.toUpperCase()} · {g.config.leverage ?? 1} 倍{g.config.margin_mode === "cross" ? "全仓" : "逐仓"} · {g.config.brain === "rules" ? "规则" : g.config.brain === "jev" ? "Jev" : "AI 大模型"}</span>
-          <p className="text-xs text-[var(--text-muted)] mt-1">{g.config.strategy_version === "hunter-v3" ? "机会增强版 · 突破回踩 / 趋势回调 / 短线延续 · 小时覆盖检查" : g.config.strategy_version === "hunter-v2" ? "均衡版 · 突破回踩 / 趋势回调 · 周期独立扫描" : "原版 · 突破回踩"}</p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">{g.config.strategy_version === "hunter-v4" ? "波段持有版 · 计划净3:1 / 多周期延续 / 确认反转退出" : g.config.strategy_version === "hunter-v3" ? "机会增强版 · 突破回踩 / 趋势回调 / 短线延续 · 小时覆盖检查" : g.config.strategy_version === "hunter-v2" ? "均衡版 · 突破回踩 / 趋势回调 · 周期独立扫描" : "原版 · 突破回踩"}</p>
           <p className="text-xs text-[var(--text-muted)] mt-1 whitespace-pre-line">{progress[g.id] ?? "等待桌面扫描；已挂载持仓由服务器管理"}</p></div>
         <div className="flex gap-2 flex-wrap">
           <LiveProfitLockControl targetId={g.id} name={g.name} hunter config={g.config.profit_lock} disabled={busy === g.id} onSave={config => setProfitLock(g.id, config)} />
           {(g.status === "running" || g.status === "paused") && (g.config.strategy_version ?? "hunter-v1") === "hunter-v1" && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade")}>启用均衡版</Button>}
-          {(g.status === "running" || g.status === "paused") && (g.config.strategy_version !== "hunter-v3" || g.config.pool_size < 50) && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade_adaptive", 50)}>{g.config.strategy_version === "hunter-v3" ? "扩大币池至50" : "启用机会增强版 · 50币"}</Button>}
+          {(g.status === "running" || g.status === "paused") && g.config.strategy_version !== "hunter-v4" && (g.config.strategy_version !== "hunter-v3" || g.config.pool_size < 50) && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade_adaptive", 50)}>{g.config.strategy_version === "hunter-v3" ? "扩大币池至50" : "启用机会增强版 · 50币"}</Button>}
+          {(g.status === "running" || g.status === "paused") && (g.config.strategy_version !== "hunter-v4" || g.config.pool_size < 50) && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade_swing", 50)}>{g.config.strategy_version === "hunter-v4" ? "扩大波段币池至50" : "启用波段持有版 · 计划3:1"}</Button>}
           {(g.status === "running" || g.status === "paused") && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, g.status === "running" ? "pause" : "resume")}>{g.status === "running" ? "暂停搜索" : "恢复搜索"}</Button>}
           {g.status !== "stopped" && g.status !== "stopping" && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "stop")}>停止搜索</Button>}
           {g.opportunities.some(o => !o.finished_at) && <Button size="sm" variant="outline" disabled={busy === g.id || g.status === "stopping"} onClick={() => void action(g.id, "stop_close")}>停止并平仓</Button>}
         </div>
       </div>
-      {g.config.strategy_version === "hunter-v3" && <div className="rounded-md border border-[var(--border)] p-3 text-xs space-y-1" aria-label="小时扫描检查">
+      {(g.config.strategy_version === "hunter-v3" || g.config.strategy_version === "hunter-v4") && <div className="rounded-md border border-[var(--border)] p-3 text-xs space-y-1" aria-label="小时扫描检查">
         {g.runtime.discovery ? <>
           <p>近1小时：规则信号 {g.runtime.discovery.hour_signals} 个（待成本和模型复核） · 服务器已挂载 {g.runtime.discovery.hour_mounted} 个</p>
           {g.status === "running" && g.runtime.discovery.stale && <p className="text-amber-400">扫描更新中断，请检查桌面搜索是否运行及行情连接。</p>}
@@ -77,7 +78,8 @@ export function HunterPanel() {
       </div>
       <p className="text-[11px] text-[var(--text-muted)]">统计样本来自这个猎手实际成交并完成平仓、核对收益后的交易；未开仓结束的任务不计入。没有交易样本不会阻止搜索或首笔开仓。行情来自服务器转接的 OKX K 线。</p>
       {g.blocks.length > 0 && <p className="text-xs text-amber-400">{g.blocks.join("；")}</p>}
-      {(g.config.strategy_version === "hunter-v2" || g.config.strategy_version === "hunter-v3") && <details>
+      {g.config.strategy_version === "hunter-v4" && <p className="text-xs text-[var(--text-muted)]">计划净盈亏比≥3:1；实际平均盈亏比目标≥3:1，{g.stats.trades < 30 || g.stats.payoff === null ? "样本不足，尚未验证" : g.stats.payoff < 3 ? "当前低于目标，需继续评估" : "当前样本达到目标，仍需独立验证"}。升级只影响新挂载，已有持仓沿用冻结版本。用户锁利可先于波段退出触发。</p>}
+      {(g.config.strategy_version === "hunter-v2" || g.config.strategy_version === "hunter-v3" || g.config.strategy_version === "hunter-v4") && <details>
         <summary className="text-xs cursor-pointer">候选观察池（{watches[g.id]?.length ?? 0}）</summary>
         <p className="text-[11px] text-[var(--text-muted)] mt-2">进入观察池表示排名和趋势通过；等待入场确认，仍须通过服务器复核。排名、趋势失效或已有持仓后移出。</p>
         <div className="flex flex-wrap gap-2 mt-2">{(watches[g.id] ?? []).map(w => <span key={w.cycle+":"+w.symbol+":"+w.direction} className="text-xs rounded border border-[var(--border)] px-2 py-1">{w.symbol.toUpperCase()} · {CYCLES[w.cycle].label} · {w.direction === "long" ? "多" : "空"} · {w.stage}</span>)}</div>
@@ -87,9 +89,9 @@ export function HunterPanel() {
         <div className="overflow-x-auto mt-2"><table className="w-full text-xs text-left">
           <thead><tr className="text-[var(--text-muted)]"><th className="p-2">币种 / 周期</th><th>状态</th><th>入场 / 止损</th><th>净收益</th></tr></thead>
           <tbody>{g.opportunities.map(o => <tr key={o.id} className="border-t border-[var(--border)]">
-            <td className="p-2">{o.symbol.toUpperCase()} · {CYCLES[o.cycle].label} · {o.plan.direction === "long" ? "多" : "空"} · {o.plan.leverage ?? 1} 倍{o.plan.margin_mode === "cross" ? "全仓" : "逐仓"} · {o.plan.entry_kind === "continuation" ? "短线趋势延续" : o.plan.entry_kind === "pullback" ? "趋势回调" : "突破回踩"}</td>
+            <td className="p-2">{o.symbol.toUpperCase()} · {CYCLES[o.cycle].label} · {o.plan.direction === "long" ? "多" : "空"} · {o.plan.leverage ?? 1} 倍{o.plan.margin_mode === "cross" ? "全仓" : "逐仓"} · {o.plan.entry_kind === "continuation" ? "趋势延续" : o.plan.entry_kind === "pullback" ? "趋势回调" : "突破回踩"}<span className="block text-[var(--text-muted)]">{o.plan.version ?? "hunter-v1"}</span></td>
             <td>{({ mounted: "已挂载", opening: "开仓中", holding: "持仓管理", reconciling: "成交核对", closed: "已结束", cancelled: "未开仓结束" } as Record<string, string>)[o.status] ?? o.status}</td>
-            <td>{o.plan.entry.toPrecision(7)} / {(o.runtime.stop ?? o.plan.stop).toPrecision(7)}</td>
+            <td>{o.plan.entry.toPrecision(7)} / {(o.runtime.stop ?? o.plan.stop).toPrecision(7)}{o.plan.target_price && <span className="block text-[var(--text-muted)]">净目标 {o.plan.target_price.toPrecision(7)} · ≥{o.plan.min_net_rr}:1</span>}{o.plan.version === "hunter-v4" && <span className="block text-emerald-400">{o.runtime.stop !== undefined && (o.plan.direction === "long" ? o.runtime.stop > (o.runtime.entry ?? o.plan.entry) : o.runtime.stop < (o.runtime.entry ?? o.plan.entry)) ? `盈利保护在 ${o.runtime.stop.toPrecision(7)} 平仓` : "初始结构止损保护"} · {o.runtime.swing?.reason ?? "等待持仓趋势判断"}</span>}</td>
             <td>{money(o.net_profit)}<span className="block text-[var(--text-muted)]">{o.runtime.note ?? o.runtime.reason ?? ""}</span></td>
           </tr>)}</tbody>
         </table></div>

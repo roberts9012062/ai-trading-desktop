@@ -11,8 +11,8 @@ export interface HunterConfig {
 }
 export interface Opportunity {
   id: string; task_id: string | null; symbol: string; cycle: Cycle; status: string;
-  plan: { entry: number; stop: number; quantity: number; risk_budget: number; direction: Direction; leverage?: number; margin?: number; margin_mode?: "isolated" | "cross"; entry_kind?: EntryKind };
-  runtime: { stop?: number; last_price?: number; reason?: string; note?: string; unrealized?: number };
+  plan: { entry: number; stop: number; quantity: number; risk_budget: number; direction: Direction; leverage?: number; margin?: number; margin_mode?: "isolated" | "cross"; entry_kind?: EntryKind; version?: RuleVersion; target_price?: number; min_net_rr?: number };
+  runtime: { stop?: number; last_price?: number; reason?: string; note?: string; unrealized?: number; entry?: number; net_peak_r?: number; swing?: { regime: string; reason: string } };
   net_profit: number; finished_at: string | null;
 }
 export interface Hunter {
@@ -77,5 +77,5 @@ export const hunterApi = {
   data: (id: string, symbol: string, cycle: Cycle, signal?: AbortSignal) => request<HunterData>("/groups/" + id + "/data?" + new URLSearchParams({ symbol, cycle }), {}, signal),
   snapshot: <T extends RankingSnapshot | ContextSnapshot>(id: string, body: SnapshotBody, signal?: AbortSignal) => request<{ items: T[] }>("/groups/" + id + "/snapshot", { method: "POST", body: JSON.stringify(body) }, signal),
   mount: (id: string, body: { symbol: string; cycle: Cycle; direction: Direction; signal_at: number; entry_kind?: EntryKind }, signal?: AbortSignal) => request<{ id?: string; task_id?: string; duplicate?: boolean; skipped?: boolean; reason?: string }>("/groups/" + id + "/mount", { method: "POST", body: JSON.stringify(body) }, signal),
-  control: (id: string, action: "pause" | "resume" | "stop" | "stop_close" | "upgrade" | "upgrade_adaptive", pool_size?: number) => request<Hunter>("/groups/" + id + "/control", { method: "POST", body: JSON.stringify({ action, ...(pool_size === undefined ? {} : { pool_size }) }) }),
+  control: (id: string, action: "pause" | "resume" | "stop" | "stop_close" | "upgrade" | "upgrade_adaptive" | "upgrade_swing", pool_size?: number) => request<Hunter>("/groups/" + id + "/control", { method: "POST", body: JSON.stringify({ action, ...(pool_size === undefined ? {} : { pool_size }) }) }),
 }
