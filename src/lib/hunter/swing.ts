@@ -22,15 +22,16 @@ export function directionQuality(rows: Bar[], cycle: Cycle, direction: Direction
 export function targetPrice(entry: number, stop: number, cost: number, direction: Direction, minimum = 3) {
   const sign = direction === "long" ? 1 : -1, distance = sign*(entry-stop)
   if (![entry, stop, cost, minimum].every(Number.isFinite) || Math.min(entry, stop) <= 0 || distance <= 0 || cost < 0 || cost >= .1 || minimum < 3) throw new Error("净盈亏比参数不合格")
-  const target = entry+sign*(minimum*distance+(minimum+1)*entry*cost)/(1-sign*cost)
+  const risk = distance+Math.max(entry, stop)*cost
+  const target = sign === 1 ? (entry+minimum*risk)/(1-cost) : entry-entry*cost-minimum*risk
   if (target <= 0) throw new Error("净收益目标价格不合格")
   return target
 }
 
 export function netRR(entry: number, stop: number, target: number, cost: number, direction: Direction) {
-  const sign = direction === "long" ? 1 : -1, risk = sign*(entry-stop)+entry*cost
+  const sign = direction === "long" ? 1 : -1, risk = sign*(entry-stop)+Math.max(entry, stop)*cost
   if (![entry, stop, target, cost].every(Number.isFinite) || Math.min(entry, stop, target) <= 0 || risk <= 0 || cost < 0) return -1
-  return (sign*(target-entry)-target*cost)/risk
+  return (sign*(target-entry)-Math.max(entry, target)*cost)/risk
 }
 
 export function swingEntry(setup: Bar[], execution: Bar[], cycle: Cycle, direction: Direction, now: number): Signal | null {

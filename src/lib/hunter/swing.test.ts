@@ -8,6 +8,8 @@ describe("v4 additive swing rules", () => {
     const target = targetPrice(100, stop, .001, direction)
     expect(netRR(100, stop, target, .001, direction)).toBeCloseTo(3, 10)
     expect(netRR(100+sign*.2, stop, target, .001, direction)).toBeLessThan(3)
+    const risk = 2+Math.max(100, stop)*.001
+    expect(sign*(target-100)-Math.max(100, target)*.001).toBeGreaterThanOrEqual(3*risk-1e-9)
   })
   it.each(["medium", "long"] as Cycle[])("adds continuation for %s without changing v3", cycle => {
     const sec = cycle === "medium" ? 3600 : 86400

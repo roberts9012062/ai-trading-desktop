@@ -11,7 +11,8 @@
     "stop_first": true,
     "quote_peaks_close_only": true,
     "live_orders": false,
-    "independent_validation": false
+    "independent_validation": false,
+    "conservative_cost_basis_max_entry_stop_target": true
   },
   "results": [
     {
