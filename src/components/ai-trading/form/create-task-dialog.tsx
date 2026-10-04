@@ -558,6 +558,7 @@ export function CreateTaskDialog({
                 className="h-9 text-sm"
                 placeholder={`默认 ${maxHoldDaysForTimeframe(timeframe)} 天`}
               />
+              {tradeMode==='forecast' && <p className="text-[11px] text-[var(--text-muted)]">从启动日起按北京自然日计算；每轮平仓后继续新预测，换轮不重置，到期撤单、平仓并停止。</p>}
             </div>
 
             <div className="space-y-1">

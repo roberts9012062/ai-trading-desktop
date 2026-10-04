@@ -169,7 +169,7 @@ export function TaskList({
                       ·{task.margin_mode === "isolated" ? "逐仓" : "全仓"}
                     </span>
                   )}
-                  {task.position_opened_at != null &&
+                  {(task.position_opened_at != null || (isForecast(task) && task.status !== 'stopped' && (forecastState(task).trading_started_at != null || task.started_at != null))) &&
                     task.hold_days_left != null &&
                     Number(task.max_hold_days ?? 0) > 0 && (
                       <span
@@ -179,7 +179,7 @@ export function TaskList({
                             ? "bg-red-500/15 text-red-300"
                             : "bg-white/5 text-[var(--text-muted)]",
                         )}
-                        title={`总周期 ${task.max_hold_days} 天，还剩 ${task.hold_days_left} 天（北京自然日，每过 0 点 -1，剩 0 天强制平仓）`}
+                        title={isForecast(task) ? `预测任务总周期 ${task.max_hold_days} 天，还剩 ${task.hold_days_left} 天（从启动日起按北京自然日计时，换轮不重置，到期平仓停止）` : `总周期 ${task.max_hold_days} 天，还剩 ${task.hold_days_left} 天（北京自然日，每过 0 点 -1，剩 0 天强制平仓）`}
                       >
                         剩{task.hold_days_left}天
                       </span>
@@ -240,7 +240,7 @@ export function TaskList({
 
             <TaskProfitLockStatus task={task} />
             {isForecast(task)&&<div className="mt-2 flex items-center justify-between text-xs">
-              <span className="text-[var(--text-muted)]">AI 预测 · {FORECAST_STAGES[forecastState(task).stage??'watching']??'等待预测'}</span>
+              <span className="text-[var(--text-muted)]">AI 预测 · {FORECAST_STAGES[forecastState(task).stage??'watching']??'等待预测'} · 已完成 {forecastState(task).completed_cycles ?? 0} 轮</span>
               <button type="button" className="rounded border border-[var(--border)] px-3 py-1 hover:text-[var(--primary)]" onClick={e=>{e.stopPropagation();setForecastId(task.id)}}>查看</button>
             </div>}
 

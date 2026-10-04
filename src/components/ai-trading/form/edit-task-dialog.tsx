@@ -698,6 +698,7 @@ export function EditTaskDialog({
               className="h-9 text-sm"
               placeholder={`默认 ${maxHoldDaysForTimeframe(timeframe)} 天`}
             />
+            {task && isForecast(task) && <p className="text-[11px] text-[var(--text-muted)]">预测任务在周期内连续运行，换轮不重置倒计时，到期撤单、平仓并停止。</p>}
           </div>
 
           {!quantMode && (

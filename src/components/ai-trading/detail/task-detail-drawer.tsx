@@ -30,6 +30,7 @@ import { chatModelsOnly } from "@/lib/decision-model"
 import type { AIModel } from "@/types"
 import { useAITradingStore } from "@/stores/ai-trading"
 import { formatDisplayTime } from "@/lib/utils"
+import { isForecast,forecastState } from "@/lib/ai-forecast"
 
 interface TaskDetailDrawerProps {
   open: boolean
@@ -231,10 +232,10 @@ export function TaskDetailDrawer({
               <span>状态 {STATUS_LABEL[statusKey(task)] ?? task.status}</span>
               {task.max_hold_days ? (
                 <span
-                  title="周期按北京自然日倒数：开仓后每过 0 点剩余天数 -1，剩 0 天时强制平仓"
+                  title={isForecast(task) ? "从启动日起按北京自然日倒数，换轮不重置；到期平仓停止" : "周期按北京自然日倒数：开仓后每过 0 点剩余天数 -1，剩 0 天时强制平仓"}
                 >
                   总周期：{task.max_hold_days}天
-                  {task.position_opened_at != null &&
+                  {(task.position_opened_at != null || (isForecast(task) && (forecastState(task).trading_started_at != null || task.started_at != null))) &&
                   task.hold_days_left != null ? (
                     <span
                       className={

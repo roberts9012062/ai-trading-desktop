@@ -8,13 +8,14 @@ export interface ForecastPlan { direction:'long'|'short'; entry:number; take_pro
 export interface ForecastState {
   stage?:string; plan?:ForecastPlan; position_price?:number; filled_qty?:number; error?:string
   commentary?:string; completed_at?:string
+  trading_started_at?:string; completed_cycles?:number
 }
 export const DEFAULT_FORECAST: ForecastConfig = {timeframes:['5m'],direction_mode:'any',strategy:'balanced',
   horizon:'short',bar_count:60,interval_minutes:5,indicators:[{name:'MA',params:{period:20}},{name:'MACD',params:{}}]}
 export function isForecast(task:AITradingTask):boolean {return task.strategy_type==='ai' && (task.strategy_params as Record<string,unknown>|undefined)?.mode==='forecast'}
 export function forecastState(task:AITradingTask):ForecastState {return (task.strategy_params as {forecast_state?:ForecastState}|undefined)?.forecast_state??{}}
 export function forecastConfig(task:AITradingTask):ForecastConfig {return (task.strategy_params as {forecast?:ForecastConfig}|undefined)?.forecast??DEFAULT_FORECAST}
-export const FORECAST_STAGES:Record<string,string>={watching:'等待预测',submitting:'提交条件单',pending:'等待进场',holding:'持仓保护',closing:'确认平仓',reconciling:'成交对账',completed:'闭环完成'}
+export const FORECAST_STAGES:Record<string,string>={watching:'等待本轮预测',submitting:'提交条件单',pending:'等待进场',holding:'持仓保护',closing:'确认平仓',reconciling:'成交对账',expiring:'到期撤单对账',completed:'任务已结束'}
 export function forecastPrice(value:number):string {return Number.isFinite(value)&&value>0?Number(value.toPrecision(9)).toString():'--'}
 export function forecastLines(task:AITradingTask):Array<{price:number;title:string;color:string}> {
   const state=forecastState(task),plan=state.plan

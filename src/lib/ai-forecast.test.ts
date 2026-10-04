@@ -12,4 +12,9 @@ describe('forecast chart truth',()=>{
   expect(forecastLines({...task,strategy_params:{mode:'forecast'}})).toEqual([])
   expect(isForecast({...task,strategy_params:{}})).toBe(false)
  })
+ it('clears prior-cycle lines while awaiting a new prediction and retains task mode',()=>{
+  const next={...task,strategy_params:{mode:'forecast',forecast_state:{stage:'watching',completed_cycles:2,trading_started_at:'2026-10-04T00:00:00Z'}}}
+  expect(forecastLines(next)).toEqual([])
+  expect(isForecast(next)).toBe(true)
+ })
 })
