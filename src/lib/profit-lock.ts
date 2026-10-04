@@ -11,6 +11,13 @@ export interface ProfitLockFormState {
 export const DEFAULT_PROFIT_LOCK: ProfitLockFormState = {
   enabled: false, mode: "auto", unit: "percent", activation: "3", giveback: "1", cooldown: "1",
 }
+/** Opening the live-task switch defaults to auto; existing enabled rules refill. */
+export function liveProfitLockDraft(config?: ProfitLockConfig | null): ProfitLockFormState {
+  return config?.enabled ? profitLockFromConfig(config) : { ...DEFAULT_PROFIT_LOCK, enabled: true }
+}
+export function liveProfitLockConfig(form: ProfitLockFormState): ProfitLockConfig {
+  return buildProfitLockConfig(form) ?? { ...buildProfitLockConfig({ ...DEFAULT_PROFIT_LOCK, enabled: true })!, enabled: false }
+}
 export function profitLockFromConfig(config?: ProfitLockConfig | null): ProfitLockFormState {
   return config ? { enabled: config.enabled, mode: config.mode, unit: config.unit,
     activation: String(config.activation), giveback: String(config.giveback), cooldown: String(config.cooldown_signals) } : { ...DEFAULT_PROFIT_LOCK }

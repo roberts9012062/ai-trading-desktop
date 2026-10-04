@@ -7,6 +7,7 @@ import type { AITradingTask } from "@/lib/ai-trading-api"
 import { useAITradingStore } from "@/stores/ai-trading"
 import { showAlert, showConfirm } from "@/stores/dialog"
 import { useSessionStatus } from "@/hooks/use-session-status"
+import { LiveProfitLockControl } from "./form/live-profit-lock-control"
 
 interface TaskActionsProps {
   task: AITradingTask
@@ -28,6 +29,7 @@ export function TaskActions({
   const stopTask = useAITradingStore((s) => s.stopTask)
   const deleteTask = useAITradingStore((s) => s.deleteTask)
   const runOnce = useAITradingStore((s) => s.runOnce)
+  const setProfitLock = useAITradingStore((s) => s.setProfitLock)
   const [busy, setBusy] = useState(false)
   // 交易时段判断：开始/暂停/评估等需要行情的操作停盘禁用；
   // 结束/删除/修改等管理操作停盘仍允许（结束任务后端已支持，平仓失败会返回原因）。
@@ -204,6 +206,7 @@ export function TaskActions({
           {!compact && <span className="ml-1">改比例</span>}
         </Button>
       )}
+      <LiveProfitLockControl targetId={task.id} name={task.name} config={task.close_rules?.profit_lock} disabled={busy} onSave={config => setProfitLock(task.id, config)} />
     </div>
   )
 }

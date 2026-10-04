@@ -69,6 +69,10 @@ export interface ProfitLockConfig {
   giveback: number
   cooldown_signals: number
 }
+export interface ProfitLockUpdateResult { id: string; profit_lock: ProfitLockConfig; affected_tasks?: number }
+export function updateTaskProfitLock(id: string, profit_lock: ProfitLockConfig): Promise<ProfitLockUpdateResult> {
+  return request(`/api/ai-trading/tasks/${encodeURIComponent(id)}/profit-lock`, { method: "PATCH", body: JSON.stringify({ profit_lock }) })
+}
 export interface ProfitLockState {
   activated?: boolean; net_profit?: number; net_pct?: number; peak_net?: number; peak_pct?: number;
   locked_net?: number; locked_pct?: number; margin?: number; cooldown_remaining?: number; closed?: boolean; closing?: boolean; error?: string

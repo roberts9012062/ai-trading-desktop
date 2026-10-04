@@ -25,6 +25,13 @@ globalThis.fetch = async (input, init) => {
   const templates = templateFixture(input, init)
   if (templates) return templates
   const url = String(input)
+  if (url.endsWith("/api/ai-trading/tasks")) return Response.json({ items: [], total: 0 })
+  if (url.endsWith("/profit-lock") && url.includes("/api/hunter/groups/")) {
+    const body = JSON.parse(String(init?.body))
+    groups[0].config = { ...groups[0].config, profit_lock: body.profit_lock }
+    document.getElementById("submitted")!.textContent = JSON.stringify(body)
+    return Response.json({ id: groups[0].id, profit_lock: body.profit_lock, affected_tasks: 0 })
+  }
   if (url.endsWith("/api/hunter/symbols")) return Response.json([
     { symbol: "btcusdt", name: "BTC / USDT" }, { symbol: "ethusdt", name: "ETH / USDT" },
     { symbol: "solusdt", name: "SOL / USDT" }, { symbol: "dogeusdt", name: "DOGE / USDT" },

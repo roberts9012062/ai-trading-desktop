@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { hunterApi, type Hunter, type HunterConfig } from "@/lib/hunter/api"
 import type { Cycle, Direction } from "@/lib/hunter/rules"
+import type { ProfitLockConfig } from "@/lib/ai-trading-api"
 
 export interface HunterWatch { symbol: string; cycle: Cycle; direction: Direction; stage: string; expires: number }
 
@@ -9,6 +10,7 @@ interface HunterState {
   watches: Record<string, HunterWatch[]>;
   refresh: (signal?: AbortSignal) => Promise<void>;
   create: (cfg: HunterConfig) => Promise<void>;
+  setProfitLock: (id: string, config: ProfitLockConfig) => Promise<void>;
   control: (id: string, action: "pause" | "resume" | "stop" | "stop_close" | "upgrade") => Promise<void>;
   setProgress: (id: string, message: string) => void;
   setWatch: (id: string, cycle: Cycle, entries: HunterWatch[]) => void;
@@ -16,6 +18,13 @@ interface HunterState {
 }
 let generation = 0
 export const useHunterStore = create<HunterState>((set) => ({
+  setProfitLock: async (id, config) => {
+    const started = generation
+    const updated = await hunterApi.setProfitLock(id, config)
+    if (started !== generation) throw new Error("会话已切换，请重新查看当前账户猎手")
+    set(s => ({ groups: s.groups.map(group => group.id === id ? { ...group, config: { ...group.config, profit_lock: updated.profit_lock } } : group) }))
+    void import("@/stores/ai-trading").then(m => m.useAITradingStore.getState().loadTasks({ silent: true })).catch(() => {})
+  },
   groups: [], error: null, progress: {}, loaded: false, watches: {},
   refresh: async (signal) => {
     const started = generation

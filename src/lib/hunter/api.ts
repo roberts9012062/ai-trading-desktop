@@ -1,5 +1,5 @@
 import type { Bar, Cycle, Direction, RuleVersion, EntryKind } from "./rules"
-import type { ProfitLockConfig } from "../ai-trading-api"
+import type { ProfitLockConfig, ProfitLockUpdateResult } from "../ai-trading-api"
 
 export interface HunterConfig {
   name: string; capital: number; leverage: number; venue: "okx"; margin_mode: "isolated" | "cross"; cycles: Cycle[];
@@ -64,6 +64,7 @@ async function request<T>(path: string, init: RequestInit = {}, signal?: AbortSi
   return response.json() as Promise<T>
 }
 export const hunterApi = {
+  setProfitLock: (id: string, profit_lock: ProfitLockConfig) => request<ProfitLockUpdateResult>("/groups/" + encodeURIComponent(id) + "/profit-lock", { method: "PATCH", body: JSON.stringify({ profit_lock }) }),
   symbols: (signal?: AbortSignal) => request<HunterSymbol[]>("/symbols", {}, signal),
   capabilities: () => request<HunterCapabilities>("/capabilities"),
   list: (signal?: AbortSignal) => request<Hunter[]>("/groups", {}, signal),

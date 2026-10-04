@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { Crosshair } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useHunterStore } from "@/stores/hunter"
+import { LiveProfitLockControl } from "@/components/ai-trading/form/live-profit-lock-control"
 import { CYCLES } from "@/lib/hunter/rules"
 import { hunterAccountLabel } from "@/lib/hunter/api"
 
@@ -13,6 +14,7 @@ export function HunterPanel() {
   const progress = useHunterStore(s => s.progress)
   const watches = useHunterStore(s => s.watches)
   const control = useHunterStore(s => s.control)
+  const setProfitLock = useHunterStore(s => s.setProfitLock)
   const connectionError = useHunterStore(s => s.error)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -36,6 +38,7 @@ export function HunterPanel() {
           <p className="text-xs text-[var(--text-muted)] mt-1">{g.config.strategy_version === "hunter-v2" ? "均衡版 · 突破回踩 / 趋势回调 · 周期独立扫描" : "原版 · 突破回踩"}</p>
           <p className="text-xs text-[var(--text-muted)] mt-1 whitespace-pre-line">{progress[g.id] ?? "等待桌面扫描；已挂载持仓由服务器管理"}</p></div>
         <div className="flex gap-2 flex-wrap">
+          <LiveProfitLockControl targetId={g.id} name={g.name} hunter config={g.config.profit_lock} disabled={busy === g.id} onSave={config => setProfitLock(g.id, config)} />
           {(g.status === "running" || g.status === "paused") && g.config.strategy_version !== "hunter-v2" && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade")}>启用均衡版</Button>}
           {(g.status === "running" || g.status === "paused") && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, g.status === "running" ? "pause" : "resume")}>{g.status === "running" ? "暂停搜索" : "恢复搜索"}</Button>}
           {g.status !== "stopped" && g.status !== "stopping" && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "stop")}>停止搜索</Button>}

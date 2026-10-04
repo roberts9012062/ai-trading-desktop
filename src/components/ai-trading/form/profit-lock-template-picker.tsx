@@ -8,13 +8,14 @@ import { BUILTIN_PROFIT_LOCK_TEMPLATES, applyProfitLockTemplate, matchesProfitLo
 import type { ProfitLockFormState } from "@/lib/profit-lock"
 
 const changedEvent = "profit-lock-templates-changed"
+const defaultTemplate = (value: ProfitLockFormState) => BUILTIN_PROFIT_LOCK_TEMPLATES.find(t => matchesProfitLockTemplate(value, t))
 export function ProfitLockTemplatePicker({ id, value, onChange }: {
   id: string; value: ProfitLockFormState; onChange: (value: ProfitLockFormState) => void
 }) {
   const owner = useAuthStore(s => s.user?.id)
   const [data, setData] = useState<{ owner?: string; items: ProfitLockTemplate[] }>({ items: [] })
-  const [chosen, setChosen] = useState("")
-  const [name, setName] = useState("")
+  const [chosen, setChosen] = useState(() => defaultTemplate(value)?.id ?? "")
+  const [name, setName] = useState(() => defaultTemplate(value)?.name ?? "")
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -26,7 +27,7 @@ export function ProfitLockTemplatePicker({ id, value, onChange }: {
   }, [])
   useEffect(() => {
     let active = true, sequence = 0
-    setChosen(""); setName(""); setError(""); setNotice(""); setBusy(false)
+    setChosen(defaultTemplate(value)?.id ?? ""); setName(defaultTemplate(value)?.name ?? ""); setError(""); setNotice(""); setBusy(false)
     const load = async () => {
       const current = ++sequence
       if (!owner) { setData({ items: [] }); setLoading(false); return }

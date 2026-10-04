@@ -1,6 +1,7 @@
 "use client"
 
 import { create } from "zustand"
+import { useAuthStore } from "@/stores/auth"
 import {
   createAITradingTask,
   fetchEquitySeries,
@@ -16,6 +17,8 @@ import {
   deleteAITradingTask,
   updateAITradingTask,
   updateAITradingTaskRules,
+  updateTaskProfitLock,
+  type ProfitLockConfig,
   type AITradingDecision,
   type AITradingTask,
   type CreateTaskPayload,
@@ -52,6 +55,7 @@ interface AITradingState {
     id: string,
     payload: UpdateTaskRulesPayload,
   ) => Promise<AITradingTask>
+  setProfitLock: (id: string, config: ProfitLockConfig) => Promise<void>
   startTask: (id: string) => Promise<void>
   pauseTask: (id: string) => Promise<void>
   stopTask: (id: string, forceClose: boolean) => Promise<AITradingTask>
@@ -67,6 +71,12 @@ interface AITradingState {
 
 /** AI 交易状态 */
 export const useAITradingStore = create<AITradingState>((set, get) => ({
+  setProfitLock: async (id, config) => {
+    const owner = useAuthStore.getState().user?.id
+    const updated = await updateTaskProfitLock(id, config)
+    if (useAuthStore.getState().user?.id !== owner) throw new Error("会话已切换，请重新查看当前账户任务")
+    set(s => ({ tasks: s.tasks.map(task => task.id === id ? { ...task, close_rules: { ...task.close_rules, profit_lock: updated.profit_lock } } : task) }))
+  },
   tasks: [],
   equitySeries: {},
   profitBars: [],
