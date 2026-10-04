@@ -64,6 +64,7 @@ export function ProfitLockManager() {
                 {!target && <option value="">请选择任务</option>}
                 {targets.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
               </select>
+              <p className="text-[11px] text-[var(--text-muted)]">“已锁利”表示已保存并开启锁利；括号显示运行状态，等待激活时尚未生成锁利线。</p>
             </div>
             {target && <fieldset disabled={busy} className="min-w-0" key={key}>
               <ProfitLockSettings value={draft} onChange={setDraft} />
