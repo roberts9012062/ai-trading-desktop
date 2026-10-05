@@ -45,6 +45,11 @@ export interface WsMessage {
   data: unknown
 }
 
+export interface ChartSubscriptionKey {
+  symbol: string
+  period: string
+}
+
 /** 单条行情数据 */
 export interface QuoteData {
   symbol: string
@@ -116,6 +121,8 @@ export class MarketWebSocket {
   private lastMessageAt = 0
   /** K 线订阅合约清单（服务端只推送订阅合约的 forming bar；null=全量） */
   private klineSubscription: string[] | null = null
+  private klineSubscriptionSet = false
+  private chartSubscription: ChartSubscriptionKey[] | null = null
 
   constructor(path: string = "/ws/market") {
     this.url = `${getWsBase()}${path}`
@@ -201,6 +208,7 @@ export class MarketWebSocket {
     this.startHeartbeat()
     // 重连后服务端订阅状态归零，重发 K 线订阅
     this.sendKlineSubscription()
+    this.sendChartSubscription()
     this.openHandlers.forEach((handler) => handler({ isReconnect }))
   }
 
@@ -217,19 +225,44 @@ export class MarketWebSocket {
       ),
     )
     this.klineSubscription = list.length > 0 ? list : null
+    this.klineSubscriptionSet = true
     this.sendKlineSubscription()
   }
 
   private sendKlineSubscription(): void {
     if (this.ws?.readyState !== WebSocket.OPEN) return
     // 未设置订阅时不发指令：新连接的服务端默认就是全量
-    if (!this.klineSubscription) return
+    if (!this.klineSubscriptionSet) return
+    if (!this.klineSubscription) {
+      this.ws.send(JSON.stringify({ action: "unsubscribe_kline" }))
+      return
+    }
     this.ws.send(
       JSON.stringify({
         action: "subscribe_kline",
         symbols: this.klineSubscription,
       }),
     )
+  }
+
+  /** Optional official candles. Old servers ignore this and REST remains active. */
+  setChartSubscription(keys: ChartSubscriptionKey[]): void {
+    const unique = new Map<string, ChartSubscriptionKey>()
+    for (const key of keys) {
+      const symbol = key.symbol.trim().toLowerCase()
+      if (!/^[a-z0-9]{1,16}usdt$/.test(symbol) || !["1m", "5m", "15m", "30m", "60m", "1d"].includes(key.period)) continue
+      unique.set(`${symbol}:${key.period}`, { symbol, period: key.period })
+    }
+    const next = [...unique.values()].sort((a, b) => `${a.symbol}:${a.period}`.localeCompare(`${b.symbol}:${b.period}`)).slice(0, 32)
+    if (JSON.stringify(next) === JSON.stringify(this.chartSubscription)) return
+    this.chartSubscription = next
+    this.sendChartSubscription()
+  }
+
+  private sendChartSubscription(): void {
+    if (this.ws?.readyState === WebSocket.OPEN && this.chartSubscription !== null) {
+      this.ws.send(JSON.stringify({ action: "subscribe_chart", keys: this.chartSubscription }))
+    }
   }
 
   private handleMessage = (event: MessageEvent): void => {
