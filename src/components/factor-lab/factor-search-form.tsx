@@ -60,6 +60,7 @@ export interface SearchFormPayload {
   combo_super?: boolean
   /** 冠军种子库 token(本地引擎注入种群头部;来自 G2 冻结合格冠军) */
   seed_tokens?: number[][]
+  seed_origin?: "champion_library" | "custom"
   /** 长历史区间（YYYY-MM-DD，需与 end_date 成对；不传走近期数据） */
   start_date?: string
   end_date?: string
@@ -213,7 +214,7 @@ export function FactorSearchForm({
       enhanced,
       combo_super: comboSuper,
       ...(localEngine && enhanced && useChampionSeeds && seedPick.seeds.length
-        ? { seed_tokens: seedPick.seeds.map((s) => s.tokens) }
+        ? { seed_tokens: seedPick.seeds.map((s) => s.tokens),seed_origin:"champion_library" }
         : {}),
       ...(useLongHistory ? { start_date: rangeStart, end_date: rangeEnd } : {}),
       data_channel: dataChannel,

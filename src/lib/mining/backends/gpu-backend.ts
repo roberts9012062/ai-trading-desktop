@@ -16,6 +16,7 @@
 
 import type { Champion } from "@/lib/factor-lab-api"
 import { filterSearchFeatures } from "@/lib/shortline/search-profile"
+import { compatibleTrainingSeeds } from "../seed-compatibility"
 import { ensurePyWorker } from "@/lib/py-worker"
 import { getBarsSnapshot } from "../data-source"
 import type {
@@ -282,10 +283,7 @@ export class GpuBackend implements ComputeBackend {
       for (let i = 0; i < cfg.population; i++) {
         population.push(randomTreeGpuSafe(maxDepth, F, opOne, opTwo, rng))
       }
-      const seedTokens = cfg.seed_tokens ?? []
-      if (seedTokens.some((tokens) => tokens.some((t) => t < 64 && !active.includes(t)))) {
-        throw new Error("种子依赖当前训练数据不可用的特征")
-      }
+      const {seeds:seedTokens,warning:seedWarning} = compatibleTrainingSeeds(cfg,active,features.feature_names)
       for (let k = 0; k < seedTokens.length && k < population.length; k++) {
         const tree = tokensToTree(seedTokens[k], F)
         if (tree) population[k] = tree // 含不支持算子的种子留待精算(GPU 判 -999)
@@ -365,6 +363,7 @@ export class GpuBackend implements ComputeBackend {
           -999,
         )
         yield {
+          seedWarning,
           generation: genIdx + 1,
           totalGenerations: cfg.generations,
           bestComposite,

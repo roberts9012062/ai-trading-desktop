@@ -34,6 +34,7 @@ export interface MiningConfig {
   seed?: number
   cost?: number | null
   seed_tokens?: number[][]
+  seed_origin?: "champion_library" | "custom"
   /** Explicit feature search pool. Omitted for frozen legacy tasks. */
   search_feature_ids?: number[]
   /** 跨品种验证伙伴 bars:[[品种代码, bars], ...](JS 预加载注入;

@@ -44,6 +44,7 @@ export interface GpuStepStats {
 }
 
 export interface GenerationStep {
+  seedWarning?: string
   nativePortfolio?: import("@/lib/factor-lab-api").PortfolioResult | null
   /** 已完成代数(1-based) */
   generation: number

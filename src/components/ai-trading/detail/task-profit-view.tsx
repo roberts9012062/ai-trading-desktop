@@ -184,7 +184,9 @@ export function TaskProfitView({ taskId }: { taskId: string }): React.JSX.Elemen
   const closeBars = useMemo(() => buildCloseBars(trades), [trades])
 
   const realized =
-    equity.length > 0
+    task?.total_realized_pnl != null
+      ? Number(task.total_realized_pnl)
+      : equity.length > 0
       ? Number(equity[equity.length - 1].realized_pnl)
       : closeBars.reduce((s, b) => s + b.pnl, 0)
   const pnl = task ? livePnl(task, undefined) : null

@@ -8,6 +8,7 @@ import { Rng, gpuOpSets, randomTreeGpuSafe, slowBiasedOpSets, tokensToTree, tree
 import { nextGeneration, resolveIslands, StagnationTracker } from "../gpu/evolve"
 import { preciseTopK, selectPreciseIndices, selectPreciseIndicesQuota, type RankedCandidate } from "../gpu/rank"
 import type { EvalRequest, GenerationStep, SerializedBest } from "./types"
+import { compatibleTrainingSeeds } from "../seed-compatibility"
 
 export type NativeSessionClient = Pick<NativeEngineClient,
   "loadBars" | "mineFeatures" | "rankShards" | "evalShards" | "strictEval" | "precise" | "disposeSession">
@@ -93,8 +94,7 @@ export async function* runNativeGpuSession(
     const evolveV2 = cfg.evolve_v2 === true
     const stagnation = evolveV2 ? new StagnationTracker(islands) : undefined
     let population: Tree[] = Array.from({ length: cfg.population }, () => randomTreeGpuSafe(cfg.max_depth, F, opOne, opTwo, rng, true))
-    const seedTokens = cfg.seed_tokens ?? []
-    if (seedTokens.some(tokens => tokens.some(t => t < 64 && !active.includes(t)))) throw new Error("种子依赖当前训练数据不可用的特征")
+    const {seeds:seedTokens,warning:seedWarning} = compatibleTrainingSeeds(cfg,active,features.feature_names)
     for (let i = 0; i < Math.min(seedTokens.length, population.length); i++) {
       const tree = tokensToTree(seedTokens[i], F)
       if (tree) population[i] = tree
@@ -157,6 +157,7 @@ export async function* runNativeGpuSession(
       const researchChampions = researchGradeChampions(result.rejected_candidates)
       const preciseMs = performance.now() - preciseStart
       yield {
+        seedWarning,
         generation: gen + 1, totalGenerations: cfg.generations,
         bestComposite: Math.max(-999, ...bestSeen.map(row => row.composite)), champions,
         elapsedMs: performance.now() - start, engineTag: "native-gpu-v1", engineVersion: hello.engine_version,

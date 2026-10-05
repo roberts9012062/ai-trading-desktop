@@ -332,6 +332,7 @@ export function FactorLabPage(): React.JSX.Element {
           onStop={s.stopSearch}
         />
       )}
+      {s.searchStep?.seedWarning && <p role="status" className="text-xs text-[var(--text-muted)]">{s.searchStep.seedWarning}</p>}
       {s.bgTask?.nativeRequested && s.bgTask.status === "completed" && s.searchStep?.qualificationCounts &&
         <div className="text-xs text-[var(--text-muted)] rounded border border-[var(--border)] p-3">
           合格冠军 {s.searchStep.qualificationCounts.qualified} · 未通过 {s.searchStep.qualificationCounts.rejected}

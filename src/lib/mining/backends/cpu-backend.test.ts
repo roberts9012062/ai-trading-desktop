@@ -10,6 +10,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ensurePyWorker } from "@/lib/py-worker"
 import { getBarsSnapshot } from "@/lib/mining/data-source"
 import type { Champion } from "@/lib/factor-lab-api"
+import { championSeedsFor } from "../champion-seeds"
+import { createShardPool } from "../gpu/shard-pool"
+
+vi.mock("../gpu/shard-pool", () => ({
+  createShardPool: vi.fn(async () => null),
+  resolveShardCount: vi.fn(() => 1),
+}))
 
 vi.mock("@/lib/py-worker", () => ({
   ensurePyWorker: vi.fn(),
@@ -77,6 +84,7 @@ const CONFIG = {
 beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
+  vi.mocked(createShardPool).mockResolvedValue(null)
   mockedGetSnapshot.mockResolvedValue({
     id: "snap-1",
     symbol: "rb2610",
@@ -96,6 +104,62 @@ afterEach(() => {
 })
 
 describe("CpuBackend.run", () => {
+  const dotConfig = () => ({ ...CONFIG, symbol: "dotusdt", crypto_profile: true,
+    seed_origin: "champion_library" as const,
+    seed_tokens: championSeedsFor("dotusdt", "1d").seeds.map(seed => seed.tokens) })
+  const dotFeatures = () => ({ feature_names: Array.from({ length: 62 }, (_, i) => i === 54 ? "TAKER_IMBALANCE" : `feature${i}`),
+    active_feature_ids: Array.from({ length: 52 }, (_, i) => i).filter(i => ![17, 18, 33, 34].includes(i)),
+    train_len: 50, total_len: 90, periods: 365, cost: .0003 })
+
+  it("filters DOT OKX automatic seeds before starting the single-process kernel", async () => {
+    const f: FakePy = { startPayload: null, startBars: null, steps: [{ generation: 1 }], disposed: [] }
+    fakePy(f)
+    const factorRun = vi.mocked(ensurePyWorker().factorRun)
+    factorRun.mockResolvedValueOnce(dotFeatures())
+    const { CpuBackend } = await loadBackend()
+    const gen = new CpuBackend().run({ snapshotId: "snap-1", config: dotConfig(), startGeneration: 0 }, new AbortController().signal)
+    const first = await gen.next()
+    expect(first.done).toBe(false)
+    if (!first.done) expect(first.value.seedWarning).toContain("3/4")
+    const payload = f.startPayload as { seed_tokens: number[][] }
+    expect(payload.seed_tokens).toHaveLength(3)
+    expect(payload.seed_tokens.flat()).not.toContain(54)
+    expect(factorRun.mock.calls.some(call => (call[0] as { mode: string }).mode === "mine_gpu_dispose")).toBe(false)
+    await gen.return([])
+    expect(factorRun.mock.calls.some(call => (call[0] as { mode: string }).mode === "mine_gpu_dispose")).toBe(true)
+  })
+
+  it("rejects missing custom features before creating the fallback mining session", async () => {
+    const f: FakePy = { startPayload: null, startBars: null, steps: [], disposed: [] }
+    fakePy(f)
+    vi.mocked(ensurePyWorker().factorRun).mockResolvedValueOnce(dotFeatures())
+    const { CpuBackend } = await loadBackend()
+    const cfg = { ...dotConfig(), seed_origin: "custom" as const }
+    await expect(new CpuBackend().run({ snapshotId: "snap-1", config: cfg, startGeneration: 0 }, new AbortController().signal).next())
+      .rejects.toThrow("TAKER_IMBALANCE")
+    expect(f.startPayload).toBeNull()
+  })
+
+  it("filters the parallel seed evaluation and releases the shard pool", async () => {
+    const f: FakePy = { startPayload: null, startBars: null, steps: [], disposed: [] }
+    fakePy(f)
+    const evaluated = (tokens: number[][]) => tokens.map(tokens => ({ tokens, composite: .5, metrics: { sortino: 1 } }))
+    const pool = { size: 2, evalShards: vi.fn(async (tokens: number[][]) => evaluated(tokens)),
+      evalStrict: vi.fn(async () => []), dispose: vi.fn() }
+    vi.mocked(createShardPool).mockResolvedValue(pool)
+    vi.mocked(ensurePyWorker().factorRun).mockImplementation(async (payload) => (payload as { mode: string }).mode === "mine_features" ? dotFeatures()
+      : (payload as { mode: string }).mode === "mine_precise" ? { champions: [], best_seen: [] } : {})
+    const { CpuBackend } = await loadBackend()
+    const gen = new CpuBackend().run({ snapshotId: "snap-1", config: dotConfig(), startGeneration: 0 }, new AbortController().signal)
+    const first = await gen.next()
+    if (!first.done) expect(first.value.seedWarning).toContain("3/4")
+    expect(first.done).toBe(false)
+    expect(pool.evalShards.mock.calls[0][0]).toHaveLength(3)
+    expect(pool.evalShards.mock.calls.flatMap(call => call[0]).flat()).not.toContain(54)
+    await gen.return([])
+    expect(pool.dispose).toHaveBeenCalledOnce()
+  })
+
   it("循环 step 直到 done;yield 每代快照;载荷含 islands=1 与续训参数", async () => {
     const f: FakePy = { startPayload: null, startBars: null, steps: [], disposed: [] }
     fakePy(f)

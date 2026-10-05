@@ -22,6 +22,7 @@ import { ensurePyWorker } from "@/lib/py-worker"
 import { getBarsSnapshot } from "../data-source"
 import type { MiningConfig } from "../types"
 import { filterSearchFeatures } from "@/lib/shortline/search-profile"
+import { compatibleTrainingSeeds } from "../seed-compatibility"
 import type {
   ComputeBackend,
   EvalRequest,
@@ -196,9 +197,12 @@ export class CpuBackend implements ComputeBackend {
       payload: buildPayload(req.config, req),
     }).catch(() => null)
     if (!pool) {
-      // 降级路径不消费 featuresPromise 的会话输入,显式释放避免泄漏
-      await disposeGpuSession(sessionId)
-      return yield* runSingleProcess(req, bars, signal)
+      try {
+        const features = await featuresPromise
+        return yield* runSingleProcess(req,bars,signal,features)
+      } finally {
+        await disposeGpuSession(sessionId)
+      }
     }
     try {
       return yield* runParallel(req, bars, pool, signal, sessionId, featuresPromise)
@@ -256,12 +260,12 @@ async function* runParallel(
   featuresPromise: Promise<MineFeaturesResult>,
 ): AsyncGenerator<GenerationStep, Champion[], void> {
   const cfg = req.config
-  if (signal.aborted) return []
   const py = ensurePyWorker()
 
   try {
     // 1) 特征/年化基数/成本率(已与池 init 并行预热)
     const features = await featuresPromise
+    if (signal.aborted) return []
 
     const F = features.feature_names.length
     const T = features.train_len
@@ -280,10 +284,7 @@ async function* runParallel(
     for (let i = 0; i < cfg.population; i++) {
       population.push(randomTreeGpuSafe(maxDepth, F, opOne, opTwo, rng, true))
     }
-    const seedTokens = cfg.seed_tokens ?? []
-    if (seedTokens.some((tokens) => tokens.some((t) => t < 64 && !active.includes(t)))) {
-      throw new Error("种子依赖当前训练数据不可用的特征")
-    }
+    const {seeds:seedTokens,warning:seedWarning} = compatibleTrainingSeeds(cfg,active,features.feature_names)
     for (let k = 0; k < seedTokens.length && k < population.length; k++) {
       const tree = tokensToTree(seedTokens[k], F)
       if (tree) population[k] = tree
@@ -441,6 +442,7 @@ async function* runParallel(
 
       const bestComposite = lastChampions.reduce((m, c) => Math.max(m, c.composite), -999)
       yield {
+        seedWarning,
         generation: genIdx + 1,
         totalGenerations: cfg.generations,
         bestComposite,
@@ -469,10 +471,19 @@ async function* runSingleProcess(
   req: EvalRequest,
   bars: KlineBar[],
   signal: AbortSignal,
+  features?: MineFeaturesResult,
 ): AsyncGenerator<GenerationStep, Champion[], void> {
   if (signal.aborted) throw new Error("已取消")
 
   const py = ensurePyWorker()
+  let seedWarning: string | undefined
+  if (req.config.seed_tokens?.length) {
+    if (!features) throw new Error("种子校验缺少训练特征信息，请重新启动搜索")
+    const active = filterSearchFeatures(features.active_feature_ids ?? features.feature_names.map((_,i) => i),req.config.search_feature_ids)
+    const selection = compatibleTrainingSeeds(req.config,active,features.feature_names)
+    req = {...req,config:{...req.config,seed_tokens:selection.seeds}}
+    seedWarning = selection.warning
+  }
   const sessionId = newSessionId()
   const startResp = (await py.mineStart(
     { ...buildPayload(req.config, req), session_id: sessionId },
@@ -493,6 +504,7 @@ async function* runSingleProcess(
       if (!step || step.done) return lastChampions
       lastChampions = step.champions ?? []
       yield {
+        seedWarning,
         generation: Number(step.generation ?? 0),
         totalGenerations: Number(step.total_generations ?? req.config.generations),
         bestComposite: Number(step.best_composite ?? 0),

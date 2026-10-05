@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 import { runNativeGpuSession, type NativeSessionClient } from "./native-gpu-core"
 import type { NativeHello, NativePrecisePayload, NativePreciseResult } from "@/lib/native-engine/types"
 import type { EvalRequest } from "./types"
+import { championSeedsFor } from "../champion-seeds"
 
 const hello = { engine_version: "native-gpu-v1-fixture", precision: "mixed", sm_count: 20, vram_mb: 6000 } as NativeHello
 const bars = Array.from({ length: 90 }, (_, i) => ({ time: new Date(Date.UTC(2025, 0, 1, i)).toISOString(), close: 100 + i }))
@@ -31,6 +32,30 @@ function fixture(qualified = true) {
 }
 
 describe("native GPU generation core", () => {
+  it("continues DOT daily OKX training when one automatic library seed needs absent taker flow", async () => {
+    const { client } = fixture()
+    const names = Array.from({length:62}, (_,i) => `feature${i}`)
+    names[54] = "TAKER_IMBALANCE"
+    const active = Array.from({length:52}, (_,i) => i).filter(i => ![17,18,33,34].includes(i))
+    client.mineFeatures.mockResolvedValue({...await client.mineFeatures(),feature_names:names,active_feature_ids:active})
+    const seeds = championSeedsFor("dotusdt","1d").seeds.map(s => s.tokens)
+    expect(seeds.some(s => s.includes(54))).toBe(true)
+    const req = {...request,config:{...request.config,symbol:"dotusdt",timeframe:"1d",seed_tokens:seeds}}
+    const gen = runNativeGpuSession(client,hello,bars,req,new AbortController().signal)
+    const first = await gen.next()
+    expect(first.done).toBe(false)
+    if (!first.done) expect(first.value.seedWarning).toContain("TAKER_IMBALANCE")
+    expect(client.evalShards.mock.calls.flatMap(call => call[1]).some(s => s.includes(54))).toBe(false)
+    await gen.return([])
+    expect(client.disposeSession).toHaveBeenCalledTimes(1)
+  })
+
+  it("keeps an explicit unavailable custom seed rejected and names its missing feature", async () => {
+    const { client } = fixture()
+    const req = {...request,config:{...request.config,seed_tokens:[[54,71]]}}
+    await expect(runNativeGpuSession(client,hello,bars,req,new AbortController().signal).next()).rejects.toThrow(/54|TAKER/)
+    expect(client.evalShards).not.toHaveBeenCalled()
+  })
   it("publishes f64 authority only and reveals the sealed holdout solely in the final generation", async () => {
     const { client } = fixture()
     const steps = []

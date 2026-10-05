@@ -34,6 +34,7 @@ export interface LocalFactorPayload {
   max_depth?: number
   cost?: number | null
   seed_tokens?: number[][]
+  seed_origin?: "champion_library" | "custom"
   mutation_p?: number
   crossover_p?: number
   train_ratio?: number
@@ -59,6 +60,7 @@ export type LocalSearchEngine = "cpu" | "gpu" | "native-gpu"
 
 /** 本地搜索的结构化进度(GenerationStep 摘要;与超级因子任务面板同源数据) */
 export interface LocalSearchStep {
+  seedWarning?: string
   engineTag?: string
   engineVersion?: string
   nativeRestarts?: number
@@ -224,6 +226,7 @@ export function buildSearchConfig(payload: LocalFactorPayload) {
     seed: payload.seed,
     cost: payload.cost ?? null,
     ...(payload.seed_tokens?.length ? { seed_tokens: payload.seed_tokens } : {}),
+    ...(payload.seed_origin ? {seed_origin:payload.seed_origin} : {}),
     ...(payload.selection_v2 ? { selection_v2: true } : {}),
     ...(payload.evolve_v2 ? { evolve_v2: true } : {}),
     ...(payload.live_entry_gate ? { live_entry_gate: payload.live_entry_gate } : {}),
@@ -260,10 +263,12 @@ export function toLocalSearchStep(
     engineTag?: string; engineVersion?: string; nativeRestarts?: number
     actualEngine?: LocalSearchEngine; qualificationCounts?: GenerationStep["qualificationCounts"]
     qualificationReasons?: string[]
+    seedWarning?: string
   },
   engine: LocalSearchEngine,
 ): LocalSearchStep {
   return {
+    seedWarning: value.seedWarning,
     generation: value.generation,
     totalGenerations: value.totalGenerations,
     bestComposite: value.bestComposite,

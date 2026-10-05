@@ -11,6 +11,7 @@ import { getBarsSnapshot } from "@/lib/mining/data-source"
 import { acquireGpuDevice } from "@/lib/mining/device"
 import { createGpuEval, disposeGpuEval, gpuEvalBatch } from "@/lib/mining/gpu/eval-gpu"
 import type { Champion } from "@/lib/factor-lab-api"
+import { championSeedsFor } from "../champion-seeds"
 
 vi.mock("@/lib/py-worker", () => ({ ensurePyWorker: vi.fn() }))
 vi.mock("@/lib/mining/data-source", () => ({
@@ -149,6 +150,26 @@ async function loadBackend() {
 }
 
 describe("GpuBackend.run", () => {
+  it("continues DOT daily WebGPU training without the unavailable taker-flow library seed", async () => {
+    vi.mocked(mockedEnsure().factorRun).mockResolvedValueOnce({
+      feature_names: Array.from({ length: 62 }, (_, i) => i === 54 ? "TAKER_IMBALANCE" : `feature${i}`),
+      active_feature_ids: Array.from({ length: 52 }, (_, i) => i).filter(i => ![17, 18, 33, 34].includes(i)),
+      matrix: Array.from({ length: 62 }, (_, i) => Array.from({ length: T }, (_, t) => Math.sin(i + t / 10))),
+      periods: 365, cost: .0003, train_len: T, total_len: 60,
+    })
+    const { GpuBackend } = await loadBackend()
+    const config = { ...CONFIG, symbol: "dotusdt", crypto_profile: true,
+      seed_origin: "champion_library" as const,
+      seed_tokens: championSeedsFor("dotusdt", "1d").seeds.map(seed => seed.tokens) }
+    const gen = new GpuBackend().run({ snapshotId: "snap-1", config, startGeneration: 0 }, new AbortController().signal)
+    const first = await gen.next()
+    expect(first.done).toBe(false)
+    if (!first.done) expect(first.value.seedWarning).toContain("3/4")
+    expect(mockedEvalBatch.mock.calls.flatMap(call => call[1]).flat()).not.toContain(54)
+    await gen.return([])
+    expect(mockedDisposeEval).toHaveBeenCalled()
+  })
+
   it("分代循环:每代粗排→top-K 精算→yield;champions 出自精算", async () => {
     const { GpuBackend } = await loadBackend()
     const gen = new GpuBackend().run({ snapshotId: "snap-1", config: CONFIG, startGeneration: 0 }, new AbortController().signal)
