@@ -8,6 +8,7 @@ import { useAITradingStore } from "@/stores/ai-trading"
 import { showAlert, showConfirm } from "@/stores/dialog"
 import { useSessionStatus } from "@/hooks/use-session-status"
 import { LiveProfitLockControl } from "./form/live-profit-lock-control"
+import { TaskCloseButton } from "./task-close-button"
 
 interface TaskActionsProps {
   task: AITradingTask
@@ -30,11 +31,19 @@ export function TaskActions({
   const deleteTask = useAITradingStore((s) => s.deleteTask)
   const runOnce = useAITradingStore((s) => s.runOnce)
   const setProfitLock = useAITradingStore((s) => s.setProfitLock)
+  const closePosition = useAITradingStore((s) => s.closePosition)
   const [busy, setBusy] = useState(false)
+  const [closing, setClosing] = useState(false)
   // 交易时段判断：开始/暂停/评估等需要行情的操作停盘禁用；
   // 结束/删除/修改等管理操作停盘仍允许（结束任务后端已支持，平仓失败会返回原因）。
   const { isOpen } = useSessionStatus(task.symbol || "")
   const marketClosed = !isOpen
+  async function handleClose(): Promise<void> {
+    if (busy || closing) return
+    setClosing(true)
+    try { await run(() => closePosition(task.id)) }
+    finally { setClosing(false) }
+  }
 
   /** 结束任务：停盘时提示平仓可能失败；点击后无论成败都给明确反馈 */
   async function handleStop(): Promise<void> {
@@ -109,7 +118,9 @@ export function TaskActions({
     <div
       className="flex items-center gap-1.5 flex-wrap"
       onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
     >
+      <TaskCloseButton task={task} busy={busy} closing={closing} marketClosed={marketClosed} onClose={() => void handleClose()} />
       {(task.status === "paused" ||
         (task.status === "stopped" && !task.has_open_position)) &&
         task.pause_reason !== "market_closed" && (

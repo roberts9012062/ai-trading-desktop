@@ -6,6 +6,7 @@ import { updateEquityTraces, type EquityTraces } from "@/components/ai-trading/e
 import { clearWaveCache, readWaveCache, saveWaveCache } from "@/components/ai-trading/equity/equity-wave-cache"
 import {
   createAITradingTask,
+  closeAITradingTaskPosition,
   fetchEquitySeries,
   fetchProfitBars,
   listAITradingDecisions,
@@ -60,6 +61,7 @@ interface AITradingState {
     payload: UpdateTaskRulesPayload,
   ) => Promise<AITradingTask>
   setProfitLock: (id: string, config: ProfitLockConfig) => Promise<void>
+  closePosition: (id: string) => Promise<void>
   startTask: (id: string) => Promise<void>
   pauseTask: (id: string) => Promise<void>
   stopTask: (id: string, forceClose: boolean) => Promise<AITradingTask>
@@ -84,6 +86,17 @@ let sessionGeneration = 0
 
 /** AI 交易状态 */
 export const useAITradingStore = create<AITradingState>((set, get) => ({
+  closePosition: async (id) => {
+    const owner = currentWaveOwner()
+    const generation = sessionGeneration
+    const result = await closeAITradingTaskPosition(id)
+    if (generation !== sessionGeneration || currentWaveOwner() !== owner) throw new Error("会话已切换，请重新查看当前账户任务")
+    taskApplied = ++taskRequest
+    set(s => ({ tasks: s.tasks.map(task => task.id === id ? { ...task, profit_lock_state: result.profit_lock_state,
+      ...(result.status === "closed" ? { has_open_position: false, position_qty: 0, position_unrealized: 0 } : {}) } : task) }))
+    await Promise.all([get().loadTasks({ silent: true }), get().loadEquity(), get().loadProfitBars({ silent: true })])
+    if (generation === sessionGeneration && currentWaveOwner() === owner && get().selectedTaskId === id) await get().refreshDetail({ silent: true })
+  },
   setProfitLock: async (id, config) => {
     const owner = useAuthStore.getState().user?.id
     const updated = await updateTaskProfitLock(id, config)

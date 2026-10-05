@@ -251,7 +251,7 @@ export function TaskList({
             )}
 
             {/* 底部：持仓明细（方向+数量 开→现价）+ 运行时长/操作 */}
-            <div className="mt-auto pt-2 border-t border-white/5 flex items-center justify-between gap-2">
+            <div className="mt-auto pt-2 border-t border-white/5 flex flex-col gap-2">
               {pos.hasPosition && pos.avg != null ? (
                 <div className="flex items-center gap-1.5 text-[11px] font-num min-w-0">
                   {dirLabel && (

@@ -15,6 +15,11 @@ export function profitLockStatus(task: AITradingTask): ProfitLockStatusView | nu
   const floor = finite(state.locked_net) && state.locked_net > 0 ? state.locked_net : null
   const pct = finite(state.locked_pct) ? `（保证金收益 ${state.locked_pct.toFixed(2)}%）` : ""
   if (state.closing && !state.closed) return { label: "锁利平仓中", detail: "已提交平仓，等待成交确认。", tone: "waiting" }
+  if (state.manual_exit) {
+    if (state.error) return { label: "一键平仓等待处理", detail: state.error, tone: "warning" }
+    const cooldown = finite(state.cooldown_remaining) ? Math.max(0, Math.trunc(state.cooldown_remaining)) : 0
+    if (state.closed && cooldown > 0) return { label: `锁利冷却 · 剩余 ${cooldown} 次信号`, detail: "一键平仓已成交，冷却期间跳过有效开仓信号；同一信号重复评估不重复计数。", tone: "waiting" }
+  }
   if (!config?.enabled) return null
   if (state.error) return { label: "锁利等待处理", detail: state.error, tone: "warning" }
   if (task.status === "paused") return { label: "锁利已开启 · 任务暂停", detail: "恢复运行后继续评估锁利。", tone: "waiting" }

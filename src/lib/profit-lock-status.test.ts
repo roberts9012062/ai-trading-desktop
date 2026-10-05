@@ -4,6 +4,12 @@ import { profitLockStatus } from "./profit-lock-status"
 
 const base = { status: "running", position_qty: 1, close_rules: { profit_lock: { enabled: true, mode: "auto", unit: "percent", activation: 3, giveback: 1, cooldown_signals: 1 } } } as AITradingTask
 describe("server profit lock card status", () => {
+  it("shows manual cooldown even while automatic profit lock is disabled", () => {
+    const task = { ...base, position_qty: 0, close_rules: { profit_lock: null }, profit_lock_state: { manual_exit: true, closed: true, cooldown_remaining: 2 } } as AITradingTask
+    expect(profitLockStatus(task)?.label).toBe("锁利冷却 · 剩余 2 次信号")
+    expect(profitLockStatus(task)?.detail).toContain("一键平仓")
+    expect(profitLockStatus({ ...task, profit_lock_state: { ...task.profit_lock_state, cooldown_remaining: 0 } })).toBeNull()
+  })
   it("shows the actual money floor, margin percent and net profit, updating on server snapshots", () => {
     const task = { ...base, profit_lock_state: { activated: true, locked_net: 7.7549, locked_pct: 7.7455, net_profit: 9 } }
     expect(profitLockStatus(task)).toMatchObject({ label: "已锁利", tone: "active" })
