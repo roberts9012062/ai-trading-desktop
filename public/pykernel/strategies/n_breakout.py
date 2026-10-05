@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from strategies.position_handlers import position_qty_dir
+
 
 def normalize_breakout_params(raw: dict[str, Any] | None) -> dict[str, Any]:
     """规范化 N 日突破参数"""
@@ -95,12 +97,8 @@ def compute_n_breakout_signal(
     up_break = close > upper
     down_break = close < lower
 
-    pos_qty = int(
-        (position or {}).get("available_quantity")
-        or (position or {}).get("quantity")
-        or 0
-    )
-    pos_dir = str((position or {}).get("direction") or "")
+    # 小数基础币数量必须 float（int 截断会把有仓当无仓，见 position_handlers）
+    pos_qty, pos_dir = position_qty_dir(position)
     mode = (side_mode or "both").strip().lower()
 
     if up_break:

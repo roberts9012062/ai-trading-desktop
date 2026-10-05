@@ -97,6 +97,10 @@ def compute_band_swing_signal(
     pos_qty, pos_dir = position_qty_dir(position)
     mode = (side_mode or "both").strip().lower()
 
+    if float(upper) - float(lower) <= abs(float(middle)) * 1e-12:
+        return signal_result("hold", "布林通道无有效波动，等待价格变化", 0,
+                             "band_flat", _SNAP, snapshot)
+
     # 持仓波段结束：回到中轨
     if pos_qty > 0 and pos_dir == "long" and close >= float(middle):
         return signal_result(

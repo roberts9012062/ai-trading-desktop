@@ -1,3 +1,4 @@
+from .data_contract import invalid_bars, required_signal_bars
 """量化规则策略包"""
 
 from strategies.band_swing import (
@@ -85,6 +86,10 @@ def compute_quant_signal(
 ) -> dict:
     """分发量化信号计算"""
     st = str(strategy_type or "").strip().lower()
+    if st not in QUANT_STRATEGY_TYPES:
+        raise ValueError(f"本地内核不支持策略 {st}，请使用服务器模拟引擎")
+    if st != "swing_pivot" and invalid_bars(bars):
+        return {"action":"hold", "quantity":0, "reason":"行情数据无效，暂停本次信号计算", "confidence":0, "signal":"invalid_data", "parse_ok":False}
     if st == "ma_cross":
         return compute_ma_cross_signal(bars, params, side_mode, position)
     if st == "n_breakout":

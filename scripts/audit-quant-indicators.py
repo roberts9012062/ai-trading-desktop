@@ -23,7 +23,8 @@ BACKEND = ROOT.parent / "Decentralized transactions" / "backend"
 sys.path.insert(0, str(BACKEND))
 sys.path.insert(0, str(ROOT / "public" / "pykernel"))
 import numpy as np
-from app.services.ai_trading.strategies import compute_quant_signal, normalize_strategy_params
+from app.services.ai_trading.strategies import compute_quant_signal, normalize_strategy_params, required_signal_bars
+from app.services.ai_trading.strategies.strength_state import update_state
 from app.services.factor_lab.features import clear_feature_matrix_cache, feature_matrix
 from app.services.factor_lab.features.compute import FEATURE_NAMES, compute_features
 from app.services.factor_lab import execute
@@ -31,6 +32,8 @@ from app.services.shortline.contract import Champion
 from app.services.shortline.evaluator import FormulaEvaluator, EvaluatorError
 from app.services.ai_trading.strategies.swing_pro import resample_bars
 import strategies as desktop
+
+REPAIRED = False
 
 KINDS = ["n_breakout", "ma_cross", "macd_cross", "kdj_cross", "band_swing",
          "swing_pro", "strength_entry", "strength_entry_v2", "factor"]
@@ -219,14 +222,20 @@ def probes():
         short = compute_features(bars[:end])
         result["variable_normalization"][str(end)] = max(float(np.nanmax(np.abs(short[name]-all_feats[name][:end]))) for name in FEATURE_NAMES if np.isfinite(short[name]).any())
     # Local dispatch coverage is separate from the current server-backed history page.
-    result["desktop_dispatch"] = {k: desktop.compute_quant_signal(k, bars[-240:], DEFAULT[k], "both", None) for k in KINDS}
+    result["desktop_dispatch"] = {}
+    for k in KINDS:
+        try:
+            result["desktop_dispatch"][k] = desktop.compute_quant_signal(k,bars[-240:],DEFAULT[k],"both",None)
+        except ValueError as exc:
+            result["desktop_dispatch"][k] = {"explicit_unsupported": str(exc)}
     result["desktop_parity"] = {}
     for kind in ["ma_cross", "n_breakout", "macd_cross", "kdj_cross", "band_swing", "factor"]:
         mismatches, checked = [], 0
         for end in range(240, 901, 20):
             for side in [None, "long", "short"]:
                 pos = None if side is None else {"quantity": .005, "available_quantity": .005, "direction": side}
-                a = sig(kind, bars[end-240:end], pos=pos)
+                server_params = {"factor_tokens":[0,71]} if kind == "factor" and REPAIRED else DEFAULT[kind]
+                a = sig(kind, bars[end-240:end], server_params, pos=pos)
                 # The baseline formula has unchanged feature id 0 across token spaces.
                 p = {"factor_tokens": [0, 71]} if kind == "factor" else DEFAULT[kind]
                 b = desktop.compute_quant_signal(kind, bars[end-240:end], p, "both", pos)
@@ -247,7 +256,7 @@ def probes():
         if end % 3 == 0: continue
         htf = resample_bars(bars[:end], 3)
         a, _ = _latest_fresh_pivot(htf, pp, 3)
-        b, _ = _latest_fresh_pivot(htf[:-1], pp, 3)
+        b, _ = _latest_fresh_pivot(htf if REPAIRED else htf[:-1], pp, 3)
         if a is not None and a != b:
             partial.append({"end": end, "partial_htf_pivot": a, "closed_only_pivot": b})
     result["swing_pro_incomplete_htf"]["pivot_changes"] = len(partial)
@@ -273,7 +282,11 @@ def probes():
             a = sig(kind, window)
             if a["action"] not in ("open_long", "open_short"): continue
             side = "long" if a["action"] == "open_long" else "short"
-            b = sig(kind, window, pos={"quantity": .005, "available_quantity": .005, "direction": side})
+            pos = {"quantity":.005,"available_quantity":.005,"direction":side}
+            b = sig(kind,window,pos=pos)
+            if REPAIRED:
+                pos["opened_at"] = bars[end-1]["time"]
+                b = sig(kind, bars[end-240:end], pos=pos)
             if b["action"] == "close": found.append({"end": end, "entry": a, "exit": b})
         result["strength_entry_exit_conflict"][kind] = {"count": len(found), "examples": found[:3]}
     result["shortline_decision_replay"] = shortline_decision_audit()
@@ -288,14 +301,21 @@ def replay(kind, bars, params, cost_bps, signal_cache):
     """
     cash = 10000.0; initial = cash; qty = 0.0; entry = 0.0; trade_net = 0.0; opened_at = None
     peak = initial; maxdd = 0.; trades = []; actions = Counter(); samples = []
+    state_params = dict(params)
+    timeframe = "60m" if len(bars)>1 and (datetime.fromisoformat(bars[1]["time"])-datetime.fromisoformat(bars[0]["time"])).total_seconds()==3600 else "5m"
+    width = required_signal_bars(kind,timeframe,params) if REPAIRED else 240
     for end in range(241, len(bars)):
-        window = bars[end-240:end]
+        window = bars[max(0,end-width):end]
         pos = None if qty == 0 else {"quantity": abs(qty), "available_quantity": abs(qty), "direction": "long" if qty > 0 else "short", "opened_at": opened_at}
         # Strategy decisions depend on direction / nonzero quantity, not its size.
         # Share the deterministic signal between cost scenarios (local audit cache).
         cache_key = (end, "flat" if pos is None else pos["direction"], opened_at if pos is not None else None)
-        if cache_key not in signal_cache: signal_cache[cache_key] = sig(kind, window, params, pos=pos)
+        if REPAIRED:
+            cache_key += (json.dumps(state_params,sort_keys=True),)
+        if cache_key not in signal_cache: signal_cache[cache_key] = sig(kind,window,state_params if REPAIRED else params,pos=pos)
         out = signal_cache[cache_key]
+        if REPAIRED and kind in ("strength_entry","strength_entry_v2"):
+            state_params = update_state(state_params,out,pos)
         action = out["action"]; actions[action] += 1
         fill = float(bars[end]["open"])
         # Signals observed at preceding bar close; execute on next bar open.
@@ -307,6 +327,8 @@ def replay(kind, bars, params, cost_bps, signal_cache):
             opened_at = bars[end]["time"]
             entry = fill; fee = abs(qty)*fill*cost_bps/10000; cash -= fee; trade_net = -fee
             stop = out.get("sl_price")
+            if REPAIRED and kind in ("strength_entry","strength_entry_v2"):
+                state_params = update_state(state_params,out,{"opened_at":opened_at},executed=True)
         if qty and kind == "swing_pro" and stop:
             if (qty > 0 and bars[end]["low"] <= stop) or (qty < 0 and bars[end]["high"] >= stop):
                 sf = min(fill, stop) if qty > 0 else max(fill, stop)
@@ -353,7 +375,10 @@ def replay_audit():
 def main():
     parser = argparse.ArgumentParser(); parser.add_argument("--section", choices=["probes", "matrix", "replay", "all"], default="all")
     parser.add_argument("--output", type=Path, default=ROOT/"docs"/"audits"/"2026-10-05-quant")
+    parser.add_argument("--repaired", action="store_true", help="Use shared windows and executed strength-signal state")
     args = parser.parse_args(); start=time.perf_counter()
+    global REPAIRED
+    REPAIRED = args.repaired
     for section, fn in [("probes", probes), ("matrix", matrix_audit), ("replay", replay_audit)]:
         if args.section in (section, "all"):
             save(args.output/(section+".json"), fn()); print("saved", section, "elapsed", round(time.perf_counter()-start,2), flush=True)

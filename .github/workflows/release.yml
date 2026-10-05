@@ -52,6 +52,7 @@ jobs:
           uv venv .local-data/native-engine-venv --python 3.11.14
           uv pip install --python .local-data/native-engine-venv/Scripts/python.exe \
             --require-hashes -r requirements-native.lock
+          .local-data/native-engine-venv/Scripts/python.exe scripts/test-quant-kernel.py
           BASE_PREFIX="$(.local-data/native-engine-venv/Scripts/python.exe -c 'import sys; print(sys.base_prefix)')"
           .local-data/native-engine-venv/Scripts/python.exe scripts/assemble-native-engine.py \
             --python "$BASE_PREFIX" --venv .local-data/native-engine-venv

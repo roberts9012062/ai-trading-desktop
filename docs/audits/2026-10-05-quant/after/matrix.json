@@ -1,0 +1,118 @@
+{
+  "n_breakout": {
+    "evaluations": 2268,
+    "exceptions": [],
+    "exception_count": 0,
+    "nonfinite_count": 0,
+    "forbidden_count": 0,
+    "actions": {
+      "hold": 2218,
+      "open_short": 14,
+      "close": 30,
+      "open_long": 6
+    }
+  },
+  "ma_cross": {
+    "evaluations": 2268,
+    "exceptions": [],
+    "exception_count": 0,
+    "nonfinite_count": 0,
+    "forbidden_count": 0,
+    "actions": {
+      "hold": 2178,
+      "open_short": 6,
+      "close": 54,
+      "open_long": 30
+    }
+  },
+  "macd_cross": {
+    "evaluations": 2268,
+    "exceptions": [],
+    "exception_count": 0,
+    "nonfinite_count": 0,
+    "forbidden_count": 0,
+    "actions": {
+      "hold": 2183,
+      "open_long": 32,
+      "close": 51,
+      "open_short": 2
+    }
+  },
+  "kdj_cross": {
+    "evaluations": 2268,
+    "exceptions": [],
+    "exception_count": 0,
+    "nonfinite_count": 0,
+    "forbidden_count": 0,
+    "actions": {
+      "hold": 2133,
+      "open_short": 14,
+      "close": 81,
+      "open_long": 40
+    }
+  },
+  "band_swing": {
+    "evaluations": 2268,
+    "exceptions": [],
+    "exception_count": 0,
+    "nonfinite_count": 0,
+    "forbidden_count": 0,
+    "actions": {
+      "hold": 1836,
+      "close": 378,
+      "open_short": 18,
+      "open_long": 36
+    }
+  },
+  "swing_pro": {
+    "evaluations": 2268,
+    "exceptions": [],
+    "exception_count": 0,
+    "nonfinite_count": 0,
+    "forbidden_count": 0,
+    "actions": {
+      "hold": 2244,
+      "open_short": 2,
+      "close": 18,
+      "open_long": 4
+    }
+  },
+  "strength_entry": {
+    "evaluations": 2268,
+    "exceptions": [],
+    "exception_count": 0,
+    "nonfinite_count": 0,
+    "forbidden_count": 0,
+    "actions": {
+      "hold": 1896,
+      "close": 312,
+      "open_long": 60
+    }
+  },
+  "strength_entry_v2": {
+    "evaluations": 2268,
+    "exceptions": [],
+    "exception_count": 0,
+    "nonfinite_count": 0,
+    "forbidden_count": 0,
+    "actions": {
+      "hold": 1547,
+      "close": 507,
+      "open_short": 130,
+      "open_long": 84
+    }
+  },
+  "factor": {
+    "evaluations": 2268,
+    "exceptions": [],
+    "exception_count": 0,
+    "nonfinite_count": 0,
+    "forbidden_count": 0,
+    "actions": {
+      "hold": 1852,
+      "open_short": 118,
+      "close": 238,
+      "open_long": 60
+    }
+  }
+}

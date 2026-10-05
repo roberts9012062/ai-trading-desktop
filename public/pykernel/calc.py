@@ -22,10 +22,10 @@ def calc_sma(closes: list[float], period: int) -> list[float | None]:
     if len(closes) < period:
         return result
     window_sum = sum(closes[:period])
-    result[period - 1] = _round_f(window_sum / period, 4)
+    result[period - 1] = window_sum / period
     for index in range(period, len(closes)):
         window_sum += closes[index] - closes[index - period]
-        result[index] = _round_f(window_sum / period, 4)
+        result[index] = window_sum / period
     return result
 
 
@@ -79,9 +79,9 @@ def calc_macd(
         histogram = 2.0 * (dif - dea)
         points.append(
             {
-                "dif": _round_f(dif, 4),
-                "dea": _round_f(dea, 4),
-                "macd": _round_f(histogram, 4),
+                "dif": dif,
+                "dea": dea,
+                "macd": histogram,
             }
         )
     return points
@@ -144,9 +144,9 @@ def calc_boll(
         std = variance ** 0.5
         points.append(
             {
-                "upper": _round_f(mid + std_mult * std, 4),
-                "middle": _round_f(mid, 4),
-                "lower": _round_f(mid - std_mult * std, 4),
+                "upper": mid + std_mult * std,
+                "middle": mid,
+                "lower": mid - std_mult * std,
             }
         )
     return points

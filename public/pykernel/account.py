@@ -65,7 +65,7 @@ class VirtualAccount:
     ) -> dict[str, Any] | None:
         """执行开平，返回成交记录或 None"""
         act = str(action or "hold").strip().lower()
-        qty = max(0, int(quantity or 0))
+        qty = max(0., float(quantity or 0))
         if act in ("hold", "") or qty <= 0 or price <= 0:
             return None
 
@@ -97,7 +97,7 @@ class VirtualAccount:
             # 降仓
             if margin <= 0:
                 return None
-            max_qty = int((self.cash - fee) / (abs(price) * self.multiplier * self.margin_rate))
+            max_qty = (self.cash - fee) / (abs(price) * self.multiplier * self.margin_rate)
             qty = max(0, min(qty, max_qty))
             if qty <= 0:
                 return None

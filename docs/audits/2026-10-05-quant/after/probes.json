@@ -1,0 +1,921 @@
+{
+  "flat_band": {
+    "action": "hold",
+    "quantity": 0,
+    "reason": "布林通道无有效波动，等待价格变化",
+    "confidence": 0,
+    "signal": "band_flat",
+    "parse_ok": true,
+    "band_snapshot": {
+      "period": 20,
+      "std_mult": 2.0,
+      "upper": 100.0,
+      "middle": 100.0,
+      "lower": 100.0,
+      "close": 100.0
+    }
+  },
+  "long_lookback": {
+    "ma_cross": {
+      "240": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "K线不足（需≥301根）",
+        "confidence": 0,
+        "signal": "insufficient_data",
+        "ma_snapshot": null,
+        "parse_ok": true
+      },
+      "900": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无交叉信号（空头排列）",
+        "confidence": 0.4,
+        "signal": "none",
+        "ma_snapshot": {
+          "fast_period": 5,
+          "slow_period": 300,
+          "ma_type": "sma",
+          "fast_prev": 98.8724,
+          "fast_now": 98.1835,
+          "slow_prev": 100.024,
+          "slow_now": 99.9941,
+          "close": 96.36607631458553
+        },
+        "parse_ok": true
+      }
+    },
+    "n_breakout": {
+      "240": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "K线不足（需≥301根）",
+        "confidence": 0,
+        "signal": "insufficient_data",
+        "breakout_snapshot": null,
+        "parse_ok": true
+      },
+      "900": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无突破（通道内，通道 91.81~108.35）",
+        "confidence": 0.4,
+        "signal": "none",
+        "breakout_snapshot": {
+          "lookback": 300,
+          "upper": 108.3466,
+          "lower": 91.8104,
+          "close": 96.3661,
+          "bar_time": "2026-01-04 02:55:00"
+        },
+        "parse_ok": true
+      }
+    },
+    "macd_cross": {
+      "240": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "K线不足（需≥302根）",
+        "confidence": 0,
+        "signal": "insufficient_data",
+        "parse_ok": true,
+        "macd_snapshot": null
+      },
+      "900": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无交叉信号（DIF<DEA 空头）",
+        "confidence": 0.4,
+        "signal": "none",
+        "parse_ok": true,
+        "macd_snapshot": {
+          "fast_period": 12,
+          "slow_period": 200,
+          "signal_period": 100,
+          "dif_prev": 0.3293092625741423,
+          "dea_prev": 0.7705896962570765,
+          "dif_now": -0.3079284988318989,
+          "dea_now": 0.7492329003147206,
+          "hist_now": -2.114322798293239
+        }
+      }
+    }
+  },
+  "backtest_120_parameter_cap": {
+    "ma_cross": {
+      "120": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "K线不足（需≥151根）",
+        "confidence": 0,
+        "signal": "insufficient_data",
+        "ma_snapshot": null,
+        "parse_ok": true
+      },
+      "240": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无交叉信号（空头排列）",
+        "confidence": 0.4,
+        "signal": "none",
+        "ma_snapshot": {
+          "fast_period": 5,
+          "slow_period": 150,
+          "ma_type": "sma",
+          "fast_prev": 98.8724,
+          "fast_now": 98.1835,
+          "slow_prev": 99.9506,
+          "slow_now": 99.9197,
+          "close": 96.36607631458553
+        },
+        "parse_ok": true
+      },
+      "900": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无交叉信号（空头排列）",
+        "confidence": 0.4,
+        "signal": "none",
+        "ma_snapshot": {
+          "fast_period": 5,
+          "slow_period": 150,
+          "ma_type": "sma",
+          "fast_prev": 98.8724,
+          "fast_now": 98.1835,
+          "slow_prev": 99.9506,
+          "slow_now": 99.9197,
+          "close": 96.36607631458553
+        },
+        "parse_ok": true
+      }
+    },
+    "n_breakout": {
+      "120": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "K线不足（需≥151根）",
+        "confidence": 0,
+        "signal": "insufficient_data",
+        "breakout_snapshot": null,
+        "parse_ok": true
+      },
+      "240": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无突破（通道内，通道 91.81~108.35）",
+        "confidence": 0.4,
+        "signal": "none",
+        "breakout_snapshot": {
+          "lookback": 150,
+          "upper": 108.3466,
+          "lower": 91.8104,
+          "close": 96.3661,
+          "bar_time": "2026-01-04 02:55:00"
+        },
+        "parse_ok": true
+      },
+      "900": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无突破（通道内，通道 91.81~108.35）",
+        "confidence": 0.4,
+        "signal": "none",
+        "breakout_snapshot": {
+          "lookback": 150,
+          "upper": 108.3466,
+          "lower": 91.8104,
+          "close": 96.3661,
+          "bar_time": "2026-01-04 02:55:00"
+        },
+        "parse_ok": true
+      }
+    },
+    "macd_cross": {
+      "120": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "K线不足（需≥161根）",
+        "confidence": 0,
+        "signal": "insufficient_data",
+        "parse_ok": true,
+        "macd_snapshot": null
+      },
+      "240": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无交叉信号（DIF<DEA 空头）",
+        "confidence": 0.4,
+        "signal": "none",
+        "parse_ok": true,
+        "macd_snapshot": {
+          "fast_period": 12,
+          "slow_period": 150,
+          "signal_period": 9,
+          "dif_prev": 0.23380784307123292,
+          "dea_prev": 1.9942289398552344,
+          "dif_now": -0.3887341964667854,
+          "dea_now": 1.5176363125908305,
+          "hist_now": -3.812741018115232
+        }
+      },
+      "900": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无交叉信号（DIF<DEA 空头）",
+        "confidence": 0.4,
+        "signal": "none",
+        "parse_ok": true,
+        "macd_snapshot": {
+          "fast_period": 12,
+          "slow_period": 150,
+          "signal_period": 9,
+          "dif_prev": 0.1946040448913351,
+          "dea_prev": 1.9528008096081186,
+          "dif_now": -0.4274187390416557,
+          "dea_now": 1.4767568998781637,
+          "hist_now": -3.808351277839639
+        }
+      }
+    },
+    "band_swing": {
+      "120": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "K线不足（需≥151根）",
+        "confidence": 0,
+        "signal": "insufficient_data",
+        "parse_ok": true,
+        "band_snapshot": null
+      },
+      "240": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "通道内观望（中轨下方，90.05~109.79）",
+        "confidence": 0.4,
+        "signal": "none",
+        "parse_ok": true,
+        "band_snapshot": {
+          "period": 150,
+          "std_mult": 2.0,
+          "upper": 109.78844427629434,
+          "middle": 99.91967019142041,
+          "lower": 90.05089610654647,
+          "close": 96.36607631458553
+        }
+      },
+      "900": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "通道内观望（中轨下方，90.05~109.79）",
+        "confidence": 0.4,
+        "signal": "none",
+        "parse_ok": true,
+        "band_snapshot": {
+          "period": 150,
+          "std_mult": 2.0,
+          "upper": 109.78844427629431,
+          "middle": 99.91967019142038,
+          "lower": 90.05089610654645,
+          "close": 96.36607631458553
+        }
+      }
+    }
+  },
+  "scale": {
+    "ma_cross": {
+      "evaluations": 660,
+      "action_mismatches": 0,
+      "examples": []
+    },
+    "macd_cross": {
+      "evaluations": 660,
+      "action_mismatches": 0,
+      "examples": []
+    },
+    "kdj_cross": {
+      "evaluations": 660,
+      "action_mismatches": 0,
+      "examples": []
+    },
+    "band_swing": {
+      "evaluations": 660,
+      "action_mismatches": 0,
+      "examples": []
+    },
+    "n_breakout": {
+      "evaluations": 660,
+      "action_mismatches": 0,
+      "examples": []
+    }
+  },
+  "history_live_window_parity": {
+    "n_breakout": {
+      "evaluations": 132,
+      "mismatches": 0,
+      "examples": []
+    },
+    "ma_cross": {
+      "evaluations": 132,
+      "mismatches": 0,
+      "examples": []
+    },
+    "macd_cross": {
+      "evaluations": 132,
+      "mismatches": 0,
+      "examples": []
+    },
+    "kdj_cross": {
+      "evaluations": 132,
+      "mismatches": 0,
+      "examples": []
+    },
+    "band_swing": {
+      "evaluations": 132,
+      "mismatches": 0,
+      "examples": []
+    },
+    "swing_pro": {
+      "evaluations": 132,
+      "mismatches": 0,
+      "examples": []
+    },
+    "strength_entry": {
+      "evaluations": 132,
+      "mismatches": 0,
+      "examples": []
+    },
+    "strength_entry_v2": {
+      "evaluations": 132,
+      "mismatches": 0,
+      "examples": []
+    },
+    "factor": {
+      "evaluations": 132,
+      "mismatches": 19,
+      "examples": [
+        {
+          "end": 241,
+          "history_120": "hold",
+          "live_240": "open_short",
+          "history_signal": "factor_wait",
+          "live_signal": "factor_open_short"
+        },
+        {
+          "end": 256,
+          "history_120": "open_short",
+          "live_240": "hold",
+          "history_signal": "factor_open_short",
+          "live_signal": "factor_wait"
+        },
+        {
+          "end": 281,
+          "history_120": "hold",
+          "live_240": "open_short",
+          "history_signal": "factor_wait",
+          "live_signal": "factor_open_short"
+        },
+        {
+          "end": 311,
+          "history_120": "hold",
+          "live_240": "open_long",
+          "history_signal": "factor_wait",
+          "live_signal": "factor_open_long"
+        }
+      ]
+    }
+  },
+  "invalid_data": {
+    "n_breakout": {
+      "zero": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "missing": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "string": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "nan": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "inverted": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      }
+    },
+    "ma_cross": {
+      "zero": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "missing": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "string": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "nan": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "inverted": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      }
+    },
+    "macd_cross": {
+      "zero": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "missing": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "string": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "nan": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "inverted": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      }
+    },
+    "kdj_cross": {
+      "zero": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "missing": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "string": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "nan": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "inverted": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      }
+    },
+    "band_swing": {
+      "zero": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "missing": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "string": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "nan": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "inverted": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      }
+    },
+    "swing_pro": {
+      "zero": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "missing": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "string": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "nan": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "inverted": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      }
+    },
+    "strength_entry": {
+      "zero": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "missing": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "string": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "nan": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "inverted": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      }
+    },
+    "strength_entry_v2": {
+      "zero": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "missing": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "string": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "nan": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "inverted": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      }
+    },
+    "factor": {
+      "zero": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "missing": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "string": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "nan": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      },
+      "inverted": {
+        "action": "hold",
+        "signal": "invalid_data",
+        "finite": true
+      }
+    }
+  },
+  "factor_cache_volume_revision": {
+    "same_object": false,
+    "cached": 5.0,
+    "fresh": 5.0,
+    "max_diff": 0.0,
+    "nonfinite_features": [
+      "FUNDING_RATE",
+      "FUNDING_DELTA",
+      "TAKER_IMBALANCE",
+      "QUOTE_ILLIQ20",
+      "ACCOUNT_LS_RATIO",
+      "LIQUIDATION_IMBALANCE",
+      "AVG_TRADE_QUOTE",
+      "FUNDING_MEAN24",
+      "OI_TREND24",
+      "TAKER_IMB24"
+    ]
+  },
+  "causality": {
+    "240": 0.0,
+    "360": 0.0,
+    "600": 0.0
+  },
+  "variable_normalization": {
+    "240": 0.5970020379298832,
+    "360": 1.6188471480615256,
+    "600": 1.6188471480615256
+  },
+  "desktop_dispatch": {
+    "n_breakout": {
+      "action": "open_short",
+      "quantity": 0,
+      "reason": "向下突破20日低点 97.2849 开空",
+      "confidence": 0.85,
+      "signal": "down_open_short",
+      "breakout_snapshot": {
+        "lookback": 20,
+        "upper": 107.4211,
+        "lower": 97.2849,
+        "close": 96.3661,
+        "bar_time": "2026-01-04 02:55:00"
+      },
+      "parse_ok": true
+    },
+    "ma_cross": {
+      "action": "hold",
+      "quantity": 0,
+      "reason": "无交叉信号（空头排列）",
+      "confidence": 0.4,
+      "signal": "none",
+      "ma_snapshot": {
+        "fast_period": 5,
+        "slow_period": 20,
+        "ma_type": "sma",
+        "fast_prev": 98.8724,
+        "fast_now": 98.1835,
+        "slow_prev": 103.4507,
+        "slow_now": 102.9586,
+        "close": 96.36607631458553
+      },
+      "parse_ok": true
+    },
+    "macd_cross": {
+      "action": "hold",
+      "quantity": 0,
+      "reason": "无交叉信号（DIF<DEA 空头）",
+      "confidence": 0.4,
+      "signal": "none",
+      "parse_ok": true,
+      "macd_snapshot": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "dif_prev": -0.9490266353347607,
+        "dea_prev": 0.07448545124388808,
+        "dif_now": -1.2301795877300776,
+        "dea_now": -0.18644755655090506,
+        "hist_now": -2.087464062358345
+      }
+    },
+    "kdj_cross": {
+      "action": "hold",
+      "quantity": 0,
+      "reason": "无交叉信号（K<D 空头）",
+      "confidence": 0.4,
+      "signal": "none",
+      "parse_ok": true,
+      "kdj_snapshot": {
+        "n_period": 9,
+        "k_period": 3,
+        "d_period": 3,
+        "k_prev": 4.5728,
+        "d_prev": 8.2321,
+        "k_now": 4.8031,
+        "d_now": 7.0891,
+        "j_now": 0.231,
+        "use_zone": false
+      }
+    },
+    "band_swing": {
+      "action": "hold",
+      "quantity": 0,
+      "reason": "通道内观望（中轨下方，95.82~110.10）",
+      "confidence": 0.4,
+      "signal": "none",
+      "parse_ok": true,
+      "band_snapshot": {
+        "period": 20,
+        "std_mult": 2.0,
+        "upper": 110.09507123265932,
+        "middle": 102.95864171362423,
+        "lower": 95.82221219458914,
+        "close": 96.36607631458553
+      }
+    },
+    "swing_pro": {
+      "explicit_unsupported": "本地内核不支持策略 swing_pro，请使用服务器模拟引擎"
+    },
+    "strength_entry": {
+      "explicit_unsupported": "本地内核不支持策略 strength_entry，请使用服务器模拟引擎"
+    },
+    "strength_entry_v2": {
+      "explicit_unsupported": "本地内核不支持策略 strength_entry_v2，请使用服务器模拟引擎"
+    },
+    "factor": {
+      "action": "hold",
+      "quantity": 0,
+      "reason": "数据不足或因子无效",
+      "confidence": 0.0,
+      "signal": "invalid_factor",
+      "parse_ok": true
+    }
+  },
+  "desktop_parity": {
+    "ma_cross": {
+      "evaluations": 102,
+      "action_mismatches": 0,
+      "examples": []
+    },
+    "n_breakout": {
+      "evaluations": 102,
+      "action_mismatches": 0,
+      "examples": []
+    },
+    "macd_cross": {
+      "evaluations": 102,
+      "action_mismatches": 0,
+      "examples": []
+    },
+    "kdj_cross": {
+      "evaluations": 102,
+      "action_mismatches": 0,
+      "examples": []
+    },
+    "band_swing": {
+      "evaluations": 102,
+      "action_mismatches": 0,
+      "examples": []
+    },
+    "factor": {
+      "evaluations": 102,
+      "action_mismatches": 0,
+      "examples": []
+    }
+  },
+  "swing_pro_incomplete_htf": {
+    "source_last_open": "2026-01-01 20:05:00",
+    "source_last_close": "2026-01-01 20:10:00",
+    "aggregated_last_open": "2026-01-01 19:45:00",
+    "aggregated_count": 80,
+    "expected_closed_count": 80,
+    "actual_last_volume": 384.21932120085245,
+    "pivot_changes": 0,
+    "examples": []
+  },
+  "shortline": {
+    "shortline-eval-v1": {
+      "forming_volume_scores": [
+        0.9103442626483472,
+        -0.2733312247981484,
+        -0.2733312247981484
+      ],
+      "warmup_and_missing_rejected": [
+        true,
+        true
+      ]
+    },
+    "shortline-eval-v2": {
+      "forming_volume_scores": [
+        0.9182439557893229,
+        -0.26190520277957424,
+        -0.26190520277957424
+      ],
+      "warmup_and_missing_rejected": [
+        true,
+        true
+      ]
+    }
+  },
+  "strength_entry_exit_conflict": {
+    "strength_entry": {
+      "count": 0,
+      "examples": []
+    },
+    "strength_entry_v2": {
+      "count": 0,
+      "examples": []
+    }
+  },
+  "shortline_decision_replay": {
+    "3": {
+      "steps_per_run": 3600,
+      "deterministic": true,
+      "trace_sha256": "b8db3d679f1fbb8d1feab30709e9f83aac77562c997800377e1cd7ed55964763",
+      "actions": {
+        "hold": 1593,
+        "open_long": 5,
+        "close": 9,
+        "skip_bar_limit": 39,
+        "open_short": 4,
+        "skip_hour_limit": 1950
+      },
+      "bad_score_actions": 0
+    },
+    "5": {
+      "steps_per_run": 2160,
+      "deterministic": true,
+      "trace_sha256": "0d656554bb7c0ea3ce9120f7ec2283b3753b722a770c52df05ed289fae35ced3",
+      "actions": {
+        "hold": 1009,
+        "open_long": 5,
+        "close": 9,
+        "skip_bar_limit": 19,
+        "open_short": 4,
+        "skip_hour_limit": 1114
+      },
+      "bad_score_actions": 0
+    },
+    "10": {
+      "steps_per_run": 1080,
+      "deterministic": true,
+      "trace_sha256": "ee11c5c15d521a0416e0654ce4519f150cc71fef684167d9febfe7ca31962f47",
+      "actions": {
+        "hold": 571,
+        "open_long": 5,
+        "close": 9,
+        "open_short": 4,
+        "skip_hour_limit": 487,
+        "skip_bar_limit": 4
+      },
+      "bad_score_actions": 0
+    },
+    "15": {
+      "steps_per_run": 720,
+      "deterministic": true,
+      "trace_sha256": "b969beefaef656236a898291c12fd118d6259247b898801d8f42e79626762250",
+      "actions": {
+        "hold": 429,
+        "open_long": 6,
+        "close": 9,
+        "skip_bar_limit": 7,
+        "open_short": 3,
+        "skip_hour_limit": 266
+      },
+      "bad_score_actions": 0
+    },
+    "30": {
+      "steps_per_run": 360,
+      "deterministic": true,
+      "trace_sha256": "d27e5e72ddb06096810dab40f5a8a29857fb4d7b64043be2b77d6d3906b308bc",
+      "actions": {
+        "hold": 282,
+        "open_short": 3,
+        "close": 9,
+        "open_long": 6,
+        "skip_hour_limit": 60
+      },
+      "bad_score_actions": 0
+    },
+    "60": {
+      "steps_per_run": 180,
+      "deterministic": true,
+      "trace_sha256": "3f968025609e88c933c725c66833fb24a254adba423f99e23adb01454d4d492b",
+      "actions": {
+        "hold": 180
+      },
+      "bad_score_actions": 0
+    }
+  }
+}

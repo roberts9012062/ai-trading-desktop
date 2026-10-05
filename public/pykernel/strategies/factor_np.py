@@ -136,7 +136,8 @@ def _latest_position(
     pos_sum = 0.0
     w_sum = 0.0
     for g, wi in zip(groups, w):
-        factor = execute(g, mat)
+        from factor_lab.vm import execute_for_bars
+        factor = execute_for_bars(g, mat, bars)
         if factor is None or is_constant(factor):
             continue  # 无效成员跳过，剩余成员权重重归一
         pos_sum += wi * float(np.tanh(np.clip(float(factor[-1]), -3.0, 3.0)))
@@ -161,12 +162,8 @@ def compute_factor_signal(
     if pos is None:
         return _hold("数据不足或因子无效", "invalid_factor", p)
 
-    pos_qty = int(
-        (position or {}).get("available_quantity")
-        or (position or {}).get("quantity")
-        or 0
-    )
-    pos_dir = str((position or {}).get("direction") or "")
+    from strategies.position_handlers import position_qty_dir
+    pos_qty, pos_dir = position_qty_dir(position)
     mode = (side_mode or "both").strip().lower()
     label = f"组合({len(groups)})" if len(groups) > 1 else "因子"
     snap = {"factor_position": round(pos, 3), "factor_text": p["factor_text"]}

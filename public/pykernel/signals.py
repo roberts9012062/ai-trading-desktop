@@ -56,7 +56,7 @@ def apply_hard_rules(
     if not position or last_price <= 0:
         return None
     side = str(position.get("direction") or "")
-    qty = int(position.get("quantity") or 0)
+    qty = float(position.get("quantity") or 0)
     avg = float(position.get("avg_price") or 0)
     if qty <= 0 or avg <= 0:
         return None
@@ -198,9 +198,9 @@ def normalize_action(
 ) -> tuple[str, int]:
     """规范动作与手数"""
     act = str(action or "hold").strip().lower()
-    qty = int(quantity or 0)
+    qty = float(quantity or 0)
     if qty <= 0:
-        qty = int(fixed_qty or 1)
+        qty = float(fixed_qty or 1)
     if side_mode == "long_only" and act == "open_short":
         return "hold", 0
     if side_mode == "short_only" and act == "open_long":
@@ -208,5 +208,5 @@ def normalize_action(
     if act == "close" and not position:
         return "hold", 0
     if act in ("open_long", "open_short", "close"):
-        return act, max(1, qty)
+        return act, max(0., qty)
     return "hold", 0

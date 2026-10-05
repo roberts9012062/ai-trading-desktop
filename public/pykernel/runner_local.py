@@ -73,11 +73,15 @@ def run_backtest_local(
     )
 
     strategy_type = str(payload.get("strategy_type") or "n_breakout").strip().lower()
+    from strategies import QUANT_STRATEGY_TYPES, required_signal_bars
+    if strategy_type != "ai" and strategy_type not in QUANT_STRATEGY_TYPES:
+        raise ValueError(f"本地内核不支持策略 {strategy_type}，请使用服务器模拟引擎")
     strategy_params = dict(payload.get("strategy_params") or {})
+    signal_window = 120 if strategy_type in ("ai", "swing_pivot") else required_signal_bars(strategy_type, timeframe, strategy_params)
     # AI 回测可选多选量化策略参考（前端 AI 模式勾选，透传至 _ai_signal context）
     ref_strategies = payload.get("ref_strategies") or []
     side_mode = str(payload.get("side_mode") or "both")
-    fixed_qty = int(payload.get("fixed_qty") or 1)
+    fixed_qty = float(payload.get("fixed_qty") or 1)
     initial_cash = float(payload.get("initial_cash") or DEFAULT_CASH)
     if initial_cash < 10000:
         initial_cash = 10000.0
@@ -206,7 +210,7 @@ def run_backtest_local(
                 bar_low=float(bar.get("low") or 0),
             )
             if hard:
-                act, qty = hard["action"], int(hard["quantity"])
+                act, qty = hard["action"], float(hard["quantity"])
                 reason = hard["reason"]
                 # 盘中触发时用精确止损/止盈价记账，更贴近限价止损单
                 exec_price = float(hard.get("trigger_price") or price)
@@ -227,7 +231,7 @@ def run_backtest_local(
                 )
             else:
                 # 2) 策略信号
-                signal_bars = slice_signal_window(bars, i, 120)
+                signal_bars = slice_signal_window(bars, i, signal_window)
                 if strategy_type == "ai":
                     if i not in ai_sample:
                         sig = {"action": "hold", "quantity": 0, "reason": "AI抽样跳过"}
@@ -334,7 +338,7 @@ def run_backtest_local(
 
                 act, qty = normalize_action(
                     str(sig.get("action") or "hold"),
-                    int(sig.get("quantity") or 0),
+                    float(sig.get("quantity") or 0),
                     fixed_qty,
                     side_mode,
                     account.position_dict(),
