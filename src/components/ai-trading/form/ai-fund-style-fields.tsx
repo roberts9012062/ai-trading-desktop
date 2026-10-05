@@ -1,11 +1,10 @@
 "use client"
 
 /**
- * AI 资金仓 / 策略风格 / 用户提示词 共用表单块
+ * AI 策略风格 / 用户提示词 共用表单块
  * 创建任务、编辑任务、历史回测复用
  */
 
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
 export type RiskStyle = "aggressive" | "balanced" | "conservative"
@@ -18,7 +17,7 @@ export interface AiFundStyleState {
 }
 
 export const DEFAULT_AI_FUND_STYLE: AiFundStyleState = {
-  allocatedCapital: 1000,
+  allocatedCapital: 0,
   riskStyle: "balanced",
   customPromptEnabled: false,
   customPrompt: "",
@@ -63,27 +62,19 @@ interface AiFundStyleFieldsProps {
   value: AiFundStyleState
   onChange: (next: AiFundStyleState) => void
   timeframe: string
-  /** 回测场景：资金文案改为「回测本金」 */
-  capitalLabel?: string
-  capitalHint?: string
-  showCapital?: boolean
   /** 宽屏双栏时压缩说明与提示词高度 */
   compact?: boolean
 }
 
-/** AI 资金仓 + 风格 + 可选用户提示词 */
+/** AI 风格 + 可选用户提示词 */
 export function AiFundStyleFields({
   value,
   onChange,
   timeframe,
-  capitalLabel,
-  capitalHint,
-  showCapital,
   compact,
 }: AiFundStyleFieldsProps): React.JSX.Element {
   const holdDays = maxHoldDaysForTimeframe(timeframe)
   const horizon = horizonLabel(timeframe)
-  const showCap = showCapital !== false
   const isCompact = Boolean(compact)
 
   function patch(partial: Partial<AiFundStyleState>): void {
@@ -99,34 +90,8 @@ export function AiFundStyleFields({
       }
     >
       <div className="text-xs font-medium text-[var(--text-secondary)]">
-        AI 资金与策略风格
+        AI 策略风格
       </div>
-
-      {showCap && (
-        <div className="space-y-1">
-          <Label>{capitalLabel || "AI 资金仓（USDT）"}</Label>
-          <Input
-            type="number"
-            min={10}
-            step="any"
-            value={value.allocatedCapital}
-            onChange={(e) =>
-              patch({
-                allocatedCapital: Math.max(
-                  10,
-                  Number(e.target.value) || 10,
-                ),
-              })
-            }
-          />
-          <p className="text-[11px] text-[var(--text-muted)]">
-            {capitalHint ||
-              (isCompact
-                ? "主账户→AI 资金仓真实划转；开平仓均从该仓流水，不占主账户可用。"
-                : "从主账户可用余额真实划转到 AI 资金仓（流水 ai_transfer_out）；AI 开平仓保证金/手续费均从该仓走，不占主账户剩余可用。")}
-          </p>
-        </div>
-      )}
 
       <div className="space-y-1">
         <Label>
@@ -202,7 +167,7 @@ export function AiFundStyleFields({
             <p className="text-[11px] text-[var(--text-muted)]">
               {isCompact
                 ? `用户提示词优先；风格不缩放。${value.customPrompt.length}/2000`
-                : `用户提示词为最高业务执行准则；激进/稳健/保守不再缩放规则。仍须遵守止盈止损原值、持仓上限、仓位与资金仓。${value.customPrompt.length}/2000`}
+                : `用户提示词为最高业务执行准则；激进/稳健/保守不再缩放规则。仍须遵守止盈止损原值、持仓上限、仓位与账户可用资金。${value.customPrompt.length}/2000`}
             </p>
           </div>
         )}

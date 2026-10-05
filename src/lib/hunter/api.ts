@@ -2,7 +2,7 @@ import type { Bar, Cycle, Direction, RuleVersion, EntryKind } from "./rules"
 import type { ProfitLockConfig, ProfitLockUpdateResult } from "../ai-trading-api"
 
 export interface HunterConfig {
-  name: string; capital: number; leverage: number; venue: "okx"; margin_mode: "isolated" | "cross"; cycles: Cycle[];
+  name: string; capital?: number; leverage: number; venue: "okx"; margin_mode: "isolated" | "cross"; cycles: Cycle[];
   brain: "rules" | "llm" | "jev"; model_id: string | null; rule_fallback: boolean;
   direction: "long" | "both"; whitelist: string[]; blacklist: string[];
   pool_size: number; max_positions: number; scan_seconds: number;

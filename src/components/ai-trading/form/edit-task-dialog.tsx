@@ -238,7 +238,7 @@ export function EditTaskDialog({
     setCapitalUsageMin(useMin0)
     setCapitalUsageMax(useMax0)
     setFundStyle({
-      allocatedCapital: Number(task.allocated_capital || 1000),
+      allocatedCapital: Number(task.allocated_capital ?? 0),
       riskStyle: (task.risk_style as RiskStyle) || "balanced",
       customPromptEnabled: Boolean(task.custom_prompt_enabled),
       customPrompt: task.custom_prompt || "",
@@ -278,10 +278,6 @@ export function EditTaskDialog({
     }
     if (!symbol.trim()) {
       setError("请选择合约品种")
-      return
-    }
-    if (fundStyle.allocatedCapital < 10) {
-      setError("任务资金仓至少 10 USDT")
       return
     }
     if (positionMode !== "capital_pct" && marginModel.marginPerTrade < 1) {
@@ -385,7 +381,6 @@ export function EditTaskDialog({
         funding.info && funding.info.source === "live" && funding.info.balance_usdt != null
           ? "live"
           : "site",
-      allocated_capital: fundStyle.allocatedCapital,
       capital_usage_min_pct: useMin,
       capital_usage_max_pct: useMax,
       risk_style: fundStyle.riskStyle,
@@ -736,7 +731,7 @@ export function EditTaskDialog({
               <option value="scale_in">滚仓（盈利加层）</option>
             </select>
             <p className="text-[11px] text-[var(--text-muted)]">
-              数量 = 每笔保证金 × 杠杆 ÷ 价格（USDT 口径，小数）；交易从任务资金仓走流水。
+              数量 = 每笔保证金 × 杠杆 ÷ 价格（USDT 口径，小数）；交易按现有账户与保证金设置执行。
             </p>
           </div>
           <FundingSourceBadge info={funding.info} onReload={funding.reload} />

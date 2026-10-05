@@ -76,6 +76,7 @@ export function buildFactorTaskPayload(
     side_mode: "both",
     position_mode: "fixed_qty",
     fixed_qty: 1,
+    allocated_capital: 0,
     close_rules: {
       pnl_pct: null,
       total_pnl_pct: null,

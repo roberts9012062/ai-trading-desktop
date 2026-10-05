@@ -82,7 +82,7 @@ export function BacktestForm({
   const [marginMode, setMarginMode] = useState<"cross" | "isolated">("cross")
   const [initialCash, setInitialCash] = useState(1_000_000)
   const [name, setName] = useState("")
-  const [lossPct, setLossPct] = useState("3")
+  const [lossPct, setLossPct] = useState("")
   const [pnlPct, setPnlPct] = useState("")
   const [models, setModels] = useState<AIModel[]>([])
   const [modelRowId, setModelRowId] = useState("")
@@ -456,9 +456,6 @@ export function BacktestForm({
             setFundStyle(next)
           }}
           timeframe={timeframe}
-          capitalLabel="回测本金 / AI 资金仓（元）"
-          capitalHint="上方「初始资金」即 AI 资金仓本金（独立虚拟账户，不划转模拟盘余额）。"
-          showCapital={false}
         />
       )}
 
@@ -467,7 +464,7 @@ export function BacktestForm({
           <Label>止损 %（可选）</Label>
           <Input type="number"
             value={lossPct}
-            placeholder="如 3"
+            placeholder="留空不启用百分比止损"
             onChange={(e) => setLossPct(e.target.value)}
           />
         </div>

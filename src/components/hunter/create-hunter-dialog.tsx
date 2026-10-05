@@ -16,7 +16,7 @@ import { CYCLES, validateLeverage, type Cycle } from "@/lib/hunter/rules"
 
 const selectClass = "w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm"
 const initial: HunterConfig = {
-  name: "AI 多周期猎手", capital: 1000, leverage: 1, venue: "okx", margin_mode: "isolated", cycles: ["short", "medium", "long"],
+  name: "AI 多周期猎手", leverage: 1, venue: "okx", margin_mode: "isolated", cycles: ["short", "medium", "long"],
   brain: "rules", model_id: null, rule_fallback: false, direction: "both", whitelist: [], blacklist: [],
   pool_size: 50, max_positions: 4, scan_seconds: 60, strategy_version: "hunter-v3",
 }
@@ -67,7 +67,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
     setError(null)
     if (existingHunter) { setError("当前账户已有未停止的多周期猎手，请先停止后再创建"); return }
     if (config.strategy_version !== "hunter-v1" && !capabilities?.supported_versions?.includes(config.strategy_version!)) { setError("服务器尚未支持所选规则版本，请更新服务器或选择旧版规则"); return }
-    if (!Number.isFinite(config.capital) || config.capital <= 0 || !config.cycles.length) { setError("请输入有效资金并选择至少一个周期"); return }
+    if (!config.cycles.length) { setError("请选择至少一个周期"); return }
     try { validateLeverage(config.leverage) } catch (e) { setError(e instanceof Error ? e.message : "杠杆无效"); return }
     if (config.brain !== "rules" && !choices.some(m => m.id === config.model_id)) { setError("请选择对应类型的模型"); return }
     setBusy(true)
@@ -93,7 +93,6 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
           <option value="hunter-v4">波段持有版 · 计划净3:1 + 多周期延续 + 确认反转</option><option value="hunter-v3">机会增强版 · 突破回踩 + 回调 + 短线延续</option><option value="hunter-v2">均衡版 · 突破回踩 + 趋势回调</option><option value="hunter-v1">原版 · 突破回踩</option>
         </select><p className="text-xs text-[var(--text-muted)]">{config.strategy_version === "hunter-v4" ? "50币双向、多周期趋势延续；服务器按最差限价和全部预计成本复核净3:1空间。趋势未反转可持有浮亏至结构止损；禁止摊平。" : config.strategy_version === "hunter-v3" ? "短线排名前/后50%，增加趋势延续入口；BTC横盘可筛选自身趋势币，逆向趋势或冲击继续拦截。建议50个币＋短线＋双向，按小时显示信号与挂载结果，未达目标会提示；不因超时强制下单。" : "均衡版：排名前/后30%，短线量能1.3倍、信号有效180秒；原版保持原有条件。"} 尚未完成盈利验证。</p></div>
         <div className="space-y-1"><Label htmlFor="hunter-name">名称</Label><Input id="hunter-name" maxLength={120} value={config.name} onChange={e => patch({ name: e.target.value })} /></div>
-        <div className="space-y-1"><Label htmlFor="hunter-capital">策略资金（USDT）</Label><Input id="hunter-capital" type="number" min={1} value={config.capital} onChange={e => patch({ capital: Number(e.target.value) })} /></div>
         <div className="space-y-1"><Label htmlFor="hunter-margin-mode">资金保证金模式</Label><select id="hunter-margin-mode" className={selectClass} value={config.margin_mode} onChange={e => patch({ margin_mode: e.target.value as HunterConfig["margin_mode"] })}>
           <option value="isolated">逐仓</option><option value="cross">全仓</option>
         </select></div>
@@ -110,7 +109,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
             <span className="block text-xs text-[var(--text-muted)]">预算上限 {CYCLES[cycle].budget*100}%；{config.strategy_version === "hunter-v4" ? "全仓波段持有、盈利保护与确认反转退出。" : "结构止损、分批止盈、移动止损及时间退出。"}</span>
           </span>
         </label>)}
-        <p className="text-xs text-[var(--text-muted)]">保留 20% 资金；单币仓位不超过 20%；合计初始风险不超过 1.2%。目标盈亏比不代表实际收益。</p>
+        <p className="text-xs text-[var(--text-muted)]">服务器按创建时账户可用资金建立风险基准，每次开仓复核实际可用保证金。保留 20% 资金；单币仓位不超过 20%；合计初始风险不超过 1.2%。目标盈亏比不代表实际收益。</p>
         <p className="text-xs text-[var(--text-muted)]">保证金 = 仓位名义价值 ÷ 杠杆；手续费按完整仓位计算。杠杆不提高单笔风险预算或单币名义仓位上限；止损及估算成本超过初始保证金 50% 的机会会跳过，不会强行缩短结构止损。</p>
         <p className="text-xs text-[var(--text-muted)]">两种模式都遵守单笔止损与策略总风险限额。OKX API 模拟盘和实盘按交易设置中的凭证类型执行，并向交易所提交所选保证金模式和保护单；站内模拟撮合使用统一资金账本。</p>
       </fieldset>

@@ -45,7 +45,7 @@ globalThis.fetch = async (input, init) => {
     if (init?.method === "POST") {
       const config = JSON.parse(String(init.body)) as HunterConfig
       groups = [{ id: "fixture-hunter-" + (++nextHunter), name: config.name, status: "running", trading_mode: tradingMode,
-        config, capital: config.capital, equity: config.capital, blocks: [], runtime: { execution_account: { execution_mode: executionMode } },
+        config: { ...config, capital: config.capital ?? 20000 }, capital: config.capital ?? 20000, equity: config.capital ?? 20000, blocks: [], runtime: { execution_account: { execution_mode: executionMode } },
         stats: { trades: 0, win_rate: null, profit_factor: null, payoff: null }, opportunities: [] }]
       document.getElementById("submitted")!.textContent = JSON.stringify(config, null, 2)
       return Response.json(groups[0])

@@ -393,7 +393,7 @@ export async function createAITradingTask(
   }
   return request("/api/ai-trading/tasks", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, allocated_capital: 0 }),
   })
 }
 

@@ -403,7 +403,7 @@ export function CreateTaskRules({
           <div>
             <Label className="text-[11px]">亏损%</Label>
             <Input type="number"
-              placeholder="如 3"
+              placeholder="留空不启用百分比止损"
               value={value.lossPct}
               onChange={(e) => patch({ lossPct: e.target.value })}
             />

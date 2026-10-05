@@ -103,7 +103,7 @@ const DEFAULT_RULES: RuleFormState = {
   // 决策模型模式默认由模型自己决定平仓/止损（普通量化模式不展示该选项）
   modelExit: true,
   modelStop: true,
-  lossPct: "3",
+  lossPct: "",
   stopAi: false,
   autoStart: true,
 }
@@ -124,7 +124,6 @@ export function CreateQuantDialog({
   const [decisionModelRowId, setDecisionModelRowId] = useState("")
   const [decisionIntervalSec, setDecisionIntervalSec] = useState(60)
   const [icon, setIcon] = useState<string | null>(null)
-  const [allocatedCapital, setAllocatedCapital] = useState(1000)
   const [symbol, setSymbol] = useState("")
   const [symbolName, setSymbolName] = useState("")
   const [timeframe, setTimeframe] = useState("15m")
@@ -174,7 +173,6 @@ export function CreateQuantDialog({
         ((isDecisionClone ? ds.params : sp) ?? {}) as Record<string, unknown>,
       ),
     )
-    setAllocatedCapital(Number(t.allocated_capital || 1000))
     setSymbol(t.symbol || "")
     setSymbolName(t.symbol_name || "")
     setTimeframe(t.timeframe || "15m")
@@ -239,23 +237,8 @@ export function CreateQuantDialog({
       setError(qErr)
       return
     }
-    if (allocatedCapital < 10) {
-      setError("任务资金仓至少 10 USDT")
-      return
-    }
     if (marginModel.marginPerTrade < 1) {
       setError("每笔保证金至少 1 USDT")
-      return
-    }
-    if (
-      funding.info &&
-      funding.info.source === "live" &&
-      funding.info.balance_usdt != null &&
-      allocatedCapital > funding.info.balance_usdt
-    ) {
-      setError(
-        `实盘资金库可用 ${funding.info.balance_usdt.toLocaleString("zh-CN", { maximumFractionDigits: 2 })} USDT，资金仓不能超过`,
-      )
       return
     }
     if (decisionEnabled) {
@@ -323,7 +306,7 @@ export function CreateQuantDialog({
           ? evalIntervalSec
           : null,
       icon,
-      allocated_capital: allocatedCapital,
+      allocated_capital: 0,
       symbol: symbol.trim().toLowerCase(),
       symbol_name: symbolName,
       timeframe,
@@ -615,27 +598,6 @@ export function CreateQuantDialog({
             />
           </div>
 
-          <div className="space-y-1">
-            <Label>任务资金仓（USDT）</Label>
-            <Input
-              type="number"
-              min={10}
-              step="any"
-              value={allocatedCapital}
-              onChange={(e) =>
-                setAllocatedCapital(
-                  Math.max(10, Number(e.target.value) || 10),
-                )
-              }
-            />
-            <p className="text-[10px] text-[var(--text-muted)]">
-              {funding.info && funding.info.source === "live"
-                ? "从实盘资金库（交易所 USDT 可用）划转独立资金仓；任务删除时退回。"
-                : "从站内账户划转独立资金仓；任务删除时退回。"}
-              盈亏按资金仓额度计算（USDT，可小数）。
-            </p>
-          </div>
-
           <div className="space-y-2 rounded-md border border-[var(--border)] p-2.5">
             <div className="space-y-1">
               <Label>仓位管理</Label>
@@ -667,7 +629,7 @@ export function CreateQuantDialog({
                   budgetOnly
                 />
                 <p className="text-[10px] text-[var(--text-muted)]">
-                  {positionMode === "half" ? "每笔使用资金仓可用预算的一半" : "每笔使用资金仓全部可用预算"}作保证金；数量 = 保证金 × 杠杆 ÷ 价格。
+                  {positionMode === "half" ? "每笔使用账户可用预算的一半" : "每笔使用账户全部可用预算"}作保证金；数量 = 保证金 × 杠杆 ÷ 价格。
                 </p>
               </>
             )}

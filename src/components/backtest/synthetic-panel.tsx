@@ -102,7 +102,7 @@ export function SyntheticPanel({
   const [fixedQty, setFixedQty] = useState(1)
   const [initialCash, setInitialCash] = useState(1_000_000)
   const [speedMs, setSpeedMs] = useState(3000)
-  const [lossPct, setLossPct] = useState("3")
+  const [lossPct, setLossPct] = useState("")
   const [pnlPct, setPnlPct] = useState("")
   const [fundStyle, setFundStyle] =
     useState<AiFundStyleState>(DEFAULT_AI_FUND_STYLE)
@@ -381,9 +381,6 @@ export function SyntheticPanel({
           value={{ ...fundStyle, allocatedCapital: initialCash }}
           onChange={(next) => setFundStyle(next)}
           timeframe={timeframe}
-          capitalLabel="回测本金 / AI 资金仓（元）"
-          capitalHint="上方「初始资金」即 AI 资金仓本金。"
-          showCapital={false}
         />
       )}
 
@@ -409,7 +406,7 @@ export function SyntheticPanel({
           <input
             className="w-full h-9 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-sm"
             value={lossPct}
-            placeholder="如 3"
+            placeholder="留空不启用百分比止损"
             onChange={(e) => setLossPct(e.target.value)}
           />
         </div>

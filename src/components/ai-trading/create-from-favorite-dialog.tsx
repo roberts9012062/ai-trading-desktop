@@ -65,7 +65,7 @@ function payloadFromSnapshot(
     fixed_qty: s.fixed_qty ?? 1,
     qty_min: s.qty_min,
     qty_max: s.qty_max,
-    allocated_capital: s.allocated_capital ?? 100000,
+    allocated_capital: 0,
     capital_usage_min_pct: s.capital_usage_min_pct ?? 0,
     capital_usage_max_pct: s.capital_usage_max_pct ?? 100,
     risk_style: s.risk_style ?? "balanced",

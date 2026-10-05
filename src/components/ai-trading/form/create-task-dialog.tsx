@@ -184,7 +184,7 @@ export function CreateTaskDialog({
       leverage: Math.max(1, Math.min(100, Number(t.leverage) || 10)),
     })
     setFundStyle({
-      allocatedCapital: Number(t.allocated_capital || 1000),
+      allocatedCapital: 0,
       riskStyle: (t.risk_style as RiskStyle) || "balanced",
       customPromptEnabled: Boolean(t.custom_prompt_enabled),
       customPrompt: t.custom_prompt || "",
@@ -207,23 +207,8 @@ export function CreateTaskDialog({
       setError("请选择合约品种")
       return
     }
-    if (fundStyle.allocatedCapital < 10) {
-      setError("AI 资金仓至少 10 USDT")
-      return
-    }
     if (positionMode !== "capital_pct" && marginModel.marginPerTrade < 1) {
       setError("每笔保证金至少 1 USDT")
-      return
-    }
-    if (
-      funding.info &&
-      funding.info.source === "live" &&
-      funding.info.balance_usdt != null &&
-      fundStyle.allocatedCapital > funding.info.balance_usdt
-    ) {
-      setError(
-        `实盘资金库可用 ${funding.info.balance_usdt.toLocaleString("zh-CN", { maximumFractionDigits: 2 })} USDT，资金仓不能超过`,
-      )
       return
     }
     if (
@@ -311,7 +296,7 @@ export function CreateTaskDialog({
         funding.info && funding.info.source === "live" && funding.info.balance_usdt != null
           ? "live"
           : "site",
-      allocated_capital: fundStyle.allocatedCapital,
+      allocated_capital: 0,
       capital_usage_min_pct: useMin,
       capital_usage_max_pct: useMax,
       risk_style: fundStyle.riskStyle,
@@ -386,7 +371,7 @@ export function CreateTaskDialog({
             }}>{mode==='realtime'?'AI 实时交易':'AI 预测交易'}</Button>)}
           </div>
           <p className="text-[11px] text-amber-400/90 text-left font-normal">
-            {tradeMode==='forecast'?'AI 预测方向与进场价，OKX 条件单触发，止盈止损平仓后结束。':'模型按 K 线周期自主交易；资金仓额度控制风险上限。'}
+            {tradeMode==='forecast'?'AI 预测方向与进场价，OKX 条件单触发，止盈止损平仓后结束。':'模型按 K 线周期自主交易；使用账户可用保证金，并遵守仓位及风控设置。'}
           </p>
           <LiveExecBanner />
         </DialogHeader>
@@ -576,7 +561,7 @@ export function CreateTaskDialog({
                 <option value="scale_in">滚仓（盈利加层）</option>
               </select>
               <p className="text-[11px] text-[var(--text-muted)]">
-                数量 = 每笔保证金 × 杠杆 ÷ 价格（USDT 口径，小数）；交易从 AI 资金仓走流水。
+                数量 = 每笔保证金 × 杠杆 ÷ 价格（USDT 口径，小数）；交易使用账户可用资金。
               </p>
             </div>
 
@@ -643,7 +628,7 @@ export function CreateTaskDialog({
             />
           </div>
 
-          {/* 右栏：资金源 / 资金仓 / 风格 / 用户提示词 */}
+          {/* 右栏：资金源 / 风格 / 用户提示词 */}
           <div className="min-h-0 overflow-y-auto pr-1 space-y-2">
             <FundingSourceBadge info={funding.info} onReload={funding.reload} />
             <AiFundStyleFields
