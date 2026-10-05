@@ -84,7 +84,7 @@ function isPivotAt(
     if (!isHigh && !isLow) return { isHigh: false, isLow: false }
   }
   for (let j = 1; j <= rightCount; j++) {
-    // 右侧严格比较：并列峰谷取最左
+    // 右侧严格比较：并列峰谷保留最右侧极值。
     if (klines[i + j].high >= hi) isHigh = false
     if (klines[i + j].low <= lo) isLow = false
     if (!isHigh && !isLow) break
@@ -126,7 +126,8 @@ export function calcPivotSignals(
     if (isHigh && isLow) continue
     if (!isHigh && !isLow) continue
 
-    const provisional = rightCount < right
+    const provisional = rightCount < right || klines.slice(i + 1, i + rightCount + 1).some((b) => b.is_closed === false)
+    if (provisional && minRightLive === right) continue
     if (isHigh) {
       raw.push({
         time: klines[i].time,
@@ -180,6 +181,10 @@ export function calcPivotSignals(
     const prev = out[out.length - 1]
     const cur = seq[i]
     if (cur.side === prev.side) {
+      if (!filter.alternate) {
+        out.push(cur)
+        continue
+      }
       if (cur.side === "long" && cur.price < prev.price) {
         out[out.length - 1] = cur
       } else if (cur.side === "short" && cur.price > prev.price) {
@@ -201,4 +206,19 @@ export function calcPivotSignals(
     }
   }
   return out
+}
+
+/** Chart history remains visible; current trade signals use the server's window. */
+export function calcChartPivotSignals(klines: KlineBar[], left: number, right: number, filter: PivotFilterOptions): PivotSignalPoint[] {
+  const full = calcPivotSignals(klines, left, right, filter)
+  const window = 240 // evaluate_task's canonical signal window (including forming)
+  if (klines.length <= window || klines.at(-1)?.market_source !== "okx") return full
+  const offset = klines.length - window
+  const boundary = klines.length - 1 - right - 1
+  const current = calcPivotSignals(klines.slice(-window), left, right, filter)
+    .map((s) => ({ ...s, index: s.index + offset }))
+    .filter((s) => s.index >= boundary)
+  // Keep older annotations, but never let a scroll/history ATR seed change
+  // an actionable arrow. Also cover the just-closed formal confirmation bar.
+  return [...full.filter((s) => s.index < boundary), ...current]
 }

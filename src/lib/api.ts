@@ -364,6 +364,7 @@ export interface KlineBarApi {
   /** 持仓量（数据源不支持时为 null） */
   open_interest: number | null
   market_source?: "okx"
+  is_closed?: boolean | null
   version?: number
   kind?: string
 }

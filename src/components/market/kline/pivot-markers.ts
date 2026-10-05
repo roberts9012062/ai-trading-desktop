@@ -9,7 +9,7 @@ import {
   type SeriesMarker,
   type Time,
 } from "lightweight-charts"
-import { calcPivotSignals } from "@/lib/pivot-signals"
+import { calcChartPivotSignals } from "@/lib/pivot-signals"
 import type { KlineBar, KlinePeriod } from "@/types"
 import type { PivotSignalConfig } from "@/types/indicator"
 import { formatChartTime } from "./utils"
@@ -54,8 +54,12 @@ export function applyPivotMarkers(
     }
   }
 
-  const signals = calcPivotSignals(
-    bars,
+  const signals = calcChartPivotSignals(
+    // Older cached/feed rows have no flag. The chart's live tail is forming;
+    // official OKX confirmation takes precedence when present.
+    bars.length && bars.at(-1)?.is_closed == null
+      ? [...bars.slice(0, -1), { ...bars[bars.length - 1], is_closed: false }]
+      : bars,
     Math.max(1, Math.floor(pivot.left)),
     Math.max(1, Math.floor(pivot.right)),
     filterFromPivot(pivot),

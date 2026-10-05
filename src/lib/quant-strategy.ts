@@ -38,6 +38,7 @@ export interface QuantParamsState {
   swingRight: number
   /** 盘中预确认最少右侧根数（1–swingRight，与图表波段信号同口径，默认 1） */
   swingMinRightLive: number
+  swingAlternate: boolean
   swingMinAmplitude: number
   swingMinAtrMult: number
   swingAtrPeriod: number
@@ -104,6 +105,7 @@ export const DEFAULT_QUANT_PARAMS: QuantParamsState = {
   swingLeft: 3,
   swingRight: 3,
   swingMinRightLive: 1,
+  swingAlternate: true,
   swingMinAmplitude: 1.5,
   swingMinAtrMult: 1.5,
   swingAtrPeriod: 14,
@@ -226,9 +228,10 @@ export function paramsToQuantState(
     case "swing_pivot":
       return {
         ...base,
+        swingAlternate: p.alternate !== false,
         swingLeft: n("left", 3),
         swingRight: n("right", 3),
-        swingMinRightLive: n("min_right_live", 1),
+        swingMinRightLive: n("min_right_live", n("right", 3)),
         swingMinAmplitude: n("min_amplitude_pct", 1.5),
         swingMinAtrMult: n("min_atr_mult", 1.5),
         swingAtrPeriod: n("atr_period", 14),
@@ -307,6 +310,7 @@ export function buildStrategyParams(
       return { period: q.bandPeriod, std_mult: q.bandStd }
     case "swing_pivot":
       return {
+        alternate: q.swingAlternate !== false,
         left: q.swingLeft,
         right: q.swingRight,
         min_right_live: q.swingMinRightLive,
@@ -392,6 +396,17 @@ export function validateQuantParams(q: QuantParamsState): string | null {
   }
   if (isSwing && q.swingRight < 2) {
     return "右侧确认根数至少为 2（对齐图表波段信号）"
+  }
+  if (q.quantKind === "swing_pivot") {
+    if (!Number.isInteger(q.swingLeft) || q.swingLeft > 20 || !Number.isInteger(q.swingRight) || q.swingRight > 20) {
+      return "波段左侧根数须为1–20整数，右侧根数须为2–20整数"
+    }
+    if (!Number.isInteger(q.swingMinRightLive) || !Number.isInteger(q.swingAtrPeriod) || q.swingAtrPeriod < 1 || q.swingAtrPeriod > 100) {
+      return "预确认根数须为整数，ATR周期须为1–100整数"
+    }
+    if (!Number.isFinite(q.swingMinAmplitude) || q.swingMinAmplitude < 0 || q.swingMinAmplitude > 20 || !Number.isFinite(q.swingMinAtrMult) || q.swingMinAtrMult < 0 || q.swingMinAtrMult > 10) {
+      return "最小波段幅度须为0–20%，ATR倍数须为0–10"
+    }
   }
   if (
     q.quantKind === "swing_pivot" &&

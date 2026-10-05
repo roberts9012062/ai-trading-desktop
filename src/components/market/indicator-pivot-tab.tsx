@@ -88,7 +88,7 @@ export function IndicatorPivotTab({
           </label>
           <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
             局部最低标红色向上箭头（做多），局部最高标绿色向下箭头（做空）。
-            盘中实时重算：预确认显示「多·/空·」，满确认后变为「多/空」。
+            盘中预确认显示「多·/空·」，右侧确认K线全部收盘后显示「多/空」。近期交易箭头与量化均使用最近240根OKX永续K线。
           </p>
           {pivot.enabled && (
             <div className="space-y-3">
@@ -104,7 +104,7 @@ export function IndicatorPivotTab({
               <NumberField
                 label="右侧确认根数（正式）"
                 value={pivot.right}
-                min={1}
+                min={2}
                 max={20}
                 highlight="arrows"
                 onHighlight={onHighlight}
@@ -114,7 +114,7 @@ export function IndicatorPivotTab({
                 label="盘中预确认最少右侧根数"
                 value={pivot.minRightLive ?? 1}
                 min={1}
-                max={20}
+                max={pivot.right}
                 highlight="arrows"
                 onHighlight={onHighlight}
                 onChange={(v) => store.updatePivot({ minRightLive: v })}

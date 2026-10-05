@@ -130,6 +130,8 @@ export interface KlineBar {
   version?: number
   /** "correction" = 权威对账修正帧（OHLCV 已被权威值替换） */
   kind?: string
+  /** OKX confirm: true only after the exchange confirms the candle closed. */
+  is_closed?: boolean | null
 }
 
 /** K 线周期 */
