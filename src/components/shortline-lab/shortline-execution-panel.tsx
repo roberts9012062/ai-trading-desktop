@@ -7,11 +7,13 @@ import { buildShortlinePayload } from "@/lib/shortline/mount"
 import { reviewShortlineExecution } from "@/lib/shortline/server-api"
 import { boundedReviewDays, REVIEW_REASONS, type ExecutionReview, type ExecutionSettings, type ExecutionObservation } from "@/lib/shortline/execution-review"
 import type { CadenceSeconds, ShortlineTimeframe } from "@/lib/shortline/spec"
+import type { ShortlineHistorySource } from "@/lib/okx-history"
 
 export const ENHANCED_SHORTLINE_DECISION = { exit_threshold: .1, neutral_exit_steps: 6,
   trailing_start_pct: 8, trailing_giveback_pct: 40, stop_reentry_new_signal: true, market_execution: true }
 
 interface Props {
+  source?: ShortlineHistorySource,
   taskId?: string, symbol: string, timeframe: ShortlineTimeframe, cadence: CadenceSeconds,
   champions: { id: number, tokens: number[] }[], settings: ExecutionSettings,
   onSettings: (value: ExecutionSettings) => void,
@@ -30,7 +32,7 @@ export default function ShortlineExecutionPanel(props: Props) {
   const [report, setReport] = useState<ExecutionReview | null>(null)
   const workerRef = useRef<Worker | null>(null)
   const abortRef = useRef<AbortController | null>(null)
-  const identity = JSON.stringify([props.taskId, props.symbol, props.timeframe, props.cadence,
+  const identity = JSON.stringify([props.source, props.taskId, props.symbol, props.timeframe, props.cadence,
     props.champions, settings, props.feeRate, slippage, days])
   const fingerprintRef = useRef(identity)
   fingerprintRef.current = identity
@@ -86,7 +88,7 @@ export default function ShortlineExecutionPanel(props: Props) {
         try {
           const value = await reviewShortlineExecution({
             ...settings, payload, steps: data.observations, dataset_sha: data.datasetSha,
-            source: "binance_usdt", fee_rate: props.feeRate, slippage_bps: slippage,
+            source: props.source ?? "binance_usdt", fee_rate: props.feeRate, slippage_bps: slippage,
           }, controller.signal)
           if (fingerprintRef.current !== currentIdentity || controller.signal.aborted) return
           setReport(value); props.onReport(value); setMessage("研究回放复核完成；结论不构成OKX实盘盈利保证")
@@ -96,7 +98,7 @@ export default function ShortlineExecutionPanel(props: Props) {
       }
     }
     worker.postMessage({ symbol: props.symbol, timeframe: props.timeframe,
-      cadence: props.cadence, champions: props.champions, days })
+      cadence: props.cadence, champions: props.champions, days, source:props.source ?? "binance_usdt" })
   }
   const update = (patch: Partial<ExecutionSettings>) => onSettings({ ...settings, ...patch })
   const inputClass = "w-full rounded-lg border border-white/10 bg-[#0F131C] px-3 py-2 text-sm text-white"
@@ -141,7 +143,7 @@ export default function ShortlineExecutionPanel(props: Props) {
     </div>
     {report && <div className="space-y-3 border-t border-white/10 pt-4">
       <div className="flex flex-wrap justify-between gap-3 text-xs">
-        <span className="text-amber-300">研究复核 · Binance逐笔历史 · 尚未独立验证OKX</span>
+        <span className="text-amber-300">研究复核 · {report.source === "okx" ? "OKX逐笔历史 · 尚未独立封存验证" : "Binance逐笔历史 · 尚未独立验证OKX"}</span>
         <button className="text-sky-300" onClick={() => {
           const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], {type:"application/json"}))
           const a = document.createElement("a"); a.href = url; a.download = `shortline-review-${report.review_sha.slice(0,12)}.json`; a.click()

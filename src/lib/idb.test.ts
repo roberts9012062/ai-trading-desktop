@@ -45,7 +45,7 @@ function openV1AndSeed(): Promise<void> {
 }
 
 describe("idb 公共入口", () => {
-  it("v1→v6 升级:旧 kline-history 记录仍可读,新增 mining-bars/mining-tasks/volume-profile/shortline-digest store", async () => {
+  it("v1→v7 升级:旧 kline-history 记录仍可读,新增 store 齐备", async () => {
     await openV1AndSeed()
 
     const {
@@ -55,16 +55,18 @@ describe("idb 公共入口", () => {
       MINING_TASKS_STORE,
       VOLUME_PROFILE_STORE,
       SHORTLINE_DIGEST_STORE,
+      OKX_ARCHIVE_STORE,
     } = await import("@/lib/idb")
     const db = await openDb()
     expect(db).not.toBeNull()
-    expect(db!.version).toBe(6)
+    expect(db!.version).toBe(7)
     expect(db!.version).toBe(DB_VERSION)
     expect(db!.objectStoreNames.contains("kline-history")).toBe(true)
     expect(db!.objectStoreNames.contains(MINING_BARS_STORE)).toBe(true)
     expect(db!.objectStoreNames.contains(MINING_TASKS_STORE)).toBe(true)
     expect(db!.objectStoreNames.contains(VOLUME_PROFILE_STORE)).toBe(true)
     expect(db!.objectStoreNames.contains(SHORTLINE_DIGEST_STORE)).toBe(true)
+    expect(db!.objectStoreNames.contains(OKX_ARCHIVE_STORE)).toBe(true)
 
     // 旧记录裸读可读
     const raw = await new Promise<{ bars: unknown[] }>((resolve, reject) => {
@@ -81,20 +83,22 @@ describe("idb 公共入口", () => {
     expect(entry!.bars[0].time).toBe("2020-01-06T00:00:00")
   })
 
-  it("全新环境直接以 v6 建库,已有 store 齐备", async () => {
+  it("全新环境直接以 v7 建库,已有 store 齐备", async () => {
     const {
       openDb,
       MINING_BARS_STORE,
       MINING_TASKS_STORE,
       VOLUME_PROFILE_STORE,
       SHORTLINE_DIGEST_STORE,
+      OKX_ARCHIVE_STORE,
     } = await import("@/lib/idb")
     const db = await openDb()
-    expect(db!.version).toBe(6)
+    expect(db!.version).toBe(7)
     expect(db!.objectStoreNames.contains("kline-history")).toBe(true)
     expect(db!.objectStoreNames.contains(MINING_BARS_STORE)).toBe(true)
     expect(db!.objectStoreNames.contains(MINING_TASKS_STORE)).toBe(true)
     expect(db!.objectStoreNames.contains(VOLUME_PROFILE_STORE)).toBe(true)
     expect(db!.objectStoreNames.contains(SHORTLINE_DIGEST_STORE)).toBe(true)
+    expect(db!.objectStoreNames.contains(OKX_ARCHIVE_STORE)).toBe(true)
   })
 })

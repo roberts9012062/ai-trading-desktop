@@ -10,7 +10,10 @@ import { digestSha256, type TickBucket } from "./digest"
 import { barStartMs, buildFormingBar } from "./forming-bar"
 import { computeOrderflowRaw } from "./orderflow"
 import { TIMEFRAME_SECONDS, type ShortlineTimeframe } from "./spec"
-import { listDayDigests, loadDayDigest } from "./backfill/pipeline"
+import { listDayDigests, listDayDigestMetadata, loadDayDigest } from "./backfill/pipeline"
+import { barTimeToMs } from "@/lib/binance-kline"
+import {okxArchiveDate, type ShortlineHistorySource} from "@/lib/okx-history"
+import { sha256Hex } from "./digest"
 
 export interface ShortlineBarRow {
   time: string | number
@@ -78,8 +81,39 @@ export async function enrichBarsWithOrderflow<T extends BarLike>(
   bars: readonly T[],
   symbol: string,
   timeframe: ShortlineTimeframe,
+  source: ShortlineHistorySource = "binance_usdt",
 ): Promise<EnrichResult> {
   if (!bars.length) return { enrichedBars: 0, missingDays: [], digestSha: null }
+  if (source === "okx") {
+    // OKX times are Beijing strings; use epoch ms, not browser-local Date.parse.
+    // Stream one daily digest at a time instead of retaining months of second buckets.
+    const metadata = await listDayDigestMetadata(symbol.toUpperCase(),source)
+    const byDay = new Map(metadata.map((e) => [e.day,e]))
+    const groups = new Map<string,Array<{index:number;t:number}>>()
+    bars.forEach((b,index) => {
+      const t = typeof b.time === "number" ? b.time : barTimeToMs(b.time)
+      const day = okxArchiveDate(t)
+      if (!groups.has(day)) groups.set(day,[])
+      groups.get(day)!.push({index,t})
+    })
+    const hashes: string[] = ["okx-orderflow-v1"], missingDays: string[] = []
+    let enriched = 0, prevClose = NaN
+    for (const [day,points] of groups) {
+      const buckets = await loadDayDigest(symbol.toUpperCase(),day,source)
+      if (!buckets?.length || !byDay.has(day)) { missingDays.push(day); continue }
+      hashes.push(`${day}:${byDay.get(day)!.sha256}`)
+      const cols = orderflowColumnsForBars(buckets,points.map((p) => p.t),timeframe,prevClose)
+      points.forEach((point,i) => {
+        const start = point.t / 1000, from = lowerBound(buckets,start)
+        if (from >= buckets.length || buckets[from]!.ts >= start+TIMEFRAME_SECONDS[timeframe]) return
+        const row = bars[point.index] as unknown as Record<string,unknown>
+        cols[i]!.forEach((v,k) => {row[`sl_of${k}`]=v}); enriched++
+      })
+      prevClose = buckets.at(-1)!.close
+    }
+    if (missingDays.length) throw new Error(`OKX 订单流归档缺失：${missingDays.slice(0,5).join("、")}，请补齐后挖掘`)
+    return {enrichedBars:enriched,missingDays,digestSha:sha256Hex(new TextEncoder().encode(hashes.join("\n")))}
+  }
   const dayOf = (t: string | number) => new Date(typeof t === "number" ? t : Date.parse(String(t))).toISOString().slice(0, 10)
   const firstDay = dayOf(bars[0]!.time)
   const lastDay = dayOf(bars[bars.length - 1]!.time)

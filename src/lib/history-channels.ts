@@ -48,7 +48,7 @@ export async function getHistoryChannels(): Promise<HistoryChannel[]> {
     const res = await historyRequest<{ channels: HistoryChannel[] }>(
       "/api/history/channels"
     )
-    return res.channels
+    return res.channels.map((channel) => channel.id === "okx" ? LOCAL_HISTORY_CHANNELS.find((c) => c.id === "okx")! : channel)
   } catch {
     return LOCAL_HISTORY_CHANNELS
   }
@@ -66,9 +66,10 @@ export async function getChannelRange(
     return { channel, symbol, timeframe, min_ts: min, max_ts: max,
       min_date: new Date(min).toISOString().slice(0, 10), max_date: new Date(max).toISOString().slice(0, 10) }
   }
-  if (isKlineChannel(channel) && channel !== "okx") {
+  if (isKlineChannel(channel)) {
     const range = await probeLocalChannelRange(channel, symbol)
     if (range) return { ...range, channel, symbol, timeframe }
+    if (channel === "okx") throw new Error("OKX 本地归档范围不可用，不回退服务器")
   }
   const qs = new URLSearchParams({ channel, symbol, timeframe })
   return historyRequest<ChannelRange>(`/api/history/range?${qs.toString()}`)

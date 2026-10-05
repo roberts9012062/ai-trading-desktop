@@ -16,6 +16,8 @@ import { enrichBinanceFuturesBars } from "@/lib/binance-futures"
 import { mergeBarsPreferNew, readResearchKlines, writeResearchKlines } from "@/lib/research-kline-cache"
 import { ensurePyWorker } from "@/lib/py-worker"
 import type { KlineBar, KlinePeriod } from "@/types"
+import { fetchOkxHistoryRange } from "@/lib/okx-history"
+import { barTimeToMs } from "@/lib/binance-kline"
 
 export interface LocalBacktestPayload {
   symbol: string
@@ -110,6 +112,11 @@ export async function fetchBacktestBars(
 ): Promise<KlineBar[]> {
   const start = startDate.slice(0, 10)
   const end = endDate.slice(0, 10)
+  if (channel === "okx") {
+    if (stopInfo) stopInfo.truncated = false
+    // A separate official-file cache prevents reusing legacy server/Gate fallback bars.
+    return fetchOkxHistoryRange(symbol,timeframe,barTimeToMs(start),barTimeToMs(`${end} 23:59:59`)+999,onProgress)
+  }
 
   // ── 研究缓存:命中则只补缺口(尾部自愈重叠 1 天;头部按需回溯) ──
   const cached = await readResearchKlines(channel, symbol, timeframe)

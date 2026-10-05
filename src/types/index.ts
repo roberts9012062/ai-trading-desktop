@@ -114,7 +114,7 @@ export interface KlineBar {
   open_interest?: number | null
   /** UTC epoch milliseconds, independent of the display time zone. */
   open_time?: number
-  market_source?: "binance_spot" | "gate_spot" | "gate_usdt" | "binance_usdt"
+  market_source?: "binance_spot" | "gate_spot" | "gate_usdt" | "binance_usdt" | "okx"
   quote_volume?: number | null
   trade_count?: number | null
   taker_buy_volume?: number | null

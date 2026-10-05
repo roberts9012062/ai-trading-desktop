@@ -13,7 +13,7 @@
  */
 
 import type { KlineBar } from "@/types"
-import { openDb, RESEARCH_KLINE_STORE as STORE } from "@/lib/idb"
+import { openDb, RESEARCH_KLINE_STORE as STORE, OKX_ARCHIVE_STORE } from "@/lib/idb"
 
 /** 单条目 bar 数上限(15m 永续全量 2019 起 ≈ 24.6 万;超限丢最旧) */
 const MAX_BARS_PER_ENTRY = 300_000
@@ -93,8 +93,10 @@ export async function clearResearchKlines(): Promise<void> {
   if (!db) return
   return new Promise((resolve) => {
     try {
-      const tx = db.transaction(STORE, "readwrite")
+      const tx = db.transaction([STORE,OKX_ARCHIVE_STORE], "readwrite")
       tx.objectStore(STORE).clear()
+      // Official ZIP cache is also research data; retain frozen task snapshots.
+      tx.objectStore(OKX_ARCHIVE_STORE).clear()
       tx.oncomplete = () => resolve()
       tx.onerror = () => resolve()
     } catch {

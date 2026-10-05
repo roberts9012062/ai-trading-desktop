@@ -1,4 +1,5 @@
 import type { CadenceSeconds, ShortlineTimeframe } from "./spec"
+import type { ShortlineHistorySource } from "@/lib/okx-history"
 
 export interface ExecutionSettings {
   margin: number
@@ -12,7 +13,7 @@ export const DEFAULT_EXECUTION_SETTINGS: ExecutionSettings = {
   margin: 100, leverage: 5, margin_mode: "isolated", stop_loss_pct: 5, take_profit_pct: 20,
   profit_lock: { enabled: true, mode: "auto", cooldown_signals: 1 },
 }
-export interface ExecutionObservation { t: number, price: number, score: number | null }
+export interface ExecutionObservation { t: number, price: number, score: number | null, funding_rate?: number }
 export interface ExecutionMetrics {
   closed_trades: number, wins: number, losses: number, win_rate: number,
   net_profit: number, expectancy: number, payoff_ratio: number | null,
@@ -30,6 +31,7 @@ export interface ExecutionReview {
 export interface ReviewWorkerRequest {
   symbol: string, timeframe: ShortlineTimeframe, cadence: CadenceSeconds,
   champions: { tokens: number[] }[], days: number,
+  source?: ShortlineHistorySource,
 }
 export const REVIEW_REASONS: Record<string, string> = {
   insufficient_closed_trades: "闭合交易不足：全段至少100轮，后半段至少50轮",

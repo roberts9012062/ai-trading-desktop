@@ -1,5 +1,5 @@
 /**
- * aggTrades 回填管道 —— Binance Vision UM daily 归档 → 1 秒 digest（IDB 存储）。
+ * 逐笔回填管道 —— OKX trades / Binance aggTrades 日归档 → 1 秒 digest。
  *
  * 断点续传：按日状态记录（done/failed/missing）；磁盘预算：默认 3GB 上限，
  * 下载前校验预计占用；raw zip 即下即弃（不落盘 zip）。
@@ -7,7 +7,9 @@
  */
 
 import { unzipSync } from "fflate"
-import { openDb, SHORTLINE_DIGEST_STORE } from "@/lib/idb"
+import { openDb, idbPut, SHORTLINE_DIGEST_STORE } from "@/lib/idb"
+import { archiveCsv, parseOkxCandles, contractValueFromCandles, fetchOkxArchive, okxArchiveUrl, type ShortlineHistorySource } from "@/lib/okx-history"
+import { okxTradeBuckets } from "./okx-trades"
 import { BucketAccumulator, parseAggTradesCsv } from "../bucket-stream"
 import { decodeDigest, digestSha256, encodeDigest, type TickBucket } from "../digest"
 
@@ -71,6 +73,8 @@ export interface DayDigestEntry {
   lastTs: number
   bytes: ArrayBuffer
   savedAt: number
+  source?: ShortlineHistorySource
+  byteLength?: number
 }
 
 export interface DayBackfillResult {
@@ -105,8 +109,8 @@ export function dayZipToDigest(zip: Uint8Array): { status: "done" | "empty" | "m
 
 // ── IDB 存取 ─────────────────────────────────────────────
 
-function digestKey(symbol: string, day: string): string {
-  return `${symbol}:${day}`
+export function digestKey(symbol: string, day: string, source: ShortlineHistorySource = "binance_usdt"): string {
+  return `${source === "okx" ? "okx:" : ""}${symbol}:${day}`
 }
 
 async function idbRun<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest): Promise<T | null> {
@@ -123,53 +127,59 @@ async function idbRun<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) =
   })
 }
 
-export async function saveDayDigest(symbol: string, day: string, buckets: readonly TickBucket[]): Promise<void> {
+export async function saveDayDigest(symbol: string, day: string, buckets: readonly TickBucket[], source: ShortlineHistorySource = "binance_usdt"): Promise<void> {
+  if (!buckets.length) throw new Error("不能保存空归档")
   const payload = encodeDigest(buckets)
   const entry: DayDigestEntry = {
-    key: digestKey(symbol, day), symbol, day,
+    key: digestKey(symbol, day, source), symbol, day, source, byteLength: payload.byteLength,
     sha256: digestSha256(buckets), count: buckets.length,
     firstTs: buckets[0]!.ts, lastTs: buckets[buckets.length - 1]!.ts,
     bytes: payload.buffer as ArrayBuffer, savedAt: Date.now(),
   }
-  await idbRun("readwrite", (s) => s.put(entry))
+  const db = await openDb()
+  if (!db) throw new Error("本地缓存不可用，无法保存逐笔历史")
+  await idbPut(db,SHORTLINE_DIGEST_STORE,entry)
 }
 
-export async function loadDayDigest(symbol: string, day: string): Promise<TickBucket[] | null> {
-  const entry = await idbRun<DayDigestEntry>("readonly", (s) => s.get(digestKey(symbol, day)))
+export async function loadDayDigest(symbol: string, day: string, source: ShortlineHistorySource = "binance_usdt"): Promise<TickBucket[] | null> {
+  const entry = await idbRun<DayDigestEntry>("readonly", (s) => s.get(digestKey(symbol, day, source)))
   if (!entry) return null
-  return decodeDigest(new Uint8Array(entry.bytes))
+  const buckets = decodeDigest(new Uint8Array(entry.bytes))
+  if (digestSha256(buckets) !== entry.sha256) throw new Error(`${source} ${day} 逐笔历史校验失败，请清理该日后重新下载`)
+  return buckets
 }
 
-export async function listDayDigests(symbol: string): Promise<DayDigestEntry[]> {
+export async function listDayDigests(symbol: string, source: ShortlineHistorySource = "binance_usdt"): Promise<DayDigestEntry[]> {
   const all = await idbRun<DayDigestEntry[]>("readonly", (s) => s.getAll())
-  return (all ?? []).filter((e) => e.symbol === symbol).sort((a, b) => a.day.localeCompare(b.day))
+  return (all ?? []).filter((e) => e.symbol === symbol && (e.source ?? "binance_usdt") === source).sort((a, b) => a.day.localeCompare(b.day))
 }
 
 /** Review needs metadata only. A cursor avoids retaining the entire 3GB archive. */
-export async function listDayDigestMetadata(symbol: string): Promise<Array<Omit<DayDigestEntry, "bytes">>> {
+export async function listDayDigestMetadata(symbol?: string, source?: ShortlineHistorySource): Promise<Array<Omit<DayDigestEntry, "bytes">>> {
   const db = await openDb()
   if (!db) return []
   return new Promise((resolve, reject) => {
     const entries: Array<Omit<DayDigestEntry, "bytes">> = []
+    const prefix = symbol ? `${source === "okx" ? "okx:" : ""}${symbol}:` : null
     const req = db.transaction(SHORTLINE_DIGEST_STORE, "readonly").objectStore(SHORTLINE_DIGEST_STORE)
-      .openCursor(IDBKeyRange.bound(`${symbol}:`, `${symbol}:\uffff`))
+      .openCursor(prefix ? IDBKeyRange.bound(prefix, `${prefix}\uffff`) : undefined)
     req.onerror = () => reject(new Error("归档目录读取失败"))
     req.onsuccess = () => {
       const cursor = req.result
       if (!cursor) { resolve(entries.sort((a, b) => a.day.localeCompare(b.day))); return }
       const entry = cursor.value as DayDigestEntry
-      if (entry.symbol === symbol) {
+      if ((!symbol || entry.symbol === symbol) && (!source || (entry.source ?? "binance_usdt") === source)) {
         const { bytes: _bytes, ...metadata } = entry
-        entries.push(metadata)
+        entries.push({...metadata,byteLength:entry.byteLength??_bytes.byteLength})
       }
       cursor.continue()
     }
   })
 }
 
-export async function deleteDayDigests(symbol: string, days: readonly string[]): Promise<void> {
+export async function deleteDayDigests(symbol: string, days: readonly string[], source: ShortlineHistorySource = "binance_usdt"): Promise<void> {
   for (const day of days) {
-    await idbRun("readwrite", (s) => s.delete(digestKey(symbol, day)))
+    await idbRun("readwrite", (s) => s.delete(digestKey(symbol, day, source)))
   }
 }
 
@@ -179,13 +189,14 @@ export interface BackfillProgress {
   day: string
   index: number
   total: number
-  status: DayBackfillResult["status"]
+  status: DayBackfillResult["status"] | "downloading"
   cumulativeBytes: number
 }
 
 export interface BackfillOptions {
   symbol: string
-  /** 含首尾（YYYY-MM-DD，UTC） */
+  source?: ShortlineHistorySource
+  /** 含首尾（YYYY-MM-DD；OKX 北京交易日，Binance UTC 交易日） */
   fromDay: string
   toDay: string
   budgetBytes?: number
@@ -226,13 +237,14 @@ export interface BackfillDeps {
 
 export async function runBackfillWithStore(opts: BackfillOptions, deps: BackfillDeps = {}): Promise<BackfillSummary> {
   const fetchZip = deps.fetchZip ?? ((url: string, signal?: AbortSignal) => fetchZipBytes(url, 4, signal))
-  const listSavedDays = deps.listSavedDays ?? (async (symbol) => (await listDayDigests(symbol)).map((e) => e.day))
-  const saveDay = deps.saveDay ?? saveDayDigest
+  const source = opts.source ?? "binance_usdt"
+  const listSavedDays = deps.listSavedDays ?? (async (symbol) => (await listDayDigestMetadata(symbol,source)).map((e) => e.day))
+  const saveDay = deps.saveDay ?? ((symbol: string,day: string,buckets: readonly TickBucket[]) => saveDayDigest(symbol,day,buckets,source))
   const budget = opts.budgetBytes ?? SHORTLINE_BACKFILL_BUDGET_BYTES
   const days = listDays(opts.fromDay, opts.toDay)
   const summary: BackfillSummary = { done: 0, missing: 0, empty: 0, failed: 0, skipped: 0, totalBytes: 0, errors: [] }
   const existing = new Set(await listSavedDays(opts.symbol))
-  let cumulative = 0
+  let cumulative = deps.saveDay ? 0 : (await digestUsage()).bytes
   let stopped = false
   for (let i = 0; i < days.length; i++) {
     if (opts.signal?.aborted) {
@@ -249,13 +261,24 @@ export async function runBackfillWithStore(opts: BackfillOptions, deps: Backfill
       continue
     }
     try {
-      const zip = await fetchZip(aggTradesZipUrl(opts.symbol, day), opts.signal)
+      // Read native network data on the main thread; only parse in the Worker.
+      const url = source === "okx" ? okxArchiveUrl("trades",opts.symbol,day) : aggTradesZipUrl(opts.symbol, day)
+      opts.onProgress?.({day,index:i,total:days.length,status:"downloading",cumulativeBytes:cumulative})
+      const zip = source === "okx" && !deps.fetchZip ? await fetchOkxArchive("trades",opts.symbol,day,opts.signal) : await fetchZip(url, opts.signal)
       if (!zip) {
         summary.missing++
         report("missing")
         continue
       }
-      const result = dayZipToDigest(zip)
+      let result: ReturnType<typeof dayZipToDigest>
+      if (source === "okx") {
+        const candles = deps.fetchZip ? await deps.fetchZip(okxArchiveUrl("candles",opts.symbol,day),opts.signal)
+          : await fetchOkxArchive("candles",opts.symbol,day,opts.signal)
+        if (!candles) throw new Error(`OKX ${day} K线归档缺失，无法校验合约数量单位`)
+        const value = contractValueFromCandles(parseOkxCandles(archiveCsv(candles),opts.symbol))
+        const buckets = await okxTradeBuckets(zip,opts.symbol,day,value,opts.signal)
+        result = {status:buckets.length ? "done" : "empty",buckets,count:buckets.length,bytes:encodeDigest(buckets).byteLength}
+      } else result = dayZipToDigest(zip)
       if (result.status !== "done" || !result.buckets) {
         summary[result.status === "empty" ? "empty" : "missing"]++
         report(result.status)
@@ -265,6 +288,7 @@ export async function runBackfillWithStore(opts: BackfillOptions, deps: Backfill
       const bytes = result.bytes ?? encodeDigest(buckets).byteLength
       if (cumulative + bytes > budget) {
         summary.errors.push({ day, error: `磁盘预算不足(已用 ${(cumulative / 1e9).toFixed(2)}GB / 上限 ${(budget / 1e9).toFixed(1)}GB)，已停止` })
+        summary.failed++
         report("failed")
         break
       }
@@ -311,23 +335,23 @@ export function missingRange(
 }
 
 /** 汇总占用（UI 展示与清理入口用） */
-export async function digestUsage(symbol?: string): Promise<{ days: number, bytes: number }> {
-  const all = await idbRun<DayDigestEntry[]>("readonly", (s) => s.getAll())
-  const rows = symbol ? (all ?? []).filter((e) => e.symbol === symbol) : (all ?? [])
-  return { days: rows.length, bytes: rows.reduce((s, e) => s + (e.bytes?.byteLength ?? 0), 0) }
+export async function digestUsage(symbol?: string, source?: ShortlineHistorySource): Promise<{ days: number, bytes: number }> {
+  const rows = await listDayDigestMetadata(symbol,source)
+  return { days: rows.length, bytes: rows.reduce((s, e) => s + (e.byteLength ?? 0), 0) }
 }
 
 /** 载入日期范围内的桶序列（重放器输入；跨日拼接并校验连续性） */
-export async function loadDigestRange(symbol: string, fromDay: string, toDay: string): Promise<{ buckets: TickBucket[], sha: string } | null> {
+export async function loadDigestRange(symbol: string, fromDay: string, toDay: string, source: ShortlineHistorySource = "binance_usdt"): Promise<{ buckets: TickBucket[], sha: string } | null> {
   const days = listDays(fromDay, toDay)
-  const entries = await listDayDigests(symbol)
+  const entries = await listDayDigestMetadata(symbol,source)
   const byDay = new Map(entries.map((e) => [e.day, e]))
   const out: TickBucket[] = []
   let ok = true
   for (const day of days) {
     const entry = byDay.get(day)
     if (!entry) { ok = false; continue }
-    const buckets = decodeDigest(new Uint8Array(entry.bytes))
+    const buckets = await loadDayDigest(symbol,day,source)
+    if (!buckets) {ok=false;continue}
     for (const b of buckets) {
       if (out.length && b.ts <= out[out.length - 1]!.ts) { ok = false; continue }
       out.push(b)

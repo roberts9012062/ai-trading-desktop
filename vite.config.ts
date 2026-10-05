@@ -55,6 +55,17 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/__vision__/, ""),
       },
+      // Browser preview only, on this PC. Packaged Tauri downloads directly.
+      "/__okx_archive__": {
+        target: "https://dfccd2aelcoyz.cloudfront.net",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/__okx_archive__/, ""),
+      },
+      "/__okx_static__": {
+        target: "https://static.okx.com",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/__okx_static__/, ""),
+      },
     },
   },
   build: {

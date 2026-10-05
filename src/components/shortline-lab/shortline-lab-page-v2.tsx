@@ -20,8 +20,11 @@ import { enhancedShortlineSearch } from "@/lib/shortline/search-profile"
 import { createRunner } from "@/lib/mining/runner"
 import type { MiningTask } from "@/lib/mining/types"
 import {
-  digestUsage, runBackfillWithStore, missingRange, listDayDigests, loadDigestRange,
+  digestUsage, runBackfillWithStore, missingRange, listDayDigestMetadata, loadDigestRange,
 } from "@/lib/shortline/backfill/pipeline"
+import { latestOkxArchiveDay, okxArchiveDayStart, fetchOkxFundingHistory, type ShortlineHistorySource } from "@/lib/okx-history"
+import {factorMaxDaysFor} from "@/components/factor-lab/factor-range-limits"
+import {maxResearchBars} from "@/lib/device-profile"
 import {
   SHORTLINE_SYMBOLS, TIMEFRAME_BACKFILL_DAYS, DEFAULT_SHORTLINE_SYMBOL,
   SHORTLINE_TIMEFRAMES, type CadenceSeconds, type ShortlineTimeframe,
@@ -170,6 +173,7 @@ function SymbolPicker({ value, onChange, disabled }: {
 export default function ShortlineLabPageV2() {
   // ── 核心参数（简化：只保留必需项） ──
   const [symbol, setSymbol] = useState(DEFAULT_SHORTLINE_SYMBOL)
+  const [dataSource,setDataSource] = useState<ShortlineHistorySource>("okx")
   const [timeframe, setTimeframe] = useState<ShortlineTimeframe>("15m")
   const [engine, setEngine] = useState<"native-gpu" | "cpu">("native-gpu")
 
@@ -209,22 +213,26 @@ export default function ShortlineLabPageV2() {
   const [serverTaskErr, setServerTaskErr] = useState<string | null>(null)
 
   // ── 建议区间 ──
+  const researchDays = Math.min(TIMEFRAME_BACKFILL_DAYS[timeframe],factorMaxDaysFor(timeframe),
+    Math.floor(maxResearchBars()/(timeframe === "1m" ? 1440 : timeframe === "5m" ? 288 : 96)))
   const suggestedFrom = useMemo(() => {
-    const days = TIMEFRAME_BACKFILL_DAYS[timeframe]
-    return new Date(Date.now() - days * 86400000).toISOString().slice(0, 10)
-  }, [timeframe])
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
+    const days = researchDays
+    return new Date(Date.parse(`${latestOkxArchiveDay()}T00:00:00Z`) - (days-1) * 86400000).toISOString().slice(0, 10)
+  }, [researchDays])
+  const today = useMemo(() => latestOkxArchiveDay(), [])
+  const cacheFrom = suggestedFrom
 
   // ── 刷新数据统计 ──
   const refreshUsage = useCallback(async (sym: string) => {
-    setUsage(await digestUsage(sym))
-  }, [])
+    setUsage(await digestUsage(sym,dataSource))
+  }, [dataSource])
   useEffect(() => { void refreshUsage(symbol) }, [refreshUsage, symbol])
 
   // ── 刷新任务与冠军 ──
   const refreshTasks = useCallback(async () => {
     const all = await runner.list()
-    const mine = all.filter((t) => t.config?.research_profile === "shortline_v1")
+    const mine = all.filter((t) => t.config?.research_profile === "shortline_v1"
+      && (t.config.data_channel ?? "binance_usdt") === dataSource && t.symbol === symbol && t.timeframe === timeframe)
     const byNewest = (a: MiningTask, b: MiningTask) =>
       (b.created_at ?? "").localeCompare(a.created_at ?? "")
     const active = mine.find((t) => t.status === "running" || t.status === "pending")
@@ -240,8 +248,10 @@ export default function ShortlineLabPageV2() {
         tokens: c.tokens, text: c.text, composite: c.composite,
         metrics: c.metrics as unknown as Record<string, unknown>,
       })))
-    }
-  }, [])
+    } else setChampions([])
+  }, [dataSource,symbol,timeframe])
+
+  useEffect(() => {setStage("idle");setProgress(0);setStatusMsg("");setError(null);setFavMsgs({});setMountMsg(null)},[dataSource,symbol,timeframe])
 
   useEffect(() => {
     void refreshTasks()
@@ -261,23 +271,32 @@ export default function ShortlineLabPageV2() {
       setProgress(0)
       setStatusMsg(`准备回填 ${symbol} 数据...`)
 
-      const days = (await listDayDigests(symbol)).map((d) => d.day)
-      const mr = missingRange(suggestedFrom, today, days)
+      const days = (await listDayDigestMetadata(symbol,dataSource)).map((d) => d.day)
+      const mr = missingRange(cacheFrom, today, days)
 
-      if (mr.from && mr.to) {
+      if (mr.firstGap) {
         setStatusMsg(`回填 ${symbol} 中（${mr.from} → ${mr.to}）...`)
-        await runBackfillWithStore({
-          symbol,
+        const summary = await runBackfillWithStore({
+          symbol, source:dataSource,
           fromDay: mr.from,
           toDay: mr.to,
           signal: abortRef.current.signal,
           onProgress: (p) => {
             setProgress(Math.round((p.index / p.total) * 40))
-            setStatusMsg(`回填 ${p.day} · ${fmtBytes(p.cumulativeBytes)}`)
+            setStatusMsg(`${dataSource === "okx" ? "OKX 本机下载" : "Binance 本机下载"} ${p.day} · ${p.status === "downloading" ? "下载中…" : p.status} · ${fmtBytes(p.cumulativeBytes)}`)
           },
         })
         await refreshUsage(symbol)
+        if (abortRef.current.signal.aborted) throw new Error("已停止历史下载，下次启动从缺失日期继续")
+        if (summary.failed || summary.missing || summary.empty || summary.errors.length) {
+          throw new Error(`历史回填未完整：缺失${summary.missing}天、空文件${summary.empty}天、失败${summary.failed}天。${summary.errors[0]?.error ?? "请检查该品种上线日期或稍后重试"}；已成功日期保留，下次只补缺口`)
+        }
       }
+      if (dataSource === "okx") {
+        setStatusMsg("本机补齐 OKX 资金费率月包，未发布数据保持缺失…")
+        await fetchOkxFundingHistory(symbol,okxArchiveDayStart(cacheFrom),okxArchiveDayStart(today)+86400000-1,setStatusMsg,abortRef.current.signal)
+      }
+      if (abortRef.current.signal.aborted) throw new Error("已停止历史下载")
 
       // 阶段 2：启动挖掘
       setStage("mining")
@@ -298,12 +317,13 @@ export default function ShortlineLabPageV2() {
           research_profile: "shortline_v1",
           cost,
           native_precision: "mixed",
-          data_channel: "binance_usdt",
+          data_channel: dataSource,
+          start_date:suggestedFrom,end_date:today,
           ...(enhanced ? enhancedShortlineSearch(Date.now() >>> 0) : {}),
         },
         {
           device: engine,
-          name: `短线·${symbol}·${timeframe}`,
+          name: `短线·${dataSource === "okx" ? "OKX" : "Binance"}·${symbol}·${timeframe}`,
           onProgress: (m) => {
             setStatusMsg(m)
             setProgress(40 + Math.random() * 10)
@@ -375,7 +395,7 @@ export default function ShortlineLabPageV2() {
         symbol,
         timeframe,
         composite: c.composite,
-        note: "短线因子实验室",
+        note: `短线因子实验室 · ${dataSource === "okx" ? "OKX" : "Binance"} 本机历史归档`,
       })
       setFavMsgs((m) => ({ ...m, [key]: "已收藏到短线因子库" }))
     } catch (e) {
@@ -425,15 +445,15 @@ export default function ShortlineLabPageV2() {
     setMounting(true)
     setMountMsg("导出黄金夹具并组装载荷…")
     try {
-      const days = (await listDayDigests(symbol)).map((d) => d.day)
-      if (!days.length) throw new Error("无 digest——请先回填 aggTrades")
+      const days = (await listDayDigestMetadata(symbol,dataSource)).map((d) => d.day)
+      if (!days.length) throw new Error("无逐笔历史摘要——请先下载当前数据源归档")
       const last = days[days.length - 1]!
-      const loaded = await loadDigestRange(symbol, last, last)
+      const loaded = await loadDigestRange(symbol, last, last,dataSource)
       if (!loaded) throw new Error("digest 载入失败")
       const formulas = mountPool.map((c) => c.tokens)
       const cases = [3, 15, 60].map((cad) => buildGoldenCase({
         name: `${symbol}-${timeframe}-${cad}s-${last}`,
-        symbol, timeframe, cadence: cad as CadenceSeconds,
+        symbol, timeframe, cadence: cad as CadenceSeconds, source:dataSource,
         buckets: loaded.buckets, formulas,
       }))
       const bundle = buildFixtureBundle(symbol, cases, formulas, enhanced ? "shortline-eval-v2" : "shortline-eval-v1")
@@ -512,7 +532,15 @@ export default function ShortlineLabPageV2() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <label className="text-xs text-gray-400">历史数据源（本机下载）</label>
+              <select value={dataSource} disabled={formLocked} onChange={(e) => setDataSource(e.target.value as ShortlineHistorySource)}
+                className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white">
+                <option value="okx">OKX 官方归档（推荐）</option>
+                <option value="binance_usdt">Binance 归档（兼容旧任务）</option>
+              </select>
+            </div>
             {/* 币种 */}
             <div className="space-y-2">
               <label className="text-xs text-gray-400">币种</label>
@@ -556,6 +584,8 @@ export default function ShortlineLabPageV2() {
           </div>
 
           {/* 数据统计 */}
+          <p className="text-xs text-gray-500">{dataSource === "okx" ? "OKX K线、逐笔成交和资金费率归档由本机下载；不转发服务器。" : "Binance 独立缓存，旧任务保留原来源。"}
+            最新研究日 {today}（文件发布有延迟）；当月资金费率可能尚未发布，缺失值不补零。</p>
           <label className="flex items-center gap-2 text-xs text-sky-300">
             <input type="checkbox" checked={enhanced} disabled={formLocked}
               onChange={(e) => setEnhanced(e.target.checked)} />
@@ -566,7 +596,7 @@ export default function ShortlineLabPageV2() {
               已缓存 {usage.days} 天 · {fmtBytes(usage.bytes)}
             </span>
             <span className="text-xs text-gray-500">
-              建议区间：{TIMEFRAME_BACKFILL_DAYS[timeframe]} 天
+              建议区间：{researchDays} 天（按本机内存）
             </span>
           </div>
 
@@ -732,7 +762,7 @@ export default function ShortlineLabPageV2() {
             <option value="combo">前8候选等权组合（需单独复核）</option>
           </select>
         </label>}
-        {enhanced && <ShortlineExecutionPanel taskId={activeTask?.id} symbol={symbol} timeframe={timeframe}
+        {enhanced && <ShortlineExecutionPanel source={dataSource} taskId={activeTask?.id} symbol={symbol} timeframe={timeframe}
           cadence={cadence} champions={mountCheck.ok ? mountPool : []} settings={executionSettings}
           onSettings={setExecutionSettings} feeRate={cost} onFeeRate={setCost}
           disabled={formLocked || mounting} onReport={setExecutionReport} />}
@@ -1117,7 +1147,7 @@ export default function ShortlineLabPageV2() {
         <div className="rounded-xl bg-[#1E2636]/30 border border-white/5 p-4">
           <p className="text-xs text-gray-500 leading-relaxed">
             <strong className="text-gray-400">流程说明：</strong>
-            系统将自动完成数据回填（{TIMEFRAME_BACKFILL_DAYS[timeframe]} 天）→ 因子挖掘（{population} 种群 × {generations} 代）→ 验证筛选。
+            系统将自动完成本机数据回填（{researchDays} 天）→ 因子挖掘（{population} 种群 × {generations} 代）→ 验证筛选。
             回填数据会缓存，二次运行秒启动。GPU 算力需 NVIDIA 显卡，CPU 为降级选择（慢 10-25×）。
             {showAdvanced && (
               <>

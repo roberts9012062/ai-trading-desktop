@@ -1,0 +1,18 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"/><title>OKX 官方文件下载验收</title></head><body><button id="download">校验官方归档（本机下载）</button><pre id="result">尚未下载</pre><script type="module">
+import {runBackfillWithStore,loadDayDigest} from '../src/lib/shortline/backfill/pipeline.ts'
+if(location.hostname!=='127.0.0.1'||location.port!=='5187')throw new Error('只允许本机隔离验收')
+const nativeFetch=globalThis.fetch
+globalThis.fetch=(url,opts)=>{
+ if(!String(url).startsWith('/__okx_archive__/cdn/')&&!String(url).startsWith('/__okx_static__/cdn/'))throw new Error('禁止访问后台和交易接口')
+ return nativeFetch(url,opts)
+}
+document.getElementById('download').onclick=async()=>{
+ const out=document.getElementById('result')
+ try{
+  const summary=await runBackfillWithStore({symbol:'BTCUSDT',source:'okx',fromDay:'2026-09-28',toDay:'2026-09-28',onProgress:p=>out.textContent=JSON.stringify(p)})
+  const buckets=await loadDayDigest('BTCUSDT','2026-09-28','okx')
+  if(summary.failed||!buckets||buckets.length!==78692)throw new Error(JSON.stringify(summary))
+  out.textContent='本机下载＋Worker聚合＋缓存校验通过：'+buckets.length+'秒桶'
+ }catch(e){out.textContent='失败：'+e.message}
+}
+</script></body></html>

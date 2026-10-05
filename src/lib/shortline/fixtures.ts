@@ -14,6 +14,7 @@ import { replayBits, replayScores, f64Bits } from "./replay"
 import { FORMING_BAR_SPEC, SHORTLINE_EVAL_VERSION, type CadenceSeconds, type ShortlineTimeframe } from "./spec"
 
 export interface GoldenCase {
+  source?: "okx" | "binance_usdt"
   name: string
   symbol: string
   timeframe: ShortlineTimeframe
@@ -56,6 +57,7 @@ export interface FixtureBundle {
 
 /** 单个案例生成（digest 尾部切片作为 tick 流样本） */
 export function buildGoldenCase(args: {
+  source?: "okx" | "binance_usdt"
   name: string
   symbol: string
   timeframe: ShortlineTimeframe
@@ -86,6 +88,7 @@ export function buildGoldenCase(args: {
   }
   return {
     name: args.name,
+    ...(args.source ? {source:args.source} : {}),
     symbol: args.symbol,
     timeframe: args.timeframe,
     cadence_seconds: args.cadence,

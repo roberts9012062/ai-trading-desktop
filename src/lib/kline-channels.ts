@@ -5,8 +5,7 @@
  * - binance_spot：Binance 现货 data-api.binance.vision 本地直连(免 Key,
  *   主流币 2017-08 起)——默认渠道
  * - gate_spot：Gate 现货 api.gateio.ws 本地直连(免 Key)
- * - okx：OKX 国内网络直连不可达 → 走后端 /api/market/kline 转发
- *   (服务器侧 OKX 主链路 + Gate 容灾,与 Web 端"系统默认"渠道同源)
+ * - okx：OKX 官方历史 ZIP 归档，本机下载和缓存，不转发服务器
  *
  * 统一契约:与 binance-kline 的 getBinanceKlineApi 相同({bars, has_more} +
  * endTime "YYYY-MM-DD[ HH:MM:SS]" 北京时间闭区间回溯),fetchBacktestBars 的
@@ -27,6 +26,7 @@ import type { KlineBar } from "@/types"
 import { getGateFuturesKlineApi } from "@/lib/gate-futures"
 import { getBinanceFuturesKlineApi } from "@/lib/binance-futures"
 import { cryptoPair, optionalNumber } from "@/lib/crypto-direct"
+import { getOkxArchiveKlineApi, latestOkxArchiveDay, OKX_CANDLE_FLOOR } from "@/lib/okx-history"
 
 export type KlineChannelId = "okx" | "binance_spot" | "gate_spot" | "gate_usdt" | "binance_usdt"
 
@@ -48,9 +48,9 @@ export const LOCAL_HISTORY_CHANNELS: Array<{
 }> = [
   {
     id: "okx",
-    name: "系统默认（OKX 合约）",
+    name: "OKX 合约（本地官方归档）",
     kind: "swap",
-    note: "OKX 合约 K 线，直连 www.okx.com；深度受交易所历史接口限制",
+    note: "本机下载官方 K线/资金费率归档，不转发服务器；K线2023-07起，近期文件有发布延迟，未发布资金费标记缺失",
   },
   {
     id: "binance_spot",
@@ -73,37 +73,6 @@ export function isKlineChannel(v: unknown): v is KlineChannelId {
 /** 规范化渠道:未知/缺省值回退默认渠道 */
 export function normalizeChannel(v: unknown): KlineChannelId {
   return isKlineChannel(v) ? v : DEFAULT_KLINE_CHANNEL
-}
-
-// ===== okx 渠道:后端转发 =====
-// OKX API(www.okx.com/aws.okx.com)国内网络不可达(实测 DNS/连接秒断),
-// 该渠道走后端 /api/market/kline(服务器在海外,OKX 主链路 + Gate 容灾,
-// 与 Web 端"系统默认"渠道同源);Binance/Gate 渠道仍为本地直连。
-
-const OKX_BACKEND_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
-
-async function getOkxKlineApi(
-  symbol: string,
-  period: string,
-  options?: { limit?: number; endTime?: string },
-): Promise<BinanceKlinePage> {
-  const params = new URLSearchParams({ symbol, period })
-  if (options?.limit) params.set("limit", String(options.limit))
-  if (options?.endTime) params.set("end_time", options.endTime)
-  const headers: Record<string, string> = { "Content-Type": "application/json" }
-  try {
-    const token = localStorage.getItem("access_token")
-    if (token) headers.Authorization = `Bearer ${token}`
-  } catch {
-    // localStorage 不可用时裸请求(后端会 401,由上层报错)
-  }
-  const resp = await fetch(
-    `${OKX_BACKEND_BASE}/api/market/kline?${params.toString()}`,
-    { headers },
-  )
-  if (!resp.ok) throw new Error(`okx 渠道(后端)拉取失败(${resp.status})`)
-  const body = (await resp.json()) as { bars?: KlineBar[]; has_more?: boolean }
-  return { bars: body.bars ?? [], has_more: Boolean(body.has_more) }
 }
 
 // ===== Gate 现货 =====
@@ -168,7 +137,7 @@ export function getChannelKlineApi(
 ): Promise<BinanceKlinePage> {
   if (channel === "gate_usdt") return getGateFuturesKlineApi(symbol, period, options)
   if (channel === "binance_usdt") return getBinanceFuturesKlineApi(symbol, period, options)
-  if (channel === "okx") return getOkxKlineApi(symbol, period, options)
+  if (channel === "okx") return getOkxArchiveKlineApi(symbol, period, options)
   if (channel === "gate_spot") return getGateKlineApi(symbol, period, options)
   return getBinanceKlineApi(symbol, period, options)
 }
@@ -194,12 +163,16 @@ export interface LocalChannelRange {
  * - binance_spot:startTime=0 一次拿到精确上线日(如 BTC 2017-08-17)
  * - gate_spot:窗口上限 1000 根 → 取最近 1000 根日线,首根为保守下界
  *   (保证可选即有数据;真实起点可能更早,低估不误导)
- * - okx:无本地直连 → 返回 null(由调用方回落后端探测)
+ * - okx:官方归档总范围(品种具体上线日期由文件缺失报告)
  */
 export async function probeLocalChannelRange(
   channel: KlineChannelId,
   symbol: string,
 ): Promise<LocalChannelRange | null> {
+  if (channel === "okx") {
+    const max = Date.parse(`${latestOkxArchiveDay()}T23:59:59Z`)
+    return {min_ts:OKX_CANDLE_FLOOR,max_ts:max,min_date:"2023-07-01",max_date:tsToUtcDate(max)}
+  }
   if (channel === "binance_spot") {
     const sym = symbol.replace(/[-_/]/g, "").toUpperCase()
     const base = "https://data-api.binance.vision/api/v3"
