@@ -53,7 +53,7 @@ function cacheKey(symbol: string, period: string): string {
 // ===== 多周期打包：分钟周期一次拉全 =====
 
 /** bundle 覆盖的分钟周期（与后端 BUNDLE_PERIODS 一致） */
-const BUNDLE_PERIODS: KlinePeriod[] = ["1m", "5m", "15m", "30m", "60m"]
+const BUNDLE_PERIODS: KlinePeriod[] = ["1m", "5m", "15m", "30m", "60m", "240m"]
 /** 打包成功冷却：与后端分钟历史 Redis TTL（交易时段 10 分钟）对齐 */
 const BUNDLE_COOLDOWN_MS = 10 * 60 * 1000
 /** 打包失败冷却：避免后端不可达时反复打（单周期路径会接管重试） */
@@ -350,7 +350,7 @@ export function prefetchKlineHistory(
 /** 同一合约预热冷却：与后端日线历史 TTL 对齐 */
 const SIBLING_PREFETCH_COOLDOWN_MS = 8 * 60 * 1000
 
-/** 分钟周期（1m~60m）首开由 bundle 一次拉全，预热只剩日线（数据源不同） */
+/** 分钟周期（1m~240m）首开由 bundle 一次拉全，预热只剩日线（数据源不同） */
 const SIBLING_PERIODS: KlinePeriod[] = ["1d"]
 
 const _siblingPrefetchedAt = new Map<string, number>()

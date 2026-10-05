@@ -49,7 +49,7 @@ interface BacktestFormProps {
   onSubmit: (payload: BacktestRunPayload) => void
 }
 
-const TIMEFRAMES = ["1d", "60m", "30m", "15m", "5m", "1m"] as const
+const TIMEFRAMES = ["1d", "240m", "60m", "30m", "15m", "5m", "1m"] as const
 
 /** 回测配置表单 */
 export function BacktestForm({
@@ -361,7 +361,7 @@ export function BacktestForm({
           >
             {TIMEFRAMES.map((t) => (
               <option key={t} value={t}>
-                {t}
+                {t === "240m" ? "4小时" : t}
               </option>
             ))}
           </select>

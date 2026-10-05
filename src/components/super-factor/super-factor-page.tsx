@@ -378,6 +378,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
 
   const tfs: SupportedTimeframe[] = supported?.timeframes ?? [
     { value: "1d", label: "日线", long_history: true, note: "" },
+    { value: "240m", label: "4小时", long_history: true, note: "" },
   ]
   const curTf = tfs.find((t) => t.value === timeframe)
 

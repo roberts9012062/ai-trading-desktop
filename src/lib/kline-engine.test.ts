@@ -109,8 +109,8 @@ describe("K 线合成引擎", () => {
     expect(d.bar.low).toBe(3480)
     expect(d.bar.volume).toBe(10000)
     expect(d.bar.open_interest).toBe(123456)
-    // 5 个分钟周期 + 日线
-    expect(new Set(out.updates.map((u) => u.period)).size).toBe(6)
+    // 6 个分钟周期（含 4 小时）+ 日线
+    expect(new Set(out.updates.map((u) => u.period)).size).toBe(7)
   })
 
   it("同桶推进:close/high/low 跟 tick,量=周期内增量;1m 换桶后 5m 仍在同桶累计", () => {

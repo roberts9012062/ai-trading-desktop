@@ -155,7 +155,7 @@ def compile_window_bars(physical_hours: int, timeframe: str) -> int:
     1d 周期:bars = ceil(hours / 24),至少 2 根;超出注册表窗口枚举的
     结果报错(不静默取整到别的语义)。
     """
-    tf_minutes = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60, "1h": 60, "1d": 1440}.get(timeframe)
+    tf_minutes = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60, "240m": 240, "1h": 60, "1d": 1440}.get(timeframe)
     if tf_minutes is None:
         raise RegistryError(f"未知周期 {timeframe!r}")
     bars = -(-physical_hours * 60 // tf_minutes)

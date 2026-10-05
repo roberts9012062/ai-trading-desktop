@@ -24,9 +24,10 @@ export const HISTORICAL_TRADES_BASE = "https://data.binance.vision/data/spot/mon
 /** 北京时间固定偏移(无夏令时) */
 const BJ_OFFSET_MS = 8 * 60 * 60 * 1000
 
-/** 本地周期 → Binance interval(60m 是唯一需要映射的) */
+/** 本地周期 → Binance interval(60m/240m 映射为小时) */
 export function normalizeInterval(period: string): string {
   if (period === "60m") return "1h"
+  if (period === "240m") return "4h"
   return period
 }
 

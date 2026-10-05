@@ -53,7 +53,7 @@ export interface LlmSeedResult {
 /** 按周期选择词表可用性探测窗口:足够判定特征覆盖,又不过度取数 */
 function probeDays(timeframe: string): number {
   if (timeframe === "1d") return 120
-  if (["4h", "1h", "60m"].includes(timeframe)) return 14
+  if (["240m", "4h", "1h", "60m"].includes(timeframe)) return 14
   return 3 // 15m/5m/1m
 }
 

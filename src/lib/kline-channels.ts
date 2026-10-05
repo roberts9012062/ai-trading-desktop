@@ -100,6 +100,7 @@ function gatePair(symbol: string): string {
 
 function gateInterval(period: string): string {
   if (period === "60m") return "1h"
+  if (period === "240m") return "4h"
   return period
 }
 

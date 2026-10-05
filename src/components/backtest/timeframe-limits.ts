@@ -9,6 +9,7 @@ export const RAIL_START_ISO = "2005-01-01"
 export const TIMEFRAME_MAX_DAYS: Record<string, number> = {
   "1d": 1825,
   "60m": 90,
+  "240m": 365,
   "30m": 60,
   "15m": 30,
   "5m": 7,
@@ -21,7 +22,7 @@ export const DEFAULT_MAX_DAYS = 30
  * 日线（1d）不支持多段。 */
 export const SEGMENT_MIN_COUNT = 2
 export const SEGMENT_MAX_COUNT = 5
-export const SEGMENT_TIMEFRAMES = ["60m", "30m", "15m", "5m", "1m"] as const
+export const SEGMENT_TIMEFRAMES = ["240m", "60m", "30m", "15m", "5m", "1m"] as const
 
 /** 多段回测最小区间（含首尾天）= 段数 × 该周期上限天数。
  * 每段长度固定为周期上限（如 15m 每段 30 天），提交后由后端

@@ -22,7 +22,7 @@ export type AnchorStrategy = "aggressive" | "balanced" | "conservative"
 export type AnchorHorizon = "short" | "mid" | "long"
 
 /** 合法分时K线段（不含 tick 与日线） */
-export const ANCHOR_TIMEFRAMES = ["1m", "5m", "15m", "30m", "60m"] as const
+export const ANCHOR_TIMEFRAMES = ["1m", "5m", "15m", "30m", "60m", "240m"] as const
 
 /** 分时段多选上限 */
 export const MAX_TIMEFRAMES = 3

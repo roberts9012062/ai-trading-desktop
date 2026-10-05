@@ -314,7 +314,7 @@ export function isValidMinuteBarTime(symbol: string, period: string, timeStr: st
 }
 
 const PERIOD_MINUTES_FOR_VALIDATION: Record<string, number> = {
-  "1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60,
+  "1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60, "240m": 240,
 }
 
 // ========== 交易日 / 交易时段判定(trading_hours.py 移植) ==========

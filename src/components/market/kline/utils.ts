@@ -13,6 +13,7 @@ export const PERIODS: { value: KlinePeriod; label: string }[] = [
   { value: "15m", label: "15分" },
   { value: "30m", label: "30分" },
   { value: "60m", label: "60分" },
+  { value: "240m", label: "4小时" },
   { value: "1d", label: "日线" },
 ]
 

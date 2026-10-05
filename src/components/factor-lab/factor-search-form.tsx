@@ -31,6 +31,7 @@ import { antiOverfitPayload } from "./hooks/factor-helpers"
 const TIMEFRAMES = [
   { value: "1d", label: "日线" },
   { value: "60m", label: "60分" },
+  { value: "240m", label: "4小时" },
   { value: "30m", label: "30分" },
   { value: "15m", label: "15分" },
   { value: "5m", label: "5分" },

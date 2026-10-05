@@ -13,9 +13,9 @@ import { latestBinanceArchiveDay, UM_INCEPTION } from "@/lib/binance-futures"
 
 /** 各内存档位的分钟级区间上限(天)——设备画像自适应,见 device-profile.ts */
 const TF_MAX_DAYS_BY_TIER: Record<string, Record<string, number>> = {
-  low: { "1d": 1825, "60m": 365, "30m": 365, "15m": 365, "5m": 183, "1m": 60 },
-  mid: { "1d": 1825, "60m": 730, "30m": 730, "15m": 730, "5m": 365, "1m": 120 },
-  high: { "1d": 1825, "60m": 1095, "30m": 1095, "15m": 730, "5m": 365, "1m": 182 },
+  low: { "1d": 1825, "240m": 1825, "60m": 365, "30m": 365, "15m": 365, "5m": 183, "1m": 60 },
+  mid: { "1d": 1825, "240m": 1825, "60m": 730, "30m": 730, "15m": 730, "5m": 365, "1m": 120 },
+  high: { "1d": 1825, "240m": 1825, "60m": 1095, "30m": 1095, "15m": 730, "5m": 365, "1m": 182 },
 }
 
 const DEFAULT_MAX_DAYS = 30

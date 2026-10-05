@@ -11,13 +11,14 @@ export const CADENCE_CHOICES = [3, 5, 10, 15, 30, 60] as const
 export type CadenceSeconds = (typeof CADENCE_CHOICES)[number]
 
 /** 短线支持的挖掘周期 */
-export const SHORTLINE_TIMEFRAMES = ["1m", "5m", "15m"] as const
+export const SHORTLINE_TIMEFRAMES = ["1m", "5m", "15m", "240m"] as const
 export type ShortlineTimeframe = (typeof SHORTLINE_TIMEFRAMES)[number]
 
 export const TIMEFRAME_SECONDS: Record<ShortlineTimeframe, number> = {
   "1m": 60,
   "5m": 300,
   "15m": 900,
+  "240m": 14400,
 }
 
 /** 求值器语义版本戳（随任务载荷下发，服务器 S1 门校验对象） */
@@ -146,10 +147,11 @@ export const SHORTLINE_SYMBOLS: readonly string[] = [
  * 若只回填一半，前半段训练数据的短线特征缺失，v4 token 实际不可用，
  * 短线实验室退化为带惩罚项的普通挖掘。故对齐 5m 最低档 183 天取 180；
  * 1m 在高档位（182 天 K 线）同理取 180（低档位 K 线更短，多回填无害）。
- * digest 为 1 秒桶、三周期共用一份；该值仅作为回填表单的默认范围。
+ * digest 为 1 秒桶、各周期共用一份；该值仅作为回填表单的默认范围。
  */
 export const TIMEFRAME_BACKFILL_DAYS: Record<ShortlineTimeframe, number> = {
   "1m": 180,
   "5m": 180,
   "15m": 180,
+  "240m": 180,
 }

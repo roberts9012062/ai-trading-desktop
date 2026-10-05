@@ -56,7 +56,7 @@ function receiveChart(message: WsMessage): void {
 
 async function pollOnce(): Promise<void> {
   const keys = listActiveRtKeys(IDLE_MS).filter(({ symbol, period }) =>
-    /^[a-z0-9]{1,16}usdt$/.test(symbol) && ["1m", "5m", "15m", "30m", "60m", "1d"].includes(period))
+    /^[a-z0-9]{1,16}usdt$/.test(symbol) && ["1m", "5m", "15m", "30m", "60m", "240m", "1d"].includes(period))
   activeKeys = new Set(keys.map(keyOf))
   for (const key of streamHeads.keys()) if (!activeKeys.has(key)) streamHeads.delete(key)
   for (const key of retries.keys()) if (!activeKeys.has(key)) retries.delete(key)

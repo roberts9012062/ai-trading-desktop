@@ -24,6 +24,7 @@ const TIMEFRAMES: Array<{ value: string; label: string }> = [
   { value: "15m", label: "15分" },
   { value: "30m", label: "30分" },
   { value: "60m", label: "60分" },
+  { value: "240m", label: "4小时" },
 ]
 
 /** 播放间隔选项（分钟，5-30） */

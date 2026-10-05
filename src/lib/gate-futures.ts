@@ -2,7 +2,7 @@ import type { KlineBar } from "@/types"
 import { barTimeToMs, msToBarTime, normalizeInterval, type BinanceKlinePage } from "@/lib/binance-kline"
 import { cryptoPair, GATE_FUTURES, optionalNumber, publicJson } from "@/lib/crypto-direct"
 
-const SECONDS: Record<string, number> = { "1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "1d": 86400 }
+const SECONDS: Record<string, number> = { "1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400 }
 interface Candle { t: number; o: string; h: string; l: string; c: string; v: number; sum?: string }
 export interface Funding { t: number; r: string }
 export interface ContractStat {

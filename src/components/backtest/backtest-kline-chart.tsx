@@ -43,7 +43,7 @@ function asPeriod(timeframe: string): KlinePeriod {
     t === "5m" ||
     t === "15m" ||
     t === "30m" ||
-    t === "60m" ||
+    t === "60m" || t === "240m" ||
     t === "1d"
   ) {
     return t

@@ -1,3 +1,4 @@
+import { TIMEFRAME_SECONDS } from "./spec"
 /**
  * 挂载载荷组装（契约 shortline_factor_v1 §9，字段不得单方变更）+ 白名单校验。
  *
@@ -105,7 +106,7 @@ export function requiredWarmupBars(
   tokensList: ReadonlyArray<readonly number[]>,
   timeframe: ShortlineTimeframe,
 ): number {
-  const spanSec = timeframe === "1m" ? 60 : timeframe === "5m" ? 300 : 900
+  const spanSec = TIMEFRAME_SECONDS[timeframe]
   const estW = Math.max(200, Math.ceil(86400 / spanSec))
   let need = 300
   for (const tokens of tokensList) need = Math.max(need, requiredHistoryBars(tokens, timeframe, estW))

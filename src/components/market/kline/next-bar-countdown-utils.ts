@@ -14,6 +14,7 @@ export const PERIOD_MINUTES: Partial<Record<KlinePeriod, number>> = {
   "15m": 15,
   "30m": 30,
   "60m": 60,
+  "240m": 240,
 }
 
 /** 18:00 后开始的节段视为夜盘（国内夜盘最早 21:00 开、日盘最晚 15:15 收） */

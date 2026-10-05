@@ -27,7 +27,7 @@ export interface ChartDirective {
   title: string
 }
 
-const SUPPORTED_PERIODS = new Set(["1m", "5m", "15m", "30m", "60m", "1d"])
+const SUPPORTED_PERIODS = new Set(["1m", "5m", "15m", "30m", "60m", "240m", "1d"])
 /** 模型常见的周期写法归一 */
 const PERIOD_ALIASES: Record<string, string> = {
   "1": "1m", min1: "1m", m1: "1m",
@@ -35,6 +35,7 @@ const PERIOD_ALIASES: Record<string, string> = {
   "15": "15m", min15: "15m", m15: "15m", "15min": "15m",
   "30": "30m", min30: "30m", m30: "30m", "30min": "30m",
   "60": "60m", min60: "60m", m60: "60m", "60min": "60m", "1h": "60m", h1: "60m",
+  "240": "240m", min240: "240m", m240: "240m", "240min": "240m", "4h": "240m", h4: "240m", "4小时": "240m",
   "1d": "1d", d1: "1d", day: "1d", daily: "1d",
 }
 /** 模型常见的 role 写法归一 */

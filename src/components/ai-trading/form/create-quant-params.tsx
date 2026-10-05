@@ -447,7 +447,7 @@ export function ProSwingParams(props: {
 }): React.JSX.Element {
   const { quant: q, onQuant, timeframe } = props
   const tfMin: Record<string, number> = {
-    "1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60, "1d": 1440,
+    "1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60, "240m": 240, "1d": 1440,
   }
   // 第二周期候选：×2/×3/×4/×6/×12（仅显示对当前主周期有意义的档位由调用方控制，
   // 这里全量给出并按倍数标注）
@@ -460,6 +460,7 @@ export function ProSwingParams(props: {
     { value: "15m", label: "15 分钟" },
     { value: "30m", label: "30 分钟" },
     { value: "60m", label: "1 小时" },
+    { value: "240m", label: "4小时" },
     { value: "1d", label: "1 天" },
   ].filter((o) => o.value !== mainTf)
   const modeOptions = [

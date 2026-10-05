@@ -12,6 +12,7 @@ from typing import Any
 TIMEFRAME_MAX_DAYS: dict[str, int] = {
     "1d": 1825,
     "60m": 90,
+    "240m": 365,
     "30m": 60,
     "15m": 30,
     "5m": 7,

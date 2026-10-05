@@ -445,7 +445,7 @@ export function validateQuantParams(q: QuantParamsState): string | null {
       return "日亏停机额度须大于 0"
     }
   }
-  const VALID_TFS = ["1m", "5m", "15m", "30m", "60m", "1d"]
+  const VALID_TFS = ["1m", "5m", "15m", "30m", "60m", "240m", "1d"]
   if (q.quantKind === "swing_pro") {
     if (q.proHtfTf && !VALID_TFS.includes(q.proHtfTf)) {
       return "第二周期无效（须为标准K线周期档）"

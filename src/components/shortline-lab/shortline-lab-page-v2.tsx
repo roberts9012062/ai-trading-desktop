@@ -215,7 +215,7 @@ export default function ShortlineLabPageV2() {
 
   // ── 建议区间 ──
   const researchDays = Math.min(TIMEFRAME_BACKFILL_DAYS[timeframe],factorMaxDaysFor(timeframe),
-    Math.floor(maxResearchBars()/(timeframe === "1m" ? 1440 : timeframe === "5m" ? 288 : 96)))
+    Math.floor(maxResearchBars()/(timeframe === "1m" ? 1440 : timeframe === "5m" ? 288 : timeframe === "240m" ? 6 : 96)))
   const suggestedFrom = useMemo(() => {
     const days = researchDays
     return new Date(Date.parse(`${latestResearchArchiveDay(dataSource)}T00:00:00Z`) - (days-1) * 86400000).toISOString().slice(0, 10)
@@ -528,7 +528,7 @@ export default function ShortlineLabPageV2() {
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold text-white">短线因子实验室</h1>
           <p className="text-sm text-gray-400">
-            1m/5m/15m 高频因子挖掘 · v4 订单流特征 · 一键启动
+            1m/5m/15m/4小时 高频因子挖掘 · v4 订单流特征 · 一键启动
           </p>
         </div>
 
@@ -571,7 +571,7 @@ export default function ShortlineLabPageV2() {
                          focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
               >
                 {SHORTLINE_TIMEFRAMES.map((tf) => (
-                  <option key={tf} value={tf}>{tf}</option>
+                  <option key={tf} value={tf}>{tf === "240m" ? "4小时" : tf}</option>
                 ))}
               </select>
             </div>

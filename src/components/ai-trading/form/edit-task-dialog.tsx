@@ -57,7 +57,7 @@ import {ForecastOptions} from './forecast-options'
 
 /** K 线周期 → 分钟（分析间隔上限） */
 const TF_MINUTES: Record<string, number> = {
-  "1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60, "1d": 1440,
+  "1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60, "240m": 240, "1d": 1440,
 }
 /** 秒 → 友好文案（间隔档显示用） */
 function secLabel(v: number): string {
@@ -80,7 +80,7 @@ interface EditTaskDialogProps {
   onClose: () => void
 }
 
-const TIMEFRAMES = ["1m", "5m", "15m", "30m", "60m", "1d"] as const
+const TIMEFRAMES = ["1m", "5m", "15m", "30m", "60m", "240m", "1d"] as const
 
 /** 是否为量化策略任务（覆盖全部 QuantKind，含 factor 子类）。
  * 与 quant-strategy.ts 的 QUANT_KIND_OPTIONS 同源，避免新增策略时重复维护漏判。 */
@@ -563,7 +563,7 @@ export function EditTaskDialog({
               >
                 {TIMEFRAMES.filter(t=>!prediction||t!=='1d').map((t) => (
                   <option key={t} value={t}>
-                    {t}
+                    {t === "240m" ? "4小时" : t}
                   </option>
                 ))}
               </select>
@@ -608,7 +608,7 @@ export function EditTaskDialog({
                             : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]"
                         } ${!active && extraTfs.length >= 3 ? "opacity-40" : ""}`}
                       >
-                        {t}
+                        {t === "240m" ? "4小时" : t}
                       </button>
                     )
                   })}

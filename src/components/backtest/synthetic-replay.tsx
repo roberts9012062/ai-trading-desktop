@@ -54,7 +54,7 @@ type Phase = "ready" | "playing" | "paused" | "finishing" | "done"
 
 function asPeriod(timeframe: string): KlinePeriod {
   const t = timeframe as KlinePeriod
-  if (t === "1m" || t === "5m" || t === "15m" || t === "30m" || t === "60m" || t === "1d") {
+  if (t === "1m" || t === "5m" || t === "15m" || t === "30m" || t === "60m" || t === "240m" || t === "1d") {
     return t
   }
   return "1d"

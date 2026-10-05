@@ -34,7 +34,7 @@ interface KlineHoverInfoPanelProps {
   /** 是否可见（鼠标进入图表区域后为 true） */
   visible: boolean
   /** K 线周期：日线与分钟线使用不同的时间格式 */
-  period: "1m" | "5m" | "15m" | "30m" | "60m" | "1d" | "tick"
+  period: "1m" | "5m" | "15m" | "30m" | "60m" | "240m" | "1d" | "tick"
   /** 价格小数位（按品种 tick 推导：rb=0, au=2）；默认 0 */
   decimalPlaces?: number
   /** 该 bar 上的任务成交明细（AI 看盘页传入；空则不显示该区块） */

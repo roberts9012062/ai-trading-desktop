@@ -61,7 +61,7 @@ def run_backtest_local(
     if not symbol:
         raise ValueError("请选择品种")
     timeframe = str(payload.get("timeframe") or "1d").strip()
-    if timeframe not in ("1m", "5m", "15m", "30m", "60m", "1d"):
+    if timeframe not in ("1m", "5m", "15m", "30m", "60m", "240m", "1d"):
         raise ValueError("不支持的 K 线周期")
 
     start = parse_date(str(payload.get("start_date") or ""))

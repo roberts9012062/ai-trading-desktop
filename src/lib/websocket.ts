@@ -250,7 +250,7 @@ export class MarketWebSocket {
     const unique = new Map<string, ChartSubscriptionKey>()
     for (const key of keys) {
       const symbol = key.symbol.trim().toLowerCase()
-      if (!/^[a-z0-9]{1,16}usdt$/.test(symbol) || !["1m", "5m", "15m", "30m", "60m", "1d"].includes(key.period)) continue
+      if (!/^[a-z0-9]{1,16}usdt$/.test(symbol) || !["1m", "5m", "15m", "30m", "60m", "240m", "1d"].includes(key.period)) continue
       unique.set(`${symbol}:${key.period}`, { symbol, period: key.period })
     }
     const next = [...unique.values()].sort((a, b) => `${a.symbol}:${a.period}`.localeCompare(`${b.symbol}:${b.period}`)).slice(0, 32)

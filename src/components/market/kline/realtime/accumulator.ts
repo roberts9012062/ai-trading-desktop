@@ -204,6 +204,7 @@ const GAP_PERIOD_MINUTES: Partial<Record<KlinePeriod, number>> = {
   "15m": 15,
   "30m": 30,
   "60m": 60,
+  "240m": 240,
 }
 
 /**
@@ -229,7 +230,7 @@ export function detectTailGap(
     const t = normalizeBarTime(period, b.time)
     if (!t) continue
     const gapMin = (toTimestamp(t) - toTimestamp(prevT)) / 60
-    if (gapMin > minutes * 2 && gapMin <= GAP_MAX_MINUTES) {
+    if (gapMin > minutes * 2 && gapMin <= Math.max(GAP_MAX_MINUTES, minutes * 4)) {
       return `${prevT}=>${t}`
     }
     prevT = t

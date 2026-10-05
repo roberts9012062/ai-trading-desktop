@@ -135,7 +135,7 @@ export interface KlineBar {
 }
 
 /** K 线周期 */
-export type KlinePeriod = "tick" | "1m" | "5m" | "15m" | "30m" | "60m" | "1d"
+export type KlinePeriod = "tick" | "1m" | "5m" | "15m" | "30m" | "60m" | "240m" | "1d"
 
 /** ===== 新闻相关类型 ===== */
 

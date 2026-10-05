@@ -19,7 +19,7 @@ function seededRandom(seed: number): () => number {
 
 /** 周期对应的分钟数映射 */
 const PERIOD_MINUTES: Record<string, number> = {
-  tick: 1, "1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60, "1d": 1440,
+  tick: 1, "1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60, "240m": 240, "1d": 1440,
 }
 
 /** 格式化日期为 lightweight-charts 可识别的时间字符串 */
@@ -35,7 +35,7 @@ function formatTime(date: Date, isDaily: boolean): string {
 
 /** 不同周期使用不同种子，确保各周期 K 线走势不同 */
 const PERIOD_SEEDS: Record<string, number> = {
-  tick: 111, "1m": 222, "5m": 333, "15m": 444, "30m": 555, "60m": 666, "1d": 777,
+  tick: 111, "1m": 222, "5m": 333, "15m": 444, "30m": 555, "60m": 666, "240m": 668, "1d": 777,
 }
 
 /** 生成模拟 K 线数据（确定性，SSR 安全） */

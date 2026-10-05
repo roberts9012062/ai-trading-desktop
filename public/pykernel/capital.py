@@ -35,6 +35,7 @@ TIMEFRAME_MAX_HOLD_DAYS: dict[str, int] = {
     "15m": 30,
     "30m": 30,
     "60m": 60,
+    "240m": 90,
     "1d": 90,
 }
 

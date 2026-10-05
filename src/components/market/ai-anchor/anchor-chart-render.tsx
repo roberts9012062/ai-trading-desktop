@@ -28,7 +28,7 @@ import type { KlineBar, KlinePeriod } from "@/types"
 
 interface AnchorChartRenderProps {
   symbol: string
-  /** K线周期 1m/5m/15m/30m/60m/1d */
+  /** K线周期 1m/5m/15m/30m/60m/240m/1d */
   period: string
   /** 拉取根数 */
   limit: number

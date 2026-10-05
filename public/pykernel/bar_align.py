@@ -15,9 +15,10 @@ _PERIOD_MINUTES: dict[str, int] = {
     "15m": 15,
     "30m": 30,
     "60m": 60,
+    "240m": 240,
 }
 
-SUPPORTED_TIMEFRAMES: list[str] = ["1m", "5m", "15m", "30m", "60m", "1d"]
+SUPPORTED_TIMEFRAMES: list[str] = ["1m", "5m", "15m", "30m", "60m", "240m", "1d"]
 
 
 def beijing_now() -> datetime:

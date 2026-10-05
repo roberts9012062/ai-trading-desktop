@@ -18,6 +18,7 @@ const PERIOD_MINUTES: Partial<Record<KlinePeriod, number>> = {
   "15m": 15,
   "30m": 30,
   "60m": 60,
+  "240m": 240,
 }
 
 /**

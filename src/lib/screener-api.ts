@@ -13,7 +13,7 @@ export type ScreenerCondType =
   | "rsi"
   | "boll"
 
-export type ScreenerPeriod = "5m" | "15m" | "30m" | "60m" | "1d"
+export type ScreenerPeriod = "5m" | "15m" | "30m" | "60m" | "240m" | "1d"
 
 /** 用户图表指标设置中筛选会用到的字段（来自 /api/indicators/settings） */
 export interface ChartIndicatorConfig {
@@ -105,6 +105,7 @@ export const SCREENER_PERIODS: Array<{
   { value: "15m", label: "15分钟" },
   { value: "30m", label: "30分钟" },
   { value: "60m", label: "60分钟" },
+  { value: "240m", label: "4小时" },
   { value: "1d", label: "日线" },
 ]
 

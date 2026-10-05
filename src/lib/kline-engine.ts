@@ -1,7 +1,7 @@
 /**
  * 客户端 K 线合成引擎 —— 后端 services/kline.py `update_realtime_klines` 的 TS 移植
  *
- * 职责:消费 WS quote 流,在客户端本地合成全部周期(1m/5m/15m/30m/60m/1d)的
+ * 职责:消费 WS quote 流,在客户端本地合成全部周期(1m/5m/15m/30m/60m/240m/1d)的
  * forming bar,语义与服务端逐字对齐:
  * - 分钟 bar 时间键 = 交易分钟轴上的桶**起点**(跨休盘由轴对齐,非墙钟近似)
  * - 分钟级 open 锁定周期首 tick;close=last_price;high/low 跟 tick;
@@ -53,9 +53,9 @@ export function maxPlausibleBarKey(symbol: string, period: string, nowMs: number
   return formatMinuteTime(start)
 }
 
-const MINUTE_PERIODS = ["1m", "5m", "15m", "30m", "60m"] as const
+const MINUTE_PERIODS = ["1m", "5m", "15m", "30m", "60m", "240m"] as const
 const PERIOD_MINUTES: Record<string, number> = {
-  "1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60,
+  "1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60, "240m": 240,
 }
 export const ENGINE_PERIODS = [...MINUTE_PERIODS, "1d"] as const
 

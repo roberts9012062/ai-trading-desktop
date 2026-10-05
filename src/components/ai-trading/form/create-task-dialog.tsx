@@ -67,7 +67,7 @@ interface CreateTaskDialogProps {
   prefillFrom?: AITradingTask | null
 }
 
-const TIMEFRAMES = ["1m", "5m", "15m", "30m", "60m", "1d"] as const
+const TIMEFRAMES = ["1m", "5m", "15m", "30m", "60m", "240m", "1d"] as const
 
 const DEFAULT_RULES: RuleFormState = {
   ...EMPTY_RULE_FORM,
@@ -463,7 +463,7 @@ export function CreateTaskDialog({
                 >
                   {TIMEFRAMES.filter(t=>tradeMode!=='forecast'||t!=='1d').map((t) => (
                     <option key={t} value={t}>
-                      {t}
+                      {t === "240m" ? "4小时" : t}
                     </option>
                   ))}
                 </select>
@@ -506,7 +506,7 @@ export function CreateTaskDialog({
                           : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]"
                       } ${!active && extraTfs.length >= (tradeMode==='forecast'?2:3) ? "opacity-40" : ""}`}
                     >
-                      {t}
+                      {t === "240m" ? "4小时" : t}
                     </button>
                   )
                 })}

@@ -30,7 +30,7 @@ export function maxHoldDaysForTimeframe(timeframe: string): number {
   if (tf === "5m") return 7
   if (tf === "15m" || tf === "30m") return 30
   if (tf === "60m") return 60
-  return 90 // 1d
+  return 90 // 240m / 1d
 }
 
 export function horizonLabel(timeframe: string): string {

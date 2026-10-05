@@ -18,7 +18,7 @@ import {
 } from "@/lib/shortline/backfill/pipeline"
 import { loadDigestRange } from "@/lib/shortline/backfill/pipeline"
 import {
-  SHORTLINE_SYMBOLS, TIMEFRAME_BACKFILL_DAYS,
+  SHORTLINE_SYMBOLS, TIMEFRAME_BACKFILL_DAYS, TIMEFRAME_SECONDS,
 } from "@/lib/shortline/spec"
 import { LiveScoringEngine } from "@/lib/shortline/live"
 import { closedBarsFromDigest } from "@/lib/shortline/replay"
@@ -234,7 +234,7 @@ export default function ShortlineLabPage() {
         const recent = days.slice(-2)
         const loaded = await loadDigestRange(symbol, recent[0]!, recent[recent.length - 1]!)
         if (loaded && loaded.buckets.length) {
-          const spanSec = timeframe === "1m" ? 60 : timeframe === "5m" ? 300 : 900
+          const spanSec = TIMEFRAME_SECONDS[timeframe]
           const tailStart = loaded.buckets[loaded.buckets.length - 1]!.ts * 1000 - spanSec * 1000 * 400
           warmupBars = closedBarsFromDigest(
             loaded.buckets, timeframe,
@@ -358,7 +358,7 @@ export default function ShortlineLabPage() {
       <div className="space-y-1">
         <h1 className="text-lg font-semibold text-[var(--text-primary)]">短线因子实验室</h1>
         <p className="text-xs text-[var(--text-muted)]">
-          1m/5m/15m 短线因子挖掘（shortline_v1 档案 · aggTrades 订单流 v4 特征 · 换手/翻转/半衰期惩罚），
+          1m/5m/15m/4小时 短线因子挖掘（shortline_v1 档案 · aggTrades 订单流 v4 特征 · 换手/翻转/半衰期惩罚），
           tick 重放与流式打分共用同一套形成中 K 线代码。打分节奏 ≠ 交易节奏；流式预览纯展示，不下单。
         </p>
       </div>
@@ -373,7 +373,7 @@ export default function ShortlineLabPage() {
         </div>
         <p className="text-[10px] text-[var(--text-muted)]">
           按上方选择的币种回填其成交归档（data.binance.vision，国内实测可达）。digest 为 1 秒桶、
-          与周期无关——{timeframe} 只决定建议区间（当前 {TIMEFRAME_BACKFILL_DAYS[timeframe]} 天）；1m/5m/15m 三周期共用同一份缓存。
+          与周期无关——{timeframe} 只决定建议区间（当前 {TIMEFRAME_BACKFILL_DAYS[timeframe]} 天）；1m/5m/15m/4小时 各周期共用同一份缓存。
         </p>
         <p className="text-[10px] text-emerald-400/90">{coverage}</p>
         <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -432,7 +432,7 @@ export default function ShortlineLabPage() {
             <span className="text-[var(--text-muted)]">② 周期</span>
             <select value={timeframe} onChange={(e) => setTimeframe(e.target.value as ShortlineTimeframe)}
               className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1">
-              {SHORTLINE_TIMEFRAMES.map((tf) => <option key={tf} value={tf}>{tf}</option>)}
+              {SHORTLINE_TIMEFRAMES.map((tf) => <option key={tf} value={tf}>{tf === "240m" ? "4小时" : tf}</option>)}
             </select>
             <span className="text-[10px] text-[var(--text-muted)] block leading-4">
               特征归一化窗口随周期自动放大（1m≈1440 根/日）；打分 cadence 在流式预览区另选。

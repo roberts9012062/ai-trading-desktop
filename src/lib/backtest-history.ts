@@ -5,7 +5,7 @@ import { latestOkxArchiveDay, okxArchiveDayStart, okxArchiveDate } from "./okx-h
 import { latestBinanceArchiveDay } from "./binance-futures"
 import quantOps from "./quant-window-ops.json"
 
-const TF_MINUTES: Record<string, number> = {"1m":1,"5m":5,"15m":15,"30m":30,"60m":60,"1d":1440}
+const TF_MINUTES: Record<string, number> = {"1m":1,"5m":5,"15m":15,"30m":30,"60m":60, "240m": 240,"1d":1440}
 const DAY = 86400000
 
 /** 与服务器 swing_pro_data_tf 对齐，较短周期才能聚合较长周期。 */
@@ -16,7 +16,8 @@ export function backtestDataTimeframe(body: BacktestRunPayload): string {
   let other = String(params.htf_tf ?? "").trim().toLowerCase()
   if (!TF_MINUTES[other]) {
     const factor = Math.trunc(Number(params.htf_factor ?? 1))
-    other = factor > 1 ? Object.keys(TF_MINUTES).reduce((best, tf) =>
+    // Preserve legacy multiplier rounding; new tasks explicitly save htf_tf.
+    other = factor > 1 ? Object.keys(TF_MINUTES).filter(tf => tf !== "240m").reduce((best, tf) =>
       Math.abs(TF_MINUTES[tf]! - TF_MINUTES[main]!*factor) < Math.abs(TF_MINUTES[best]! - TF_MINUTES[main]!*factor) ? tf : best, "1m") : ""
   }
   return other && TF_MINUTES[other]! < TF_MINUTES[main]! ? other : main

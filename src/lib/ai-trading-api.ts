@@ -31,7 +31,7 @@ function aiServerTokens(tokens: FactorTokens): FactorTokens {
     ? (tokens as number[][]).map(desktopTokensToServerV3)
     : desktopTokensToServerV3(tokens as number[])
 }
-export type Timeframe = "1m" | "5m" | "15m" | "30m" | "60m" | "1d"
+export type Timeframe = "1m" | "5m" | "15m" | "30m" | "60m" | "240m" | "1d"
 export type SideMode = "long_only" | "short_only" | "both"
 export type PositionMode = "full" | "half" | "fixed_qty" | "scale_in" | "fixed_margin"
 export type TaskStatus = "running" | "paused" | "stopped"

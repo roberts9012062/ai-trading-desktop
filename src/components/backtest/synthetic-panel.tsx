@@ -36,6 +36,7 @@ import {
 /** K 线周期每交易日的根数（与后端 BARS_PER_DAY 一致） */
 const BARS_PER_DAY: Record<string, number> = {
   "1d": 1,
+  "240m": 6,
   "60m": 4,
   "30m": 8,
   "15m": 16,
@@ -43,7 +44,7 @@ const BARS_PER_DAY: Record<string, number> = {
   "1m": 240,
 }
 
-const TIMEFRAMES = ["1d", "60m", "30m", "15m", "5m", "1m"] as const
+const TIMEFRAMES = ["1d", "240m", "60m", "30m", "15m", "5m", "1m"] as const
 
 /** 从面板收集的回放所需全部配置 */
 export interface SyntheticReplayConfig {
@@ -295,7 +296,7 @@ export function SyntheticPanel({
         >
           {TIMEFRAMES.map((t) => (
             <option key={t} value={t}>
-              {t}
+              {t === "240m" ? "4小时" : t}
             </option>
           ))}
         </select>

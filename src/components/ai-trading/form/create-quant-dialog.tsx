@@ -78,11 +78,11 @@ interface CreateQuantDialogProps {
   onCreated?: (task: AITradingTask) => void | Promise<void>
 }
 
-const TIMEFRAMES = ["1m", "5m", "15m", "30m", "60m", "1d"] as const
+const TIMEFRAMES = ["1m", "5m", "15m", "30m", "60m", "240m", "1d"] as const
 
 /** K 线周期 → 分钟（分析间隔上限） */
 const TF_MINUTES: Record<string, number> = {
-  "1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60, "1d": 1440,
+  "1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60, "240m": 240, "1d": 1440,
 }
 
 /** 秒 → 友好文案（间隔档显示用） */
@@ -518,7 +518,7 @@ export function CreateQuantDialog({
               >
                 {TIMEFRAMES.map((t) => (
                   <option key={t} value={t}>
-                    {t}
+                    {t === "240m" ? "4小时" : t}
                   </option>
                 ))}
               </select>
