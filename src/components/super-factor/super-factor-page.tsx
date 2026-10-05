@@ -28,7 +28,6 @@ import type { DeviceKind, MiningTask, RunnerKind } from "@/lib/mining/types"
 import { championSeedsFor } from "@/lib/mining/champion-seeds"
 import { MiningSymbolCombobox } from "./mining-symbol-combobox"
 import { CryptoDataPanel } from "@/components/common/crypto-data-panel"
-import { LOCAL_DERIVATIVE_CHANNELS } from "@/lib/kline-channels"
 import { DataChannelSelect } from "@/components/common/data-channel-select"
 import { DEFAULT_KLINE_CHANNEL } from "@/lib/kline-channels"
 import { PresetPicker, MINING_PRESETS, type MiningPreset } from "./mining-presets"
@@ -290,7 +289,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
   // 执行位置:服务器计算机 / 本地计算机;本地再选算力(自动/CPU/GPU)
   // 服务端引擎已下线:恒为本地(旧任务列表中的服务端任务仍可查看/清理)
   const [origin, setOrigin] = useState<RunnerKind>("local")
-  useEffect(() => { if (origin !== "local" && dataChannel === "gate_usdt") setDataChannel("binance_spot") }, [origin, dataChannel])
+  useEffect(() => { if (origin !== "local" && dataChannel === "gate_usdt") setDataChannel(DEFAULT_KLINE_CHANNEL) }, [origin, dataChannel])
   const [device, setDevice] = useState<DeviceKind>("auto")
   const [nativePrecision, setNativePrecision] = useState<"mixed" | "f64">("mixed")
   const native = useNativeAvailability(device === "native-gpu", nativePrecision)
@@ -500,7 +499,6 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
       <div className="space-y-1.5">
         <Label>数据渠道</Label>
         <DataChannelSelect
-          extraChannels={origin === "local" ? LOCAL_DERIVATIVE_CHANNELS : undefined}
           value={dataChannel}
           onChange={(v) => setDataChannel(v)}
           symbol={symbol.trim().toLowerCase() || null}

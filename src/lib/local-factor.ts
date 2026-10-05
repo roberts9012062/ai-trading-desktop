@@ -1,5 +1,5 @@
 import { gateResearchRange } from "@/lib/crypto-direct"
-import { defaultFactorRangeFor } from "@/components/factor-lab/factor-range-limits"
+import { researchFactorRangeFor } from "@/components/factor-lab/factor-range-limits"
 import { maxResearchBars, memoryTierLabel } from "@/lib/device-profile"
 /**
  * 因子实验室本地引擎门面(Pyodide + numpy / WebGPU)
@@ -289,8 +289,8 @@ export async function prepareSearchBars(
   const bars = await fetchBacktestBars(
     payload.symbol,
     payload.timeframe,
-    payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : defaultFactorRangeFor(payload.timeframe, new Date()).start),
-    payload.end_date || new Date().toISOString().slice(0, 10),
+    payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : researchFactorRangeFor(payload.timeframe, payload.data_channel).start),
+    payload.end_date || researchFactorRangeFor(payload.timeframe, payload.data_channel).end,
     KLINE_MAX_PAGES,
     undefined,
     onProgress,
@@ -311,8 +311,8 @@ export async function prepareSearchBars(
     timeframe: payload.timeframe,
     channel: payload.data_channel,
     bars,
-    startDate: payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : defaultFactorRangeFor(payload.timeframe, new Date()).start),
-    endDate: payload.end_date || new Date().toISOString().slice(0, 10),
+    startDate: payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : researchFactorRangeFor(payload.timeframe, payload.data_channel).start),
+    endDate: payload.end_date || researchFactorRangeFor(payload.timeframe, payload.data_channel).end,
     cost: payload.cost ?? null,
     researchProfile: payload.research_profile,
   }
@@ -503,8 +503,8 @@ export async function backtestFactorLocal(
   const snap = reuseSnapshot ? lastSearchSnapshot : null
   // 复用条件:symbol/timeframe/channel 一致,且请求区间与搜索取数区间相同
   // (用户改了日期区间 → 不复用,按新区间重新取数)
-  const reqStart = payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : defaultFactorRangeFor(payload.timeframe, new Date()).start)
-  const reqEnd = payload.end_date || new Date().toISOString().slice(0, 10)
+  const reqStart = payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : researchFactorRangeFor(payload.timeframe, payload.data_channel).start)
+  const reqEnd = payload.end_date || researchFactorRangeFor(payload.timeframe, payload.data_channel).end
   const snapUsable =
     snap !== null &&
     snap.key === snapshotKey(payload.symbol, payload.timeframe, payload.data_channel) &&
@@ -524,8 +524,8 @@ export async function backtestFactorLocal(
     bars = await fetchBacktestBars(
       payload.symbol,
       payload.timeframe,
-      payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : defaultFactorRangeFor(payload.timeframe, new Date()).start),
-      payload.end_date || new Date().toISOString().slice(0, 10),
+      payload.start_date || (payload.data_channel === "gate_usdt" ? gateResearchRange(payload.timeframe).start : researchFactorRangeFor(payload.timeframe, payload.data_channel).start),
+      payload.end_date || researchFactorRangeFor(payload.timeframe, payload.data_channel).end,
       KLINE_MAX_PAGES,
       undefined,
       onProgress,

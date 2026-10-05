@@ -198,13 +198,18 @@ export function getBacktestLimitsApi(): Promise<BacktestLimits> {
   return request<BacktestLimits>("/api/backtest/limits")
 }
 
-export function runBacktestApi(
+export async function runBacktestApi(
   body: BacktestRunPayload,
+  onProgress?: (msg: string) => void,
 ): Promise<BacktestReport> {
-  return request<BacktestReport>("/api/backtest/run", {
+  const { prepareBacktestHistory } = await import("./backtest-history")
+  const prepared = await prepareBacktestHistory(body, onProgress)
+  const report = await request<BacktestReport>("/api/backtest/run", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify(prepared),
   })
+  if (report.config?.history_source !== "okx_archive_v1") throw new Error("服务器尚未支持本机 OKX 回测数据，请更新服务器后重试")
+  return report
 }
 
 // ----------------------------------------------------------------

@@ -3,7 +3,7 @@
  * (对齐后端 app/data/history_channels.py 的三渠道定义)
  *
  * - binance_spot：Binance 现货 data-api.binance.vision 本地直连(免 Key,
- *   主流币 2017-08 起)——默认渠道
+ *   主流币 2017-08 起)——兼容旧任务
  * - gate_spot：Gate 现货 api.gateio.ws 本地直连(免 Key)
  * - okx：OKX 官方历史 ZIP 归档，本机下载和缓存，不转发服务器
  *
@@ -36,8 +36,8 @@ export const LOCAL_DERIVATIVE_CHANNELS = [
   { id: "gate_usdt", name: "Gate USDT 永续（本地直连·含衍生数据）", kind: "swap", note: "同源合约K线、历史资金费率与持仓统计；仅本地 CPU/GPU" },
 ]
 
-/** 桌面端默认渠道:Binance 现货(国内直连可达 + 2017-08 起超长历史) */
-export const DEFAULT_KLINE_CHANNEL: KlineChannelId = "binance_spot"
+/** 新研究默认 OKX 本机官方归档；显式旧来源只用于复现历史记录。 */
+export const DEFAULT_KLINE_CHANNEL: KlineChannelId = "okx"
 
 /** 渠道元数据(history-channels.ts 的 getHistoryChannels 后端不可用时的本地兜底) */
 export const LOCAL_HISTORY_CHANNELS: Array<{
@@ -170,8 +170,8 @@ export async function probeLocalChannelRange(
   symbol: string,
 ): Promise<LocalChannelRange | null> {
   if (channel === "okx") {
-    const max = Date.parse(`${latestOkxArchiveDay()}T23:59:59Z`)
-    return {min_ts:OKX_CANDLE_FLOOR,max_ts:max,min_date:"2023-07-01",max_date:tsToUtcDate(max)}
+    const day = latestOkxArchiveDay(), max = Date.parse(`${day}T23:59:59+08:00`)
+    return {min_ts:OKX_CANDLE_FLOOR,max_ts:max,min_date:"2023-07-01",max_date:day}
   }
   if (channel === "binance_spot") {
     const sym = symbol.replace(/[-_/]/g, "").toUpperCase()

@@ -33,6 +33,7 @@ export default function BacktestPage(): React.JSX.Element {
   // 历史回测状态
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [progress, setProgress] = useState("")
   const [report, setReport] = useState<BacktestReport | null>(null)
 
   // AI 生成回放状态
@@ -42,12 +43,13 @@ export default function BacktestPage(): React.JSX.Element {
     setSubmitting(true)
     setError(null)
     try {
-      const res = await runBacktestApi(payload)
+      const res = await runBacktestApi(payload, setProgress)
       setReport(res)
     } catch (err) {
       setError(err instanceof Error ? err.message : "回测失败")
     } finally {
       setSubmitting(false)
+      setProgress("")
     }
   }
 
@@ -102,6 +104,7 @@ export default function BacktestPage(): React.JSX.Element {
             </CardHeader>
             <CardContent>
               <BacktestForm submitting={submitting} onSubmit={(p) => void handleRun(p)} />
+              {submitting && progress && <p className="text-xs text-sky-400 mt-2">{progress}</p>}
               {error && (
                 <div className="mt-3 text-sm text-[var(--accent-danger)]">
                   {error}

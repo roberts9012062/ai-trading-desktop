@@ -42,16 +42,9 @@ async function historyRequest<T>(path: string): Promise<T> {
   return response.json() as Promise<T>
 }
 
-/** 可选历史数据渠道列表(后端不可达时回退内置三渠道,UI 不空) */
+/** 新建研究统一使用本机 OKX 官方归档，不向服务器探测或列出旧来源。 */
 export async function getHistoryChannels(): Promise<HistoryChannel[]> {
-  try {
-    const res = await historyRequest<{ channels: HistoryChannel[] }>(
-      "/api/history/channels"
-    )
-    return res.channels.map((channel) => channel.id === "okx" ? LOCAL_HISTORY_CHANNELS.find((c) => c.id === "okx")! : channel)
-  } catch {
-    return LOCAL_HISTORY_CHANNELS
-  }
+  return LOCAL_HISTORY_CHANNELS.filter((channel) => channel.id === "okx")
 }
 
 

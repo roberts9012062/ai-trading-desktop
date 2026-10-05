@@ -29,6 +29,7 @@ import {
 import type { AIModel } from "@/types"
 import type { BacktestRunPayload } from "@/lib/backtest-api"
 import { DataChannelSelect } from "@/components/common/data-channel-select"
+import { latestOkxArchiveDay } from "@/lib/okx-history"
 import type { ChannelRange } from "@/lib/history-channels"
 import { validateBacktestForm } from "@/components/backtest/backtest-form-helpers"
 import { BacktestRangeSlider } from "@/components/backtest/backtest-range-slider"
@@ -55,13 +56,16 @@ export function BacktestForm({
   submitting,
   onSubmit,
 }: BacktestFormProps): React.JSX.Element {
-  const [today] = useState(() => new Date())
+  const [today] = useState(() => new Date(`${latestOkxArchiveDay()}T00:00:00Z`))
   const [mode, setMode] = useState<"quant" | "ai">("quant")
   const [quant, setQuant] = useState<QuantParamsState>(DEFAULT_QUANT_PARAMS)
   const [symbol, setSymbol] = useState("")
   const [symbolName, setSymbolName] = useState("")
   const [timeframe, setTimeframe] = useState("1d")
-  const [initRange] = useState(() => defaultRangeFor("1d", new Date()))
+  const [initRange] = useState(() => {
+    const range = defaultRangeFor("1d", today)
+    return {...range,start:range.start < "2023-07-01" ? "2023-07-01" : range.start}
+  })
   const [startDate, setStartDate] = useState(initRange.start)
   const [endDate, setEndDate] = useState(initRange.end)
   // 历史数据渠道：选渠道后按其可用范围 clamp 回测日期

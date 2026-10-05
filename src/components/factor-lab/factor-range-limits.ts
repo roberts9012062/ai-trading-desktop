@@ -1,4 +1,5 @@
 import { memoryTier } from "@/lib/device-profile"
+import { OKX_CANDLE_FLOOR, latestOkxArchiveDay, okxArchiveDayStart } from "@/lib/okx-history"
 
 /** 因子评估专用区间上限（默认区间与长历史滑杆共用此表）
  *
@@ -35,4 +36,12 @@ export function defaultFactorRangeFor(
   start.setUTCDate(start.getUTCDate() - max)
   const toISO = (d: Date) => d.toISOString().slice(0, 10)
   return { start: toISO(start), end: toISO(end) }
+}
+
+/** 新研究以已发布 OKX 归档为准；旧任务指定旧来源时仍可复现其窗口。 */
+export function researchFactorRangeFor(timeframe: string, channel?: string): {start: string; end: string} {
+  if (channel && channel !== "okx") return defaultFactorRangeFor(timeframe, new Date())
+  const end = latestOkxArchiveDay()
+  const start = Math.max(OKX_CANDLE_FLOOR, okxArchiveDayStart(end)-factorMaxDaysFor(timeframe)*86400000)
+  return {start:new Date(start+8*3600000).toISOString().slice(0,10),end}
 }

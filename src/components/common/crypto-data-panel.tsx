@@ -40,6 +40,7 @@ export function CryptoDataPanel({ channel, symbol }: { channel: string; symbol: 
     return () => { cancelled = true; if (timer) clearTimeout(timer) }
   }, [running, supported, channel, symbol])
 
+  if (channel === "okx") return <p className="text-[11px] text-[var(--text-muted)]">OKX 官方 K线和已结算资金费率由本机下载并缓存，历史从2023-07起，近期归档有发布延迟。缺失资金费标记为空；持仓量、盘口和强平历史不由其他交易所代填。短线逐笔成交与 K线同源。</p>
   if (!supported) return null
   function download(): void {
     try {

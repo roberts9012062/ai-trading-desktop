@@ -52,6 +52,9 @@ export function DataChannelSelect(props: {
   const onRangeRef = useRef(onRange)
   onRangeRef.current = onRange
 
+  // 新建入口替换旧渠道；旧任务的冻结数据和来源仍保留在任务记录中。
+  useEffect(() => { if (value !== "okx") onChange("okx") }, [value, onChange])
+
   useEffect(() => {
     let cancelled = false
     void (async () => {
@@ -86,7 +89,7 @@ export function DataChannelSelect(props: {
       setProbing(true)
       setError(null)
       try {
-        const range = await getChannelRange(value, symbol, timeframe)
+        const range = await getChannelRange("okx", symbol, timeframe)
         if (!cancelled) onRangeRef.current?.(range)
       } catch {
         if (!cancelled) {
@@ -114,13 +117,13 @@ export function DataChannelSelect(props: {
         )}
       </div>
       <select
-        value={value}
+        value="okx"
         onChange={(e) => onChange(e.target.value)}
         className="w-full h-8 mt-1 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-sm"
       >
-        {channels.length === 0 && <option value={value}>{value}</option>}
+        {!channels.some((c) => c.id === "okx") && <option value="okx">OKX 合约（本地官方归档）</option>}
         {channels
-          .filter((c) => !kinds?.length || kinds.includes(c.kind))
+          .filter((c) => c.id === "okx" && (!kinds?.length || kinds.includes(c.kind)))
           .map((c) => (
             <option key={c.id} value={c.id} title={c.note}>
               {c.name}

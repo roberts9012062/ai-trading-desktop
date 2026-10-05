@@ -173,7 +173,7 @@ function SymbolPicker({ value, onChange, disabled }: {
 export default function ShortlineLabPageV2() {
   // ── 核心参数（简化：只保留必需项） ──
   const [symbol, setSymbol] = useState(DEFAULT_SHORTLINE_SYMBOL)
-  const [dataSource,setDataSource] = useState<ShortlineHistorySource>("okx")
+  const dataSource: ShortlineHistorySource = "okx"
   const [timeframe, setTimeframe] = useState<ShortlineTimeframe>("15m")
   const [engine, setEngine] = useState<"native-gpu" | "cpu">("native-gpu")
 
@@ -535,10 +535,9 @@ export default function ShortlineLabPageV2() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="space-y-2">
               <label className="text-xs text-gray-400">历史数据源（本机下载）</label>
-              <select value={dataSource} disabled={formLocked} onChange={(e) => setDataSource(e.target.value as ShortlineHistorySource)}
+              <select value={dataSource} disabled={formLocked}
                 className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white">
                 <option value="okx">OKX 官方归档（推荐）</option>
-                <option value="binance_usdt">Binance 归档（兼容旧任务）</option>
               </select>
             </div>
             {/* 币种 */}

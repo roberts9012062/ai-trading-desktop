@@ -13,7 +13,7 @@
 
 import { fetchBacktestBars, KLINE_MAX_PAGES } from "@/lib/local-backtest"
 import { normalizeChannel } from "@/lib/kline-channels"
-import { defaultFactorRangeFor } from "@/components/factor-lab/factor-range-limits"
+import { researchFactorRangeFor } from "@/components/factor-lab/factor-range-limits"
 import { CRYPTO_ASSETS } from "@/data/crypto-universe"
 
 /** 内核 cross_peers 的最小有效根数(walk_forward.MIN_TEST_BARS 同值) */
@@ -81,8 +81,8 @@ export async function loadCrossPeers(opts: {
       `币种 ${info?.code ?? opts.symbol} 无同板块验证伙伴(无板块映射或板块内无其他币种)`,
     )
   }
-  // 区间与 local-runner.create 的缺省区间同源(defaultFactorRangeFor)
-  const range = defaultFactorRangeFor(opts.timeframe, new Date())
+  // 区间与 local-runner.create 的缺省区间同源(researchFactorRangeFor)
+  const range = researchFactorRangeFor(opts.timeframe, opts.channel)
   const peers: Array<[string, Array<Record<string, unknown>>]> = []
   for (const code of info.peers) {
     opts.onProgress?.(`拉取跨币种验证伙伴 ${code} 的 K 线…`)

@@ -17,13 +17,14 @@ import { chatModelsOnly } from "@/lib/decision-model"
 import type { AIModel } from "@/types"
 import { BacktestRangeSlider } from "@/components/backtest/backtest-range-slider"
 import {
-  defaultFactorRangeFor,
+  researchFactorRangeFor,
   factorMaxDaysFor,
 } from "./factor-range-limits"
 import { SymbolCombobox } from "./symbol-combobox"
 import { DataChannelSelect } from "@/components/common/data-channel-select"
 import { CryptoDataPanel } from "@/components/common/crypto-data-panel"
-import { DEFAULT_KLINE_CHANNEL, LOCAL_DERIVATIVE_CHANNELS } from "@/lib/kline-channels"
+import { DEFAULT_KLINE_CHANNEL } from "@/lib/kline-channels"
+import { latestOkxArchiveDay } from "@/lib/okx-history"
 import { FACTOR_HELP, HelpTip, LabelWithHelp } from "./help-tip"
 import { CoachControls } from "./llm/coach-controls"
 import { antiOverfitPayload } from "./hooks/factor-helpers"
@@ -129,12 +130,12 @@ export function FactorSearchForm({
   // 启用后走 pg-tickdata 长历史库（2005 起，具体合约自动拼接主力连续）。
   const [showLongHistory, setShowLongHistory] = useState(false)
   const [useLongHistory, setUseLongHistory] = useState(false)
-  const today = useMemo(() => new Date(), [])
+  const today = useMemo(() => new Date(`${latestOkxArchiveDay()}T00:00:00Z`), [])
   const [rangeStart, setRangeStart] = useState(
-    () => defaultFactorRangeFor("1d", new Date()).start,
+    () => researchFactorRangeFor("1d").start,
   )
   const [rangeEnd, setRangeEnd] = useState(
-    () => defaultFactorRangeFor("1d", new Date()).end,
+    () => researchFactorRangeFor("1d").end,
   )
   const [rangeError, setRangeError] = useState<string | null>(null)
 
@@ -182,7 +183,7 @@ export function FactorSearchForm({
   // 用户切换后再开启时区间即为合法值）。
   function changeTimeframe(tf: string): void {
     setTimeframe(tf)
-    const r = dataChannel === "gate_usdt" ? gateResearchRange(tf, today) : defaultFactorRangeFor(tf, today)
+    const r = dataChannel === "gate_usdt" ? gateResearchRange(tf, today) : researchFactorRangeFor(tf, dataChannel)
     setRangeStart(r.start)
     setRangeEnd(r.end)
     setRangeError(null)
@@ -264,7 +265,6 @@ export function FactorSearchForm({
         <div className="space-y-1.5 lg:col-span-2">
           <Label>数据渠道</Label>
           <DataChannelSelect
-            extraChannels={localEngine && !useCoach ? LOCAL_DERIVATIVE_CHANNELS : undefined}
             value={dataChannel}
             onChange={(v) => {
               setDataChannel(v)
@@ -376,11 +376,11 @@ export function FactorSearchForm({
                 checked={useLongHistory}
                 onChange={(e) => setUseLongHistory(e.target.checked)}
               />
-              启用自选区间（长历史库 2005 起，具体合约自动拼接主力连续）
+              启用自选区间（OKX 本机官方归档，2023-07 起）
             </label>
             <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
-              不勾选：使用近期数据（日线约 500 根）。勾选后按下方区间回测/搜索，
-              走 pg-tickdata 长历史库；区间上限按因子评估设定（日线 5 年 / 60分 1 年 / 15分 180 天 / 1分 30 天）。
+              不勾选：使用当前周期推荐的已发布历史区间。勾选后按下方区间回测/搜索，
+              K线和资金费率均由本机下载；可用范围与本机内存上限共同限制区间。
             </p>
             {useLongHistory && (
               <>
@@ -390,6 +390,7 @@ export function FactorSearchForm({
                   start={rangeStart}
                   end={rangeEnd}
                   today={today}
+                  railStartISO="2023-07-01"
                   onChange={(s, e) => {
                     setRangeStart(s)
                     setRangeEnd(e)
