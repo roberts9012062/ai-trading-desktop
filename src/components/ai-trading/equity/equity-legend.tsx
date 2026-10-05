@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import { TaskIcon } from "@/components/ai-trading/task-icon"
 import { TaskProfitLockStatus } from "@/components/ai-trading/profit-lock-status"
+import { TaskCloseControl } from "@/components/ai-trading/task-close-control"
 import type {
   AITradingTask,
   EquityPoint,
@@ -391,6 +392,7 @@ function LegendCard({
         {row.footnote}
       </div>
       {task && <TaskProfitLockStatus task={task} />}
+      {task && !summary && <TaskCloseControl task={task} />}
     </div>
   )
 }

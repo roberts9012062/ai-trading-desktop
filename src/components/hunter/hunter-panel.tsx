@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { useHunterStore } from "@/stores/hunter"
 import { LiveProfitLockControl } from "@/components/ai-trading/form/live-profit-lock-control"
 import { TaskProfitLockStatus } from "@/components/ai-trading/profit-lock-status"
+import { TaskCloseControl } from "@/components/ai-trading/task-close-control"
 import { useAITradingStore } from "@/stores/ai-trading"
 import { CYCLES } from "@/lib/hunter/rules"
 import { hunterAccountLabel } from "@/lib/hunter/api"
@@ -106,7 +107,7 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
             <td>{({ mounted: "已挂载", opening: "开仓中", holding: "持仓管理", reconciling: "成交核对", closed: "已结束", cancelled: "未开仓结束" } as Record<string, string>)[o.status] ?? o.status}</td>
             <td className="font-num">{price != null && price > 0 ? price.toPrecision(7) : "等待报价"}<span className="block">{floating != null ? money(floating) + " USDT" : "等待持仓同步"}</span>{task && <span className="block text-[var(--text-muted)]">持仓 {task.position_qty ?? 0} 币</span>}</td>
             <td>{o.plan.entry.toPrecision(7)} / {(o.runtime.stop ?? o.plan.stop).toPrecision(7)}{o.plan.target_price && <span className="block text-[var(--text-muted)]">净目标 {o.plan.target_price.toPrecision(7)} · ≥{o.plan.min_net_rr}:1</span>}{o.plan.version === "hunter-v4" && <span className="block text-emerald-400">{o.runtime.stop !== undefined && (o.plan.direction === "long" ? o.runtime.stop > (o.runtime.entry ?? o.plan.entry) : o.runtime.stop < (o.runtime.entry ?? o.plan.entry)) ? `盈利保护在 ${o.runtime.stop.toPrecision(7)} 平仓` : "初始结构止损保护"} · {o.runtime.swing?.reason ?? "等待持仓趋势判断"}</span>}</td>
-            <td>{money(o.net_profit)}<span className="block text-[var(--text-muted)]">{o.runtime.note ?? o.runtime.reason ?? ""}</span></td>
+            <td>{money(o.net_profit)}<span className="block text-[var(--text-muted)]">{o.runtime.note ?? o.runtime.reason ?? ""}</span>{task && <TaskCloseControl task={task} />}</td>
           </tr>})}</tbody>
         </table></div>
       </div>

@@ -2,6 +2,10 @@
 import { createRoot } from "react-dom/client"
 import "../src/app/globals.css"
 import { TaskList } from "@/components/ai-trading/task-list"
+import { EquityLegend } from "@/components/ai-trading/equity/equity-legend"
+import { HunterPanel } from "@/components/hunter/hunter-panel"
+import { useHunterStore } from "@/stores/hunter"
+import type { Hunter } from "@/lib/hunter/api"
 import { GlobalDialog } from "@/components/global-dialog"
 import { useAITradingStore } from "@/stores/ai-trading"
 import { useAuthStore } from "@/stores/auth"
@@ -30,12 +34,17 @@ useAITradingStore.setState({ tasks: [
   { ...base, id: "empty", name: "AI 交易 · 当前空仓", strategy_type: "ai", position_qty: 0, has_open_position: false, position_unrealized: 0 },
   { ...base, id: "cooldown", name: "因子交易 · 手动锁利冷却", strategy_type: "factor", position_qty: 0, has_open_position: false, position_unrealized: 0, profit_lock_state: { manual_exit: true, closed: true, cooldown_remaining: 2 } },
 ], loadTasks: async () => {}, loadEquity: async () => {}, loadProfitBars: async () => {} })
+useHunterStore.setState({ groups: [{ id: "hunter", name: "猎手验收", status: "running", trading_mode: "virtual", capital: 100, equity: 100,
+  config: { venue: "okx", brain: "rules", leverage: 5, margin_mode: "isolated", strategy_version: "hunter-v4", pool_size: 50, cycles: ["short"], whitelist: [], blacklist: [], direction: "both", max_positions: 3, scan_seconds: 60, rule_fallback: true, model_id: null }, runtime: {}, blocks: [],
+  stats: { trades: 0, win_rate: null, profit_factor: null, payoff: null }, opportunities: [{ id: "op", task_id: "held", symbol: "avaxusdt", cycle: "short", status: "holding", plan: { entry: 11, stop: 10, direction: "long", quantity: 90 }, runtime: {}, net_profit: 0, finished_at: null }] } as unknown as Hunter], refresh: async () => {} })
 function Preview() {
   const tasks = useAITradingStore(s => s.tasks)
   const [selected, setSelected] = useState<string | null>(null)
   return <main className="max-w-6xl mx-auto p-6 space-y-4">
     <h1 className="text-xl">任务卡一键平仓验收</h1><p className="text-sm text-[var(--text-muted)]">点击金色按钮查看提交状态，再模拟成交确认。</p>
-    <TaskList tasks={tasks} selectedId={selected} onSelect={setSelected} />
+    <div id="task-list-fixture"><TaskList tasks={tasks} selectedId={selected} onSelect={setSelected} /></div>
+    <details><summary>收益对比任务卡</summary><EquityLegend tasks={tasks} allTasks={tasks} series={{}} profitBars={[]} highlightTaskId={null} onHighlightChange={() => {}} /></details>
+    <details id="hunter-preview"><summary>猎手子任务平仓</summary><HunterPanel /></details>
     <button id="confirm-fill" onClick={() => useAITradingStore.setState(s => ({ tasks: s.tasks.map(t => t.id === "held" ? { ...t, position_qty: 0, has_open_position: false, position_unrealized: 0, profit_lock_state: { manual_exit: true, closed: true, cooldown_remaining: 2 } } : t) }))}>模拟全部成交</button>
     <p id="requests">平仓请求：0</p><p>选中卡片：{selected ?? "无"}</p><GlobalDialog />
   </main>
