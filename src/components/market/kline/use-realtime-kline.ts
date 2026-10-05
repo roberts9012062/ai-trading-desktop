@@ -22,6 +22,7 @@ import type {
   Time,
 } from "lightweight-charts"
 import { useMarketStore } from "@/stores/market"
+import { isCryptoSymbol } from "@/lib/mining/crypto-profile"
 import type { IndicatorConfig } from "@/types/indicator"
 import type { KlineBar, KlinePeriod } from "@/types"
 import type { BollSeriesRefs } from "./indicators/main"
@@ -94,6 +95,11 @@ export function useRealtimeKline(props: {
   const lastGapRefetchAtRef = useRef(0)
   // oldest 拒绝自愈节流时间戳
   const lastRecoverAtRef = useRef(0)
+
+  // Register the visible chart even before the first WS snapshot arrives.
+  useEffect(() => {
+    if (activeContract && period !== "tick") readRtTail(rtAccKey(activeContract, period), "")
+  }, [activeContract, period])
 
   /** 组装指标更新所需的引用集合（refs 稳定，随用随组） */
   const indicatorRefs = (): IndicatorUpdateRefs => ({
@@ -177,6 +183,8 @@ export function useRealtimeKline(props: {
 
   // 通道 2：行情 last_price 每秒驱动最新 close（不依赖历史重拉）
   useEffect(() => {
+    // Crypto indicators must only consume native OKX perpetual candles.
+    if (isCryptoSymbol(activeContract)) return
     const series = seriesRef.current
     if (!series || period === "tick") return
     if (currentBars.length === 0) return

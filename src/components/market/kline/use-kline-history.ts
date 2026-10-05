@@ -18,16 +18,16 @@ import {
 } from "react"
 import type { IChartApi } from "lightweight-charts"
 import { getKlineApi, getKlineBundleApi } from "@/lib/api"
-// K 线实时喂料:直连 Binance 轮询 forming bar(不经服务器转发),启动即生效
-import "@/lib/binance-forming"
+// 在线图表轮询服务器共享 OKX 永续快照，本地研究使用独立历史下载链路。
+import "@/lib/okx-forming"
 import { useMarketStore } from "@/stores/market"
 import type { KlineBar, KlinePeriod } from "@/types"
 
-const PAGE_LIMIT = 200
+const PAGE_LIMIT = 240
+const EMPTY_BARS: KlineBar[] = []
 /**
  * 前端「已收盘历史」缓存新鲜度：仅决定「是否发后台静默校验」，缓存
- * 存在时从不阻塞渲染。已收盘历史本身不变，形成中 bar 由 WS
- * kline:realtime 每秒覆盖（服务端推订阅合约全部周期），WS 重连另有
+ * 存在时从不阻塞渲染。形成中 bar 由 OKX 轮询更新，WS 重连另有
  * 强制刷新兜底——历史校验放宽到 5 分钟足够安全；切换周期因此零请求。
  */
 const FRONTEND_STALE_MS = 5 * 60 * 1000
@@ -126,11 +126,11 @@ function bundleOnce(symbol: string, wanted: KlinePeriod): Promise<boolean> {
 
 // ===== localStorage 持久化：刷新页面后切分时同样秒切 =====
 
-const STORAGE_KEY = "qihuo.kline-history.v1"
+const STORAGE_KEY = "qihuo.kline-history.okx-swap.v2"
 /** 最多持久化合约数（按最近更新时间 LRU 淘汰） */
 const STORAGE_MAX_SYMBOLS = 6
-/** 每周期持久化根数（首页 200 + 余量） */
-const STORAGE_BARS_PER_PERIOD = 220
+/** 每周期持久化根数（首页 240 + 余量） */
+const STORAGE_BARS_PER_PERIOD = 260
 
 interface StoredSymbolEntry {
   fetchedAt: number
@@ -411,7 +411,7 @@ export function useKlineHistory(props: {
   } = useMarketStore()
 
   const currentBars: KlineBar[] =
-    klineBars[props.activeContract]?.[props.period] ?? []
+    klineBars[props.activeContract]?.[props.period] ?? EMPTY_BARS
   const isLoading =
     klineLoading[`${props.activeContract}:${props.period}`] ?? false
   const hasMore =

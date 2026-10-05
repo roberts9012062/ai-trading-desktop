@@ -245,6 +245,7 @@ if (typeof window !== "undefined") {
  *  版本号守卫：rtBar 版本更低（乱序/重放/修正前的旧帧）时原样返回 lastBar；
  *  version 透传给图表序列，kind=correction 标记权威修正帧。 */
 export function mergeRealtimeBar(lastBar: KlineBar, rtBar: KlineBar): KlineBar {
+  if (lastBar.market_source === "okx" && rtBar.market_source !== "okx") return lastBar
   if (
     lastBar.version !== undefined &&
     rtBar.version !== undefined &&
@@ -252,6 +253,8 @@ export function mergeRealtimeBar(lastBar: KlineBar, rtBar: KlineBar): KlineBar {
   ) {
     return lastBar
   }
+  // Authoritative exchange snapshots may correct an earlier high or low.
+  if (rtBar.kind === "correction") return { ...rtBar }
   return {
     time: rtBar.time,
     open: lastBar.open,
@@ -262,6 +265,7 @@ export function mergeRealtimeBar(lastBar: KlineBar, rtBar: KlineBar): KlineBar {
     settle: lastBar.settle,
     open_interest: lastBar.open_interest ?? lastBar.openInterest,
     version: rtBar.version ?? lastBar.version,
+    market_source: rtBar.market_source ?? lastBar.market_source,
     ...(rtBar.kind === "correction" ? { kind: rtBar.kind } : {}),
   }
 }
@@ -282,6 +286,7 @@ export function mergeBarsWithRealtime(
   if (!sanitizeBars([rtBar]).length) return base
   const barsToRender = [...base]
   const lastBar = barsToRender[barsToRender.length - 1]
+  if (lastBar.market_source === "okx" && rtBar.market_source !== "okx") return base
   const lastT = normalizeBarTime(period, lastBar.time)
   const rtT = normalizeBarTime(period, rtBar.time)
   if (lastT === rtT) {
@@ -306,6 +311,7 @@ export function resolveHoveredBar(
   if (barIndex === null) return null
   if (bars.length === 0) return null
   const lastHist = bars[bars.length - 1]
+  if (lastHist.market_source === "okx" && rtBar?.market_source !== "okx") rtBar = undefined
   const rtIsNewBar =
     rtBar !== undefined && normalizeBarTime(period, rtBar.time) > normalizeBarTime(period, lastHist.time)
 

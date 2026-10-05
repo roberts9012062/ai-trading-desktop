@@ -3,6 +3,7 @@
  */
 
 import { create } from "zustand"
+import { isCryptoSymbol } from "@/lib/mining/crypto-profile"
 import type { CodeTreeMap, KlineBar, KlinePeriod, NewsItem, OrderBook, TradeRecord, Message, MessageCategory } from "@/types"
 import {
   type QuoteData,
@@ -564,6 +565,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       const realtime = { ...state.klineRealtime }
       for (const item of data) {
         const period = item.period as KlinePeriod
+        if (period !== "tick" && isCryptoSymbol(item.symbol) && item.bar.market_source !== "okx") continue
         const symbolMap = { ...(realtime[item.symbol] ?? {}) }
         // 版本号幂等守卫：同 (symbol, period) 只接受不低于本地版本的 bar，
         // 乱序/重放/旧快照不回退（version 缺失视为 0，兼容无版本推送）
