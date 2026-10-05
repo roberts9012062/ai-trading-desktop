@@ -4,7 +4,7 @@
  * 回测参数表单 —— 品种/时间/策略
  */
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -29,7 +29,7 @@ import {
 import type { AIModel } from "@/types"
 import type { BacktestRunPayload } from "@/lib/backtest-api"
 import { DataChannelSelect } from "@/components/common/data-channel-select"
-import { latestOkxArchiveDay } from "@/lib/okx-history"
+import { latestResearchArchiveDay } from "@/lib/kline-channels"
 import type { ChannelRange } from "@/lib/history-channels"
 import { validateBacktestForm } from "@/components/backtest/backtest-form-helpers"
 import { BacktestRangeSlider } from "@/components/backtest/backtest-range-slider"
@@ -56,7 +56,8 @@ export function BacktestForm({
   submitting,
   onSubmit,
 }: BacktestFormProps): React.JSX.Element {
-  const [today] = useState(() => new Date(`${latestOkxArchiveDay()}T00:00:00Z`))
+  const [dataChannel, setDataChannel] = useState("okx")
+  const today = useMemo(()=>new Date(`${latestResearchArchiveDay(dataChannel)}T00:00:00Z`),[dataChannel])
   const [mode, setMode] = useState<"quant" | "ai">("quant")
   const [quant, setQuant] = useState<QuantParamsState>(DEFAULT_QUANT_PARAMS)
   const [symbol, setSymbol] = useState("")
@@ -69,7 +70,6 @@ export function BacktestForm({
   const [startDate, setStartDate] = useState(initRange.start)
   const [endDate, setEndDate] = useState(initRange.end)
   // 历史数据渠道：选渠道后按其可用范围 clamp 回测日期
-  const [dataChannel, setDataChannel] = useState("okx")
   const [channelRange, setChannelRange] = useState<ChannelRange | null>(null)
   // 多段回测：日线（1d）不支持；段数 2~5
   const [multiSeg, setMultiSeg] = useState(false)

@@ -21,12 +21,17 @@ import { unzipSync } from "fflate"
 
 // dev/preview 浏览器走 vite 同源代理(静态域无 CORS);桌面端与 node 测试直连
 const VISION_BASE =
-  import.meta.env.DEV && typeof window !== "undefined"
+  import.meta.env.DEV && typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window)
     ? "/__vision__"
     : "https://data.binance.vision"
 const UM_BASE = `${VISION_BASE}/data/futures/um`
 /** Binance USDT-M 永续全所上线(2019-09);更早的月包请求会 404 */
-const UM_INCEPTION = Date.UTC(2019, 8, 2)
+export const UM_INCEPTION = Date.UTC(2019, 8, 2)
+
+/** Conservative UTC archive day; unpublished files still fail visibly at download. */
+export function latestBinanceArchiveDay(now = Date.now()): string {
+  return new Date(now - 2 * 86400000).toISOString().slice(0, 10)
+}
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0")
@@ -215,7 +220,7 @@ async function pool<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>)
   return out
 }
 
-/** 拉齐 [from, to] 的资金费率事件(月包为主,当月用日包补) */
+/** 官方 fundingRate 只有月包；未发布月份返回缺失，不猜测日包地址。 */
 export async function fetchFundingHistory(
   symbol: string,
   fromMs: number,
@@ -223,7 +228,6 @@ export async function fetchFundingHistory(
   onProgress?: (msg: string) => void,
 ): Promise<FundingEvent[]> {
   const s = toBinanceSymbol(symbol)
-  const now = new Date()
   const months: string[] = []
   const cur = new Date(Math.max(fromMs, UM_INCEPTION))
   // 按月首迭代:同日推进会因 31→30/28 日溢出跳过区间末尾的整月
@@ -235,21 +239,7 @@ export async function fetchFundingHistory(
   }
   const texts = await pool(months, 6, async (m) => {
     onProgress?.(`拉取资金费率归档(${m})…`)
-    let text = await fetchZipCsv(fundingZipUrl(s, false, m))
-    if (text === null) {
-      // 当月月包未发布:用当月日包拼(至多 31 天)
-      const parts: string[] = []
-      const [y, mo] = m.split("-").map(Number)
-      const days = new Date(Date.UTC(y, mo, 0)).getUTCDate()
-      const isCurrent = y === now.getUTCFullYear() && mo === now.getUTCMonth() + 1
-      const lastDay = isCurrent ? now.getUTCDate() : days
-      for (let d = 1; d <= lastDay; d++) {
-        const t = await fetchZipCsv(fundingZipUrl(s, true, `${m}-${pad2(d)}`))
-        if (t !== null) parts.push(t)
-      }
-      text = parts.length ? parts.join("\n") : null
-    }
-    return text
+    return fetchZipCsv(fundingZipUrl(s, false, m))
   })
   const events = texts
     .filter((t): t is string => t !== null)
@@ -260,7 +250,7 @@ export async function fetchFundingHistory(
 }
 
 /** 资金费率并入 K 线(Gate 同款口径:结算后生效、86400s 有效窗,缺失即报错不补零) */
-export function joinFunding(bars: KlineBar[], funding: FundingEvent[]): KlineBar[] {
+export function joinFunding(bars: KlineBar[], funding: FundingEvent[], allowMissing = false): KlineBar[] {
   const f = [...funding].sort((a, b) => a.t - b.t)
   let fi = -1
   return bars.map((b) => {
@@ -268,6 +258,7 @@ export function joinFunding(bars: KlineBar[], funding: FundingEvent[]): KlineBar
     while (fi + 1 < f.length && f[fi + 1].t / 1000 <= at) fi++
     const ev = fi >= 0 && at - f[fi].t / 1000 <= 86400 ? f[fi] : null
     if (!ev) {
+      if (allowMissing) return {...b, funding_rate:null, funding_time:null}
       throw new Error(
         `Binance 永续资金费率覆盖不足（${String(b.time).slice(0, 10)}），请缩小日期区间；未用零值补齐`,
       )
@@ -279,8 +270,8 @@ export function joinFunding(bars: KlineBar[], funding: FundingEvent[]): KlineBar
 /** 取数后补齐资金费率(fetchBacktestBars 的 binance_usdt 收尾步骤)。
  *
  * fundingRate 归档只有月包(次月发布,klines 的日包对它不适用):当月费率
- * 缺失是常态而非异常。不做零值/延续臆造——把资金费率覆盖不到的首尾 bar
- * 裁除(通常只有近端几天),全量对齐后再并入。 */
+ * 缺失是常态而非异常。保留 K 线并标记费率缺失，由特征覆盖检查排除
+ * 依赖缺失费率的公式；不会裁掉短线样本或用零值替代。 */
 export async function enrichBinanceFuturesBars(
   symbol: string,
   bars: KlineBar[],
@@ -290,21 +281,8 @@ export async function enrichBinanceFuturesBars(
   const from = (bars[0].open_time ?? 0) - 86400000 // 预留一天对齐窗
   const to = bars[bars.length - 1].open_time ?? 0
   const funding = await fetchFundingHistory(symbol, from, to, onProgress)
-  if (!funding.length) throw new Error("Binance 永续资金费率归档为空，请检查品种或缩小区间")
-  const f0 = funding[0].t
-  const fEnd = funding[funding.length - 1].t
-  // 有效窗:bar 开盘时刻落在 [f0, fEnd+86400s] 内必有 ≤86400s 的已结算事件
-  const trimmed = bars.filter((b) => {
-    const at = b.open_time ?? 0
-    return at >= f0 && at <= fEnd + 86400000
-  })
-  if (!trimmed.length) {
-    throw new Error("Binance 永续资金费率与 K 线区间无交集，请调整日期区间")
-  }
-  if (trimmed.length < bars.length) {
-    onProgress?.(
-      `资金费率归档尚未覆盖近端 ${bars.length - trimmed.length} 根 K 线（当月月包次月发布），已裁除后再挖掘`,
-    )
-  }
-  return joinFunding(trimmed, funding)
+  const enriched = joinFunding(bars, funding, true)
+  const missing = enriched.filter(b => b.funding_rate == null).length
+  if (missing) onProgress?.(`Binance 资金费率月包尚未覆盖 ${missing} 根 K 线，已标记缺失；保留真实行情样本`)
+  return enriched
 }

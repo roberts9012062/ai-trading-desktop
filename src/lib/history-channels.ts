@@ -1,6 +1,6 @@
 /** 历史数据渠道 API 客户端 —— 回测 / 因子实验室 / 超级因子挖掘共用 */
 
-import { LOCAL_HISTORY_CHANNELS, probeLocalChannelRange, isKlineChannel } from "@/lib/kline-channels"
+import { LOCAL_HISTORY_CHANNELS, probeLocalChannelRange, isKlineChannel, isLocalResearchChannel } from "@/lib/kline-channels"
 
 export interface HistoryChannel {
   id: string
@@ -42,9 +42,9 @@ async function historyRequest<T>(path: string): Promise<T> {
   return response.json() as Promise<T>
 }
 
-/** 新建研究统一使用本机 OKX 官方归档，不向服务器探测或列出旧来源。 */
+/** 本机官方归档渠道，不向服务器查询列表。 */
 export async function getHistoryChannels(): Promise<HistoryChannel[]> {
-  return LOCAL_HISTORY_CHANNELS.filter((channel) => channel.id === "okx")
+  return LOCAL_HISTORY_CHANNELS.filter((channel) => isLocalResearchChannel(channel.id))
 }
 
 
@@ -62,7 +62,7 @@ export async function getChannelRange(
   if (isKlineChannel(channel)) {
     const range = await probeLocalChannelRange(channel, symbol)
     if (range) return { ...range, channel, symbol, timeframe }
-    if (channel === "okx") throw new Error("OKX 本地归档范围不可用，不回退服务器")
+    if (isLocalResearchChannel(channel)) throw new Error(`${channel} 本地归档范围不可用，不回退服务器`)
   }
   const qs = new URLSearchParams({ channel, symbol, timeframe })
   return historyRequest<ChannelRange>(`/api/history/range?${qs.toString()}`)

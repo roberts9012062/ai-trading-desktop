@@ -123,9 +123,12 @@ export async function fetchBacktestBars(
   let base: KlineBar[] = cached ?? []
   let fetched: KlineBar[] = [] // 本次网络新拉的原始 bar(head+tail)
   let truncated = false
+  // Monthly archives should start at the requested endpoint, not today's page:
+  // a 2022 study must not download four years of unrelated perpetual data.
+  const endpoint = channel === "binance_usdt" ? shiftBarDateDay(end, 1)+" 00:00:00" : undefined
 
   if (!base.length) {
-    const r = await paginateBackward(symbol, timeframe, start, undefined, maxPages, channel, onProgress)
+    const r = await paginateBackward(symbol, timeframe, start, endpoint, maxPages, channel, onProgress)
     fetched = r.bars
     truncated = r.truncated
   } else {
@@ -137,7 +140,7 @@ export async function fetchBacktestBars(
       // 尾部增量:从缓存末根前 1 天往新拉(重叠段按新拉覆盖,自愈修订)
       const overlapFrom = shiftBarDateDay(lastT, -1)
       onProgress?.(`本地缓存命中(${base.length} 根,至 ${lastT}),增量拉取最新 K 线…`)
-      const r = await paginateBackward(symbol, timeframe, overlapFrom, undefined, maxPages, channel, onProgress)
+      const r = await paginateBackward(symbol, timeframe, overlapFrom, endpoint, maxPages, channel, onProgress)
       fetched = r.bars
       truncated = r.truncated
     }

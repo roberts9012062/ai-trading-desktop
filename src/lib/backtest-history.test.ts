@@ -7,16 +7,23 @@ import {DEFAULT_KLINE_CHANNEL} from "./kline-channels"
 import {getHistoryChannels} from "./history-channels"
 import {researchFactorRangeFor} from "@/components/factor-lab/factor-range-limits"
 
-const body: BacktestRunPayload = {symbol:"btcusdt",timeframe:"15m",start_date:"2026-09-28",end_date:"2026-09-28",strategy_type:"n_breakout",data_channel:"binance_usdt"}
+const body: BacktestRunPayload = {symbol:"btcusdt",timeframe:"15m",start_date:"2026-09-28",end_date:"2026-09-28",strategy_type:"n_breakout",data_channel:"okx"}
 beforeEach(() => {vi.clearAllMocks();vi.stubGlobal("fetch",vi.fn()); vi.mocked(fetchBacktestBars).mockResolvedValue([{time:"2026-09-28 00:00:00",open:100,high:101,low:99,close:100,volume:.2,settle:null,open_interest:null}])})
 describe("research defaults and desktop backtest handoff", () => {
   it("replaces the research default and source list without querying server", async () => {
     expect(DEFAULT_KLINE_CHANNEL).toBe("okx")
-    expect((await getHistoryChannels()).map((c) => c.id)).toEqual(["okx"])
+    expect((await getHistoryChannels()).map((c) => c.id)).toEqual(["okx", "binance_usdt"])
     expect(fetch).not.toHaveBeenCalled()
     expect(researchFactorRangeFor("1d").start >= "2023-07-01").toBe(true)
   })
-  it("preloads OKX with warmup and supplies decimal base volume, even if an old channel was requested", async () => {
+  it("keeps explicit Binance perpetual provenance through the server calculation handoff", async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({status:"completed",config:{history_source:"binance_um_archive_v1"}})))
+    await runBacktestApi({...body,data_channel:"binance_usdt",start_date:"2022-01-02",end_date:"2022-01-03"})
+    expect(fetchBacktestBars).toHaveBeenCalledWith("btcusdt","15m","2021-12-31","2022-01-03",undefined,undefined,undefined,"binance_usdt")
+    const sent=JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]!.body))
+    expect(sent).toMatchObject({data_channel:"binance_usdt",history_source:"binance_um_archive_v1",history_timeframe:"15m"})
+  })
+  it("preloads OKX with warmup and supplies decimal base volume", async () => {
     const r = await prepareBacktestHistory(body)
     expect(fetchBacktestBars).toHaveBeenCalledWith("btcusdt","15m","2026-09-26","2026-09-28",undefined,undefined,undefined,"okx")
     expect(r).toMatchObject({data_channel:"okx",history_source:"okx_archive_v1",history_timeframe:"15m",history_bars:[{volume:.2}]})

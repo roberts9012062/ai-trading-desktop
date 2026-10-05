@@ -41,6 +41,7 @@ export function CryptoDataPanel({ channel, symbol }: { channel: string; symbol: 
   }, [running, supported, channel, symbol])
 
   if (channel === "okx") return <p className="text-[11px] text-[var(--text-muted)]">OKX 官方 K线和已结算资金费率由本机下载并缓存，历史从2023-07起，近期归档有发布延迟。缺失资金费标记为空；持仓量、盘口和强平历史不由其他交易所代填。短线逐笔成交与 K线同源。</p>
+  if (channel === "binance_usdt") return <p className="text-[11px] text-[var(--text-muted)]">Binance USDT 永续官方 K线、聚合成交与资金费率由本机直连下载，与 OKX 分开缓存，不转发服务器。历史从2019-09起，具体品种以上市日为准；近期 K线有发布延迟，资金费率月包未发布时标记缺失。持仓量、盘口和强平历史不代填。</p>
   if (!supported) return null
   function download(): void {
     try {

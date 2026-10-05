@@ -121,7 +121,7 @@ export interface KlineBar {
   taker_buy_quote_volume?: number | null
   /** Last settled rate available before this bar, not the next predicted rate. */
   funding_rate?: number | null
-  funding_time?: number
+  funding_time?: number | null
   derivatives_time?: number
   taker_imbalance?: number | null
   long_short_ratio?: number | null

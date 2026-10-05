@@ -22,7 +22,8 @@ import type { MiningTask } from "@/lib/mining/types"
 import {
   digestUsage, runBackfillWithStore, missingRange, listDayDigestMetadata, loadDigestRange,
 } from "@/lib/shortline/backfill/pipeline"
-import { latestOkxArchiveDay, okxArchiveDayStart, fetchOkxFundingHistory, type ShortlineHistorySource } from "@/lib/okx-history"
+import { okxArchiveDayStart, fetchOkxFundingHistory, type ShortlineHistorySource } from "@/lib/okx-history"
+import { latestResearchArchiveDay } from "@/lib/kline-channels"
 import {factorMaxDaysFor} from "@/components/factor-lab/factor-range-limits"
 import {maxResearchBars} from "@/lib/device-profile"
 import {
@@ -173,7 +174,7 @@ function SymbolPicker({ value, onChange, disabled }: {
 export default function ShortlineLabPageV2() {
   // ── 核心参数（简化：只保留必需项） ──
   const [symbol, setSymbol] = useState(DEFAULT_SHORTLINE_SYMBOL)
-  const dataSource: ShortlineHistorySource = "okx"
+  const [dataSource,setDataSource] = useState<ShortlineHistorySource>("okx")
   const [timeframe, setTimeframe] = useState<ShortlineTimeframe>("15m")
   const [engine, setEngine] = useState<"native-gpu" | "cpu">("native-gpu")
 
@@ -217,20 +218,27 @@ export default function ShortlineLabPageV2() {
     Math.floor(maxResearchBars()/(timeframe === "1m" ? 1440 : timeframe === "5m" ? 288 : 96)))
   const suggestedFrom = useMemo(() => {
     const days = researchDays
-    return new Date(Date.parse(`${latestOkxArchiveDay()}T00:00:00Z`) - (days-1) * 86400000).toISOString().slice(0, 10)
-  }, [researchDays])
-  const today = useMemo(() => latestOkxArchiveDay(), [])
+    return new Date(Date.parse(`${latestResearchArchiveDay(dataSource)}T00:00:00Z`) - (days-1) * 86400000).toISOString().slice(0, 10)
+  }, [researchDays,dataSource])
+  const today = useMemo(() => latestResearchArchiveDay(dataSource), [dataSource])
   const cacheFrom = suggestedFrom
 
   // ── 刷新数据统计 ──
+  const currentResearchKey = `${dataSource}:${symbol}:${timeframe}`
+  const researchKeyRef = useRef(currentResearchKey)
+  researchKeyRef.current = currentResearchKey
   const refreshUsage = useCallback(async (sym: string) => {
-    setUsage(await digestUsage(sym,dataSource))
+    const key = researchKeyRef.current
+    const next = await digestUsage(sym,dataSource)
+    if (key === researchKeyRef.current) setUsage(next)
   }, [dataSource])
   useEffect(() => { void refreshUsage(symbol) }, [refreshUsage, symbol])
 
   // ── 刷新任务与冠军 ──
   const refreshTasks = useCallback(async () => {
+    const key = researchKeyRef.current
     const all = await runner.list()
+    if (key !== researchKeyRef.current) return
     const mine = all.filter((t) => t.config?.research_profile === "shortline_v1"
       && (t.config.data_channel ?? "binance_usdt") === dataSource && t.symbol === symbol && t.timeframe === timeframe)
     const byNewest = (a: MiningTask, b: MiningTask) =>
@@ -244,6 +252,7 @@ export default function ShortlineLabPageV2() {
     const champTask = active ?? mine.filter((t) => t.status === "completed").sort(byNewest)[0]
     if (champTask?.id) {
       const rows = await runner.champions(champTask.id)
+      if (key !== researchKeyRef.current) return
       setChampions(rows.map((c) => ({
         tokens: c.tokens, text: c.text, composite: c.composite,
         metrics: c.metrics as unknown as Record<string, unknown>,
@@ -251,7 +260,7 @@ export default function ShortlineLabPageV2() {
     } else setChampions([])
   }, [dataSource,symbol,timeframe])
 
-  useEffect(() => {setStage("idle");setProgress(0);setStatusMsg("");setError(null);setFavMsgs({});setMountMsg(null)},[dataSource,symbol,timeframe])
+  useEffect(() => {setStage("idle");setProgress(0);setStatusMsg("");setError(null);setFavMsgs({});setMountMsg(null);setExecutionReport(null);setActiveTask(null);setChampions([])},[dataSource,symbol,timeframe])
 
   useEffect(() => {
     void refreshTasks()
@@ -535,9 +544,10 @@ export default function ShortlineLabPageV2() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="space-y-2">
               <label className="text-xs text-gray-400">历史数据源（本机下载）</label>
-              <select value={dataSource} disabled={formLocked}
+              <select value={dataSource} disabled={formLocked} onChange={e=>setDataSource(e.target.value as ShortlineHistorySource)}
                 className="w-full rounded-xl border border-white/10 bg-[#0F131C] px-4 py-2.5 text-sm text-white">
                 <option value="okx">OKX 官方归档（推荐）</option>
+                <option value="binance_usdt">Binance USDT 永续（本地官方归档）</option>
               </select>
             </div>
             {/* 币种 */}
@@ -583,7 +593,7 @@ export default function ShortlineLabPageV2() {
           </div>
 
           {/* 数据统计 */}
-          <p className="text-xs text-gray-500">{dataSource === "okx" ? "OKX K线、逐笔成交和资金费率归档由本机下载；不转发服务器。" : "Binance 独立缓存，旧任务保留原来源。"}
+          <p className="text-xs text-gray-500">{dataSource === "okx" ? "OKX K线、逐笔成交和资金费率归档由本机下载；不转发服务器。" : "Binance USDT 永续 K线、聚合成交和资金费率归档由本机直连下载；与 OKX 分开缓存，不转发服务器。"}
             最新研究日 {today}（文件发布有延迟）；当月资金费率可能尚未发布，缺失值不补零。</p>
           <label className="flex items-center gap-2 text-xs text-sky-300">
             <input type="checkbox" checked={enhanced} disabled={formLocked}

@@ -23,8 +23,7 @@ import {
 import { SymbolCombobox } from "./symbol-combobox"
 import { DataChannelSelect } from "@/components/common/data-channel-select"
 import { CryptoDataPanel } from "@/components/common/crypto-data-panel"
-import { DEFAULT_KLINE_CHANNEL } from "@/lib/kline-channels"
-import { latestOkxArchiveDay } from "@/lib/okx-history"
+import { DEFAULT_KLINE_CHANNEL, latestResearchArchiveDay } from "@/lib/kline-channels"
 import { FACTOR_HELP, HelpTip, LabelWithHelp } from "./help-tip"
 import { CoachControls } from "./llm/coach-controls"
 import { antiOverfitPayload } from "./hooks/factor-helpers"
@@ -130,7 +129,7 @@ export function FactorSearchForm({
   // 启用后走 pg-tickdata 长历史库（2005 起，具体合约自动拼接主力连续）。
   const [showLongHistory, setShowLongHistory] = useState(false)
   const [useLongHistory, setUseLongHistory] = useState(false)
-  const today = useMemo(() => new Date(`${latestOkxArchiveDay()}T00:00:00Z`), [])
+  const today = useMemo(() => new Date(`${latestResearchArchiveDay(dataChannel)}T00:00:00Z`), [dataChannel])
   const [rangeStart, setRangeStart] = useState(
     () => researchFactorRangeFor("1d").start,
   )
@@ -271,6 +270,9 @@ export function FactorSearchForm({
               if (v === "gate_usdt") {
                 const range = gateResearchRange(timeframe)
                 setRangeStart(range.start); setRangeEnd(range.end)
+              } else {
+                const range = researchFactorRangeFor(timeframe,v)
+                setRangeStart(range.start); setRangeEnd(range.end); setRangeError(null)
               }
             }}
             symbol={symbol.trim().toLowerCase() || null}
@@ -376,7 +378,7 @@ export function FactorSearchForm({
                 checked={useLongHistory}
                 onChange={(e) => setUseLongHistory(e.target.checked)}
               />
-              启用自选区间（OKX 本机官方归档，2023-07 起）
+              启用自选区间（{dataChannel === "binance_usdt" ? "Binance USDT 永续，2019-09 起" : "OKX，2023-07 起"} · 本机官方归档）
             </label>
             <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
               不勾选：使用当前周期推荐的已发布历史区间。勾选后按下方区间回测/搜索，
@@ -390,7 +392,7 @@ export function FactorSearchForm({
                   start={rangeStart}
                   end={rangeEnd}
                   today={today}
-                  railStartISO="2023-07-01"
+                  railStartISO={dataChannel === "binance_usdt" ? "2019-09-02" : "2023-07-01"}
                   onChange={(s, e) => {
                     setRangeStart(s)
                     setRangeEnd(e)

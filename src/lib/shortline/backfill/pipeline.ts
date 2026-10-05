@@ -14,7 +14,7 @@ import { BucketAccumulator, parseAggTradesCsv } from "../bucket-stream"
 import { decodeDigest, digestSha256, encodeDigest, type TickBucket } from "../digest"
 
 const VISION_BASE =
-  import.meta.env.DEV && typeof window !== "undefined"
+  import.meta.env.DEV && typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window)
     ? "/__vision__"
     : "https://data.binance.vision"
 

@@ -208,7 +208,7 @@ export async function runBacktestApi(
     method: "POST",
     body: JSON.stringify(prepared),
   })
-  if (report.config?.history_source !== "okx_archive_v1") throw new Error("服务器尚未支持本机 OKX 回测数据，请更新服务器后重试")
+  if (report.config?.history_source !== prepared.history_source) throw new Error("服务器尚未支持所选本机归档回测数据，请更新服务器后重试")
   return report
 }
 

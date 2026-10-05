@@ -24,7 +24,7 @@ import {
 export type { BinanceKlinePage }
 import type { KlineBar } from "@/types"
 import { getGateFuturesKlineApi } from "@/lib/gate-futures"
-import { getBinanceFuturesKlineApi } from "@/lib/binance-futures"
+import { getBinanceFuturesKlineApi, latestBinanceArchiveDay, UM_INCEPTION } from "@/lib/binance-futures"
 import { cryptoPair, optionalNumber } from "@/lib/crypto-direct"
 import { getOkxArchiveKlineApi, latestOkxArchiveDay, OKX_CANDLE_FLOOR } from "@/lib/okx-history"
 
@@ -53,6 +53,12 @@ export const LOCAL_HISTORY_CHANNELS: Array<{
     note: "本机下载官方 K线/资金费率归档，不转发服务器；K线2023-07起，近期文件有发布延迟，未发布资金费标记缺失",
   },
   {
+    id: "binance_usdt",
+    name: "Binance USDT 永续（本地官方归档）",
+    kind: "swap",
+    note: "本机直连 data.binance.vision，不转发服务器；2019-09起，具体品种以上市日为准；资金费率月包未发布时标记缺失",
+  },
+  {
     id: "binance_spot",
     name: "Binance 现货（binance.vision）",
     kind: "spot",
@@ -73,6 +79,15 @@ export function isKlineChannel(v: unknown): v is KlineChannelId {
 /** 规范化渠道:未知/缺省值回退默认渠道 */
 export function normalizeChannel(v: unknown): KlineChannelId {
   return isKlineChannel(v) ? v : DEFAULT_KLINE_CHANNEL
+}
+
+/** 当前新建研究渠道；旧任务的来源解析不受此列表影响。 */
+export function isLocalResearchChannel(v: string): v is "okx" | "binance_usdt" {
+  return v === "okx" || v === "binance_usdt"
+}
+
+export function latestResearchArchiveDay(channel: string): string {
+  return channel === "binance_usdt" ? latestBinanceArchiveDay() : latestOkxArchiveDay()
 }
 
 // ===== Gate 现货 =====
@@ -172,6 +187,10 @@ export async function probeLocalChannelRange(
   if (channel === "okx") {
     const day = latestOkxArchiveDay(), max = Date.parse(`${day}T23:59:59+08:00`)
     return {min_ts:OKX_CANDLE_FLOOR,max_ts:max,min_date:"2023-07-01",max_date:day}
+  }
+  if (channel === "binance_usdt") {
+    const day = latestBinanceArchiveDay()
+    return {min_ts:UM_INCEPTION,max_ts:Date.parse(`${day}T23:59:59Z`),min_date:"2019-09-02",max_date:day}
   }
   if (channel === "binance_spot") {
     const sym = symbol.replace(/[-_/]/g, "").toUpperCase()

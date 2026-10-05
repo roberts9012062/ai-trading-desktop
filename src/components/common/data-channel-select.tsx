@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useRef, useState } from "react"
+import { isLocalResearchChannel } from "@/lib/kline-channels"
 import {
   getChannelRange,
   getHistoryChannels,
@@ -53,7 +54,7 @@ export function DataChannelSelect(props: {
   onRangeRef.current = onRange
 
   // 新建入口替换旧渠道；旧任务的冻结数据和来源仍保留在任务记录中。
-  useEffect(() => { if (value !== "okx") onChange("okx") }, [value, onChange])
+  useEffect(() => { if (!isLocalResearchChannel(value)) onChange("okx") }, [value, onChange])
 
   useEffect(() => {
     let cancelled = false
@@ -89,7 +90,7 @@ export function DataChannelSelect(props: {
       setProbing(true)
       setError(null)
       try {
-        const range = await getChannelRange("okx", symbol, timeframe)
+        const range = await getChannelRange(value, symbol, timeframe)
         if (!cancelled) onRangeRef.current?.(range)
       } catch {
         if (!cancelled) {
@@ -117,13 +118,13 @@ export function DataChannelSelect(props: {
         )}
       </div>
       <select
-        value="okx"
+        value={value}
         onChange={(e) => onChange(e.target.value)}
         className="w-full h-8 mt-1 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-sm"
       >
         {!channels.some((c) => c.id === "okx") && <option value="okx">OKX 合约（本地官方归档）</option>}
         {channels
-          .filter((c) => c.id === "okx" && (!kinds?.length || kinds.includes(c.kind)))
+          .filter((c) => isLocalResearchChannel(c.id) && (!kinds?.length || kinds.includes(c.kind)))
           .map((c) => (
             <option key={c.id} value={c.id} title={c.note}>
               {c.name}
