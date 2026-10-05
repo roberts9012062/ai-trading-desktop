@@ -20,6 +20,7 @@ import {
   type TaskTradeMark,
 } from "@/lib/ai-trading-api"
 import { useAppStore } from "@/stores/app"
+import { activeHunterChild } from "@/lib/hunter/task-visibility"
 
 /** 已加载过的标记缓存（task_id → marks），切回任务时秒出 */
 const _marksCache = new Map<string, TaskTradeMark[]>()
@@ -36,9 +37,10 @@ function readSavedTaskId(): string | null {
   }
 }
 
-function writeSavedTaskId(id: string): void {
+function writeSavedTaskId(id: string | null): void {
   try {
-    localStorage.setItem(_SELECTED_TASK_KEY, id)
+    if (id) localStorage.setItem(_SELECTED_TASK_KEY, id)
+    else localStorage.removeItem(_SELECTED_TASK_KEY)
   } catch {
     // localStorage 不可用时静默忽略
   }
@@ -73,6 +75,8 @@ interface AiMarketState {
 }
 
 export const useAiMarketStore = create<AiMarketState>((set, get) => {
+  let tasksRequest = 0
+  let tasksApplied = 0
   async function fetchMarks(taskId: string): Promise<void> {
     set({ marksLoading: true })
     try {
@@ -110,10 +114,17 @@ export const useAiMarketStore = create<AiMarketState>((set, get) => {
     recordsLoading: false,
 
     loadTasks: async (silent = false) => {
+      const request = ++tasksRequest
       if (!silent) set({ tasksLoading: true })
       try {
         const r = await listAITradingTasks()
-        const tasks = r.items ?? []
+        if (request < tasksApplied) return
+        tasksApplied = request
+        // Match AI trading's hunter cleanup; live holdings remain visible even
+        // when search has stopped. Keep ordinary task history unchanged.
+        const tasks = (r.items ?? []).filter(t => t.strategy_type !== "multi_cycle_hunter" || activeHunterChild(t))
+        const visibleIds = new Set(tasks.map(t => t.id))
+        for (const id of _marksCache.keys()) if (!visibleIds.has(id)) _marksCache.delete(id)
         const prevSelected = get().selectedTaskId
         // 任务被删除/首次进入：优先恢复上次选中的任务，否则回落第一个
         const stillThere =
@@ -129,6 +140,7 @@ export const useAiMarketStore = create<AiMarketState>((set, get) => {
           get().selectTask(tasks[0].id)
         } else {
           set({ selectedTaskId: null, marks: [], trades: [], decisions: [] })
+          writeSavedTaskId(null)
         }
       } catch {
         // 静默失败：保留旧列表

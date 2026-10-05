@@ -12,6 +12,8 @@ import { useAITradingStore } from "@/stores/ai-trading"
 import { useHunterStore } from "@/stores/hunter"
 import type { AITradingTask, ProfitCloseBar } from "@/lib/ai-trading-api"
 import type { Hunter, Opportunity } from "@/lib/hunter/api"
+import { TaskWatchList } from "@/components/ai-market/task-watch-list"
+import { useAiMarketStore } from "@/stores/ai-market"
 
 if (location.hostname !== "127.0.0.1" || location.port !== "5187") throw new Error("仅限隔离验收5187")
 globalThis.fetch = async () => { throw new Error("分组验收禁止真实API") }
@@ -42,4 +44,27 @@ if (new URLSearchParams(location.search).has("positions")) {
   useMarketStore.setState({quotes:{}})
   usePaperTradingStore.setState({mode:"live",refresh:async()=>{},positions:[{id:"axsholding",symbol:"axsusdt",symbol_name:"AXS",direction:"short",source:"quant",task_name:"AI多周期猎手·axsusdt·short",task_id:"axstask",quantity:2,available_quantity:2,avg_price:5,mark_price:4.8,unrealized_pnl:.37,margin:2,multiplier:1,leverage:5,margin_mode:"isolated"} as PaperPositionItem]})
 }
-createRoot(document.getElementById("root")!).render(new URLSearchParams(location.search).has("positions") ? <PositionsPage /> : <Preview />)
+let watchingRows = tasks.map(t => ({ ...t }))
+function WatchPreview() {
+  const selected = useAiMarketStore(s => s.selectedTaskId)
+  return <main className="p-5 space-y-3">
+    <p>AI 看盘 · 猎手结束清理 · 隔离模拟数据</p>
+    <button onClick={() => {
+      watchingRows = watchingRows.map(t => ({ ...t, status: "stopped", position_qty: 0, has_open_position: false }))
+      void useAiMarketStore.getState().loadTasks(true)
+    }}>模拟猎手全部平仓结束</button>
+    <div className="h-[500px] w-[320px]"><TaskWatchList /></div>
+    <output data-testid="watch-selected">{selected ?? "未选中任务"}</output>
+  </main>
+}
+const watchPreview = new URLSearchParams(location.search).has("watch")
+if (watchPreview) {
+  // Use real task loading/selection with fake API responses; never touch a live account.
+  globalThis.fetch = async input => {
+    const path = String(input)
+    if (path.endsWith("/api/ai-trading/tasks")) return Response.json({ items: watchingRows, total: watchingRows.length })
+    if (/\/api\/ai-trading\/tasks\/child-\d\/.*$/.test(path)) return Response.json({ items: [] })
+    throw new Error("看盘清理验收禁止真实API")
+  }
+}
+createRoot(document.getElementById("root")!).render(watchPreview ? <WatchPreview /> : new URLSearchParams(location.search).has("positions") ? <PositionsPage /> : <Preview />)

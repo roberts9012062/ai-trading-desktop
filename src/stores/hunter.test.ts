@@ -1,6 +1,9 @@
 import { beforeEach, expect, it, vi } from "vitest"
 import { useHunterStore } from "./hunter"
 import { hunterApi, type Hunter, type HunterConfig } from "@/lib/hunter/api"
+import { useAiMarketStore } from "./ai-market"
+vi.mock("./ai-market", () => ({ useAiMarketStore: { getState: () => ({ loadTasks: refreshWatchTasks }) } }))
+const { refreshWatchTasks } = vi.hoisted(() => ({ refreshWatchTasks: vi.fn().mockResolvedValue(undefined) }))
 vi.mock("@/lib/hunter/api", () => ({ hunterApi: { list: vi.fn(), create: vi.fn(), control: vi.fn() } }))
 beforeEach(() => { vi.clearAllMocks(); useHunterStore.getState().reset() })
 
@@ -22,4 +25,10 @@ it("discards a late create response from a previous session", async () => {
   resolve({ id: "previous-user" } as Hunter)
   await expect(pending).rejects.toThrow("会话")
   expect(useHunterStore.getState().groups).toEqual([])
+})
+
+it("refreshes the watching task list after stopping a hunter", async () => {
+  vi.mocked(hunterApi.control).mockResolvedValue({ id: "hunter", status: "stopped" } as Hunter)
+  await useHunterStore.getState().control("hunter", "stop")
+  await vi.waitFor(() => expect(useAiMarketStore.getState().loadTasks).toHaveBeenCalledWith(true))
 })

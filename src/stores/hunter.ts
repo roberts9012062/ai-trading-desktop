@@ -49,6 +49,11 @@ export const useHunterStore = create<HunterState>((set) => ({
     if (started !== generation) throw new Error("会话已切换，请在当前账户重新查看猎手")
     set(s => ({ groups: s.groups.map(g => g.id === id ? group : g), error: null,
       watches: { ...s.watches, [id]: group.status === "running" ? s.watches[id] ?? [] : [] } }))
+    if (action === "stop" || action === "stop_close") {
+      void import("@/stores/ai-market").then(m => {
+        if (started === generation) return m.useAiMarketStore.getState().loadTasks(true)
+      }).catch(() => {})
+    }
   },
   setProgress: (id, message) => set(s => ({ progress: { ...s.progress, [id]: message } })),
   setWatch: (id, cycle, entries) => set(s => ({ watches: { ...s.watches, [id]: [...(s.watches[id] ?? []).filter(x => x.cycle !== cycle), ...entries].slice(-150) } })),
