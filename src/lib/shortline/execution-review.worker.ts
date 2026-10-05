@@ -1,4 +1,4 @@
-import { listDayDigests, loadDayDigest } from "./backfill/pipeline"
+import { listDayDigestMetadata, loadDayDigest } from "./backfill/pipeline"
 import { closedBarsFromDigest, replayScores } from "./replay"
 import { requiredWarmupBars } from "./mount"
 import { TIMEFRAME_SECONDS } from "./spec"
@@ -9,7 +9,7 @@ import { boundedReviewDays, type ExecutionObservation, type ReviewWorkerRequest 
 self.onmessage = async ({ data }: MessageEvent<ReviewWorkerRequest>) => {
   try {
     const days = boundedReviewDays(data.days, data.cadence)
-    const entries = await listDayDigests(data.symbol)
+    const entries = await listDayDigestMetadata(data.symbol)
     const need = requiredWarmupBars(data.champions.map((c) => c.tokens), data.timeframe)
     const warmDays = Math.ceil(need * TIMEFRAME_SECONDS[data.timeframe] / 86400) + 1
     if (entries.length < warmDays + days) throw new Error(`历史不足：需要${warmDays}天预热＋${days}天复核，当前${entries.length}天`)

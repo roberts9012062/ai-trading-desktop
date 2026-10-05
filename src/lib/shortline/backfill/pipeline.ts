@@ -145,6 +145,28 @@ export async function listDayDigests(symbol: string): Promise<DayDigestEntry[]> 
   return (all ?? []).filter((e) => e.symbol === symbol).sort((a, b) => a.day.localeCompare(b.day))
 }
 
+/** Review needs metadata only. A cursor avoids retaining the entire 3GB archive. */
+export async function listDayDigestMetadata(symbol: string): Promise<Array<Omit<DayDigestEntry, "bytes">>> {
+  const db = await openDb()
+  if (!db) return []
+  return new Promise((resolve, reject) => {
+    const entries: Array<Omit<DayDigestEntry, "bytes">> = []
+    const req = db.transaction(SHORTLINE_DIGEST_STORE, "readonly").objectStore(SHORTLINE_DIGEST_STORE)
+      .openCursor(IDBKeyRange.bound(`${symbol}:`, `${symbol}:\uffff`))
+    req.onerror = () => reject(new Error("归档目录读取失败"))
+    req.onsuccess = () => {
+      const cursor = req.result
+      if (!cursor) { resolve(entries.sort((a, b) => a.day.localeCompare(b.day))); return }
+      const entry = cursor.value as DayDigestEntry
+      if (entry.symbol === symbol) {
+        const { bytes: _bytes, ...metadata } = entry
+        entries.push(metadata)
+      }
+      cursor.continue()
+    }
+  })
+}
+
 export async function deleteDayDigests(symbol: string, days: readonly string[]): Promise<void> {
   for (const day of days) {
     await idbRun("readwrite", (s) => s.delete(digestKey(symbol, day)))
