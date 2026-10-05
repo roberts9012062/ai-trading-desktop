@@ -10,6 +10,7 @@ export interface IconEntry {
   slug: string
   name: string
   group: IconGroup
+  src?: string
 }
 
 /** 全部可用图标（common = 高频常用，单独置顶） */
@@ -76,11 +77,23 @@ export const AI_ICONS: IconEntry[] = [
   // 量化 / 因子
   { slug: "quant", name: "量化", group: "quant" },
   { slug: "factor", name: "因子", group: "quant" },
+  { slug: "strategy-n-breakout", name: "N 日突破", group: "quant", src: "/strategy-icons/n_breakout.svg" },
+  { slug: "strategy-ma-cross", name: "双均线", group: "quant", src: "/strategy-icons/ma_cross.svg" },
+  { slug: "strategy-macd-cross", name: "MACD 交叉", group: "quant", src: "/strategy-icons/macd_cross.svg" },
+  { slug: "strategy-kdj-cross", name: "KDJ 交叉", group: "quant", src: "/strategy-icons/kdj_cross.svg" },
+  { slug: "strategy-band-swing", name: "布林带波段", group: "quant", src: "/strategy-icons/band_swing.svg" },
+  { slug: "strategy-swing-pivot", name: "枢轴波段", group: "quant", src: "/strategy-icons/swing_pivot.svg" },
+  { slug: "strategy-swing-pivot-v2", name: "枢轴波段 V2", group: "quant", src: "/strategy-icons/swing_pivot_v2.svg" },
+  { slug: "strategy-swing-pro", name: "专业波段", group: "quant", src: "/strategy-icons/swing_pro.svg" },
+  { slug: "strategy-strength-entry", name: "强弱进场", group: "quant", src: "/strategy-icons/strength_entry.svg" },
+  { slug: "strategy-strength-entry-v2", name: "强弱形态 V2", group: "quant", src: "/strategy-icons/strength_entry_v2.svg" },
+  { slug: "strategy-factor", name: "因子公式", group: "quant", src: "/strategy-icons/factor.svg" },
+  { slug: "strategy-shortline-factor", name: "短线因子", group: "quant", src: "/strategy-icons/shortline_factor.svg" },
 ]
 
 /** slug → public 路径 */
 export function iconSrc(slug: string): string {
-  return `/ai-icons/${slug}.png`
+  return AI_ICONS.find(entry => entry.slug === slug)?.src ?? `/ai-icons/${slug}.png`
 }
 
 /** 全部 slug 集合（校验用） */

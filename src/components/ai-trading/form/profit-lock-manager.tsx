@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { TradingActionButton } from "@/components/ai-trading/trading-action-button"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { ProfitLockSettings } from "./profit-lock-settings"
@@ -49,11 +49,11 @@ export function ProfitLockManager() {
     finally { if (active()) setBusy(false) }
   }
   return <>
-    <Button type="button" size="sm" variant="outline" onClick={() => {
+    <TradingActionButton action="lock" onClick={() => {
       const selected = useAITradingStore.getState().selectedTaskId
       choose(targets.find(t => t.kind === "task" && t.id === selected)?.key ?? targets[0]?.key ?? "")
       setOpen(true)
-    }}><ShieldCheck className="w-3.5 h-3.5" />锁利设置</Button>
+    }} />
     <Dialog open={open} onOpenChange={next => { if (!busy) setOpen(next) }}>
       <DialogContent className="max-w-md max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader><DialogTitle>锁利设置</DialogTitle><DialogDescription>选择运行、暂停或仍有持仓的任务，设置自动挡或个人模板。保存后由服务器执行，其他止盈止损规则继续生效。</DialogDescription></DialogHeader>

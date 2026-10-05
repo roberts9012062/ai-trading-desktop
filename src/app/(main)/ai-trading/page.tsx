@@ -1,8 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Award, LineChart, Plus, RefreshCw } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { BrandLogo } from "@/components/common/brand-logo"
+import { TradingActionButton } from "@/components/ai-trading/trading-action-button"
 import { CreateTaskDialog } from "@/components/ai-trading/form/create-task-dialog"
 import { ProfitLockManager } from "@/components/ai-trading/form/profit-lock-manager"
 import { CreateHunterDialog } from "@/components/hunter/create-hunter-dialog"
@@ -117,21 +117,24 @@ export default function AITradingPage(): React.JSX.Element {
 
   return (
     <div className="h-full overflow-y-auto p-4 md:p-6 space-y-4">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-lg font-semibold text-[var(--text-primary)]">
-            AI 交易
-          </h1>
-          <p className="text-xs text-[var(--text-muted)] mt-1">
-            AI / 量化 · 运行 {runningCount} 个 · 浮盈按品种实时价（不含手续费）
-            · 休市自动暂停，开盘自动恢复
-          </p>
+      <div className="trading-header flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
+        <div className="flex items-center gap-3">
+          <BrandLogo size={42} />
+          <div>
+            <h1 className="text-lg font-semibold text-[var(--text-primary)]">
+              AI 交易
+            </h1>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              AI / 量化 · 运行 {runningCount} 个 · 浮盈按品种实时价（不含手续费）
+              · 休市自动暂停，开盘自动恢复
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap" role="group" aria-label="交易操作">
           <ProfitLockManager />
-          <Button
-            variant="outline"
-            size="sm"
+          <TradingActionButton
+            action="refresh"
+            busy={loading}
             onClick={() => {
               void loadTasks().then(() => {
                 void loadEquity()
@@ -139,34 +142,18 @@ export default function AITradingPage(): React.JSX.Element {
               })
             }}
             disabled={loading}
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-            刷新
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
+          />
+          <span className="mx-1 h-6 w-px bg-white/10 max-sm:hidden" aria-hidden="true" />
+          <TradingActionButton
+            action="favorite"
             onClick={() => setFromFavOpen(true)}
-          >
-            <Award className="w-3.5 h-3.5" />
-            创建优秀任务
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
+          />
+          <TradingActionButton
+            action="quant"
             onClick={() => setQuantOpen(true)}
-          >
-            <LineChart className="w-3.5 h-3.5" />
-            创建量化交易
-          </Button>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="w-3.5 h-3.5" />
-            创建 AI 交易
-          </Button>
-          <Button size="sm" variant="outline" disabled={hunterExists} title={hunterExists ? "请先停止当前猎手后再创建" : undefined} onClick={() => setHunterOpen(true)}>
-            <Plus className="w-3.5 h-3.5" />
-            创建多周期猎手
-          </Button>
+          />
+          <TradingActionButton action="ai" onClick={() => setCreateOpen(true)} />
+          <TradingActionButton action="hunter" disabled={hunterExists} title={hunterExists ? "请先停止当前猎手后再创建" : undefined} onClick={() => setHunterOpen(true)} />
         </div>
       </div>
 

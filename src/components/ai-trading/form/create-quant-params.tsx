@@ -8,12 +8,12 @@ import { SwingV2Params } from "@/components/backtest/quant-params-swing-v2"
 import { StrengthEntryParams } from "@/components/backtest/quant-params-strength"
 import { StrengthEntryV2Params } from "@/components/backtest/quant-params-strength-v2"
 import {
-  QUANT_KIND_OPTIONS,
   type QuantKind,
   type QuantParamsState,
 } from "@/lib/quant-strategy"
 import { FactorKindParams } from "./factor-kind-params"
 import { ShortlineKindParams } from "./shortline-kind-params"
+import { StrategyTypePicker } from "./strategy-type-picker"
 
 interface CreateQuantParamsProps {
   /** 主周期（专业波段第二周期标签换算用） */
@@ -37,26 +37,7 @@ export function CreateQuantParams({
     <>
       <div className="space-y-1">
         <Label>策略类型</Label>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {QUANT_KIND_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              disabled={opt.disabled === true}
-              title={opt.disabled === true ? "该策略暂停使用" : undefined}
-              className={`h-9 rounded-md border text-xs transition-colors ${
-                opt.disabled === true
-                  ? "cursor-not-allowed border-[var(--border)] text-[var(--text-muted)] opacity-50"
-                  : quant.quantKind === opt.value
-                    ? "border-[var(--primary)] bg-[var(--primary)]/15 text-[var(--primary)]"
-                    : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]"
-              }`}
-              onClick={() => onQuant({ ...quant, quantKind: opt.value })}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+        <StrategyTypePicker value={quant.quantKind} onChange={quantKind => onQuant({ ...quant, quantKind })} />
       </div>
       <div className="rounded-md border border-[var(--border)] p-2.5 space-y-2">
         <div className="text-xs font-medium text-[var(--text-secondary)]">

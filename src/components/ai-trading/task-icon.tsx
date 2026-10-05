@@ -2,16 +2,13 @@
 
 /**
  * 任务头像图标
- * 优先级：task.icon(slug) → 厂商匹配 → 策略默认(quant/factor) → 「AI」字样
+ * 自选头像优先；量化任务按策略自动区分，AI 任务按模型厂商匹配。
  */
 
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import {
-  iconSrc,
-  isValidIconSlug,
-} from "@/lib/ai-icons-manifest"
 import { resolveProviderAvatar } from "@/lib/provider-avatar"
+import { QUANT_STRATEGY_ICONS, resolveTaskIconSrc } from "@/lib/quant-strategy-icons"
 
 interface TaskIconProps {
   /** 显式图标 slug；空=自动 */
@@ -22,30 +19,6 @@ interface TaskIconProps {
   strategyType?: string | null
   size?: number
   className?: string
-}
-
-/** 量化策略类型集合（这些 strategyType 默认用 quant 图标） */
-const QUANT_STRATS = new Set([
-  "ma_cross",
-  "n_breakout",
-  "macd_cross",
-  "kdj_cross",
-  "band_swing",
-  "swing_pivot",
-])
-
-/** 解析最终图源：有值=用图；null=用文字 */
-function resolveSrc(
-  icon: string | null | undefined,
-  strategyType: string | null | undefined,
-  info: { src: string | null },
-): string | null {
-  if (icon && isValidIconSlug(icon)) return iconSrc(icon)
-  if (info.src && !info.src.endsWith("/default.svg")) return info.src
-  const st = String(strategyType || "").toLowerCase()
-  if (st === "factor") return iconSrc("factor")
-  if (QUANT_STRATS.has(st)) return iconSrc("quant")
-  return null
 }
 
 /** 任务头像 */
@@ -59,17 +32,18 @@ export function TaskIcon({
   className,
 }: TaskIconProps): React.JSX.Element {
   const info = resolveProviderAvatar(modelId, providerName, displayName)
-  const resolved = resolveSrc(icon, strategyType, info)
-  const [failed, setFailed] = useState(false)
-  const showImg = Boolean(resolved) && !failed
+  const resolved = resolveTaskIconSrc(icon, strategyType, info.src)
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  const showImg = Boolean(resolved) && resolved !== failedSrc
   const stype = String(strategyType || "").toLowerCase()
   const fallbackLabel =
-    stype === "factor" ? "因" : QUANT_STRATS.has(stype) ? "量" : "AI"
+    stype === "factor" ? "因" : Object.hasOwn(QUANT_STRATEGY_ICONS, stype) ? "量" : "AI"
 
   return (
     <span
       className={cn(
-        "inline-flex items-center justify-center rounded-full shrink-0 overflow-hidden text-[10px] font-semibold text-white",
+        "inline-flex items-center justify-center shrink-0 overflow-hidden text-[10px] font-semibold text-white",
+        resolved?.startsWith("/strategy-icons/") ? "rounded-[26%]" : "rounded-full",
         className,
       )}
       style={{
@@ -84,11 +58,11 @@ export function TaskIcon({
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={resolved ?? ""}
-          alt={info.shortName || "icon"}
+          alt={displayName || strategyType || info.shortName || "任务图标"}
           width={size}
           height={size}
           className="w-full h-full object-cover"
-          onError={() => setFailed(true)}
+          onError={() => setFailedSrc(resolved)}
         />
       ) : (
         fallbackLabel

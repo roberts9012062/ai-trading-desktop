@@ -399,7 +399,7 @@ export function CreateQuantDialog({
             </IconPicker>
             <div className="text-[11px] text-[var(--text-muted)] leading-tight">
               <div className="text-[var(--text-secondary)]">任务图标</div>
-              <div>默认按策略（量化/因子）；可点头像更换</div>
+              <div>每种策略独立图标；可点头像自选</div>
             </div>
           </div>
           {decisionEnabled && (
