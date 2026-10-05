@@ -15,6 +15,7 @@ import { useState } from "react"
 
 if (location.hostname !== "127.0.0.1" || location.port !== "5187") throw new Error("仅限隔离验收端口5187")
 let requests = 0
+const signalExitPreview = location.search.includes("signal_exit=1")
 globalThis.fetch = async input => {
   if (String(input).includes("/api/market/session-status")) return Response.json({ is_open: true })
   if (String(input).endsWith("/close-position")) {
@@ -30,8 +31,8 @@ useAuthStore.setState({ user: { id: "manual-close-fixture", username: "隔离验
 localStorage.setItem("access_token", "fixture-only")
 const base = { symbol: "avaxusdt", timeframe: "60m", status: "running", strategy_type: "swing_pivot", position_qty: 90, position_direction: "long", position_avg_price: 10.9, position_last_price: 11.05, position_unrealized: 13.5, has_open_position: true, close_rules: { profit_lock: { enabled: false, mode: "auto", unit: "percent", activation: 3, giveback: 1, cooldown_signals: 2 } }, created_at: new Date().toISOString() } as AITradingTask
 useAITradingStore.setState({ tasks: [
-  { ...base, id: "held", name: "枢轴 L6/R6/P2 · AVAX · 60m" },
-  { ...base, id: "empty", name: "AI 交易 · 当前空仓", strategy_type: "ai", position_qty: 0, has_open_position: false, position_unrealized: 0 },
+  { ...base, id: "held", name: "枢轴 L6/R6/P2 · AVAX · 60m", ...(signalExitPreview ? { profit_lock_state: { signal_exit: true, closing: true } } : {}) },
+  { ...base, id: "empty", name: signalExitPreview ? "枢轴量化 · 等待新信号" : "AI 交易 · 当前空仓", strategy_type: signalExitPreview ? "swing_pivot" : "ai", position_qty: 0, has_open_position: false, position_unrealized: 0, ...(signalExitPreview ? { profit_lock_state: { signal_exit: true, closed: true, cooldown_remaining: 0 } } : {}) },
   { ...base, id: "cooldown", name: "因子交易 · 手动锁利冷却", strategy_type: "factor", position_qty: 0, has_open_position: false, position_unrealized: 0, profit_lock_state: { manual_exit: true, closed: true, cooldown_remaining: 2 } },
 ], loadTasks: async () => {}, loadEquity: async () => {}, loadProfitBars: async () => {} })
 useHunterStore.setState({ groups: [{ id: "hunter", name: "猎手验收", status: "running", trading_mode: "virtual", capital: 100, equity: 100,

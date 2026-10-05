@@ -4,6 +4,12 @@ import { profitLockStatus } from "./profit-lock-status"
 
 const base = { status: "running", position_qty: 1, close_rules: { profit_lock: { enabled: true, mode: "auto", unit: "percent", activation: 3, giveback: 1, cooldown_signals: 1 } } } as AITradingTask
 describe("server profit lock card status", () => {
+  it("shows a signal invalidation exit separately from manual profit cooldown", () => {
+    const task = { ...base, strategy_type: "swing_pivot", close_rules: {}, profit_lock_state: { signal_exit: true, closing: true } } as AITradingTask
+    expect(profitLockStatus(task)?.label).toBe("信号失效平仓中")
+    expect(profitLockStatus({ ...task, position_qty: 0, profit_lock_state: { signal_exit: true, closed: true, cooldown_remaining: 0 } })?.detail).toContain("新的枢轴")
+    expect(profitLockStatus({ ...task, profit_lock_state: { signal_exit: true, error: "剩余持仓等待对账" } })).toMatchObject({ label: "信号失效止损等待处理", tone: "warning" })
+  })
   it("shows manual cooldown even while automatic profit lock is disabled", () => {
     const task = { ...base, position_qty: 0, close_rules: { profit_lock: null }, profit_lock_state: { manual_exit: true, closed: true, cooldown_remaining: 2 } } as AITradingTask
     expect(profitLockStatus(task)?.label).toBe("锁利冷却 · 剩余 2 次信号")

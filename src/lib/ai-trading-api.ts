@@ -75,7 +75,7 @@ export function updateTaskProfitLock(id: string, profit_lock: ProfitLockConfig):
 }
 export interface ProfitLockState {
   activated?: boolean; net_profit?: number; net_pct?: number; peak_net?: number; peak_pct?: number;
-  locked_net?: number; locked_pct?: number; margin?: number; cooldown_remaining?: number; closed?: boolean; closing?: boolean; error?: string; manual_exit?: boolean
+  locked_net?: number; locked_pct?: number; margin?: number; cooldown_remaining?: number; closed?: boolean; closing?: boolean; error?: string; manual_exit?: boolean; signal_exit?: boolean
 }
 export interface TaskCloseResult { task_id: string; status: "closing" | "closed"; order_id?: string | null; profit_lock_state: ProfitLockState }
 export function closeAITradingTaskPosition(id: string): Promise<TaskCloseResult> {

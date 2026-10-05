@@ -14,7 +14,13 @@ export function profitLockStatus(task: AITradingTask): ProfitLockStatusView | nu
   const state = task.profit_lock_state ?? {}
   const floor = finite(state.locked_net) && state.locked_net > 0 ? state.locked_net : null
   const pct = finite(state.locked_pct) ? `（保证金收益 ${state.locked_pct.toFixed(2)}%）` : ""
-  if (state.closing && !state.closed) return { label: "锁利平仓中", detail: "已提交平仓，等待成交确认。", tone: "waiting" }
+  if (state.closing && !state.closed) return { label: state.signal_exit ? "信号失效平仓中" : "锁利平仓中", detail: "已提交平仓，等待成交确认。", tone: "waiting" }
+  if (state.signal_exit) {
+    if (state.error) return { label: "信号失效止损等待处理", detail: state.error, tone: "warning" }
+    if (state.closed && !task.has_open_position && !(task.position_qty && task.position_qty > 0)) return {
+      label: "信号失效已平仓", detail: "等待新的枢轴多空信号；已失效的开仓枢轴不会重复使用。", tone: "waiting",
+    }
+  }
   if (state.manual_exit) {
     if (state.error) return { label: "一键平仓等待处理", detail: state.error, tone: "warning" }
     const cooldown = finite(state.cooldown_remaining) ? Math.max(0, Math.trunc(state.cooldown_remaining)) : 0
