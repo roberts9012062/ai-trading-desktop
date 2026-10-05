@@ -14,6 +14,9 @@ import { NumericInput } from "@/components/ui/numeric-input"
 import { withNumericValidation, withNumericReset } from "@/lib/numeric-input"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ChevronDown } from "lucide-react"
+import ShortlineExecutionPanel, { ENHANCED_SHORTLINE_DECISION } from "./shortline-execution-panel"
+import { DEFAULT_EXECUTION_SETTINGS, type ExecutionReview, type ExecutionSettings } from "@/lib/shortline/execution-review"
+import { enhancedShortlineSearch } from "@/lib/shortline/search-profile"
 import { createRunner } from "@/lib/mining/runner"
 import type { MiningTask } from "@/lib/mining/types"
 import {
@@ -177,7 +180,10 @@ export default function ShortlineLabPageV2() {
   const [maxDepth, setMaxDepth] = useState(5)
   const [trainRatio, setTrainRatio] = useState(0.7)
   const [walkForwardFolds, setWalkForwardFolds] = useState(3)
-  const [cost, setCost] = useState(0.0003)
+  const [cost, setCost] = useState(0.0005)
+  const [enhanced, setEnhanced] = useState(true)
+  const [executionSettings, setExecutionSettings] = useState<ExecutionSettings>(DEFAULT_EXECUTION_SETTINGS)
+  const [executionReport, setExecutionReport] = useState<ExecutionReview | null>(null)
 
   // ── 统一状态机 ──
   const [stage, setStage] = useState<Stage>("idle")
@@ -198,6 +204,7 @@ export default function ShortlineLabPageV2() {
   const [cadence, setCadence] = useState<CadenceSeconds>(15)
   const [mountMsg, setMountMsg] = useState<string | null>(null)
   const [mounting, setMounting] = useState(false)
+  const [mountChoice, setMountChoice] = useState("0")
   const [serverTasks, setServerTasks] = useState<ShortlineServerTask[] | null>(null)
   const [serverTaskErr, setServerTaskErr] = useState<string | null>(null)
 
@@ -292,6 +299,7 @@ export default function ShortlineLabPageV2() {
           cost,
           native_precision: "mixed",
           data_channel: "binance_usdt",
+          ...(enhanced ? enhancedShortlineSearch(Date.now() >>> 0) : {}),
         },
         {
           device: engine,
@@ -398,11 +406,11 @@ export default function ShortlineLabPageV2() {
   // ── 挂载（服务器短线任务系统，契约 shortline_factor_v1；纸面模式） ──
   const mountPool = useMemo(() => {
     const exec = champions.slice(0, 8).map((c, i) => ({ id: i + 1, tokens: c.tokens }))
-    if (exec.length) return exec
-    // 无执行级冠军时允许挂研究级(样本外 1× 盈利;风险自担)
-    return (activeTask?.research_champions ?? []).slice(0, 8)
+    const pool = exec.length ? exec : (activeTask?.research_champions ?? []).slice(0, 8)
       .map((c, i) => ({ id: i + 1, tokens: c.tokens }))
-  }, [champions, activeTask?.research_champions])
+    if (enhanced && pool.length && mountChoice !== "combo") return [pool[Number(mountChoice)] ?? pool[0]!]
+    return pool
+  }, [champions, activeTask?.research_champions, enhanced, mountChoice])
   const mountCheck = useMemo(
     () => (mountPool.length ? checkMountable(mountPool.map((c) => c.tokens)) : { ok: false, reasons: ["无冠军"], localOnlyTokens: [] }),
     [mountPool],
@@ -428,13 +436,15 @@ export default function ShortlineLabPageV2() {
         symbol, timeframe, cadence: cad as CadenceSeconds,
         buckets: loaded.buckets, formulas,
       }))
-      const bundle = buildFixtureBundle(symbol, cases, formulas)
+      const bundle = buildFixtureBundle(symbol, cases, formulas, enhanced ? "shortline-eval-v2" : "shortline-eval-v1")
       const payload = buildShortlinePayload(
-        { symbol, timeframe, cadence, champions: mountPool, warmupBars },
+        { symbol, timeframe, cadence, champions: mountPool, warmupBars,
+          ...(enhanced ? {decision: ENHANCED_SHORTLINE_DECISION, evalVersion:"shortline-eval-v2",
+            risk: {max_notional_usdt:executionSettings.margin * executionSettings.leverage}} : {}) },
         bundle.manifest.manifest_sha256,
       )
-      const task = await createShortlineTask(payload, `短线·${symbol}·${timeframe}·${cadence}s`)
-      setMountMsg(`挂载成功：服务器任务 ${task.id}（${task.status ?? "created"}，纸面模式）`)
+      const task = await createShortlineTask(payload, `短线·${symbol}·${timeframe}·${cadence}s`, enhanced ? executionSettings : undefined)
+      setMountMsg(`挂载成功：服务器任务 ${task.id}（${task.status ?? "created"}，跟随账户盘别；尚未启动）`)
       await refreshServerTasks()
     } catch (e) {
       setMountMsg(`挂载失败：${e instanceof Error ? e.message : String(e)}`)
@@ -546,6 +556,11 @@ export default function ShortlineLabPageV2() {
           </div>
 
           {/* 数据统计 */}
+          <label className="flex items-center gap-2 text-xs text-sky-300">
+            <input type="checkbox" checked={enhanced} disabled={formLocked}
+              onChange={(e) => setEnhanced(e.target.checked)} />
+            优化短线：服务器可计算特征优先 · 多族模板种子 · 低相关组合 · 入场/退出迟滞
+          </label>
           <div className="flex items-center justify-between pt-2 border-t border-white/5">
             <span className="text-xs text-gray-500">
               已缓存 {usage.days} 天 · {fmtBytes(usage.bytes)}
@@ -629,7 +644,7 @@ export default function ShortlineLabPageV2() {
                              focus:border-[#38BDF8] focus:outline-none disabled:opacity-50"
                   />
                   <p className="text-xs text-gray-600 leading-relaxed">
-                    默认 0.0003（3bp）。资格门会以 2× 成本做压力测试——若你的真实执行
+                    默认 0.0005（5bp）。资格门会以 2× 成本做压力测试——若你的真实执行
                     成本更低（纯 maker），如实调低可提高冠军产出；请勿为凑冠军虚标。
                   </p>
                 </div>
@@ -695,7 +710,7 @@ export default function ShortlineLabPageV2() {
                       setMaxDepth(5)
                       setTrainRatio(0.7)
                       setWalkForwardFolds(3)
-                      setCost(0.0003)
+                      setCost(0.0005)
                     })}
                     disabled={formLocked}
                     className="w-full rounded-xl bg-[#0F131C]/50 border border-white/10 px-4 py-2.5 text-sm text-gray-400
@@ -708,6 +723,20 @@ export default function ShortlineLabPageV2() {
             )}
           </div>
         </div>
+
+        {enhanced && <label className="flex items-center gap-3 text-xs text-gray-400">复核/挂载候选
+          <select value={mountChoice} disabled={formLocked || mounting} className="rounded-lg bg-[#0F131C] border border-white/10 p-2"
+            onChange={(e) => setMountChoice(e.target.value)}>
+            {Array.from({length:Math.min(8,champions.length || activeTask?.research_champions?.length || 1)},(_,i)=>
+              <option key={i} value={String(i)}>候选 #{i+1}（单因子）</option>)}
+            <option value="combo">前8候选等权组合（需单独复核）</option>
+          </select>
+        </label>}
+        {enhanced && <ShortlineExecutionPanel taskId={activeTask?.id} symbol={symbol} timeframe={timeframe}
+          cadence={cadence} champions={mountCheck.ok ? mountPool : []} settings={executionSettings}
+          onSettings={setExecutionSettings} feeRate={cost} onFeeRate={setCost}
+          disabled={formLocked || mounting} onReport={setExecutionReport} />}
+        {enhanced && executionReport && <p className="text-xs text-gray-500">当前组合复核：{executionReport.base.metrics.closed_trades}轮 · 实际净盈亏比 {fmtNum(executionReport.base.metrics.payoff_ratio)}:1；挂载使用上面的冻结规则。</p>}
 
         {/* 进度卡片 */}
         {stage !== "idle" && (
@@ -840,7 +869,7 @@ export default function ShortlineLabPageV2() {
                 冠军因子 · {champions.length} 个
               </h2>
               {stage === "completed" && (
-                <span className="text-xs text-emerald-400">✓ 已验证</span>
+                <span className="text-xs text-emerald-400">✓ 研究资格通过 · 待执行复核</span>
               )}
             </div>
 

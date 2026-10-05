@@ -68,6 +68,7 @@ class SearchConfig:
     seed: int = 42
     cost: float = 0.0003
     seed_tokens: list[list[int]] | None = None
+    search_feature_ids: list[int] | None = None
     train_ratio: float = 0.0
     test_recent_bars: int = 0
     walk_forward_folds: int = 0
@@ -182,9 +183,17 @@ def _search_space(mat, cfg, rng):
         mat, crypto,
         max_head_gap=WARMUP_BARS if is_v2_config(cfg) else None,
     )
+    if cfg.search_feature_ids is not None:
+        if not cfg.search_feature_ids or any(isinstance(i, bool) or not isinstance(i, int) or i < 0 for i in cfg.search_feature_ids):
+            raise ValueError("Invalid explicit feature search pool")
+        active = [i for i in active if i in cfg.search_feature_ids]
+        if not active:
+            raise ValueError("No available features in the requested search pool")
     if crypto:
         # Modest prior for new information, not calendar overfitting.
         rng._active_features = active + [i for i in active if i >= 45]
+    elif cfg.search_feature_ids is not None:
+        rng._active_features = active
     for seed in cfg.seed_tokens or []:
         if any(int(t) < FEAT_OFFSET and int(t) not in active for t in seed):
             raise ValueError("Seed depends on unavailable features for this training data/profile")

@@ -21,6 +21,7 @@ import type { KlineBar } from "@/types"
 import { ensurePyWorker } from "@/lib/py-worker"
 import { getBarsSnapshot } from "../data-source"
 import type { MiningConfig } from "../types"
+import { filterSearchFeatures } from "@/lib/shortline/search-profile"
 import type {
   ComputeBackend,
   EvalRequest,
@@ -100,6 +101,7 @@ function buildPayload(config: MiningConfig, req: EvalRequest): Record<string, un
     // cost=null 由内核按品种+滑点解析(factor-local cost 陷阱:绝不透传 null)
     cost: config.cost ?? null,
     ...(config.seed_tokens?.length ? { seed_tokens: config.seed_tokens } : {}),
+    ...(config.search_feature_ids ? { search_feature_ids: config.search_feature_ids } : {}),
     ...(config.cross_peers?.length ? { cross_peers: config.cross_peers } : {}),
     ...(config.selection_v2 ? { selection_v2: true } : {}),
     ...(config.evolve_v2 ? { evolve_v2: true } : {}),
@@ -266,7 +268,7 @@ async function* runParallel(
 
     // 2) GP 初始化(与 GPU 路径同构:种子注入种群,历史最优先精算保不倒退)
     const islands = resolveIslands(cfg.population, cfg.islands)
-    const active = features.active_feature_ids ?? Array.from({ length: F }, (_, i) => i)
+    const active = filterSearchFeatures(features.active_feature_ids ?? Array.from({ length: F }, (_, i) => i), cfg.search_feature_ids)
     if (!active.length) throw new Error("训练段没有可用特征")
     const sampling = cfg.crypto_profile ? [...active, ...active.filter((i) => i >= 45)] : active
     const rng = new Rng((cfg.seed ?? 42) + req.startGeneration, sampling)

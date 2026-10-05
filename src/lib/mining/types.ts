@@ -34,6 +34,8 @@ export interface MiningConfig {
   seed?: number
   cost?: number | null
   seed_tokens?: number[][]
+  /** Explicit feature search pool. Omitted for frozen legacy tasks. */
+  search_feature_ids?: number[]
   /** 跨品种验证伙伴 bars:[[品种代码, bars], ...](JS 预加载注入;
    *  严格筛要求 ≥⌈K/2⌉ 个伙伴 sortino>0,与内核 SearchConfig.cross_peers 同构) */
   cross_peers?: Array<[string, Array<Record<string, unknown>>]>

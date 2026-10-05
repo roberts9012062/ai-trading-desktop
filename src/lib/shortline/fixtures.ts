@@ -135,10 +135,11 @@ export function buildFixtureBundle(
   symbol: string,
   cases: GoldenCase[],
   formulas: ReadonlyArray<readonly number[]>,
+  evalVersion: string = SHORTLINE_EVAL_VERSION,
 ): FixtureBundle {
   const fixture: GoldenFixture = {
     format: "shortline-golden-fixture/1",
-    eval_version: SHORTLINE_EVAL_VERSION,
+    eval_version: evalVersion,
     forming_bar_spec: FORMING_BAR_SPEC,
     score_mapping: "tanh(causal_v2_z)",
     f64_serialization: "little-endian-bit-pattern-hex",

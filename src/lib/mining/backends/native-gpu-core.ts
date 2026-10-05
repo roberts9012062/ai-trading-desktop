@@ -1,4 +1,5 @@
 import type { Champion } from "@/lib/factor-lab-api"
+import { filterSearchFeatures } from "@/lib/shortline/search-profile"
 import { maxResearchBars } from "@/lib/device-profile"
 import { packNativeBars, type NativeBar } from "@/lib/native-engine/bars"
 import { NativeEngineError, type NativeEngineClient } from "@/lib/native-engine/ipc"
@@ -80,7 +81,8 @@ export async function* runNativeGpuSession(
     const features = await client.mineFeatures(session, cfg)
     if (features.features_source !== "gpu-taichi") throw new NativeEngineError("原生特征未在 GPU 上生成", "INVALID_FEATURES")
     if (signal.aborted) return champions
-    const F = features.feature_names.length, active = features.active_feature_ids
+    const F = features.feature_names.length
+    const active = filterSearchFeatures(features.active_feature_ids, cfg.search_feature_ids)
     if (!active.length) throw new Error("训练段没有可用特征")
     const sampling = cfg.crypto_profile ? [...active, ...active.filter(id => id >= 45)] : active
     const rng = new Rng((cfg.seed ?? 42) + req.startGeneration, sampling)

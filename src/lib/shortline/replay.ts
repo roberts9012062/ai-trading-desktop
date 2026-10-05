@@ -19,9 +19,14 @@ export interface ReplayOptions {
   champions: readonly ChampionFormula[]
   /** 组合权重（Σ=1；缺省等权） */
   weights?: readonly number[]
+  initialClosedBars?: readonly ShortlineBar[]
+  minWarmupBars?: number
+  onProgress?: (t: number) => void
 }
 
 export interface ReplayStep {
+  price?: number
+  priceTs?: number | null
   /** 采样时刻（毫秒，cadence 网格） */
   t: number
   /** 各冠军 score（tanh）；null=该冠军无效 */
@@ -146,15 +151,18 @@ export function replayScores(
   const steps: ReplayStep[] = []
   const cadenceMs = opts.cadence * 1000
   // 网格从首个"完整 bar 之后"的 cadence 点开始（保证至少 1 根 closed bar）
-  const firstGrid = Math.max(firstBarStart + span, Math.ceil((firstTsMs + cadenceMs) / cadenceMs) * cadenceMs)
-  let prevClose = NaN
-  const closedBars: ShortlineBar[] = []
+  const firstGrid = Math.max(opts.initialClosedBars?.length ? firstBarStart : firstBarStart + span, Math.ceil((firstTsMs + cadenceMs) / cadenceMs) * cadenceMs)
+  let prevClose = opts.initialClosedBars?.at(-1)?.close ?? NaN
+  const closedBars: ShortlineBar[] = [...(opts.initialClosedBars ?? [])]
+  let closedCursor = 0
+  const rangeMap = new Map(barRanges.map((r) => [r.start, r]))
 
   for (let t = firstGrid; t <= lastTsMs; t += cadenceMs) {
+    if ((t - firstGrid) % (cadenceMs * 200) === 0) opts.onProgress?.(t)
     const curBarStart = barStartMs(t, spanSec)
     // 收割已 closed 的 bar
-    for (const range of barRanges) {
-      if (range.start >= curBarStart) break
+    while (closedCursor < barRanges.length && barRanges[closedCursor]!.start < curBarStart) {
+      const range = barRanges[closedCursor++]!
       if (closedBars.length && closedBars[closedBars.length - 1]!.timeMs >= range.start) continue
       const bar = buildFormingBar(buckets, range.from, range.to, range.start, range.start + span,
         { barSpanSeconds: spanSec, normalizeVolume: true }, prevClose, computeOrderflowRaw)
@@ -162,13 +170,15 @@ export function replayScores(
       closedBars.push(bar)
     }
     // forming bar at t
-    const range = barRanges.find((r) => r.start === curBarStart)
+    const range = rangeMap.get(curBarStart)
+    let priceTs: number | null = null
     let forming: ShortlineBar
     if (range) {
       // 严格因果：秒桶 s 在 cut t 可见 ⇔ s+1 ≤ t（桶 [s,s+1) 已完整过去）
       const cutSecExclusive = Math.floor(t / 1000)
       let to = range.from
       while (to < buckets.length && buckets[to]!.ts < cutSecExclusive) to++
+      priceTs = to > 0 ? (buckets[to - 1]!.ts + 1) * 1000 : null
       forming = buildFormingBar(buckets, range.from, to, curBarStart, t,
         { barSpanSeconds: spanSec, normalizeVolume: true }, prevClose, computeOrderflowRaw)
     } else {
@@ -177,10 +187,13 @@ export function replayScores(
       continue
     }
     const windowBars = closedBars.length > maxNeed ? closedBars.slice(closedBars.length - maxNeed) : closedBars
+    if (opts.minWarmupBars && windowBars.length < opts.minWarmupBars) continue
     const { scores } = scoreAtWindow([...windowBars, forming], opts.champions)
     const anyNull = scores.some((s) => s === null)
     steps.push({
       t,
+      price: forming.close,
+      priceTs,
       scores,
       combo: anyNull ? null : comboScore(scores as number[], weights as number[]),
       barStart: curBarStart,

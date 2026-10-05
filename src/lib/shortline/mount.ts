@@ -24,9 +24,25 @@ export interface ShortlineMountInput {
   weights?: readonly number[]
   /** 预热 bars 参照（公式窗口推导用；缺省 300） */
   warmupBars?: number
-  risk?: Partial<typeof RISK_DEFAULTS>
-  decision?: Partial<typeof DECISION_DEFAULTS>
+  risk?: Partial<ShortlineRisk>
+  decision?: Partial<ShortlineDecision>
+  evalVersion?: "shortline-eval-v1" | "shortline-eval-v2"
 }
+
+export interface ShortlineDecision {
+  threshold: number
+  confirm_steps: number
+  stale_multiplier: number
+  max_actions_per_hour: number
+  max_actions_per_bar: number
+  exit_threshold?: number
+  neutral_exit_steps?: number
+  stop_reentry_new_signal?: boolean
+  market_execution?: boolean
+  trailing_start_pct?: number
+  trailing_giveback_pct?: number
+}
+export interface ShortlineRisk { max_notional_usdt: number, daily_loss_limit_usdt: number, mode: "paper" | "live" }
 
 export interface ShortlineTaskPayload {
   task_type: "shortline_factor_v1"
@@ -36,8 +52,8 @@ export interface ShortlineTaskPayload {
   warmup_bars: number
   eval_version: string
   champions: Array<{ id: number, tokens: number[], weight: number }>
-  decision: typeof DECISION_DEFAULTS
-  risk: typeof RISK_DEFAULTS
+  decision: ShortlineDecision
+  risk: ShortlineRisk
   fixture_manifest: string
 }
 
@@ -113,7 +129,7 @@ export function buildShortlinePayload(
     timeframe: input.timeframe,
     cadence_seconds: input.cadence,
     warmup_bars: input.warmupBars ?? requiredWarmupBars(input.champions.map((c) => c.tokens), input.timeframe),
-    eval_version: SHORTLINE_EVAL_VERSION,
+    eval_version: input.evalVersion ?? SHORTLINE_EVAL_VERSION,
     champions: input.champions.map((c, i) => ({
       id: c.id,
       tokens: [...c.tokens],
