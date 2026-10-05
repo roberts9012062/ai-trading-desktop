@@ -1,0 +1,28 @@
+{
+  "BTCUSDT": {
+    "fixture_sha256": "752b74f0d3accfdc86007c320684dc4d517ebb215288e3bdecf6b2d1e76b0112",
+    "original_sha256": "d63ab3f587b9e297451760240b4398118508a37f42d1698e161af0fe2c2dd6ec",
+    "original_synthetic": false,
+    "bars": 850
+  },
+  "ETHUSDT": {
+    "fixture_sha256": "73d6885d861cf038697f34b054e31650f1430e97da794701ae67c21738a2524d",
+    "original_sha256": "e7d83aeb84df73191f9e0a2d5e8a4510b1c34276faeaf7a323244ce18626c029",
+    "original_synthetic": null,
+    "bars": 850
+  },
+  "SOLUSDT": {
+    "fixture_sha256": "fb76974160f6d3afde223539b69aea8dd41faac9412aa5f463e260cf71c63b5f",
+    "original_sha256": "47fb98d3ca6097795774528da8d6028766a26a3741162856da9d94c8bd405af8",
+    "original_synthetic": null,
+    "bars": 850
+  },
+  "revisions": {
+    "desktop": "4ed47b7d178b58afc8a3b49d8cd14a41d3beb485",
+    "server": "e246c6271b50f55404395ced33b9fff3f84d4ad4"
+  },
+  "audit_scripts": {
+    "audit-quant-indicators.py": "49de4fb48eec19c80f13c7869881467ae9718fc6bec3dd78002a4b0515e62382",
+    "audit-strength-tests.mjs": "6d984d5863dd836d0294f4778128d24724bc09e615c919d675e192108fe6b208"
+  }
+}

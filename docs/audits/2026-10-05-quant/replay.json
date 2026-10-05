@@ -1,0 +1,8976 @@
+{
+  "datasets": {
+    "BTCUSDT": {
+      "path": "D:\\pyobj\\AI Trading Desktop\\.local-data\\bench-bars\\BTCUSDT-60m-3600.json",
+      "sha256": "d63ab3f587b9e297451760240b4398118508a37f42d1698e161af0fe2c2dd6ec",
+      "original_count": 3600,
+      "used_count": 850,
+      "start": "2026-08-21T07:00:00+00:00",
+      "end": "2026-09-25T16:00:00+00:00"
+    },
+    "ETHUSDT": {
+      "path": "D:\\pyobj\\AI Trading Desktop\\.local-data\\bench-bars\\ETHUSDT-60m-3600.json",
+      "sha256": "e7d83aeb84df73191f9e0a2d5e8a4510b1c34276faeaf7a323244ce18626c029",
+      "original_count": 3600,
+      "used_count": 850,
+      "start": "2026-08-21T16:00:00+00:00",
+      "end": "2026-09-26T01:00:00+00:00"
+    },
+    "SOLUSDT": {
+      "path": "D:\\pyobj\\AI Trading Desktop\\.local-data\\bench-bars\\SOLUSDT-60m-3600.json",
+      "sha256": "47fb98d3ca6097795774528da8d6028766a26a3741162856da9d94c8bd405af8",
+      "original_count": 3600,
+      "used_count": 850,
+      "start": "2026-08-21T16:00:00+00:00",
+      "end": "2026-09-26T01:00:00+00:00"
+    }
+  },
+  "results": {
+    "synthetic_flat": {
+      "n_breakout": {
+        "0": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        }
+      },
+      "ma_cross": {
+        "0": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        }
+      },
+      "macd_cross": {
+        "0": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        }
+      },
+      "kdj_cross": {
+        "0": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        }
+      },
+      "band_swing": {
+        "0": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 190,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "open_long": 190,
+            "close": 189
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -190.0,
+          "return_pct": -1.9,
+          "trades": 190,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 1.895,
+          "actions": {
+            "open_long": 190,
+            "close": 189
+          },
+          "equity_samples": [
+            [
+              300,
+              9970.0
+            ],
+            [
+              400,
+              9920.0
+            ],
+            [
+              500,
+              9870.0
+            ],
+            [
+              600,
+              9820.0
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -380.0,
+          "return_pct": -3.8,
+          "trades": 190,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 3.79,
+          "actions": {
+            "open_long": 190,
+            "close": 189
+          },
+          "equity_samples": [
+            [
+              300,
+              9940.0
+            ],
+            [
+              400,
+              9840.0
+            ],
+            [
+              500,
+              9740.0
+            ],
+            [
+              600,
+              9640.0
+            ]
+          ]
+        }
+      },
+      "swing_pro": {
+        "0": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        }
+      },
+      "strength_entry": {
+        "0": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        }
+      },
+      "strength_entry_v2": {
+        "0": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        }
+      },
+      "factor": {
+        "0": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        }
+      }
+    },
+    "synthetic_up": {
+      "n_breakout": {
+        "0": {
+          "net_pnl": 326.566197,
+          "return_pct": 3.265662,
+          "trades": 1,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 378,
+            "open_long": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              10039.7742
+            ],
+            [
+              400,
+              10131.8681
+            ],
+            [
+              500,
+              10223.9131
+            ],
+            [
+              600,
+              10315.8992
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 325.402914,
+          "return_pct": 3.254029,
+          "trades": 1,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 378,
+            "open_long": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              10039.2742
+            ],
+            [
+              400,
+              10131.3681
+            ],
+            [
+              500,
+              10223.4131
+            ],
+            [
+              600,
+              10315.3992
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 324.239631,
+          "return_pct": 3.242396,
+          "trades": 1,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 378,
+            "open_long": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              10038.7742
+            ],
+            [
+              400,
+              10130.8681
+            ],
+            [
+              500,
+              10222.9131
+            ],
+            [
+              600,
+              10314.8992
+            ]
+          ]
+        }
+      },
+      "ma_cross": {
+        "0": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        }
+      },
+      "macd_cross": {
+        "0": {
+          "net_pnl": -122.432448,
+          "return_pct": -1.224324,
+          "trades": 12,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 1.224324,
+          "actions": {
+            "hold": 356,
+            "open_short": 12,
+            "close": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              9975.7617
+            ],
+            [
+              400,
+              9940.3549
+            ],
+            [
+              500,
+              9908.4071
+            ],
+            [
+              600,
+              9880.0115
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -134.493664,
+          "return_pct": -1.344937,
+          "trades": 12,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 1.339924,
+          "actions": {
+            "hold": 356,
+            "open_short": 12,
+            "close": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              9973.7496
+            ],
+            [
+              400,
+              9935.325
+            ],
+            [
+              500,
+              9900.3613
+            ],
+            [
+              600,
+              9868.9515
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -146.55488,
+          "return_pct": -1.465549,
+          "trades": 12,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 1.455524,
+          "actions": {
+            "hold": 356,
+            "open_short": 12,
+            "close": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              9971.7375
+            ],
+            [
+              400,
+              9930.2952
+            ],
+            [
+              500,
+              9892.3155
+            ],
+            [
+              600,
+              9857.8915
+            ]
+          ]
+        }
+      },
+      "kdj_cross": {
+        "0": {
+          "net_pnl": -76.089353,
+          "return_pct": -0.760894,
+          "trades": 16,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 0.760894,
+          "actions": {
+            "open_short": 16,
+            "hold": 348,
+            "close": 15
+          },
+          "equity_samples": [
+            [
+              300,
+              9983.0331
+            ],
+            [
+              400,
+              9963.8745
+            ],
+            [
+              500,
+              9946.0263
+            ],
+            [
+              600,
+              9930.3069
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -92.127398,
+          "return_pct": -0.921274,
+          "trades": 16,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 0.916251,
+          "actions": {
+            "open_short": 16,
+            "hold": 348,
+            "close": 15
+          },
+          "equity_samples": [
+            [
+              300,
+              9981.0246
+            ],
+            [
+              400,
+              9958.8565
+            ],
+            [
+              500,
+              9935.9993
+            ],
+            [
+              600,
+              9916.2721
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -108.165442,
+          "return_pct": -1.081654,
+          "trades": 16,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 1.071607,
+          "actions": {
+            "open_short": 16,
+            "hold": 348,
+            "close": 15
+          },
+          "equity_samples": [
+            [
+              300,
+              9979.0161
+            ],
+            [
+              400,
+              9953.8384
+            ],
+            [
+              500,
+              9925.9724
+            ],
+            [
+              600,
+              9902.2373
+            ]
+          ]
+        }
+      },
+      "band_swing": {
+        "0": {
+          "net_pnl": -331.864261,
+          "return_pct": -3.318643,
+          "trades": 1,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 3.318643,
+          "actions": {
+            "hold": 378,
+            "open_short": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              9956.0731
+            ],
+            [
+              400,
+              9863.6114
+            ],
+            [
+              500,
+              9771.1988
+            ],
+            [
+              600,
+              9678.8453
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -333.030193,
+          "return_pct": -3.330302,
+          "trades": 1,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 3.323643,
+          "actions": {
+            "hold": 378,
+            "open_short": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              9955.5731
+            ],
+            [
+              400,
+              9863.1114
+            ],
+            [
+              500,
+              9770.6988
+            ],
+            [
+              600,
+              9678.3453
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -334.196126,
+          "return_pct": -3.341961,
+          "trades": 1,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 3.328643,
+          "actions": {
+            "hold": 378,
+            "open_short": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              9955.0731
+            ],
+            [
+              400,
+              9862.6114
+            ],
+            [
+              500,
+              9770.1988
+            ],
+            [
+              600,
+              9677.8453
+            ]
+          ]
+        }
+      },
+      "swing_pro": {
+        "0": {
+          "net_pnl": -38.484807,
+          "return_pct": -0.384848,
+          "trades": 7,
+          "win_pct": 14.29,
+          "max_drawdown_pct": 0.602283,
+          "actions": {
+            "hold": 371,
+            "open_short": 6,
+            "open_long": 1,
+            "close": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              9976.1252
+            ],
+            [
+              400,
+              9963.6765
+            ],
+            [
+              500,
+              9951.5399
+            ],
+            [
+              600,
+              9963.9592
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -45.528237,
+          "return_pct": -0.455282,
+          "trades": 7,
+          "win_pct": 14.29,
+          "max_drawdown_pct": 0.655243,
+          "actions": {
+            "hold": 371,
+            "open_short": 6,
+            "open_long": 1,
+            "close": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              9974.1132
+            ],
+            [
+              400,
+              9960.6583
+            ],
+            [
+              500,
+              9947.5157
+            ],
+            [
+              600,
+              9957.917
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -52.571667,
+          "return_pct": -0.525717,
+          "trades": 7,
+          "win_pct": 14.29,
+          "max_drawdown_pct": 0.710544,
+          "actions": {
+            "hold": 371,
+            "open_short": 6,
+            "open_long": 1,
+            "close": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              9972.1013
+            ],
+            [
+              400,
+              9957.6402
+            ],
+            [
+              500,
+              9943.4915
+            ],
+            [
+              600,
+              9951.8747
+            ]
+          ]
+        }
+      },
+      "strength_entry": {
+        "0": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        }
+      },
+      "strength_entry_v2": {
+        "0": {
+          "net_pnl": 196.700541,
+          "return_pct": 1.967005,
+          "trades": 87,
+          "win_pct": 16.09,
+          "max_drawdown_pct": 0.03554,
+          "actions": {
+            "open_short": 73,
+            "close": 87,
+            "open_long": 14,
+            "hold": 205
+          },
+          "equity_samples": [
+            [
+              300,
+              10028.7788
+            ],
+            [
+              400,
+              10090.8532
+            ],
+            [
+              500,
+              10147.0242
+            ],
+            [
+              600,
+              10192.8661
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 109.575077,
+          "return_pct": 1.095751,
+          "trades": 87,
+          "win_pct": 14.94,
+          "max_drawdown_pct": 0.128954,
+          "actions": {
+            "open_short": 73,
+            "close": 87,
+            "open_long": 14,
+            "hold": 205
+          },
+          "equity_samples": [
+            [
+              300,
+              10012.2639
+            ],
+            [
+              400,
+              10054.3008
+            ],
+            [
+              500,
+              10089.4385
+            ],
+            [
+              600,
+              10111.2508
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 22.449613,
+          "return_pct": 0.224496,
+          "trades": 87,
+          "win_pct": 14.94,
+          "max_drawdown_pct": 0.284095,
+          "actions": {
+            "open_short": 73,
+            "close": 87,
+            "open_long": 14,
+            "hold": 205
+          },
+          "equity_samples": [
+            [
+              300,
+              9995.7491
+            ],
+            [
+              400,
+              10017.7483
+            ],
+            [
+              500,
+              10031.8529
+            ],
+            [
+              600,
+              10029.6355
+            ]
+          ]
+        }
+      },
+      "factor": {
+        "0": {
+          "net_pnl": -108.439797,
+          "return_pct": -1.084398,
+          "trades": 23,
+          "win_pct": 52.17,
+          "max_drawdown_pct": 1.21504,
+          "actions": {
+            "hold": 334,
+            "open_long": 12,
+            "close": 22,
+            "open_short": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              9987.959
+            ],
+            [
+              400,
+              9958.5412
+            ],
+            [
+              500,
+              9925.2504
+            ],
+            [
+              600,
+              9891.994
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -131.577776,
+          "return_pct": -1.315778,
+          "trades": 23,
+          "win_pct": 52.17,
+          "max_drawdown_pct": 1.432277,
+          "actions": {
+            "hold": 334,
+            "open_long": 12,
+            "close": 22,
+            "open_short": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              9984.4401
+            ],
+            [
+              400,
+              9948.9838
+            ],
+            [
+              500,
+              9909.6563
+            ],
+            [
+              600,
+              9870.3662
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -154.715755,
+          "return_pct": -1.547158,
+          "trades": 23,
+          "win_pct": 52.17,
+          "max_drawdown_pct": 1.653521,
+          "actions": {
+            "hold": 334,
+            "open_long": 12,
+            "close": 22,
+            "open_short": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              9980.9213
+            ],
+            [
+              400,
+              9939.4265
+            ],
+            [
+              500,
+              9894.0622
+            ],
+            [
+              600,
+              9848.7385
+            ]
+          ]
+        }
+      }
+    },
+    "synthetic_down": {
+      "n_breakout": {
+        "0": {
+          "net_pnl": 261.106199,
+          "return_pct": 2.611062,
+          "trades": 1,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 378,
+            "open_short": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              10014.267
+            ],
+            [
+              400,
+              10089.4738
+            ],
+            [
+              500,
+              10164.729
+            ],
+            [
+              600,
+              10240.0427
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 260.236752,
+          "return_pct": 2.602368,
+          "trades": 1,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 378,
+            "open_short": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              10013.767
+            ],
+            [
+              400,
+              10088.9738
+            ],
+            [
+              500,
+              10164.229
+            ],
+            [
+              600,
+              10239.5427
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 259.367306,
+          "return_pct": 2.593673,
+          "trades": 1,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 378,
+            "open_short": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              10013.267
+            ],
+            [
+              400,
+              10088.4738
+            ],
+            [
+              500,
+              10163.729
+            ],
+            [
+              600,
+              10239.0427
+            ]
+          ]
+        }
+      },
+      "ma_cross": {
+        "0": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        }
+      },
+      "macd_cross": {
+        "0": {
+          "net_pnl": 205.571746,
+          "return_pct": 2.055717,
+          "trades": 12,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 356,
+            "open_short": 12,
+            "close": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              10030.3625
+            ],
+            [
+              400,
+              10079.7874
+            ],
+            [
+              500,
+              10134.3776
+            ],
+            [
+              600,
+              10189.8779
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 193.674531,
+          "return_pct": 1.936745,
+          "trades": 12,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.004918,
+          "actions": {
+            "hold": 356,
+            "open_short": 12,
+            "close": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              10028.3776
+            ],
+            [
+              400,
+              10074.8273
+            ],
+            [
+              500,
+              10126.4448
+            ],
+            [
+              600,
+              10178.9728
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 181.777317,
+          "return_pct": 1.817773,
+          "trades": 12,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.009837,
+          "actions": {
+            "hold": 356,
+            "open_short": 12,
+            "close": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              10026.3928
+            ],
+            [
+              400,
+              10069.8672
+            ],
+            [
+              500,
+              10118.512
+            ],
+            [
+              600,
+              10168.0678
+            ]
+          ]
+        }
+      },
+      "kdj_cross": {
+        "0": {
+          "net_pnl": -59.93794,
+          "return_pct": -0.599379,
+          "trades": 17,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 0.599379,
+          "actions": {
+            "hold": 346,
+            "open_long": 17,
+            "close": 16
+          },
+          "equity_samples": [
+            [
+              300,
+              9990.6799
+            ],
+            [
+              400,
+              9978.315
+            ],
+            [
+              500,
+              9962.0765
+            ],
+            [
+              600,
+              9943.3056
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -76.907972,
+          "return_pct": -0.76908,
+          "trades": 17,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 0.764086,
+          "actions": {
+            "hold": 346,
+            "open_long": 17,
+            "close": 16
+          },
+          "equity_samples": [
+            [
+              300,
+              9987.1831
+            ],
+            [
+              400,
+              9970.8246
+            ],
+            [
+              500,
+              9951.5942
+            ],
+            [
+              600,
+              9927.8333
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -93.878003,
+          "return_pct": -0.93878,
+          "trades": 17,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 0.928793,
+          "actions": {
+            "hold": 346,
+            "open_long": 17,
+            "close": 16
+          },
+          "equity_samples": [
+            [
+              300,
+              9983.6863
+            ],
+            [
+              400,
+              9963.3341
+            ],
+            [
+              500,
+              9941.112
+            ],
+            [
+              600,
+              9912.3609
+            ]
+          ]
+        }
+      },
+      "band_swing": {
+        "0": {
+          "net_pnl": -284.311331,
+          "return_pct": -2.843113,
+          "trades": 1,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 2.843113,
+          "actions": {
+            "hold": 378,
+            "open_long": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              9954.7758
+            ],
+            [
+              400,
+              9881.9309
+            ],
+            [
+              500,
+              9809.0391
+            ],
+            [
+              600,
+              9736.0907
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -285.169175,
+          "return_pct": -2.851692,
+          "trades": 1,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 2.848113,
+          "actions": {
+            "hold": 378,
+            "open_long": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              9954.2758
+            ],
+            [
+              400,
+              9881.4309
+            ],
+            [
+              500,
+              9808.5391
+            ],
+            [
+              600,
+              9735.5907
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -286.02702,
+          "return_pct": -2.86027,
+          "trades": 1,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 2.853113,
+          "actions": {
+            "hold": 378,
+            "open_long": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              9953.7758
+            ],
+            [
+              400,
+              9880.9309
+            ],
+            [
+              500,
+              9808.0391
+            ],
+            [
+              600,
+              9735.0907
+            ]
+          ]
+        }
+      },
+      "swing_pro": {
+        "0": {
+          "net_pnl": -64.122325,
+          "return_pct": -0.641223,
+          "trades": 8,
+          "win_pct": 12.5,
+          "max_drawdown_pct": 0.899478,
+          "actions": {
+            "hold": 371,
+            "open_long": 7,
+            "open_short": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              9986.1848
+            ],
+            [
+              500,
+              9948.5245
+            ],
+            [
+              600,
+              9910.0522
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -72.064438,
+          "return_pct": -0.720644,
+          "trades": 8,
+          "win_pct": 12.5,
+          "max_drawdown_pct": 0.969029,
+          "actions": {
+            "hold": 371,
+            "open_long": 7,
+            "open_short": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              9984.6915
+            ],
+            [
+              500,
+              9944.5502
+            ],
+            [
+              600,
+              9903.0971
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -80.006551,
+          "return_pct": -0.800066,
+          "trades": 8,
+          "win_pct": 12.5,
+          "max_drawdown_pct": 1.038628,
+          "actions": {
+            "hold": 371,
+            "open_long": 7,
+            "open_short": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              9983.1981
+            ],
+            [
+              500,
+              9940.576
+            ],
+            [
+              600,
+              9896.1421
+            ]
+          ]
+        }
+      },
+      "strength_entry": {
+        "0": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        }
+      },
+      "strength_entry_v2": {
+        "0": {
+          "net_pnl": 259.084132,
+          "return_pct": 2.590841,
+          "trades": 67,
+          "win_pct": 22.39,
+          "max_drawdown_pct": 0.030289,
+          "actions": {
+            "open_short": 15,
+            "hold": 245,
+            "close": 67,
+            "open_long": 52
+          },
+          "equity_samples": [
+            [
+              300,
+              10041.6302
+            ],
+            [
+              400,
+              10104.6969
+            ],
+            [
+              500,
+              10168.3886
+            ],
+            [
+              600,
+              10236.652
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 192.229137,
+          "return_pct": 1.922291,
+          "trades": 67,
+          "win_pct": 19.4,
+          "max_drawdown_pct": 0.114401,
+          "actions": {
+            "open_short": 15,
+            "hold": 245,
+            "close": 67,
+            "open_long": 52
+          },
+          "equity_samples": [
+            [
+              300,
+              10034.6524
+            ],
+            [
+              400,
+              10081.7529
+            ],
+            [
+              500,
+              10123.4822
+            ],
+            [
+              600,
+              10170.7857
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 125.374142,
+          "return_pct": 1.253741,
+          "trades": 67,
+          "win_pct": 17.91,
+          "max_drawdown_pct": 0.198955,
+          "actions": {
+            "open_short": 15,
+            "hold": 245,
+            "close": 67,
+            "open_long": 52
+          },
+          "equity_samples": [
+            [
+              300,
+              10027.6746
+            ],
+            [
+              400,
+              10058.8089
+            ],
+            [
+              500,
+              10078.5757
+            ],
+            [
+              600,
+              10104.9195
+            ]
+          ]
+        }
+      },
+      "factor": {
+        "0": {
+          "net_pnl": -185.674542,
+          "return_pct": -1.856745,
+          "trades": 23,
+          "win_pct": 47.83,
+          "max_drawdown_pct": 1.856745,
+          "actions": {
+            "hold": 334,
+            "open_long": 12,
+            "close": 22,
+            "open_short": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              9970.933
+            ],
+            [
+              400,
+              9932.5787
+            ],
+            [
+              500,
+              9886.6885
+            ],
+            [
+              600,
+              9833.7853
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -208.520651,
+          "return_pct": -2.085207,
+          "trades": 23,
+          "win_pct": 47.83,
+          "max_drawdown_pct": 2.080318,
+          "actions": {
+            "hold": 334,
+            "open_long": 12,
+            "close": 22,
+            "open_short": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              9967.4537
+            ],
+            [
+              400,
+              9923.1353
+            ],
+            [
+              500,
+              9871.285
+            ],
+            [
+              600,
+              9812.4256
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -231.366761,
+          "return_pct": -2.313668,
+          "trades": 23,
+          "win_pct": 47.83,
+          "max_drawdown_pct": 2.303891,
+          "actions": {
+            "hold": 334,
+            "open_long": 12,
+            "close": 22,
+            "open_short": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              9963.9743
+            ],
+            [
+              400,
+              9913.6919
+            ],
+            [
+              500,
+              9855.8815
+            ],
+            [
+              600,
+              9791.0659
+            ]
+          ]
+        }
+      }
+    },
+    "synthetic_range": {
+      "n_breakout": {
+        "0": {
+          "net_pnl": 120.931383,
+          "return_pct": 1.209314,
+          "trades": 16,
+          "win_pct": 62.5,
+          "max_drawdown_pct": 0.78656,
+          "actions": {
+            "hold": 348,
+            "open_long": 8,
+            "close": 15,
+            "open_short": 8
+          },
+          "equity_samples": [
+            [
+              300,
+              10071.7125
+            ],
+            [
+              400,
+              10082.8027
+            ],
+            [
+              500,
+              10106.4095
+            ],
+            [
+              600,
+              10111.116
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 104.95107,
+          "return_pct": 1.049511,
+          "trades": 16,
+          "win_pct": 62.5,
+          "max_drawdown_pct": 0.810429,
+          "actions": {
+            "hold": 348,
+            "open_long": 8,
+            "close": 15,
+            "open_short": 8
+          },
+          "equity_samples": [
+            [
+              300,
+              10069.2079
+            ],
+            [
+              400,
+              10076.293
+            ],
+            [
+              500,
+              10095.9018
+            ],
+            [
+              600,
+              10096.6093
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 88.970757,
+          "return_pct": 0.889708,
+          "trades": 16,
+          "win_pct": 62.5,
+          "max_drawdown_pct": 0.835626,
+          "actions": {
+            "hold": 348,
+            "open_long": 8,
+            "close": 15,
+            "open_short": 8
+          },
+          "equity_samples": [
+            [
+              300,
+              10066.7033
+            ],
+            [
+              400,
+              10069.7832
+            ],
+            [
+              500,
+              10085.3941
+            ],
+            [
+              600,
+              10082.1026
+            ]
+          ]
+        }
+      },
+      "ma_cross": {
+        "0": {
+          "net_pnl": 494.149609,
+          "return_pct": 4.941496,
+          "trades": 8,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.501275,
+          "actions": {
+            "hold": 364,
+            "open_short": 8,
+            "close": 7
+          },
+          "equity_samples": [
+            [
+              300,
+              10055.5596
+            ],
+            [
+              400,
+              10165.0294
+            ],
+            [
+              500,
+              10290.0085
+            ],
+            [
+              600,
+              10406.6057
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 486.396684,
+          "return_pct": 4.863967,
+          "trades": 8,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.506165,
+          "actions": {
+            "hold": 364,
+            "open_short": 8,
+            "close": 7
+          },
+          "equity_samples": [
+            [
+              300,
+              10054.5874
+            ],
+            [
+              400,
+              10162.1119
+            ],
+            [
+              500,
+              10285.1535
+            ],
+            [
+              600,
+              10399.809
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 478.643759,
+          "return_pct": 4.786438,
+          "trades": 8,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.511061,
+          "actions": {
+            "hold": 364,
+            "open_short": 8,
+            "close": 7
+          },
+          "equity_samples": [
+            [
+              300,
+              10053.6151
+            ],
+            [
+              400,
+              10159.1944
+            ],
+            [
+              500,
+              10280.2985
+            ],
+            [
+              600,
+              10393.0123
+            ]
+          ]
+        }
+      },
+      "macd_cross": {
+        "0": {
+          "net_pnl": 824.810185,
+          "return_pct": 8.248102,
+          "trades": 8,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.3089,
+          "actions": {
+            "hold": 364,
+            "open_short": 8,
+            "close": 7
+          },
+          "equity_samples": [
+            [
+              300,
+              10106.6431
+            ],
+            [
+              400,
+              10317.5589
+            ],
+            [
+              500,
+              10513.7876
+            ],
+            [
+              600,
+              10727.757
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 817.22259,
+          "return_pct": 8.172226,
+          "trades": 8,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.313346,
+          "actions": {
+            "hold": 364,
+            "open_short": 8,
+            "close": 7
+          },
+          "equity_samples": [
+            [
+              300,
+              10105.6964
+            ],
+            [
+              400,
+              10314.7177
+            ],
+            [
+              500,
+              10509.0445
+            ],
+            [
+              600,
+              10720.6136
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 809.634995,
+          "return_pct": 8.09635,
+          "trades": 8,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.317795,
+          "actions": {
+            "hold": 364,
+            "open_short": 8,
+            "close": 7
+          },
+          "equity_samples": [
+            [
+              300,
+              10104.7497
+            ],
+            [
+              400,
+              10311.8764
+            ],
+            [
+              500,
+              10504.3014
+            ],
+            [
+              600,
+              10713.4703
+            ]
+          ]
+        }
+      },
+      "kdj_cross": {
+        "0": {
+          "net_pnl": 1021.123975,
+          "return_pct": 10.21124,
+          "trades": 10,
+          "win_pct": 90.0,
+          "max_drawdown_pct": 0.191036,
+          "actions": {
+            "hold": 359,
+            "open_short": 10,
+            "close": 10
+          },
+          "equity_samples": [
+            [
+              300,
+              10126.462
+            ],
+            [
+              400,
+              10386.2429
+            ],
+            [
+              500,
+              10637.7288
+            ],
+            [
+              600,
+              10909.1699
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 1011.634537,
+          "return_pct": 10.116345,
+          "trades": 10,
+          "win_pct": 90.0,
+          "max_drawdown_pct": 0.200593,
+          "actions": {
+            "hold": 359,
+            "open_short": 10,
+            "close": 10
+          },
+          "equity_samples": [
+            [
+              300,
+              10125.5253
+            ],
+            [
+              400,
+              10382.9307
+            ],
+            [
+              500,
+              10631.5381
+            ],
+            [
+              600,
+              10900.1127
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 1002.145099,
+          "return_pct": 10.021451,
+          "trades": 10,
+          "win_pct": 90.0,
+          "max_drawdown_pct": 0.210158,
+          "actions": {
+            "hold": 359,
+            "open_short": 10,
+            "close": 10
+          },
+          "equity_samples": [
+            [
+              300,
+              10124.5885
+            ],
+            [
+              400,
+              10379.6185
+            ],
+            [
+              500,
+              10625.3474
+            ],
+            [
+              600,
+              10891.0556
+            ]
+          ]
+        }
+      },
+      "band_swing": {
+        "0": {
+          "net_pnl": -816.882193,
+          "return_pct": -8.168822,
+          "trades": 16,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 8.371675,
+          "actions": {
+            "hold": 348,
+            "open_short": 8,
+            "close": 15,
+            "open_long": 8
+          },
+          "equity_samples": [
+            [
+              300,
+              9825.2071
+            ],
+            [
+              400,
+              9632.8102
+            ],
+            [
+              500,
+              9439.176
+            ],
+            [
+              600,
+              9257.8074
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -832.870923,
+          "return_pct": -8.328709,
+          "trades": 16,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 8.526936,
+          "actions": {
+            "hold": 348,
+            "open_short": 8,
+            "close": 15,
+            "open_long": 8
+          },
+          "equity_samples": [
+            [
+              300,
+              9822.7236
+            ],
+            [
+              400,
+              9626.3242
+            ],
+            [
+              500,
+              9428.6894
+            ],
+            [
+              600,
+              9243.3128
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -848.859653,
+          "return_pct": -8.488597,
+          "trades": 16,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 8.682196,
+          "actions": {
+            "hold": 348,
+            "open_short": 8,
+            "close": 15,
+            "open_long": 8
+          },
+          "equity_samples": [
+            [
+              300,
+              9820.2401
+            ],
+            [
+              400,
+              9619.8382
+            ],
+            [
+              500,
+              9418.2027
+            ],
+            [
+              600,
+              9228.8182
+            ]
+          ]
+        }
+      },
+      "swing_pro": {
+        "0": {
+          "net_pnl": 895.707658,
+          "return_pct": 8.957077,
+          "trades": 12,
+          "win_pct": 75.0,
+          "max_drawdown_pct": 0.267436,
+          "actions": {
+            "hold": 359,
+            "open_short": 6,
+            "close": 8,
+            "open_long": 6
+          },
+          "equity_samples": [
+            [
+              300,
+              10112.7515
+            ],
+            [
+              400,
+              10326.6558
+            ],
+            [
+              500,
+              10655.295
+            ],
+            [
+              600,
+              10887.3883
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 883.807059,
+          "return_pct": 8.838071,
+          "trades": 12,
+          "win_pct": 75.0,
+          "max_drawdown_pct": 0.277505,
+          "actions": {
+            "hold": 359,
+            "open_short": 6,
+            "close": 8,
+            "open_long": 6
+          },
+          "equity_samples": [
+            [
+              300,
+              10111.8079
+            ],
+            [
+              400,
+              10322.8191
+            ],
+            [
+              500,
+              10648.5146
+            ],
+            [
+              600,
+              10876.4918
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 871.90646,
+          "return_pct": 8.719065,
+          "trades": 12,
+          "win_pct": 75.0,
+          "max_drawdown_pct": 0.287589,
+          "actions": {
+            "hold": 359,
+            "open_short": 6,
+            "close": 8,
+            "open_long": 6
+          },
+          "equity_samples": [
+            [
+              300,
+              10110.8642
+            ],
+            [
+              400,
+              10318.9824
+            ],
+            [
+              500,
+              10641.7342
+            ],
+            [
+              600,
+              10865.5954
+            ]
+          ]
+        }
+      },
+      "strength_entry": {
+        "0": {
+          "net_pnl": 620.924362,
+          "return_pct": 6.209244,
+          "trades": 35,
+          "win_pct": 68.57,
+          "max_drawdown_pct": 0.490764,
+          "actions": {
+            "hold": 310,
+            "open_long": 35,
+            "close": 34
+          },
+          "equity_samples": [
+            [
+              300,
+              10132.7953
+            ],
+            [
+              400,
+              10291.6946
+            ],
+            [
+              500,
+              10444.8848
+            ],
+            [
+              600,
+              10611.4513
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 585.613899,
+          "return_pct": 5.856139,
+          "trades": 35,
+          "win_pct": 62.86,
+          "max_drawdown_pct": 0.525588,
+          "actions": {
+            "hold": 310,
+            "open_long": 35,
+            "close": 34
+          },
+          "equity_samples": [
+            [
+              300,
+              10130.291
+            ],
+            [
+              400,
+              10281.1003
+            ],
+            [
+              500,
+              10423.211
+            ],
+            [
+              600,
+              10579.6836
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 550.303437,
+          "return_pct": 5.503034,
+          "trades": 35,
+          "win_pct": 60.0,
+          "max_drawdown_pct": 0.560484,
+          "actions": {
+            "hold": 310,
+            "open_long": 35,
+            "close": 34
+          },
+          "equity_samples": [
+            [
+              300,
+              10127.7866
+            ],
+            [
+              400,
+              10270.506
+            ],
+            [
+              500,
+              10401.5371
+            ],
+            [
+              600,
+              10547.916
+            ]
+          ]
+        }
+      },
+      "strength_entry_v2": {
+        "0": {
+          "net_pnl": 1824.087871,
+          "return_pct": 18.240879,
+          "trades": 72,
+          "win_pct": 83.33,
+          "max_drawdown_pct": 0.11408,
+          "actions": {
+            "open_long": 35,
+            "hold": 235,
+            "close": 72,
+            "open_short": 37
+          },
+          "equity_samples": [
+            [
+              300,
+              10311.7671
+            ],
+            [
+              400,
+              10784.7001
+            ],
+            [
+              500,
+              11239.4411
+            ],
+            [
+              600,
+              11722.0485
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 1752.080529,
+          "return_pct": 17.520805,
+          "trades": 72,
+          "win_pct": 79.17,
+          "max_drawdown_pct": 0.146772,
+          "actions": {
+            "open_long": 35,
+            "hold": 235,
+            "close": 72,
+            "open_short": 37
+          },
+          "equity_samples": [
+            [
+              300,
+              10300.2746
+            ],
+            [
+              400,
+              10755.1593
+            ],
+            [
+              500,
+              11189.9036
+            ],
+            [
+              600,
+              11651.998
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 1680.073186,
+          "return_pct": 16.800732,
+          "trades": 72,
+          "win_pct": 68.06,
+          "max_drawdown_pct": 0.179682,
+          "actions": {
+            "open_long": 35,
+            "hold": 235,
+            "close": 72,
+            "open_short": 37
+          },
+          "equity_samples": [
+            [
+              300,
+              10288.7821
+            ],
+            [
+              400,
+              10725.6186
+            ],
+            [
+              500,
+              11140.366
+            ],
+            [
+              600,
+              11581.9475
+            ]
+          ]
+        }
+      },
+      "factor": {
+        "0": {
+          "net_pnl": -2074.844731,
+          "return_pct": -20.748447,
+          "trades": 25,
+          "win_pct": 12.0,
+          "max_drawdown_pct": 20.748447,
+          "actions": {
+            "open_short": 14,
+            "hold": 330,
+            "close": 24,
+            "open_long": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              9651.2269
+            ],
+            [
+              400,
+              9113.1418
+            ],
+            [
+              500,
+              8556.4638
+            ],
+            [
+              600,
+              8045.3856
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -2099.889982,
+          "return_pct": -20.9989,
+          "trades": 25,
+          "win_pct": 8.0,
+          "max_drawdown_pct": 20.993858,
+          "actions": {
+            "open_short": 14,
+            "hold": 330,
+            "close": 24,
+            "open_long": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              9647.745
+            ],
+            [
+              400,
+              9102.0702
+            ],
+            [
+              500,
+              8540.871
+            ],
+            [
+              600,
+              8021.7842
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -2124.935232,
+          "return_pct": -21.249352,
+          "trades": 25,
+          "win_pct": 8.0,
+          "max_drawdown_pct": 21.239269,
+          "actions": {
+            "open_short": 14,
+            "hold": 330,
+            "close": 24,
+            "open_long": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              9644.263
+            ],
+            [
+              400,
+              9090.9986
+            ],
+            [
+              500,
+              8525.2781
+            ],
+            [
+              600,
+              7998.1829
+            ]
+          ]
+        }
+      }
+    },
+    "synthetic_whipsaw": {
+      "n_breakout": {
+        "0": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        }
+      },
+      "ma_cross": {
+        "0": {
+          "net_pnl": -1831.6716,
+          "return_pct": -18.316716,
+          "trades": 181,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 18.316716,
+          "actions": {
+            "open_short": 181,
+            "close": 180,
+            "hold": 18
+          },
+          "equity_samples": [
+            [
+              300,
+              9739.7993
+            ],
+            [
+              400,
+              9300.0121
+            ],
+            [
+              500,
+              8774.8475
+            ],
+            [
+              600,
+              8274.8846
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -2013.587435,
+          "return_pct": -20.135874,
+          "trades": 181,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 20.130813,
+          "actions": {
+            "open_short": 181,
+            "close": 180,
+            "hold": 18
+          },
+          "equity_samples": [
+            [
+              300,
+              9711.6692
+            ],
+            [
+              400,
+              9227.1629
+            ],
+            [
+              500,
+              8652.2349
+            ],
+            [
+              600,
+              8103.022
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -2195.503271,
+          "return_pct": -21.955033,
+          "trades": 181,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 21.944909,
+          "actions": {
+            "open_short": 181,
+            "close": 180,
+            "hold": 18
+          },
+          "equity_samples": [
+            [
+              300,
+              9683.5391
+            ],
+            [
+              400,
+              9154.3138
+            ],
+            [
+              500,
+              8529.6224
+            ],
+            [
+              600,
+              7931.1595
+            ]
+          ]
+        }
+      },
+      "macd_cross": {
+        "0": {
+          "net_pnl": -1833.659296,
+          "return_pct": -18.336593,
+          "trades": 181,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 18.336593,
+          "actions": {
+            "open_short": 181,
+            "close": 180,
+            "hold": 18
+          },
+          "equity_samples": [
+            [
+              300,
+              9731.2149
+            ],
+            [
+              400,
+              9271.707
+            ],
+            [
+              500,
+              8770.8831
+            ],
+            [
+              600,
+              8272.8983
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -2015.576126,
+          "return_pct": -20.155761,
+          "trades": 181,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 20.1507,
+          "actions": {
+            "open_short": 181,
+            "close": 180,
+            "hold": 18
+          },
+          "equity_samples": [
+            [
+              300,
+              9702.0806
+            ],
+            [
+              400,
+              9196.3429
+            ],
+            [
+              500,
+              8648.2685
+            ],
+            [
+              600,
+              8100.5348
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -2197.492955,
+          "return_pct": -21.97493,
+          "trades": 181,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 21.964806,
+          "actions": {
+            "open_short": 181,
+            "close": 180,
+            "hold": 18
+          },
+          "equity_samples": [
+            [
+              300,
+              9672.9462
+            ],
+            [
+              400,
+              9120.9787
+            ],
+            [
+              500,
+              8525.654
+            ],
+            [
+              600,
+              7928.1713
+            ]
+          ]
+        }
+      },
+      "kdj_cross": {
+        "0": {
+          "net_pnl": -1909.745322,
+          "return_pct": -19.097453,
+          "trades": 190,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 19.097453,
+          "actions": {
+            "open_short": 190,
+            "close": 189
+          },
+          "equity_samples": [
+            [
+              300,
+              9721.7872
+            ],
+            [
+              400,
+              9229.0344
+            ],
+            [
+              500,
+              8703.8851
+            ],
+            [
+              600,
+              8196.8109
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -2100.700195,
+          "return_pct": -21.007002,
+          "trades": 190,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 21.00194,
+          "actions": {
+            "open_short": 190,
+            "close": 189
+          },
+          "equity_samples": [
+            [
+              300,
+              9691.6481
+            ],
+            [
+              400,
+              9148.6489
+            ],
+            [
+              500,
+              8573.2371
+            ],
+            [
+              600,
+              8015.9093
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -2291.655068,
+          "return_pct": -22.916551,
+          "trades": 190,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 22.906427,
+          "actions": {
+            "open_short": 190,
+            "close": 189
+          },
+          "equity_samples": [
+            [
+              300,
+              9661.509
+            ],
+            [
+              400,
+              9068.2634
+            ],
+            [
+              500,
+              8442.589
+            ],
+            [
+              600,
+              7835.0077
+            ]
+          ]
+        }
+      },
+      "band_swing": {
+        "0": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 0.0,
+          "return_pct": 0.0,
+          "trades": 0,
+          "win_pct": null,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "hold": 379
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              10000.0
+            ],
+            [
+              500,
+              10000.0
+            ],
+            [
+              600,
+              10000.0
+            ]
+          ]
+        }
+      },
+      "swing_pro": {
+        "0": {
+          "net_pnl": -11.788593,
+          "return_pct": -0.117886,
+          "trades": 1,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 0.140326,
+          "actions": {
+            "hold": 378,
+            "open_short": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              9999.9579
+            ],
+            [
+              500,
+              9998.5613
+            ],
+            [
+              600,
+              10000.6287
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -12.794487,
+          "return_pct": -0.127945,
+          "trades": 1,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 0.140333,
+          "actions": {
+            "hold": 378,
+            "open_short": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              9999.4579
+            ],
+            [
+              500,
+              9998.0613
+            ],
+            [
+              600,
+              10000.1287
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -13.800382,
+          "return_pct": -0.138004,
+          "trades": 1,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 0.14034,
+          "actions": {
+            "hold": 378,
+            "open_short": 1
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0
+            ],
+            [
+              400,
+              9998.9579
+            ],
+            [
+              500,
+              9997.5613
+            ],
+            [
+              600,
+              9999.6287
+            ]
+          ]
+        }
+      },
+      "strength_entry": {
+        "0": {
+          "net_pnl": -1800.585283,
+          "return_pct": -18.005853,
+          "trades": 180,
+          "win_pct": 0.56,
+          "max_drawdown_pct": 18.076183,
+          "actions": {
+            "open_long": 180,
+            "hold": 19,
+            "close": 180
+          },
+          "equity_samples": [
+            [
+              300,
+              9745.9808
+            ],
+            [
+              400,
+              9274.6231
+            ],
+            [
+              500,
+              8780.8236
+            ],
+            [
+              600,
+              8292.5595
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -1979.68499,
+          "return_pct": -19.79685,
+          "trades": 180,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 19.86164,
+          "actions": {
+            "open_long": 180,
+            "hold": 19,
+            "close": 180
+          },
+          "equity_samples": [
+            [
+              300,
+              9718.6016
+            ],
+            [
+              400,
+              9199.4809
+            ],
+            [
+              500,
+              8658.9284
+            ],
+            [
+              600,
+              8122.9087
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -2158.784697,
+          "return_pct": -21.587847,
+          "trades": 180,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 21.647276,
+          "actions": {
+            "open_long": 180,
+            "hold": 19,
+            "close": 180
+          },
+          "equity_samples": [
+            [
+              300,
+              9691.2225
+            ],
+            [
+              400,
+              9124.3387
+            ],
+            [
+              500,
+              8537.0331
+            ],
+            [
+              600,
+              7953.2579
+            ]
+          ]
+        }
+      },
+      "strength_entry_v2": {
+        "0": {
+          "net_pnl": -7.214587,
+          "return_pct": -0.072146,
+          "trades": 8,
+          "win_pct": 37.5,
+          "max_drawdown_pct": 0.183913,
+          "actions": {
+            "open_long": 4,
+            "hold": 364,
+            "close": 7,
+            "open_short": 4
+          },
+          "equity_samples": [
+            [
+              300,
+              9996.7324
+            ],
+            [
+              400,
+              10009.2628
+            ],
+            [
+              500,
+              10000.3298
+            ],
+            [
+              600,
+              9994.5907
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -15.215208,
+          "return_pct": -0.152152,
+          "trades": 8,
+          "win_pct": 12.5,
+          "max_drawdown_pct": 0.246906,
+          "actions": {
+            "open_long": 4,
+            "hold": 364,
+            "close": 7,
+            "open_short": 4
+          },
+          "equity_samples": [
+            [
+              300,
+              9996.2324
+            ],
+            [
+              400,
+              10005.7639
+            ],
+            [
+              500,
+              9995.8305
+            ],
+            [
+              600,
+              9988.0894
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -23.215828,
+          "return_pct": -0.232158,
+          "trades": 8,
+          "win_pct": 0.0,
+          "max_drawdown_pct": 0.316853,
+          "actions": {
+            "open_long": 4,
+            "hold": 364,
+            "close": 7,
+            "open_short": 4
+          },
+          "equity_samples": [
+            [
+              300,
+              9995.7324
+            ],
+            [
+              400,
+              10002.265
+            ],
+            [
+              500,
+              9991.3312
+            ],
+            [
+              600,
+              9981.5881
+            ]
+          ]
+        }
+      },
+      "factor": {
+        "0": {
+          "net_pnl": 1909.745322,
+          "return_pct": 19.097453,
+          "trades": 190,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.0,
+          "actions": {
+            "open_long": 190,
+            "close": 189
+          },
+          "equity_samples": [
+            [
+              300,
+              10278.2128
+            ],
+            [
+              400,
+              10770.9656
+            ],
+            [
+              500,
+              11296.1149
+            ],
+            [
+              600,
+              11803.1891
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 1718.79045,
+          "return_pct": 17.187904,
+          "trades": 190,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.005043,
+          "actions": {
+            "open_long": 190,
+            "close": 189
+          },
+          "equity_samples": [
+            [
+              300,
+              10248.0737
+            ],
+            [
+              400,
+              10690.5801
+            ],
+            [
+              500,
+              11165.4668
+            ],
+            [
+              600,
+              11622.2876
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 1527.835577,
+          "return_pct": 15.278356,
+          "trades": 190,
+          "win_pct": 100.0,
+          "max_drawdown_pct": 0.010088,
+          "actions": {
+            "open_long": 190,
+            "close": 189
+          },
+          "equity_samples": [
+            [
+              300,
+              10217.9346
+            ],
+            [
+              400,
+              10610.1946
+            ],
+            [
+              500,
+              11034.8188
+            ],
+            [
+              600,
+              11441.386
+            ]
+          ]
+        }
+      }
+    },
+    "synthetic_jump": {
+      "n_breakout": {
+        "0": {
+          "net_pnl": -590.714428,
+          "return_pct": -5.907144,
+          "trades": 7,
+          "win_pct": 14.29,
+          "max_drawdown_pct": 6.123138,
+          "actions": {
+            "open_short": 7,
+            "hold": 366,
+            "close": 6
+          },
+          "equity_samples": [
+            [
+              300,
+              9897.1149
+            ],
+            [
+              400,
+              9691.6763
+            ],
+            [
+              500,
+              9605.5622
+            ],
+            [
+              600,
+              9393.9942
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -598.009785,
+          "return_pct": -5.980098,
+          "trades": 7,
+          "win_pct": 14.29,
+          "max_drawdown_pct": 6.186462,
+          "actions": {
+            "open_short": 7,
+            "hold": 366,
+            "close": 6
+          },
+          "equity_samples": [
+            [
+              300,
+              9896.0635
+            ],
+            [
+              400,
+              9688.5221
+            ],
+            [
+              500,
+              9600.8576
+            ],
+            [
+              600,
+              9387.6912
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -605.305143,
+          "return_pct": -6.053051,
+          "trades": 7,
+          "win_pct": 14.29,
+          "max_drawdown_pct": 6.249794,
+          "actions": {
+            "open_short": 7,
+            "hold": 366,
+            "close": 6
+          },
+          "equity_samples": [
+            [
+              300,
+              9895.012
+            ],
+            [
+              400,
+              9685.368
+            ],
+            [
+              500,
+              9596.153
+            ],
+            [
+              600,
+              9381.3882
+            ]
+          ]
+        }
+      },
+      "ma_cross": {
+        "0": {
+          "net_pnl": 15.901249,
+          "return_pct": 0.159012,
+          "trades": 10,
+          "win_pct": 50.0,
+          "max_drawdown_pct": 1.056604,
+          "actions": {
+            "hold": 359,
+            "open_long": 10,
+            "close": 10
+          },
+          "equity_samples": [
+            [
+              300,
+              9994.5466
+            ],
+            [
+              400,
+              10075.9823
+            ],
+            [
+              500,
+              10005.5854
+            ],
+            [
+              600,
+              10015.9012
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 5.893298,
+          "return_pct": 0.058933,
+          "trades": 10,
+          "win_pct": 50.0,
+          "max_drawdown_pct": 1.061797,
+          "actions": {
+            "hold": 359,
+            "open_long": 10,
+            "close": 10
+          },
+          "equity_samples": [
+            [
+              300,
+              9992.5494
+            ],
+            [
+              400,
+              10072.4872
+            ],
+            [
+              500,
+              9999.5826
+            ],
+            [
+              600,
+              10006.3504
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -4.114652,
+          "return_pct": -0.041147,
+          "trades": 10,
+          "win_pct": 50.0,
+          "max_drawdown_pct": 1.074119,
+          "actions": {
+            "hold": 359,
+            "open_long": 10,
+            "close": 10
+          },
+          "equity_samples": [
+            [
+              300,
+              9990.5521
+            ],
+            [
+              400,
+              10068.9921
+            ],
+            [
+              500,
+              9993.5798
+            ],
+            [
+              600,
+              9996.7996
+            ]
+          ]
+        }
+      },
+      "macd_cross": {
+        "0": {
+          "net_pnl": 607.13577,
+          "return_pct": 6.071358,
+          "trades": 7,
+          "win_pct": 85.71,
+          "max_drawdown_pct": 0.182791,
+          "actions": {
+            "hold": 366,
+            "open_long": 7,
+            "close": 6
+          },
+          "equity_samples": [
+            [
+              300,
+              10103.0616
+            ],
+            [
+              400,
+              10298.5655
+            ],
+            [
+              500,
+              10402.4455
+            ],
+            [
+              600,
+              10607.907
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 599.832202,
+          "return_pct": 5.998322,
+          "trades": 7,
+          "win_pct": 85.71,
+          "max_drawdown_pct": 0.188125,
+          "actions": {
+            "hold": 366,
+            "open_long": 7,
+            "close": 6
+          },
+          "equity_samples": [
+            [
+              300,
+              10102.01
+            ],
+            [
+              400,
+              10295.9634
+            ],
+            [
+              500,
+              10397.7463
+            ],
+            [
+              600,
+              10601.6031
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 592.528635,
+          "return_pct": 5.925286,
+          "trades": 7,
+          "win_pct": 85.71,
+          "max_drawdown_pct": 0.193463,
+          "actions": {
+            "hold": 366,
+            "open_long": 7,
+            "close": 6
+          },
+          "equity_samples": [
+            [
+              300,
+              10100.9585
+            ],
+            [
+              400,
+              10293.3612
+            ],
+            [
+              500,
+              10393.0471
+            ],
+            [
+              600,
+              10595.2991
+            ]
+          ]
+        }
+      },
+      "kdj_cross": {
+        "0": {
+          "net_pnl": 50.78125,
+          "return_pct": 0.507812,
+          "trades": 19,
+          "win_pct": 47.37,
+          "max_drawdown_pct": 0.990751,
+          "actions": {
+            "hold": 342,
+            "open_long": 19,
+            "close": 18
+          },
+          "equity_samples": [
+            [
+              300,
+              10020.9438
+            ],
+            [
+              400,
+              10051.3263
+            ],
+            [
+              500,
+              9999.6731
+            ],
+            [
+              600,
+              10058.7696
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 31.755859,
+          "return_pct": 0.317559,
+          "trades": 19,
+          "win_pct": 47.37,
+          "max_drawdown_pct": 1.001598,
+          "actions": {
+            "hold": 342,
+            "open_long": 19,
+            "close": 18
+          },
+          "equity_samples": [
+            [
+              300,
+              10017.9333
+            ],
+            [
+              400,
+              10043.3006
+            ],
+            [
+              500,
+              9987.1736
+            ],
+            [
+              600,
+              10043.2009
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 12.730468,
+          "return_pct": 0.127305,
+          "trades": 19,
+          "win_pct": 47.37,
+          "max_drawdown_pct": 1.027074,
+          "actions": {
+            "hold": 342,
+            "open_long": 19,
+            "close": 18
+          },
+          "equity_samples": [
+            [
+              300,
+              10014.9228
+            ],
+            [
+              400,
+              10035.275
+            ],
+            [
+              500,
+              9974.6741
+            ],
+            [
+              600,
+              10027.6322
+            ]
+          ]
+        }
+      },
+      "band_swing": {
+        "0": {
+          "net_pnl": -18.783535,
+          "return_pct": -0.187835,
+          "trades": 16,
+          "win_pct": 43.75,
+          "max_drawdown_pct": 1.364336,
+          "actions": {
+            "open_long": 7,
+            "hold": 348,
+            "close": 15,
+            "open_short": 9
+          },
+          "equity_samples": [
+            [
+              300,
+              10009.1545
+            ],
+            [
+              400,
+              10031.5345
+            ],
+            [
+              500,
+              10089.2738
+            ],
+            [
+              600,
+              9996.5079
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -34.773494,
+          "return_pct": -0.347735,
+          "trades": 16,
+          "win_pct": 43.75,
+          "max_drawdown_pct": 1.453946,
+          "actions": {
+            "open_long": 7,
+            "hold": 348,
+            "close": 15,
+            "open_short": 9
+          },
+          "equity_samples": [
+            [
+              300,
+              10007.1422
+            ],
+            [
+              400,
+              10025.0639
+            ],
+            [
+              500,
+              10078.8046
+            ],
+            [
+              600,
+              9981.5103
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -50.763453,
+          "return_pct": -0.507635,
+          "trades": 16,
+          "win_pct": 37.5,
+          "max_drawdown_pct": 1.548275,
+          "actions": {
+            "open_long": 7,
+            "hold": 348,
+            "close": 15,
+            "open_short": 9
+          },
+          "equity_samples": [
+            [
+              300,
+              10005.1299
+            ],
+            [
+              400,
+              10018.5933
+            ],
+            [
+              500,
+              10068.3354
+            ],
+            [
+              600,
+              9966.5127
+            ]
+          ]
+        }
+      },
+      "swing_pro": {
+        "0": {
+          "net_pnl": 128.398768,
+          "return_pct": 1.283988,
+          "trades": 14,
+          "win_pct": 85.71,
+          "max_drawdown_pct": 0.216872,
+          "actions": {
+            "hold": 353,
+            "open_long": 6,
+            "close": 12,
+            "open_short": 8
+          },
+          "equity_samples": [
+            [
+              300,
+              10030.3789
+            ],
+            [
+              400,
+              10064.7781
+            ],
+            [
+              500,
+              10097.1086
+            ],
+            [
+              600,
+              10145.6688
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 114.404056,
+          "return_pct": 1.144041,
+          "trades": 14,
+          "win_pct": 85.71,
+          "max_drawdown_pct": 0.222015,
+          "actions": {
+            "hold": 353,
+            "open_long": 6,
+            "close": 12,
+            "open_short": 8
+          },
+          "equity_samples": [
+            [
+              300,
+              10028.3637
+            ],
+            [
+              400,
+              10058.2309
+            ],
+            [
+              500,
+              10087.081
+            ],
+            [
+              600,
+              10132.6654
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 100.409343,
+          "return_pct": 1.004093,
+          "trades": 14,
+          "win_pct": 85.71,
+          "max_drawdown_pct": 0.227162,
+          "actions": {
+            "hold": 353,
+            "open_long": 6,
+            "close": 12,
+            "open_short": 8
+          },
+          "equity_samples": [
+            [
+              300,
+              10026.3485
+            ],
+            [
+              400,
+              10051.6838
+            ],
+            [
+              500,
+              10077.0533
+            ],
+            [
+              600,
+              10119.6621
+            ]
+          ]
+        }
+      },
+      "strength_entry": {
+        "0": {
+          "net_pnl": -42.089298,
+          "return_pct": -0.420893,
+          "trades": 26,
+          "win_pct": 61.54,
+          "max_drawdown_pct": 1.039602,
+          "actions": {
+            "hold": 327,
+            "open_long": 26,
+            "close": 26
+          },
+          "equity_samples": [
+            [
+              300,
+              10004.08
+            ],
+            [
+              400,
+              10013.0982
+            ],
+            [
+              500,
+              9941.5725
+            ],
+            [
+              600,
+              9959.838
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -68.068253,
+          "return_pct": -0.680683,
+          "trades": 26,
+          "win_pct": 46.15,
+          "max_drawdown_pct": 1.076822,
+          "actions": {
+            "hold": 327,
+            "open_long": 26,
+            "close": 26
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.0779
+            ],
+            [
+              400,
+              10001.6367
+            ],
+            [
+              500,
+              9923.6017
+            ],
+            [
+              600,
+              9936.3152
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -94.047208,
+          "return_pct": -0.940472,
+          "trades": 26,
+          "win_pct": 19.23,
+          "max_drawdown_pct": 1.114208,
+          "actions": {
+            "hold": 327,
+            "open_long": 26,
+            "close": 26
+          },
+          "equity_samples": [
+            [
+              300,
+              9996.0759
+            ],
+            [
+              400,
+              9990.1752
+            ],
+            [
+              500,
+              9905.6309
+            ],
+            [
+              600,
+              9912.7923
+            ]
+          ]
+        }
+      },
+      "strength_entry_v2": {
+        "0": {
+          "net_pnl": -11.603154,
+          "return_pct": -0.116032,
+          "trades": 77,
+          "win_pct": 74.03,
+          "max_drawdown_pct": 2.506864,
+          "actions": {
+            "open_short": 40,
+            "hold": 226,
+            "close": 76,
+            "open_long": 37
+          },
+          "equity_samples": [
+            [
+              300,
+              9921.1766
+            ],
+            [
+              400,
+              9760.3491
+            ],
+            [
+              500,
+              9903.1402
+            ],
+            [
+              600,
+              9967.1492
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -88.708821,
+          "return_pct": -0.887088,
+          "trades": 77,
+          "win_pct": 63.64,
+          "max_drawdown_pct": 2.795133,
+          "actions": {
+            "open_short": 40,
+            "hold": 226,
+            "close": 76,
+            "open_long": 37
+          },
+          "equity_samples": [
+            [
+              300,
+              9911.1245
+            ],
+            [
+              400,
+              9727.2013
+            ],
+            [
+              500,
+              9850.5372
+            ],
+            [
+              600,
+              9891.4916
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -165.814488,
+          "return_pct": -1.658145,
+          "trades": 77,
+          "win_pct": 19.48,
+          "max_drawdown_pct": 3.151715,
+          "actions": {
+            "open_short": 40,
+            "hold": 226,
+            "close": 76,
+            "open_long": 37
+          },
+          "equity_samples": [
+            [
+              300,
+              9901.0723
+            ],
+            [
+              400,
+              9694.0535
+            ],
+            [
+              500,
+              9797.9341
+            ],
+            [
+              600,
+              9815.8341
+            ]
+          ]
+        }
+      },
+      "factor": {
+        "0": {
+          "net_pnl": 55.507435,
+          "return_pct": 0.555074,
+          "trades": 13,
+          "win_pct": 53.85,
+          "max_drawdown_pct": 0.019657,
+          "actions": {
+            "open_long": 7,
+            "close": 13,
+            "hold": 353,
+            "open_short": 6
+          },
+          "equity_samples": [
+            [
+              300,
+              10001.4205
+            ],
+            [
+              400,
+              10019.2009
+            ],
+            [
+              500,
+              10033.9012
+            ],
+            [
+              600,
+              10051.4514
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 42.537543,
+          "return_pct": 0.425375,
+          "trades": 13,
+          "win_pct": 46.15,
+          "max_drawdown_pct": 0.034606,
+          "actions": {
+            "open_long": 7,
+            "close": 13,
+            "hold": 353,
+            "open_short": 6
+          },
+          "equity_samples": [
+            [
+              300,
+              9999.4224
+            ],
+            [
+              400,
+              10013.2155
+            ],
+            [
+              500,
+              10024.9251
+            ],
+            [
+              600,
+              10039.4835
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 29.567652,
+          "return_pct": 0.295677,
+          "trades": 13,
+          "win_pct": 46.15,
+          "max_drawdown_pct": 0.064109,
+          "actions": {
+            "open_long": 7,
+            "close": 13,
+            "hold": 353,
+            "open_short": 6
+          },
+          "equity_samples": [
+            [
+              300,
+              9997.4242
+            ],
+            [
+              400,
+              10007.23
+            ],
+            [
+              500,
+              10015.949
+            ],
+            [
+              600,
+              10027.5156
+            ]
+          ]
+        }
+      }
+    },
+    "synthetic_random": {
+      "n_breakout": {
+        "0": {
+          "net_pnl": -125.445568,
+          "return_pct": -1.254456,
+          "trades": 11,
+          "win_pct": 27.27,
+          "max_drawdown_pct": 2.804007,
+          "actions": {
+            "hold": 358,
+            "open_long": 6,
+            "close": 10,
+            "open_short": 5
+          },
+          "equity_samples": [
+            [
+              300,
+              9906.0898
+            ],
+            [
+              400,
+              9899.2556
+            ],
+            [
+              500,
+              9859.971
+            ],
+            [
+              600,
+              9874.1805
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -136.47041,
+          "return_pct": -1.364704,
+          "trades": 11,
+          "win_pct": 27.27,
+          "max_drawdown_pct": 2.894434,
+          "actions": {
+            "hold": 358,
+            "open_long": 6,
+            "close": 10,
+            "open_short": 5
+          },
+          "equity_samples": [
+            [
+              300,
+              9904.6091
+            ],
+            [
+              400,
+              9894.7666
+            ],
+            [
+              500,
+              9852.4177
+            ],
+            [
+              600,
+              9864.6321
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -147.495252,
+          "return_pct": -1.474953,
+          "trades": 11,
+          "win_pct": 27.27,
+          "max_drawdown_pct": 2.984871,
+          "actions": {
+            "hold": 358,
+            "open_long": 6,
+            "close": 10,
+            "open_short": 5
+          },
+          "equity_samples": [
+            [
+              300,
+              9903.1284
+            ],
+            [
+              400,
+              9890.2776
+            ],
+            [
+              500,
+              9844.8643
+            ],
+            [
+              600,
+              9855.0836
+            ]
+          ]
+        }
+      },
+      "ma_cross": {
+        "0": {
+          "net_pnl": -57.407101,
+          "return_pct": -0.574071,
+          "trades": 12,
+          "win_pct": 16.67,
+          "max_drawdown_pct": 2.364915,
+          "actions": {
+            "hold": 355,
+            "open_short": 12,
+            "close": 12
+          },
+          "equity_samples": [
+            [
+              300,
+              9946.2366
+            ],
+            [
+              400,
+              9904.4169
+            ],
+            [
+              500,
+              9800.9447
+            ],
+            [
+              600,
+              9942.5929
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -69.435804,
+          "return_pct": -0.694358,
+          "trades": 12,
+          "win_pct": 16.67,
+          "max_drawdown_pct": 2.465964,
+          "actions": {
+            "hold": 355,
+            "open_short": 12,
+            "close": 12
+          },
+          "equity_samples": [
+            [
+              300,
+              9943.2097
+            ],
+            [
+              400,
+              9898.3691
+            ],
+            [
+              500,
+              9790.8452
+            ],
+            [
+              600,
+              9930.5642
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -81.464508,
+          "return_pct": -0.814645,
+          "trades": 12,
+          "win_pct": 16.67,
+          "max_drawdown_pct": 2.567023,
+          "actions": {
+            "hold": 355,
+            "open_short": 12,
+            "close": 12
+          },
+          "equity_samples": [
+            [
+              300,
+              9940.1828
+            ],
+            [
+              400,
+              9892.3213
+            ],
+            [
+              500,
+              9780.7456
+            ],
+            [
+              600,
+              9918.5355
+            ]
+          ]
+        }
+      },
+      "macd_cross": {
+        "0": {
+          "net_pnl": -98.318615,
+          "return_pct": -0.983186,
+          "trades": 17,
+          "win_pct": 35.29,
+          "max_drawdown_pct": 2.618115,
+          "actions": {
+            "hold": 345,
+            "open_short": 17,
+            "close": 17
+          },
+          "equity_samples": [
+            [
+              300,
+              9952.9902
+            ],
+            [
+              400,
+              9900.4263
+            ],
+            [
+              500,
+              9767.737
+            ],
+            [
+              600,
+              9901.6814
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -115.367774,
+          "return_pct": -1.153678,
+          "trades": 17,
+          "win_pct": 35.29,
+          "max_drawdown_pct": 2.749258,
+          "actions": {
+            "hold": 345,
+            "open_short": 17,
+            "close": 17
+          },
+          "equity_samples": [
+            [
+              300,
+              9948.9667
+            ],
+            [
+              400,
+              9892.3765
+            ],
+            [
+              500,
+              9754.6209
+            ],
+            [
+              600,
+              9884.6322
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -132.416933,
+          "return_pct": -1.324169,
+          "trades": 17,
+          "win_pct": 35.29,
+          "max_drawdown_pct": 2.880414,
+          "actions": {
+            "hold": 345,
+            "open_short": 17,
+            "close": 17
+          },
+          "equity_samples": [
+            [
+              300,
+              9944.9432
+            ],
+            [
+              400,
+              9884.3267
+            ],
+            [
+              500,
+              9741.5048
+            ],
+            [
+              600,
+              9867.5831
+            ]
+          ]
+        }
+      },
+      "kdj_cross": {
+        "0": {
+          "net_pnl": 41.943841,
+          "return_pct": 0.419438,
+          "trades": 34,
+          "win_pct": 35.29,
+          "max_drawdown_pct": 1.860591,
+          "actions": {
+            "open_short": 34,
+            "hold": 311,
+            "close": 34
+          },
+          "equity_samples": [
+            [
+              300,
+              9926.2033
+            ],
+            [
+              400,
+              9906.269
+            ],
+            [
+              500,
+              9828.3228
+            ],
+            [
+              600,
+              10082.1004
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 7.964813,
+          "return_pct": 0.079648,
+          "trades": 34,
+          "win_pct": 35.29,
+          "max_drawdown_pct": 2.08096,
+          "actions": {
+            "open_short": 34,
+            "hold": 311,
+            "close": 34
+          },
+          "equity_samples": [
+            [
+              300,
+              9918.1664
+            ],
+            [
+              400,
+              9889.2222
+            ],
+            [
+              500,
+              9803.2369
+            ],
+            [
+              600,
+              10050.1414
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -26.014215,
+          "return_pct": -0.260142,
+          "trades": 34,
+          "win_pct": 35.29,
+          "max_drawdown_pct": 2.32288,
+          "actions": {
+            "open_short": 34,
+            "hold": 311,
+            "close": 34
+          },
+          "equity_samples": [
+            [
+              300,
+              9910.1295
+            ],
+            [
+              400,
+              9872.1753
+            ],
+            [
+              500,
+              9778.1511
+            ],
+            [
+              600,
+              10018.1825
+            ]
+          ]
+        }
+      },
+      "band_swing": {
+        "0": {
+          "net_pnl": 78.539028,
+          "return_pct": 0.78539,
+          "trades": 13,
+          "win_pct": 69.23,
+          "max_drawdown_pct": 1.217335,
+          "actions": {
+            "hold": 354,
+            "open_long": 4,
+            "close": 12,
+            "open_short": 9
+          },
+          "equity_samples": [
+            [
+              300,
+              10039.8039
+            ],
+            [
+              400,
+              10102.4316
+            ],
+            [
+              500,
+              10110.1609
+            ],
+            [
+              600,
+              10078.4405
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 65.629838,
+          "return_pct": 0.656298,
+          "trades": 13,
+          "win_pct": 61.54,
+          "max_drawdown_pct": 1.228432,
+          "actions": {
+            "hold": 354,
+            "open_long": 4,
+            "close": 12,
+            "open_short": 9
+          },
+          "equity_samples": [
+            [
+              300,
+              10037.8101
+            ],
+            [
+              400,
+              10095.9655
+            ],
+            [
+              500,
+              10100.7096
+            ],
+            [
+              600,
+              10066.5312
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 52.720649,
+          "return_pct": 0.527206,
+          "trades": 13,
+          "win_pct": 61.54,
+          "max_drawdown_pct": 1.239552,
+          "actions": {
+            "hold": 354,
+            "open_long": 4,
+            "close": 12,
+            "open_short": 9
+          },
+          "equity_samples": [
+            [
+              300,
+              10035.8162
+            ],
+            [
+              400,
+              10089.4995
+            ],
+            [
+              500,
+              10091.2582
+            ],
+            [
+              600,
+              10054.622
+            ]
+          ]
+        }
+      },
+      "swing_pro": {
+        "0": {
+          "net_pnl": -228.182189,
+          "return_pct": -2.281822,
+          "trades": 25,
+          "win_pct": 32.0,
+          "max_drawdown_pct": 3.87217,
+          "actions": {
+            "hold": 339,
+            "open_short": 16,
+            "close": 15,
+            "open_long": 9
+          },
+          "equity_samples": [
+            [
+              300,
+              10013.0818
+            ],
+            [
+              400,
+              9847.2986
+            ],
+            [
+              500,
+              9740.144
+            ],
+            [
+              600,
+              9803.0825
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -253.228398,
+          "return_pct": -2.532284,
+          "trades": 25,
+          "win_pct": 32.0,
+          "max_drawdown_pct": 3.994245,
+          "actions": {
+            "hold": 339,
+            "open_short": 16,
+            "close": 15,
+            "open_long": 9
+          },
+          "equity_samples": [
+            [
+              300,
+              10009.5786
+            ],
+            [
+              400,
+              9837.7482
+            ],
+            [
+              500,
+              9723.5279
+            ],
+            [
+              600,
+              9780.0518
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -278.274608,
+          "return_pct": -2.782746,
+          "trades": 25,
+          "win_pct": 32.0,
+          "max_drawdown_pct": 4.116405,
+          "actions": {
+            "hold": 339,
+            "open_short": 16,
+            "close": 15,
+            "open_long": 9
+          },
+          "equity_samples": [
+            [
+              300,
+              10006.0754
+            ],
+            [
+              400,
+              9828.1978
+            ],
+            [
+              500,
+              9706.9117
+            ],
+            [
+              600,
+              9757.0212
+            ]
+          ]
+        }
+      },
+      "strength_entry": {
+        "0": {
+          "net_pnl": 1.869052,
+          "return_pct": 0.018691,
+          "trades": 14,
+          "win_pct": 42.86,
+          "max_drawdown_pct": 1.358987,
+          "actions": {
+            "hold": 352,
+            "open_long": 14,
+            "close": 13
+          },
+          "equity_samples": [
+            [
+              300,
+              9996.1143
+            ],
+            [
+              400,
+              9989.5435
+            ],
+            [
+              500,
+              9999.1001
+            ],
+            [
+              600,
+              9929.3649
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -12.131883,
+          "return_pct": -0.121319,
+          "trades": 14,
+          "win_pct": 42.86,
+          "max_drawdown_pct": 1.448829,
+          "actions": {
+            "hold": 352,
+            "open_long": 14,
+            "close": 13
+          },
+          "equity_samples": [
+            [
+              300,
+              9992.6297
+            ],
+            [
+              400,
+              9982.0545
+            ],
+            [
+              500,
+              9987.6156
+            ],
+            [
+              600,
+              9915.8994
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -26.132817,
+          "return_pct": -0.261328,
+          "trades": 14,
+          "win_pct": 42.86,
+          "max_drawdown_pct": 1.53875,
+          "actions": {
+            "hold": 352,
+            "open_long": 14,
+            "close": 13
+          },
+          "equity_samples": [
+            [
+              300,
+              9989.145
+            ],
+            [
+              400,
+              9974.5655
+            ],
+            [
+              500,
+              9976.1311
+            ],
+            [
+              600,
+              9902.4339
+            ]
+          ]
+        }
+      },
+      "strength_entry_v2": {
+        "0": {
+          "net_pnl": 19.048358,
+          "return_pct": 0.190484,
+          "trades": 64,
+          "win_pct": 53.12,
+          "max_drawdown_pct": 2.416818,
+          "actions": {
+            "open_short": 33,
+            "close": 63,
+            "open_long": 31,
+            "hold": 252
+          },
+          "equity_samples": [
+            [
+              300,
+              9973.5013
+            ],
+            [
+              400,
+              9880.2474
+            ],
+            [
+              500,
+              9829.8681
+            ],
+            [
+              600,
+              9999.331
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -44.949432,
+          "return_pct": -0.449494,
+          "trades": 64,
+          "win_pct": 48.44,
+          "max_drawdown_pct": 2.788395,
+          "actions": {
+            "open_short": 33,
+            "close": 63,
+            "open_long": 31,
+            "hold": 252
+          },
+          "equity_samples": [
+            [
+              300,
+              9960.0192
+            ],
+            [
+              400,
+              9856.7325
+            ],
+            [
+              500,
+              9786.3171
+            ],
+            [
+              600,
+              9940.8106
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -108.947221,
+          "return_pct": -1.089472,
+          "trades": 64,
+          "win_pct": 46.88,
+          "max_drawdown_pct": 3.160675,
+          "actions": {
+            "open_short": 33,
+            "close": 63,
+            "open_long": 31,
+            "hold": 252
+          },
+          "equity_samples": [
+            [
+              300,
+              9946.537
+            ],
+            [
+              400,
+              9833.2177
+            ],
+            [
+              500,
+              9742.7661
+            ],
+            [
+              600,
+              9882.2902
+            ]
+          ]
+        }
+      },
+      "factor": {
+        "0": {
+          "net_pnl": -39.807001,
+          "return_pct": -0.39807,
+          "trades": 103,
+          "win_pct": 64.08,
+          "max_drawdown_pct": 1.902359,
+          "actions": {
+            "hold": 174,
+            "open_long": 55,
+            "close": 102,
+            "open_short": 48
+          },
+          "equity_samples": [
+            [
+              300,
+              10118.2908
+            ],
+            [
+              400,
+              10046.5026
+            ],
+            [
+              500,
+              10071.3783
+            ],
+            [
+              600,
+              9947.668
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -142.81949,
+          "return_pct": -1.428195,
+          "trades": 103,
+          "win_pct": 62.14,
+          "max_drawdown_pct": 2.667401,
+          "actions": {
+            "hold": 174,
+            "open_long": 55,
+            "close": 102,
+            "open_short": 48
+          },
+          "equity_samples": [
+            [
+              300,
+              10100.7911
+            ],
+            [
+              400,
+              10004.9367
+            ],
+            [
+              500,
+              10001.2874
+            ],
+            [
+              600,
+              9851.1728
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -245.83198,
+          "return_pct": -2.45832,
+          "trades": 103,
+          "win_pct": 58.25,
+          "max_drawdown_pct": 3.435401,
+          "actions": {
+            "hold": 174,
+            "open_long": 55,
+            "close": 102,
+            "open_short": 48
+          },
+          "equity_samples": [
+            [
+              300,
+              10083.2914
+            ],
+            [
+              400,
+              9963.3709
+            ],
+            [
+              500,
+              9931.1966
+            ],
+            [
+              600,
+              9754.6776
+            ]
+          ]
+        }
+      }
+    },
+    "BTCUSDT_60m": {
+      "n_breakout": {
+        "0": {
+          "net_pnl": -68.014589,
+          "return_pct": -0.680146,
+          "trades": 15,
+          "win_pct": 26.67,
+          "max_drawdown_pct": 1.660405,
+          "actions": {
+            "hold": 580,
+            "open_long": 7,
+            "close": 14,
+            "open_short": 8
+          },
+          "equity_samples": [
+            [
+              300,
+              9976.8892
+            ],
+            [
+              400,
+              9956.6162
+            ],
+            [
+              500,
+              9912.8049
+            ],
+            [
+              600,
+              9849.876
+            ],
+            [
+              700,
+              9889.0293
+            ],
+            [
+              800,
+              9932.4436
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -83.04726,
+          "return_pct": -0.830473,
+          "trades": 15,
+          "win_pct": 26.67,
+          "max_drawdown_pct": 1.755752,
+          "actions": {
+            "hold": 580,
+            "open_long": 7,
+            "close": 14,
+            "open_short": 8
+          },
+          "equity_samples": [
+            [
+              300,
+              9975.3996
+            ],
+            [
+              400,
+              9952.11
+            ],
+            [
+              500,
+              9905.3091
+            ],
+            [
+              600,
+              9838.8844
+            ],
+            [
+              700,
+              9876.5347
+            ],
+            [
+              800,
+              9917.9079
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -98.079931,
+          "return_pct": -0.980799,
+          "trades": 15,
+          "win_pct": 26.67,
+          "max_drawdown_pct": 1.851146,
+          "actions": {
+            "hold": 580,
+            "open_long": 7,
+            "close": 14,
+            "open_short": 8
+          },
+          "equity_samples": [
+            [
+              300,
+              9973.9099
+            ],
+            [
+              400,
+              9947.6038
+            ],
+            [
+              500,
+              9897.8133
+            ],
+            [
+              600,
+              9827.8928
+            ],
+            [
+              700,
+              9864.0401
+            ],
+            [
+              800,
+              9903.3723
+            ]
+          ]
+        }
+      },
+      "ma_cross": {
+        "0": {
+          "net_pnl": 94.920167,
+          "return_pct": 0.949202,
+          "trades": 19,
+          "win_pct": 42.11,
+          "max_drawdown_pct": 0.430923,
+          "actions": {
+            "hold": 571,
+            "open_long": 19,
+            "close": 19
+          },
+          "equity_samples": [
+            [
+              300,
+              9971.8009
+            ],
+            [
+              400,
+              10022.8073
+            ],
+            [
+              500,
+              10015.0962
+            ],
+            [
+              600,
+              10010.7939
+            ],
+            [
+              700,
+              10063.6832
+            ],
+            [
+              800,
+              10109.7151
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 75.872707,
+          "return_pct": 0.758727,
+          "trades": 19,
+          "win_pct": 36.84,
+          "max_drawdown_pct": 0.481073,
+          "actions": {
+            "hold": 571,
+            "open_long": 19,
+            "close": 19
+          },
+          "equity_samples": [
+            [
+              300,
+              9968.3147
+            ],
+            [
+              400,
+              10016.2984
+            ],
+            [
+              500,
+              10007.0886
+            ],
+            [
+              600,
+              9998.7885
+            ],
+            [
+              700,
+              10049.1794
+            ],
+            [
+              800,
+              10092.6602
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 56.825247,
+          "return_pct": 0.568252,
+          "trades": 19,
+          "win_pct": 26.32,
+          "max_drawdown_pct": 0.531308,
+          "actions": {
+            "hold": 571,
+            "open_long": 19,
+            "close": 19
+          },
+          "equity_samples": [
+            [
+              300,
+              9964.8286
+            ],
+            [
+              400,
+              10009.7895
+            ],
+            [
+              500,
+              9999.0811
+            ],
+            [
+              600,
+              9986.7831
+            ],
+            [
+              700,
+              10034.6756
+            ],
+            [
+              800,
+              10075.6054
+            ]
+          ]
+        }
+      },
+      "macd_cross": {
+        "0": {
+          "net_pnl": 115.136618,
+          "return_pct": 1.151366,
+          "trades": 22,
+          "win_pct": 31.82,
+          "max_drawdown_pct": 0.36531,
+          "actions": {
+            "hold": 565,
+            "open_long": 22,
+            "close": 22
+          },
+          "equity_samples": [
+            [
+              300,
+              9975.944
+            ],
+            [
+              400,
+              10025.6296
+            ],
+            [
+              500,
+              10001.844
+            ],
+            [
+              600,
+              10005.8185
+            ],
+            [
+              700,
+              10071.0059
+            ],
+            [
+              800,
+              10132.5384
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 93.07905,
+          "return_pct": 0.93079,
+          "trades": 22,
+          "win_pct": 31.82,
+          "max_drawdown_pct": 0.465334,
+          "actions": {
+            "hold": 565,
+            "open_long": 22,
+            "close": 22
+          },
+          "equity_samples": [
+            [
+              300,
+              9971.4578
+            ],
+            [
+              400,
+              10018.1194
+            ],
+            [
+              500,
+              9990.8431
+            ],
+            [
+              600,
+              9989.8156
+            ],
+            [
+              700,
+              10052.9704
+            ],
+            [
+              800,
+              10113.4721
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 71.021481,
+          "return_pct": 0.710215,
+          "trades": 22,
+          "win_pct": 27.27,
+          "max_drawdown_pct": 0.569688,
+          "actions": {
+            "hold": 565,
+            "open_long": 22,
+            "close": 22
+          },
+          "equity_samples": [
+            [
+              300,
+              9966.9716
+            ],
+            [
+              400,
+              10010.6093
+            ],
+            [
+              500,
+              9979.8422
+            ],
+            [
+              600,
+              9973.8127
+            ],
+            [
+              700,
+              10034.9349
+            ],
+            [
+              800,
+              10094.4059
+            ]
+          ]
+        }
+      },
+      "kdj_cross": {
+        "0": {
+          "net_pnl": -118.700565,
+          "return_pct": -1.187006,
+          "trades": 52,
+          "win_pct": 25.0,
+          "max_drawdown_pct": 1.214103,
+          "actions": {
+            "hold": 506,
+            "open_short": 52,
+            "close": 51
+          },
+          "equity_samples": [
+            [
+              300,
+              9981.4339
+            ],
+            [
+              400,
+              9956.1805
+            ],
+            [
+              500,
+              9958.6753
+            ],
+            [
+              600,
+              9958.8558
+            ],
+            [
+              700,
+              9893.5769
+            ],
+            [
+              800,
+              9911.3933
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -170.759916,
+          "return_pct": -1.707599,
+          "trades": 52,
+          "win_pct": 25.0,
+          "max_drawdown_pct": 1.705625,
+          "actions": {
+            "hold": 506,
+            "open_short": 52,
+            "close": 51
+          },
+          "equity_samples": [
+            [
+              300,
+              9976.4246
+            ],
+            [
+              400,
+              9943.1586
+            ],
+            [
+              500,
+              9934.6547
+            ],
+            [
+              600,
+              9927.3237
+            ],
+            [
+              700,
+              9853.5237
+            ],
+            [
+              800,
+              9864.8346
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -222.819266,
+          "return_pct": -2.228193,
+          "trades": 52,
+          "win_pct": 21.15,
+          "max_drawdown_pct": 2.218179,
+          "actions": {
+            "hold": 506,
+            "open_short": 52,
+            "close": 51
+          },
+          "equity_samples": [
+            [
+              300,
+              9971.4153
+            ],
+            [
+              400,
+              9930.1367
+            ],
+            [
+              500,
+              9910.634
+            ],
+            [
+              600,
+              9895.7915
+            ],
+            [
+              700,
+              9813.4704
+            ],
+            [
+              800,
+              9818.2758
+            ]
+          ]
+        }
+      },
+      "band_swing": {
+        "0": {
+          "net_pnl": -107.201083,
+          "return_pct": -1.072011,
+          "trades": 25,
+          "win_pct": 60.0,
+          "max_drawdown_pct": 1.390727,
+          "actions": {
+            "hold": 560,
+            "open_long": 14,
+            "close": 24,
+            "open_short": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              10004.9488
+            ],
+            [
+              400,
+              9976.2842
+            ],
+            [
+              500,
+              9973.9925
+            ],
+            [
+              600,
+              9994.484
+            ],
+            [
+              700,
+              9925.3084
+            ],
+            [
+              800,
+              9873.3577
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -132.26091,
+          "return_pct": -1.322609,
+          "trades": 25,
+          "win_pct": 56.0,
+          "max_drawdown_pct": 1.571333,
+          "actions": {
+            "hold": 560,
+            "open_long": 14,
+            "close": 24,
+            "open_short": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              10002.9463
+            ],
+            [
+              400,
+              9970.2598
+            ],
+            [
+              500,
+              9963.4738
+            ],
+            [
+              600,
+              9978.4718
+            ],
+            [
+              700,
+              9906.8018
+            ],
+            [
+              800,
+              9850.7987
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -157.320737,
+          "return_pct": -1.573207,
+          "trades": 25,
+          "win_pct": 52.0,
+          "max_drawdown_pct": 1.753321,
+          "actions": {
+            "hold": 560,
+            "open_long": 14,
+            "close": 24,
+            "open_short": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              10000.9438
+            ],
+            [
+              400,
+              9964.2354
+            ],
+            [
+              500,
+              9952.955
+            ],
+            [
+              600,
+              9962.4596
+            ],
+            [
+              700,
+              9888.2952
+            ],
+            [
+              800,
+              9828.2398
+            ]
+          ]
+        }
+      },
+      "swing_pro": {
+        "0": {
+          "net_pnl": -64.689566,
+          "return_pct": -0.646896,
+          "trades": 25,
+          "win_pct": 48.0,
+          "max_drawdown_pct": 1.194101,
+          "actions": {
+            "hold": 570,
+            "open_short": 16,
+            "close": 14,
+            "open_long": 9
+          },
+          "equity_samples": [
+            [
+              300,
+              10011.5963
+            ],
+            [
+              400,
+              9971.4619
+            ],
+            [
+              500,
+              9949.8159
+            ],
+            [
+              600,
+              9981.8852
+            ],
+            [
+              700,
+              9917.6115
+            ],
+            [
+              800,
+              9935.5214
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -89.687593,
+          "return_pct": -0.896876,
+          "trades": 25,
+          "win_pct": 48.0,
+          "max_drawdown_pct": 1.40403,
+          "actions": {
+            "hold": 570,
+            "open_short": 16,
+            "close": 14,
+            "open_long": 9
+          },
+          "equity_samples": [
+            [
+              300,
+              10009.6021
+            ],
+            [
+              400,
+              9964.4629
+            ],
+            [
+              500,
+              9938.3318
+            ],
+            [
+              600,
+              9968.3954
+            ],
+            [
+              700,
+              9899.1117
+            ],
+            [
+              800,
+              9913.0153
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -114.68562,
+          "return_pct": -1.146856,
+          "trades": 25,
+          "win_pct": 48.0,
+          "max_drawdown_pct": 1.614023,
+          "actions": {
+            "hold": 570,
+            "open_short": 16,
+            "close": 14,
+            "open_long": 9
+          },
+          "equity_samples": [
+            [
+              300,
+              10007.6079
+            ],
+            [
+              400,
+              9957.4639
+            ],
+            [
+              500,
+              9926.8478
+            ],
+            [
+              600,
+              9954.9057
+            ],
+            [
+              700,
+              9880.6119
+            ],
+            [
+              800,
+              9890.5092
+            ]
+          ]
+        }
+      },
+      "strength_entry": {
+        "0": {
+          "net_pnl": 96.421259,
+          "return_pct": 0.964213,
+          "trades": 26,
+          "win_pct": 26.92,
+          "max_drawdown_pct": 0.441234,
+          "actions": {
+            "hold": 557,
+            "open_long": 26,
+            "close": 26
+          },
+          "equity_samples": [
+            [
+              300,
+              9982.6282
+            ],
+            [
+              400,
+              10034.2469
+            ],
+            [
+              500,
+              10017.0428
+            ],
+            [
+              600,
+              10014.531
+            ],
+            [
+              700,
+              10071.679
+            ],
+            [
+              800,
+              10120.8966
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 70.373048,
+          "return_pct": 0.70373,
+          "trades": 26,
+          "win_pct": 26.92,
+          "max_drawdown_pct": 0.520693,
+          "actions": {
+            "hold": 557,
+            "open_long": 26,
+            "close": 26
+          },
+          "equity_samples": [
+            [
+              300,
+              9980.1372
+            ],
+            [
+              400,
+              10028.7319
+            ],
+            [
+              500,
+              10008.0343
+            ],
+            [
+              600,
+              10000.5237
+            ],
+            [
+              700,
+              10053.6432
+            ],
+            [
+              800,
+              10099.8362
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 44.324837,
+          "return_pct": 0.443248,
+          "trades": 26,
+          "win_pct": 26.92,
+          "max_drawdown_pct": 0.630556,
+          "actions": {
+            "hold": 557,
+            "open_long": 26,
+            "close": 26
+          },
+          "equity_samples": [
+            [
+              300,
+              9977.6463
+            ],
+            [
+              400,
+              10023.2168
+            ],
+            [
+              500,
+              9999.0257
+            ],
+            [
+              600,
+              9986.5164
+            ],
+            [
+              700,
+              10035.6073
+            ],
+            [
+              800,
+              10078.7757
+            ]
+          ]
+        }
+      },
+      "strength_entry_v2": {
+        "0": {
+          "net_pnl": 20.574144,
+          "return_pct": 0.205741,
+          "trades": 91,
+          "win_pct": 43.96,
+          "max_drawdown_pct": 0.892918,
+          "actions": {
+            "open_long": 43,
+            "close": 91,
+            "hold": 427,
+            "open_short": 48
+          },
+          "equity_samples": [
+            [
+              300,
+              9970.015
+            ],
+            [
+              400,
+              10038.7673
+            ],
+            [
+              500,
+              10040.0554
+            ],
+            [
+              600,
+              10034.9786
+            ],
+            [
+              700,
+              9973.5237
+            ],
+            [
+              800,
+              10037.2914
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -70.45997,
+          "return_pct": -0.7046,
+          "trades": 91,
+          "win_pct": 26.37,
+          "max_drawdown_pct": 1.262858,
+          "actions": {
+            "open_long": 43,
+            "close": 91,
+            "hold": 427,
+            "open_short": 48
+          },
+          "equity_samples": [
+            [
+              300,
+              9959.5217
+            ],
+            [
+              400,
+              10014.2522
+            ],
+            [
+              500,
+              10003.5505
+            ],
+            [
+              600,
+              9985.4737
+            ],
+            [
+              700,
+              9909.0069
+            ],
+            [
+              800,
+              9956.2579
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -161.494083,
+          "return_pct": -1.614941,
+          "trades": 91,
+          "win_pct": 17.58,
+          "max_drawdown_pct": 1.807716,
+          "actions": {
+            "open_long": 43,
+            "close": 91,
+            "hold": 427,
+            "open_short": 48
+          },
+          "equity_samples": [
+            [
+              300,
+              9949.0285
+            ],
+            [
+              400,
+              9989.737
+            ],
+            [
+              500,
+              9967.0455
+            ],
+            [
+              600,
+              9935.9687
+            ],
+            [
+              700,
+              9844.49
+            ],
+            [
+              800,
+              9875.2244
+            ]
+          ]
+        }
+      },
+      "factor": {
+        "0": {
+          "net_pnl": 12.63536,
+          "return_pct": 0.126354,
+          "trades": 155,
+          "win_pct": 65.16,
+          "max_drawdown_pct": 0.668197,
+          "actions": {
+            "open_short": 77,
+            "hold": 300,
+            "close": 154,
+            "open_long": 78
+          },
+          "equity_samples": [
+            [
+              300,
+              10008.2014
+            ],
+            [
+              400,
+              10000.2687
+            ],
+            [
+              500,
+              10040.9968
+            ],
+            [
+              600,
+              10014.309
+            ],
+            [
+              700,
+              10033.8748
+            ],
+            [
+              800,
+              9996.7365
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -142.400677,
+          "return_pct": -1.424007,
+          "trades": 155,
+          "win_pct": 56.77,
+          "max_drawdown_pct": 1.594756,
+          "actions": {
+            "open_short": 77,
+            "hold": 300,
+            "close": 154,
+            "open_long": 78
+          },
+          "equity_samples": [
+            [
+              300,
+              9992.7063
+            ],
+            [
+              400,
+              9961.2508
+            ],
+            [
+              500,
+              9970.488
+            ],
+            [
+              600,
+              9921.7918
+            ],
+            [
+              700,
+              9913.8514
+            ],
+            [
+              800,
+              9853.1979
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -297.436714,
+          "return_pct": -2.974367,
+          "trades": 155,
+          "win_pct": 37.42,
+          "max_drawdown_pct": 3.037752,
+          "actions": {
+            "open_short": 77,
+            "hold": 300,
+            "close": 154,
+            "open_long": 78
+          },
+          "equity_samples": [
+            [
+              300,
+              9977.2111
+            ],
+            [
+              400,
+              9922.2329
+            ],
+            [
+              500,
+              9899.9791
+            ],
+            [
+              600,
+              9829.2746
+            ],
+            [
+              700,
+              9793.828
+            ],
+            [
+              800,
+              9709.6593
+            ]
+          ]
+        }
+      }
+    },
+    "ETHUSDT_60m": {
+      "n_breakout": {
+        "0": {
+          "net_pnl": -80.788809,
+          "return_pct": -0.807888,
+          "trades": 12,
+          "win_pct": 25.0,
+          "max_drawdown_pct": 1.420281,
+          "actions": {
+            "hold": 585,
+            "open_short": 5,
+            "close": 12,
+            "open_long": 7
+          },
+          "equity_samples": [
+            [
+              300,
+              10004.0816
+            ],
+            [
+              400,
+              10014.8287
+            ],
+            [
+              500,
+              9953.5164
+            ],
+            [
+              600,
+              9911.8767
+            ],
+            [
+              700,
+              9948.6095
+            ],
+            [
+              800,
+              9919.2112
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -92.802085,
+          "return_pct": -0.928021,
+          "trades": 12,
+          "win_pct": 16.67,
+          "max_drawdown_pct": 1.510176,
+          "actions": {
+            "hold": 585,
+            "open_short": 5,
+            "close": 12,
+            "open_long": 7
+          },
+          "equity_samples": [
+            [
+              300,
+              10003.5816
+            ],
+            [
+              400,
+              10012.3233
+            ],
+            [
+              500,
+              9947.5063
+            ],
+            [
+              600,
+              9902.376
+            ],
+            [
+              700,
+              9938.1076
+            ],
+            [
+              800,
+              9907.1979
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -104.815361,
+          "return_pct": -1.048154,
+          "trades": 12,
+          "win_pct": 16.67,
+          "max_drawdown_pct": 1.600099,
+          "actions": {
+            "hold": 585,
+            "open_short": 5,
+            "close": 12,
+            "open_long": 7
+          },
+          "equity_samples": [
+            [
+              300,
+              10003.0816
+            ],
+            [
+              400,
+              10009.8179
+            ],
+            [
+              500,
+              9941.4962
+            ],
+            [
+              600,
+              9892.8754
+            ],
+            [
+              700,
+              9927.6057
+            ],
+            [
+              800,
+              9895.1846
+            ]
+          ]
+        }
+      },
+      "ma_cross": {
+        "0": {
+          "net_pnl": -33.821019,
+          "return_pct": -0.33821,
+          "trades": 21,
+          "win_pct": 23.81,
+          "max_drawdown_pct": 0.661186,
+          "actions": {
+            "hold": 568,
+            "open_short": 21,
+            "close": 20
+          },
+          "equity_samples": [
+            [
+              300,
+              10020.0413
+            ],
+            [
+              400,
+              10005.4873
+            ],
+            [
+              500,
+              10001.0999
+            ],
+            [
+              600,
+              10004.6714
+            ],
+            [
+              700,
+              9985.4541
+            ],
+            [
+              800,
+              9994.6619
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -54.837929,
+          "return_pct": -0.548379,
+          "trades": 21,
+          "win_pct": 23.81,
+          "max_drawdown_pct": 0.860736,
+          "actions": {
+            "hold": 568,
+            "open_short": 21,
+            "close": 20
+          },
+          "equity_samples": [
+            [
+              300,
+              10019.0513
+            ],
+            [
+              400,
+              10001.9905
+            ],
+            [
+              500,
+              9993.1004
+            ],
+            [
+              600,
+              9992.1558
+            ],
+            [
+              700,
+              9970.4468
+            ],
+            [
+              800,
+              9977.1498
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -75.85484,
+          "return_pct": -0.758548,
+          "trades": 21,
+          "win_pct": 23.81,
+          "max_drawdown_pct": 1.060306,
+          "actions": {
+            "hold": 568,
+            "open_short": 21,
+            "close": 20
+          },
+          "equity_samples": [
+            [
+              300,
+              10018.0613
+            ],
+            [
+              400,
+              9998.4937
+            ],
+            [
+              500,
+              9985.101
+            ],
+            [
+              600,
+              9979.6401
+            ],
+            [
+              700,
+              9955.4396
+            ],
+            [
+              800,
+              9959.6378
+            ]
+          ]
+        }
+      },
+      "macd_cross": {
+        "0": {
+          "net_pnl": 28.817583,
+          "return_pct": 0.288176,
+          "trades": 21,
+          "win_pct": 38.1,
+          "max_drawdown_pct": 0.472997,
+          "actions": {
+            "hold": 568,
+            "open_short": 21,
+            "close": 20
+          },
+          "equity_samples": [
+            [
+              300,
+              9997.0922
+            ],
+            [
+              400,
+              10015.7974
+            ],
+            [
+              500,
+              10010.6072
+            ],
+            [
+              600,
+              10022.1291
+            ],
+            [
+              700,
+              10014.8882
+            ],
+            [
+              800,
+              10042.6529
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 7.831992,
+          "return_pct": 0.07832,
+          "trades": 21,
+          "win_pct": 33.33,
+          "max_drawdown_pct": 0.521116,
+          "actions": {
+            "hold": 568,
+            "open_short": 21,
+            "close": 20
+          },
+          "equity_samples": [
+            [
+              300,
+              9994.0908
+            ],
+            [
+              400,
+              10010.3041
+            ],
+            [
+              500,
+              10001.6125
+            ],
+            [
+              600,
+              10008.6216
+            ],
+            [
+              700,
+              9999.3981
+            ],
+            [
+              800,
+              10025.1612
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -13.1536,
+          "return_pct": -0.131536,
+          "trades": 21,
+          "win_pct": 33.33,
+          "max_drawdown_pct": 0.581897,
+          "actions": {
+            "hold": 568,
+            "open_short": 21,
+            "close": 20
+          },
+          "equity_samples": [
+            [
+              300,
+              9991.0893
+            ],
+            [
+              400,
+              10004.8108
+            ],
+            [
+              500,
+              9992.6179
+            ],
+            [
+              600,
+              9995.114
+            ],
+            [
+              700,
+              9983.9079
+            ],
+            [
+              800,
+              10007.6694
+            ]
+          ]
+        }
+      },
+      "kdj_cross": {
+        "0": {
+          "net_pnl": -72.742265,
+          "return_pct": -0.727423,
+          "trades": 52,
+          "win_pct": 28.85,
+          "max_drawdown_pct": 1.029287,
+          "actions": {
+            "hold": 505,
+            "open_short": 52,
+            "close": 52
+          },
+          "equity_samples": [
+            [
+              300,
+              9994.7535
+            ],
+            [
+              400,
+              9983.9767
+            ],
+            [
+              500,
+              9936.9837
+            ],
+            [
+              600,
+              9964.4733
+            ],
+            [
+              700,
+              9914.7179
+            ],
+            [
+              800,
+              9934.6385
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -124.778636,
+          "return_pct": -1.247786,
+          "trades": 52,
+          "win_pct": 25.0,
+          "max_drawdown_pct": 1.483654,
+          "actions": {
+            "hold": 505,
+            "open_short": 52,
+            "close": 52
+          },
+          "equity_samples": [
+            [
+              300,
+              9988.7508
+            ],
+            [
+              400,
+              9970.4662
+            ],
+            [
+              500,
+              9912.4622
+            ],
+            [
+              600,
+              9932.4555
+            ],
+            [
+              700,
+              9875.1735
+            ],
+            [
+              800,
+              9886.6058
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -176.815007,
+          "return_pct": -1.76815,
+          "trades": 52,
+          "win_pct": 23.08,
+          "max_drawdown_pct": 1.949081,
+          "actions": {
+            "hold": 505,
+            "open_short": 52,
+            "close": 52
+          },
+          "equity_samples": [
+            [
+              300,
+              9982.7482
+            ],
+            [
+              400,
+              9956.9557
+            ],
+            [
+              500,
+              9887.9406
+            ],
+            [
+              600,
+              9900.4378
+            ],
+            [
+              700,
+              9835.629
+            ],
+            [
+              800,
+              9838.5731
+            ]
+          ]
+        }
+      },
+      "band_swing": {
+        "0": {
+          "net_pnl": -17.131647,
+          "return_pct": -0.171316,
+          "trades": 22,
+          "win_pct": 54.55,
+          "max_drawdown_pct": 1.202873,
+          "actions": {
+            "hold": 565,
+            "open_long": 12,
+            "close": 22,
+            "open_short": 10
+          },
+          "equity_samples": [
+            [
+              300,
+              9982.8076
+            ],
+            [
+              400,
+              9963.8237
+            ],
+            [
+              500,
+              10030.004
+            ],
+            [
+              600,
+              10063.0237
+            ],
+            [
+              700,
+              9985.081
+            ],
+            [
+              800,
+              9959.2997
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -39.188858,
+          "return_pct": -0.391889,
+          "trades": 22,
+          "win_pct": 54.55,
+          "max_drawdown_pct": 1.264529,
+          "actions": {
+            "hold": 565,
+            "open_long": 12,
+            "close": 22,
+            "open_short": 10
+          },
+          "equity_samples": [
+            [
+              300,
+              9981.8162
+            ],
+            [
+              400,
+              9959.8206
+            ],
+            [
+              500,
+              10019.9755
+            ],
+            [
+              600,
+              10049.5027
+            ],
+            [
+              700,
+              9969.5562
+            ],
+            [
+              800,
+              9939.7404
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -61.24607,
+          "return_pct": -0.612461,
+          "trades": 22,
+          "win_pct": 54.55,
+          "max_drawdown_pct": 1.326351,
+          "actions": {
+            "hold": 565,
+            "open_long": 12,
+            "close": 22,
+            "open_short": 10
+          },
+          "equity_samples": [
+            [
+              300,
+              9980.8248
+            ],
+            [
+              400,
+              9955.8176
+            ],
+            [
+              500,
+              10009.9469
+            ],
+            [
+              600,
+              10035.9816
+            ],
+            [
+              700,
+              9954.0315
+            ],
+            [
+              800,
+              9920.181
+            ]
+          ]
+        }
+      },
+      "swing_pro": {
+        "0": {
+          "net_pnl": -26.353764,
+          "return_pct": -0.263538,
+          "trades": 33,
+          "win_pct": 54.55,
+          "max_drawdown_pct": 1.437151,
+          "actions": {
+            "hold": 552,
+            "open_short": 20,
+            "close": 24,
+            "open_long": 13
+          },
+          "equity_samples": [
+            [
+              300,
+              10015.4772
+            ],
+            [
+              400,
+              10018.8653
+            ],
+            [
+              500,
+              10022.5729
+            ],
+            [
+              600,
+              9981.2232
+            ],
+            [
+              700,
+              9898.3548
+            ],
+            [
+              800,
+              9976.3026
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -59.336681,
+          "return_pct": -0.593367,
+          "trades": 33,
+          "win_pct": 48.48,
+          "max_drawdown_pct": 1.676426,
+          "actions": {
+            "hold": 552,
+            "open_short": 20,
+            "close": 24,
+            "open_long": 13
+          },
+          "equity_samples": [
+            [
+              300,
+              10012.9896
+            ],
+            [
+              400,
+              10011.3721
+            ],
+            [
+              500,
+              10009.5893
+            ],
+            [
+              600,
+              9963.2603
+            ],
+            [
+              700,
+              9872.8739
+            ],
+            [
+              800,
+              9946.321
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -92.319599,
+          "return_pct": -0.923196,
+          "trades": 33,
+          "win_pct": 45.45,
+          "max_drawdown_pct": 1.915772,
+          "actions": {
+            "hold": 552,
+            "open_short": 20,
+            "close": 24,
+            "open_long": 13
+          },
+          "equity_samples": [
+            [
+              300,
+              10010.502
+            ],
+            [
+              400,
+              10003.8789
+            ],
+            [
+              500,
+              9996.6057
+            ],
+            [
+              600,
+              9945.2974
+            ],
+            [
+              700,
+              9847.3931
+            ],
+            [
+              800,
+              9916.3394
+            ]
+          ]
+        }
+      },
+      "strength_entry": {
+        "0": {
+          "net_pnl": 56.328772,
+          "return_pct": 0.563288,
+          "trades": 26,
+          "win_pct": 34.62,
+          "max_drawdown_pct": 0.720164,
+          "actions": {
+            "hold": 557,
+            "open_long": 26,
+            "close": 26
+          },
+          "equity_samples": [
+            [
+              300,
+              9978.2596
+            ],
+            [
+              400,
+              10010.6366
+            ],
+            [
+              500,
+              9985.0739
+            ],
+            [
+              600,
+              9978.2045
+            ],
+            [
+              700,
+              10038.9548
+            ],
+            [
+              800,
+              10070.9764
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 30.300607,
+          "return_pct": 0.303006,
+          "trades": 26,
+          "win_pct": 34.62,
+          "max_drawdown_pct": 0.810231,
+          "actions": {
+            "hold": 557,
+            "open_long": 26,
+            "close": 26
+          },
+          "equity_samples": [
+            [
+              300,
+              9973.7716
+            ],
+            [
+              400,
+              10003.6313
+            ],
+            [
+              500,
+              9971.5905
+            ],
+            [
+              600,
+              9961.2154
+            ],
+            [
+              700,
+              10017.9353
+            ],
+            [
+              800,
+              10047.9409
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 4.272443,
+          "return_pct": 0.042724,
+          "trades": 26,
+          "win_pct": 26.92,
+          "max_drawdown_pct": 0.931393,
+          "actions": {
+            "hold": 557,
+            "open_long": 26,
+            "close": 26
+          },
+          "equity_samples": [
+            [
+              300,
+              9969.2835
+            ],
+            [
+              400,
+              9996.6259
+            ],
+            [
+              500,
+              9958.1071
+            ],
+            [
+              600,
+              9944.2263
+            ],
+            [
+              700,
+              9996.9158
+            ],
+            [
+              800,
+              10024.9054
+            ]
+          ]
+        }
+      },
+      "strength_entry_v2": {
+        "0": {
+          "net_pnl": -67.745929,
+          "return_pct": -0.677459,
+          "trades": 106,
+          "win_pct": 44.34,
+          "max_drawdown_pct": 2.271404,
+          "actions": {
+            "open_long": 50,
+            "hold": 398,
+            "close": 105,
+            "open_short": 56
+          },
+          "equity_samples": [
+            [
+              300,
+              9998.8837
+            ],
+            [
+              400,
+              9995.3311
+            ],
+            [
+              500,
+              9928.2478
+            ],
+            [
+              600,
+              9892.4
+            ],
+            [
+              700,
+              9824.3032
+            ],
+            [
+              800,
+              9940.2709
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -173.7785,
+          "return_pct": -1.737785,
+          "trades": 106,
+          "win_pct": 33.02,
+          "max_drawdown_pct": 2.931177,
+          "actions": {
+            "open_long": 50,
+            "hold": 398,
+            "close": 105,
+            "open_short": 56
+          },
+          "equity_samples": [
+            [
+              300,
+              9992.3909
+            ],
+            [
+              400,
+              9970.3322
+            ],
+            [
+              500,
+              9888.2351
+            ],
+            [
+              600,
+              9835.8956
+            ],
+            [
+              700,
+              9749.7725
+            ],
+            [
+              800,
+              9843.2372
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -279.811072,
+          "return_pct": -2.798111,
+          "trades": 106,
+          "win_pct": 26.42,
+          "max_drawdown_pct": 3.604001,
+          "actions": {
+            "open_long": 50,
+            "hold": 398,
+            "close": 105,
+            "open_short": 56
+          },
+          "equity_samples": [
+            [
+              300,
+              9985.8981
+            ],
+            [
+              400,
+              9945.3333
+            ],
+            [
+              500,
+              9848.2224
+            ],
+            [
+              600,
+              9779.3912
+            ],
+            [
+              700,
+              9675.2418
+            ],
+            [
+              800,
+              9746.2034
+            ]
+          ]
+        }
+      },
+      "factor": {
+        "0": {
+          "net_pnl": 35.235594,
+          "return_pct": 0.352356,
+          "trades": 154,
+          "win_pct": 66.23,
+          "max_drawdown_pct": 0.804643,
+          "actions": {
+            "hold": 302,
+            "open_short": 79,
+            "close": 153,
+            "open_long": 75
+          },
+          "equity_samples": [
+            [
+              300,
+              10039.1848
+            ],
+            [
+              400,
+              10006.0714
+            ],
+            [
+              500,
+              10057.5728
+            ],
+            [
+              600,
+              10000.5346
+            ],
+            [
+              700,
+              10033.6618
+            ],
+            [
+              800,
+              10011.5535
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -118.770918,
+          "return_pct": -1.187709,
+          "trades": 154,
+          "win_pct": 57.79,
+          "max_drawdown_pct": 1.639101,
+          "actions": {
+            "hold": 302,
+            "open_short": 79,
+            "close": 153,
+            "open_long": 75
+          },
+          "equity_samples": [
+            [
+              300,
+              10022.6864
+            ],
+            [
+              400,
+              9963.5767
+            ],
+            [
+              500,
+              9987.0851
+            ],
+            [
+              600,
+              9910.5501
+            ],
+            [
+              700,
+              9917.1434
+            ],
+            [
+              800,
+              9870.5449
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -272.777431,
+          "return_pct": -2.727774,
+          "trades": 154,
+          "win_pct": 44.16,
+          "max_drawdown_pct": 2.937341,
+          "actions": {
+            "hold": 302,
+            "open_short": 79,
+            "close": 153,
+            "open_long": 75
+          },
+          "equity_samples": [
+            [
+              300,
+              10006.1879
+            ],
+            [
+              400,
+              9921.082
+            ],
+            [
+              500,
+              9916.5973
+            ],
+            [
+              600,
+              9820.5657
+            ],
+            [
+              700,
+              9800.625
+            ],
+            [
+              800,
+              9729.5363
+            ]
+          ]
+        }
+      }
+    },
+    "SOLUSDT_60m": {
+      "n_breakout": {
+        "0": {
+          "net_pnl": 139.081665,
+          "return_pct": 1.390817,
+          "trades": 12,
+          "win_pct": 50.0,
+          "max_drawdown_pct": 1.20324,
+          "actions": {
+            "hold": 586,
+            "open_short": 5,
+            "close": 11,
+            "open_long": 7
+          },
+          "equity_samples": [
+            [
+              300,
+              10009.4044
+            ],
+            [
+              400,
+              10020.5298
+            ],
+            [
+              500,
+              10035.8295
+            ],
+            [
+              600,
+              9955.0908
+            ],
+            [
+              700,
+              10065.5186
+            ],
+            [
+              800,
+              10096.9773
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 127.009978,
+          "return_pct": 1.2701,
+          "trades": 12,
+          "win_pct": 50.0,
+          "max_drawdown_pct": 1.243134,
+          "actions": {
+            "hold": 586,
+            "open_short": 5,
+            "close": 11,
+            "open_long": 7
+          },
+          "equity_samples": [
+            [
+              300,
+              10008.4091
+            ],
+            [
+              400,
+              10017.5289
+            ],
+            [
+              500,
+              10032.3286
+            ],
+            [
+              600,
+              9947.6181
+            ],
+            [
+              700,
+              10056.488
+            ],
+            [
+              800,
+              10085.9267
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 114.93829,
+          "return_pct": 1.149383,
+          "trades": 12,
+          "win_pct": 50.0,
+          "max_drawdown_pct": 1.283055,
+          "actions": {
+            "hold": 586,
+            "open_short": 5,
+            "close": 11,
+            "open_long": 7
+          },
+          "equity_samples": [
+            [
+              300,
+              10007.4138
+            ],
+            [
+              400,
+              10014.5281
+            ],
+            [
+              500,
+              10028.8278
+            ],
+            [
+              600,
+              9940.1455
+            ],
+            [
+              700,
+              10047.4575
+            ],
+            [
+              800,
+              10074.876
+            ]
+          ]
+        }
+      },
+      "ma_cross": {
+        "0": {
+          "net_pnl": 32.574327,
+          "return_pct": 0.325743,
+          "trades": 18,
+          "win_pct": 38.89,
+          "max_drawdown_pct": 0.689067,
+          "actions": {
+            "hold": 573,
+            "open_short": 18,
+            "close": 18
+          },
+          "equity_samples": [
+            [
+              300,
+              10023.7359
+            ],
+            [
+              400,
+              10048.0883
+            ],
+            [
+              500,
+              10062.6089
+            ],
+            [
+              600,
+              10054.4939
+            ],
+            [
+              700,
+              10071.4556
+            ],
+            [
+              800,
+              10087.9082
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 14.590614,
+          "return_pct": 0.145906,
+          "trades": 18,
+          "win_pct": 38.89,
+          "max_drawdown_pct": 0.74433,
+          "actions": {
+            "hold": 573,
+            "open_short": 18,
+            "close": 18
+          },
+          "equity_samples": [
+            [
+              300,
+              10021.7477
+            ],
+            [
+              400,
+              10044.6066
+            ],
+            [
+              500,
+              10056.1512
+            ],
+            [
+              600,
+              10043.0092
+            ],
+            [
+              700,
+              10057.9862
+            ],
+            [
+              800,
+              10072.4426
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -3.393099,
+          "return_pct": -0.033931,
+          "trades": 18,
+          "win_pct": 38.89,
+          "max_drawdown_pct": 0.868774,
+          "actions": {
+            "hold": 573,
+            "open_short": 18,
+            "close": 18
+          },
+          "equity_samples": [
+            [
+              300,
+              10019.7596
+            ],
+            [
+              400,
+              10041.1248
+            ],
+            [
+              500,
+              10049.6936
+            ],
+            [
+              600,
+              10031.5244
+            ],
+            [
+              700,
+              10044.5168
+            ],
+            [
+              800,
+              10056.9769
+            ]
+          ]
+        }
+      },
+      "macd_cross": {
+        "0": {
+          "net_pnl": 110.739523,
+          "return_pct": 1.107395,
+          "trades": 19,
+          "win_pct": 47.37,
+          "max_drawdown_pct": 0.441685,
+          "actions": {
+            "hold": 571,
+            "open_short": 19,
+            "close": 19
+          },
+          "equity_samples": [
+            [
+              300,
+              10016.4563
+            ],
+            [
+              400,
+              10041.7512
+            ],
+            [
+              500,
+              10062.9328
+            ],
+            [
+              600,
+              10085.2536
+            ],
+            [
+              700,
+              10113.0305
+            ],
+            [
+              800,
+              10144.9194
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 91.794893,
+          "return_pct": 0.917949,
+          "trades": 19,
+          "win_pct": 47.37,
+          "max_drawdown_pct": 0.467068,
+          "actions": {
+            "hold": 571,
+            "open_short": 19,
+            "close": 19
+          },
+          "equity_samples": [
+            [
+              300,
+              10014.4645
+            ],
+            [
+              400,
+              10038.2672
+            ],
+            [
+              500,
+              10054.9643
+            ],
+            [
+              600,
+              10074.7808
+            ],
+            [
+              700,
+              10099.5761
+            ],
+            [
+              800,
+              10128.4757
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 72.850262,
+          "return_pct": 0.728503,
+          "trades": 19,
+          "win_pct": 47.37,
+          "max_drawdown_pct": 0.492533,
+          "actions": {
+            "hold": 571,
+            "open_short": 19,
+            "close": 19
+          },
+          "equity_samples": [
+            [
+              300,
+              10012.4727
+            ],
+            [
+              400,
+              10034.7831
+            ],
+            [
+              500,
+              10046.9957
+            ],
+            [
+              600,
+              10064.3079
+            ],
+            [
+              700,
+              10086.1216
+            ],
+            [
+              800,
+              10112.0321
+            ]
+          ]
+        }
+      },
+      "kdj_cross": {
+        "0": {
+          "net_pnl": -48.055251,
+          "return_pct": -0.480553,
+          "trades": 56,
+          "win_pct": 33.93,
+          "max_drawdown_pct": 1.627065,
+          "actions": {
+            "hold": 497,
+            "open_long": 56,
+            "close": 56
+          },
+          "equity_samples": [
+            [
+              300,
+              9964.8309
+            ],
+            [
+              400,
+              9944.2755
+            ],
+            [
+              500,
+              9866.6204
+            ],
+            [
+              600,
+              9858.2575
+            ],
+            [
+              700,
+              9909.0525
+            ],
+            [
+              800,
+              9934.8324
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -104.031224,
+          "return_pct": -1.040312,
+          "trades": 56,
+          "win_pct": 28.57,
+          "max_drawdown_pct": 2.00127,
+          "actions": {
+            "hold": 497,
+            "open_long": 56,
+            "close": 56
+          },
+          "equity_samples": [
+            [
+              300,
+              9957.8485
+            ],
+            [
+              400,
+              9927.3034
+            ],
+            [
+              500,
+              9838.6871
+            ],
+            [
+              600,
+              9822.8199
+            ],
+            [
+              700,
+              9866.098
+            ],
+            [
+              800,
+              9884.3675
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -160.007196,
+          "return_pct": -1.600072,
+          "trades": 56,
+          "win_pct": 26.79,
+          "max_drawdown_pct": 2.375474,
+          "actions": {
+            "hold": 497,
+            "open_long": 56,
+            "close": 56
+          },
+          "equity_samples": [
+            [
+              300,
+              9950.8661
+            ],
+            [
+              400,
+              9910.3313
+            ],
+            [
+              500,
+              9810.7538
+            ],
+            [
+              600,
+              9787.3822
+            ],
+            [
+              700,
+              9823.1435
+            ],
+            [
+              800,
+              9833.9026
+            ]
+          ]
+        }
+      },
+      "band_swing": {
+        "0": {
+          "net_pnl": -222.757406,
+          "return_pct": -2.227574,
+          "trades": 22,
+          "win_pct": 63.64,
+          "max_drawdown_pct": 2.63225,
+          "actions": {
+            "hold": 566,
+            "open_short": 11,
+            "close": 21,
+            "open_long": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              9987.9415
+            ],
+            [
+              400,
+              9941.8656
+            ],
+            [
+              500,
+              9947.6347
+            ],
+            [
+              600,
+              9976.23
+            ],
+            [
+              700,
+              9827.2579
+            ],
+            [
+              800,
+              9789.1273
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -244.871849,
+          "return_pct": -2.448718,
+          "trades": 22,
+          "win_pct": 54.55,
+          "max_drawdown_pct": 2.783188,
+          "actions": {
+            "hold": 566,
+            "open_short": 11,
+            "close": 21,
+            "open_long": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              9985.4618
+            ],
+            [
+              400,
+              9936.3554
+            ],
+            [
+              500,
+              9938.6293
+            ],
+            [
+              600,
+              9962.725
+            ],
+            [
+              700,
+              9812.1883
+            ],
+            [
+              800,
+              9770.5373
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -266.986292,
+          "return_pct": -2.669863,
+          "trades": 22,
+          "win_pct": 50.0,
+          "max_drawdown_pct": 2.934172,
+          "actions": {
+            "hold": 566,
+            "open_short": 11,
+            "close": 21,
+            "open_long": 11
+          },
+          "equity_samples": [
+            [
+              300,
+              9982.982
+            ],
+            [
+              400,
+              9930.8452
+            ],
+            [
+              500,
+              9929.6239
+            ],
+            [
+              600,
+              9949.22
+            ],
+            [
+              700,
+              9797.1187
+            ],
+            [
+              800,
+              9751.9472
+            ]
+          ]
+        }
+      },
+      "swing_pro": {
+        "0": {
+          "net_pnl": -90.551069,
+          "return_pct": -0.905511,
+          "trades": 37,
+          "win_pct": 48.65,
+          "max_drawdown_pct": 1.91927,
+          "actions": {
+            "open_long": 21,
+            "hold": 546,
+            "close": 26,
+            "open_short": 16
+          },
+          "equity_samples": [
+            [
+              300,
+              10012.1845
+            ],
+            [
+              400,
+              10004.5323
+            ],
+            [
+              500,
+              9997.5464
+            ],
+            [
+              600,
+              9967.6402
+            ],
+            [
+              700,
+              9883.2618
+            ],
+            [
+              800,
+              9926.3533
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -127.620113,
+          "return_pct": -1.276201,
+          "trades": 37,
+          "win_pct": 45.95,
+          "max_drawdown_pct": 2.159224,
+          "actions": {
+            "open_long": 21,
+            "hold": 546,
+            "close": 26,
+            "open_short": 16
+          },
+          "equity_samples": [
+            [
+              300,
+              10007.6847
+            ],
+            [
+              400,
+              9993.9905
+            ],
+            [
+              500,
+              9980.5011
+            ],
+            [
+              600,
+              9944.6098
+            ],
+            [
+              700,
+              9853.7197
+            ],
+            [
+              800,
+              9892.3176
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -164.689157,
+          "return_pct": -1.646892,
+          "trades": 37,
+          "win_pct": 40.54,
+          "max_drawdown_pct": 2.399488,
+          "actions": {
+            "open_long": 21,
+            "hold": 546,
+            "close": 26,
+            "open_short": 16
+          },
+          "equity_samples": [
+            [
+              300,
+              10003.1849
+            ],
+            [
+              400,
+              9983.4487
+            ],
+            [
+              500,
+              9963.4557
+            ],
+            [
+              600,
+              9921.5794
+            ],
+            [
+              700,
+              9824.1776
+            ],
+            [
+              800,
+              9858.2819
+            ]
+          ]
+        }
+      },
+      "strength_entry": {
+        "0": {
+          "net_pnl": 247.343834,
+          "return_pct": 2.473438,
+          "trades": 20,
+          "win_pct": 45.0,
+          "max_drawdown_pct": 0.612459,
+          "actions": {
+            "hold": 570,
+            "open_long": 20,
+            "close": 19
+          },
+          "equity_samples": [
+            [
+              300,
+              9997.3223
+            ],
+            [
+              400,
+              10041.6537
+            ],
+            [
+              500,
+              10047.2994
+            ],
+            [
+              600,
+              10033.4116
+            ],
+            [
+              700,
+              10164.0132
+            ],
+            [
+              800,
+              10227.6843
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 227.220162,
+          "return_pct": 2.272202,
+          "trades": 20,
+          "win_pct": 35.0,
+          "max_drawdown_pct": 0.697169,
+          "actions": {
+            "hold": 570,
+            "open_long": 20,
+            "close": 19
+          },
+          "equity_samples": [
+            [
+              300,
+              9994.832
+            ],
+            [
+              400,
+              10035.6329
+            ],
+            [
+              500,
+              10039.7847
+            ],
+            [
+              600,
+              10020.3949
+            ],
+            [
+              700,
+              10148.9312
+            ],
+            [
+              800,
+              10210.5705
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": 207.09649,
+          "return_pct": 2.070965,
+          "trades": 20,
+          "win_pct": 35.0,
+          "max_drawdown_pct": 0.806635,
+          "actions": {
+            "hold": 570,
+            "open_long": 20,
+            "close": 19
+          },
+          "equity_samples": [
+            [
+              300,
+              9992.3416
+            ],
+            [
+              400,
+              10029.6121
+            ],
+            [
+              500,
+              10032.27
+            ],
+            [
+              600,
+              10007.3782
+            ],
+            [
+              700,
+              10133.8492
+            ],
+            [
+              800,
+              10193.4566
+            ]
+          ]
+        }
+      },
+      "strength_entry_v2": {
+        "0": {
+          "net_pnl": 172.50671,
+          "return_pct": 1.725067,
+          "trades": 91,
+          "win_pct": 49.45,
+          "max_drawdown_pct": 1.194185,
+          "actions": {
+            "open_long": 49,
+            "hold": 427,
+            "close": 91,
+            "open_short": 42
+          },
+          "equity_samples": [
+            [
+              300,
+              10021.7295
+            ],
+            [
+              400,
+              10107.3206
+            ],
+            [
+              500,
+              10143.912
+            ],
+            [
+              600,
+              10095.6948
+            ],
+            [
+              700,
+              10167.3186
+            ],
+            [
+              800,
+              10244.3899
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": 81.450065,
+          "return_pct": 0.814501,
+          "trades": 91,
+          "win_pct": 43.96,
+          "max_drawdown_pct": 1.414916,
+          "actions": {
+            "open_long": 49,
+            "hold": 427,
+            "close": 91,
+            "open_short": 42
+          },
+          "equity_samples": [
+            [
+              300,
+              10016.241
+            ],
+            [
+              400,
+              10084.8041
+            ],
+            [
+              500,
+              10110.4311
+            ],
+            [
+              600,
+              10045.2193
+            ],
+            [
+              700,
+              10100.7897
+            ],
+            [
+              800,
+              10162.3487
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -9.606579,
+          "return_pct": -0.096066,
+          "trades": 91,
+          "win_pct": 36.26,
+          "max_drawdown_pct": 1.63711,
+          "actions": {
+            "open_long": 49,
+            "hold": 427,
+            "close": 91,
+            "open_short": 42
+          },
+          "equity_samples": [
+            [
+              300,
+              10010.7526
+            ],
+            [
+              400,
+              10062.2875
+            ],
+            [
+              500,
+              10076.9502
+            ],
+            [
+              600,
+              9994.7437
+            ],
+            [
+              700,
+              10034.2608
+            ],
+            [
+              800,
+              10080.3075
+            ]
+          ]
+        }
+      },
+      "factor": {
+        "0": {
+          "net_pnl": -25.190794,
+          "return_pct": -0.251908,
+          "trades": 149,
+          "win_pct": 63.76,
+          "max_drawdown_pct": 1.248283,
+          "actions": {
+            "hold": 312,
+            "open_short": 78,
+            "close": 148,
+            "open_long": 71
+          },
+          "equity_samples": [
+            [
+              300,
+              10025.6738
+            ],
+            [
+              400,
+              10000.7318
+            ],
+            [
+              500,
+              10047.1606
+            ],
+            [
+              600,
+              10017.6478
+            ],
+            [
+              700,
+              9981.8764
+            ],
+            [
+              800,
+              9943.9886
+            ]
+          ]
+        },
+        "5": {
+          "net_pnl": -174.222897,
+          "return_pct": -1.742229,
+          "trades": 149,
+          "win_pct": 56.38,
+          "max_drawdown_pct": 2.204473,
+          "actions": {
+            "hold": 312,
+            "open_short": 78,
+            "close": 148,
+            "open_long": 71
+          },
+          "equity_samples": [
+            [
+              300,
+              10011.6796
+            ],
+            [
+              400,
+              9962.233
+            ],
+            [
+              500,
+              9979.1816
+            ],
+            [
+              600,
+              9929.677
+            ],
+            [
+              700,
+              9870.3638
+            ],
+            [
+              800,
+              9810.4722
+            ]
+          ]
+        },
+        "10": {
+          "net_pnl": -323.255,
+          "return_pct": -3.23255,
+          "trades": 149,
+          "win_pct": 51.68,
+          "max_drawdown_pct": 3.50141,
+          "actions": {
+            "hold": 312,
+            "open_short": 78,
+            "close": 148,
+            "open_long": 71
+          },
+          "equity_samples": [
+            [
+              300,
+              9997.6853
+            ],
+            [
+              400,
+              9923.7341
+            ],
+            [
+              500,
+              9911.2027
+            ],
+            [
+              600,
+              9841.7062
+            ],
+            [
+              700,
+              9758.8512
+            ],
+            [
+              800,
+              9676.9558
+            ]
+          ]
+        }
+      }
+    }
+  },
+  "limitations": "1000 fixed quote notional, 10000 cash, no leverage; next-open fills; fee+slippage 0/5/10bps each side; strategy-only exits and swing_pro stops. Synthetic and short cached samples are NOT investment validation."
+}

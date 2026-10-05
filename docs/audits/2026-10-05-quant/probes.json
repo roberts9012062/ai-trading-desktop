@@ -1,0 +1,1546 @@
+{
+  "flat_band": {
+    "action": "open_long",
+    "quantity": 0,
+    "reason": "波段做多：触及下轨 100.00",
+    "confidence": 0.85,
+    "signal": "band_lower_open_long",
+    "parse_ok": true,
+    "band_snapshot": {
+      "period": 20,
+      "std_mult": 2.0,
+      "upper": 100.0,
+      "middle": 100.0,
+      "lower": 100.0,
+      "close": 100.0
+    }
+  },
+  "long_lookback": {
+    "ma_cross": {
+      "240": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "K线不足（需≥301根）",
+        "confidence": 0,
+        "signal": "insufficient_data",
+        "ma_snapshot": null,
+        "parse_ok": true
+      },
+      "900": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无交叉信号（空头排列）",
+        "confidence": 0.4,
+        "signal": "none",
+        "ma_snapshot": {
+          "fast_period": 5,
+          "slow_period": 300,
+          "ma_type": "sma",
+          "fast_prev": 98.8724,
+          "fast_now": 98.1835,
+          "slow_prev": 100.024,
+          "slow_now": 99.9941,
+          "close": 96.36607631458553
+        },
+        "parse_ok": true
+      }
+    },
+    "n_breakout": {
+      "240": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "K线不足（需≥301根）",
+        "confidence": 0,
+        "signal": "insufficient_data",
+        "breakout_snapshot": null,
+        "parse_ok": true
+      },
+      "900": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无突破（通道内，通道 91.81~108.35）",
+        "confidence": 0.4,
+        "signal": "none",
+        "breakout_snapshot": {
+          "lookback": 300,
+          "upper": 108.3466,
+          "lower": 91.8104,
+          "close": 96.3661,
+          "bar_time": "2026-01-04 02:55:00"
+        },
+        "parse_ok": true
+      }
+    },
+    "macd_cross": {
+      "240": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "K线不足（需≥302根）",
+        "confidence": 0,
+        "signal": "insufficient_data",
+        "parse_ok": true,
+        "macd_snapshot": null
+      },
+      "900": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无交叉信号（DIF<DEA 空头）",
+        "confidence": 0.4,
+        "signal": "none",
+        "parse_ok": true,
+        "macd_snapshot": {
+          "fast_period": 12,
+          "slow_period": 200,
+          "signal_period": 100,
+          "dif_prev": 0.3293,
+          "dea_prev": 0.7706,
+          "dif_now": -0.3079,
+          "dea_now": 0.7492,
+          "hist_now": -2.1143
+        }
+      }
+    }
+  },
+  "backtest_120_parameter_cap": {
+    "ma_cross": {
+      "120": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "K线不足（需≥151根）",
+        "confidence": 0,
+        "signal": "insufficient_data",
+        "ma_snapshot": null,
+        "parse_ok": true
+      },
+      "240": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无交叉信号（空头排列）",
+        "confidence": 0.4,
+        "signal": "none",
+        "ma_snapshot": {
+          "fast_period": 5,
+          "slow_period": 150,
+          "ma_type": "sma",
+          "fast_prev": 98.8724,
+          "fast_now": 98.1835,
+          "slow_prev": 99.9506,
+          "slow_now": 99.9197,
+          "close": 96.36607631458553
+        },
+        "parse_ok": true
+      },
+      "900": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无交叉信号（空头排列）",
+        "confidence": 0.4,
+        "signal": "none",
+        "ma_snapshot": {
+          "fast_period": 5,
+          "slow_period": 150,
+          "ma_type": "sma",
+          "fast_prev": 98.8724,
+          "fast_now": 98.1835,
+          "slow_prev": 99.9506,
+          "slow_now": 99.9197,
+          "close": 96.36607631458553
+        },
+        "parse_ok": true
+      }
+    },
+    "n_breakout": {
+      "120": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "K线不足（需≥151根）",
+        "confidence": 0,
+        "signal": "insufficient_data",
+        "breakout_snapshot": null,
+        "parse_ok": true
+      },
+      "240": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无突破（通道内，通道 91.81~108.35）",
+        "confidence": 0.4,
+        "signal": "none",
+        "breakout_snapshot": {
+          "lookback": 150,
+          "upper": 108.3466,
+          "lower": 91.8104,
+          "close": 96.3661,
+          "bar_time": "2026-01-04 02:55:00"
+        },
+        "parse_ok": true
+      },
+      "900": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无突破（通道内，通道 91.81~108.35）",
+        "confidence": 0.4,
+        "signal": "none",
+        "breakout_snapshot": {
+          "lookback": 150,
+          "upper": 108.3466,
+          "lower": 91.8104,
+          "close": 96.3661,
+          "bar_time": "2026-01-04 02:55:00"
+        },
+        "parse_ok": true
+      }
+    },
+    "macd_cross": {
+      "120": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "K线不足（需≥161根）",
+        "confidence": 0,
+        "signal": "insufficient_data",
+        "parse_ok": true,
+        "macd_snapshot": null
+      },
+      "240": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无交叉信号（DIF<DEA 空头）",
+        "confidence": 0.4,
+        "signal": "none",
+        "parse_ok": true,
+        "macd_snapshot": {
+          "fast_period": 12,
+          "slow_period": 150,
+          "signal_period": 9,
+          "dif_prev": 0.2338,
+          "dea_prev": 1.9942,
+          "dif_now": -0.3887,
+          "dea_now": 1.5176,
+          "hist_now": -3.8127
+        }
+      },
+      "900": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "无交叉信号（DIF<DEA 空头）",
+        "confidence": 0.4,
+        "signal": "none",
+        "parse_ok": true,
+        "macd_snapshot": {
+          "fast_period": 12,
+          "slow_period": 150,
+          "signal_period": 9,
+          "dif_prev": 0.1946,
+          "dea_prev": 1.9528,
+          "dif_now": -0.4274,
+          "dea_now": 1.4768,
+          "hist_now": -3.8084
+        }
+      }
+    },
+    "band_swing": {
+      "120": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "K线不足（需≥151根）",
+        "confidence": 0,
+        "signal": "insufficient_data",
+        "parse_ok": true,
+        "band_snapshot": null
+      },
+      "240": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "通道内观望（中轨下方，90.05~109.79）",
+        "confidence": 0.4,
+        "signal": "none",
+        "parse_ok": true,
+        "band_snapshot": {
+          "period": 150,
+          "std_mult": 2.0,
+          "upper": 109.7885,
+          "middle": 99.9197,
+          "lower": 90.0509,
+          "close": 96.36607631458553
+        }
+      },
+      "900": {
+        "action": "hold",
+        "quantity": 0,
+        "reason": "通道内观望（中轨下方，90.05~109.79）",
+        "confidence": 0.4,
+        "signal": "none",
+        "parse_ok": true,
+        "band_snapshot": {
+          "period": 150,
+          "std_mult": 2.0,
+          "upper": 109.7885,
+          "middle": 99.9197,
+          "lower": 90.0509,
+          "close": 96.36607631458553
+        }
+      }
+    }
+  },
+  "scale": {
+    "ma_cross": {
+      "evaluations": 660,
+      "action_mismatches": 27,
+      "examples": [
+        {
+          "end": 263,
+          "normal": "open_short",
+          "tiny": "hold"
+        },
+        {
+          "end": 288,
+          "normal": "open_long",
+          "tiny": "hold"
+        },
+        {
+          "end": 311,
+          "normal": "open_short",
+          "tiny": "hold"
+        },
+        {
+          "end": 335,
+          "normal": "open_long",
+          "tiny": "hold"
+        }
+      ]
+    },
+    "macd_cross": {
+      "evaluations": 660,
+      "action_mismatches": 27,
+      "examples": [
+        {
+          "end": 261,
+          "normal": "open_short",
+          "tiny": "hold"
+        },
+        {
+          "end": 283,
+          "normal": "open_long",
+          "tiny": "hold"
+        },
+        {
+          "end": 307,
+          "normal": "open_short",
+          "tiny": "hold"
+        },
+        {
+          "end": 332,
+          "normal": "open_long",
+          "tiny": "hold"
+        }
+      ]
+    },
+    "kdj_cross": {
+      "evaluations": 660,
+      "action_mismatches": 0,
+      "examples": []
+    },
+    "band_swing": {
+      "evaluations": 660,
+      "action_mismatches": 598,
+      "examples": [
+        {
+          "end": 241,
+          "normal": "hold",
+          "tiny": "open_short"
+        },
+        {
+          "end": 242,
+          "normal": "hold",
+          "tiny": "open_short"
+        },
+        {
+          "end": 243,
+          "normal": "hold",
+          "tiny": "open_short"
+        },
+        {
+          "end": 244,
+          "normal": "hold",
+          "tiny": "open_short"
+        }
+      ]
+    },
+    "n_breakout": {
+      "evaluations": 660,
+      "action_mismatches": 0,
+      "examples": []
+    }
+  },
+  "history_live_window_parity": {
+    "n_breakout": {
+      "evaluations": 132,
+      "mismatches": 0,
+      "examples": []
+    },
+    "ma_cross": {
+      "evaluations": 132,
+      "mismatches": 0,
+      "examples": []
+    },
+    "macd_cross": {
+      "evaluations": 132,
+      "mismatches": 0,
+      "examples": []
+    },
+    "kdj_cross": {
+      "evaluations": 132,
+      "mismatches": 0,
+      "examples": []
+    },
+    "band_swing": {
+      "evaluations": 132,
+      "mismatches": 0,
+      "examples": []
+    },
+    "swing_pro": {
+      "evaluations": 132,
+      "mismatches": 0,
+      "examples": []
+    },
+    "strength_entry": {
+      "evaluations": 132,
+      "mismatches": 0,
+      "examples": []
+    },
+    "strength_entry_v2": {
+      "evaluations": 132,
+      "mismatches": 0,
+      "examples": []
+    },
+    "factor": {
+      "evaluations": 132,
+      "mismatches": 17,
+      "examples": [
+        {
+          "end": 241,
+          "history_120": "hold",
+          "live_240": "open_short",
+          "history_signal": "factor_wait",
+          "live_signal": "factor_open_short"
+        },
+        {
+          "end": 256,
+          "history_120": "open_short",
+          "live_240": "hold",
+          "history_signal": "factor_open_short",
+          "live_signal": "factor_wait"
+        },
+        {
+          "end": 281,
+          "history_120": "hold",
+          "live_240": "open_short",
+          "history_signal": "factor_wait",
+          "live_signal": "factor_open_short"
+        },
+        {
+          "end": 311,
+          "history_120": "hold",
+          "live_240": "open_long",
+          "history_signal": "factor_wait",
+          "live_signal": "factor_open_long"
+        }
+      ]
+    }
+  },
+  "invalid_data": {
+    "n_breakout": {
+      "zero": {
+        "action": "open_short",
+        "signal": "down_open_short",
+        "finite": true
+      },
+      "missing": {
+        "action": "open_short",
+        "signal": "down_open_short",
+        "finite": true
+      },
+      "string": {
+        "action": "open_short",
+        "signal": "down_open_short",
+        "finite": true
+      },
+      "nan": {
+        "action": "hold",
+        "signal": "none",
+        "finite": false
+      },
+      "inverted": {
+        "action": "open_short",
+        "signal": "down_open_short",
+        "finite": true
+      }
+    },
+    "ma_cross": {
+      "zero": {
+        "action": "hold",
+        "signal": "none",
+        "finite": true
+      },
+      "missing": {
+        "action": "hold",
+        "signal": "none",
+        "finite": true
+      },
+      "string": {
+        "action": "hold",
+        "signal": "none",
+        "finite": true
+      },
+      "nan": {
+        "action": "hold",
+        "signal": "none",
+        "finite": false
+      },
+      "inverted": {
+        "action": "hold",
+        "signal": "none",
+        "finite": true
+      }
+    },
+    "macd_cross": {
+      "zero": {
+        "action": "hold",
+        "signal": "none",
+        "finite": true
+      },
+      "missing": {
+        "action": "hold",
+        "signal": "none",
+        "finite": true
+      },
+      "string": {
+        "action": "hold",
+        "signal": "none",
+        "finite": true
+      },
+      "nan": {
+        "action": "hold",
+        "signal": "none",
+        "finite": false
+      },
+      "inverted": {
+        "action": "hold",
+        "signal": "none",
+        "finite": true
+      }
+    },
+    "kdj_cross": {
+      "zero": {
+        "action": "hold",
+        "signal": "none",
+        "finite": true
+      },
+      "missing": {
+        "action": "hold",
+        "signal": "none",
+        "finite": true
+      },
+      "string": {
+        "action": "hold",
+        "signal": "none",
+        "finite": true
+      },
+      "nan": {
+        "action": "hold",
+        "signal": "none",
+        "finite": false
+      },
+      "inverted": {
+        "action": "hold",
+        "signal": "none",
+        "finite": true
+      }
+    },
+    "band_swing": {
+      "zero": {
+        "action": "open_long",
+        "signal": "band_lower_open_long",
+        "finite": true
+      },
+      "missing": {
+        "action": "open_long",
+        "signal": "band_lower_open_long",
+        "finite": true
+      },
+      "string": {
+        "action": "open_long",
+        "signal": "band_lower_open_long",
+        "finite": true
+      },
+      "nan": {
+        "action": "hold",
+        "signal": "none",
+        "finite": false
+      },
+      "inverted": {
+        "action": "hold",
+        "signal": "none",
+        "finite": true
+      }
+    },
+    "swing_pro": {
+      "zero": {
+        "action": "hold",
+        "signal": "none",
+        "finite": true
+      },
+      "missing": {
+        "action": "hold",
+        "signal": "none",
+        "finite": true
+      },
+      "string": {
+        "exception": "ValueError",
+        "message": "could not convert string to float: 'broken'"
+      },
+      "nan": {
+        "action": "hold",
+        "signal": "none",
+        "finite": false
+      },
+      "inverted": {
+        "action": "hold",
+        "signal": "none",
+        "finite": true
+      }
+    },
+    "strength_entry": {
+      "zero": {
+        "action": "hold",
+        "signal": "stale",
+        "finite": true
+      },
+      "missing": {
+        "exception": "KeyError",
+        "message": "'close'"
+      },
+      "string": {
+        "exception": "TypeError",
+        "message": "unsupported operand type(s) for -: 'str' and 'float'"
+      },
+      "nan": {
+        "exception": "ValueError",
+        "message": "cannot convert float NaN to integer"
+      },
+      "inverted": {
+        "action": "hold",
+        "signal": "stale",
+        "finite": true
+      }
+    },
+    "strength_entry_v2": {
+      "zero": {
+        "action": "open_short",
+        "signal": "strength_v2_breakdown_open_short",
+        "finite": true
+      },
+      "missing": {
+        "exception": "KeyError",
+        "message": "'close'"
+      },
+      "string": {
+        "exception": "TypeError",
+        "message": "unsupported operand type(s) for -: 'str' and 'float'"
+      },
+      "nan": {
+        "exception": "ValueError",
+        "message": "cannot convert float NaN to integer"
+      },
+      "inverted": {
+        "action": "open_short",
+        "signal": "strength_v2_breakdown_open_short",
+        "finite": true
+      }
+    },
+    "factor": {
+      "zero": {
+        "action": "open_long",
+        "signal": "factor_open_long",
+        "finite": true
+      },
+      "missing": {
+        "exception": "KeyError",
+        "message": "'close'"
+      },
+      "string": {
+        "exception": "ValueError",
+        "message": "could not convert string to float: 'broken'"
+      },
+      "nan": {
+        "exception": "ValueError",
+        "message": "cannot convert float NaN to integer"
+      },
+      "inverted": {
+        "action": "open_long",
+        "signal": "factor_open_long",
+        "finite": true
+      }
+    }
+  },
+  "factor_cache_volume_revision": {
+    "same_object": true,
+    "cached": -1.7761893320604891,
+    "fresh": 5.0,
+    "max_diff": 6.776189332060489,
+    "nonfinite_features": [
+      "FUNDING_RATE",
+      "FUNDING_DELTA",
+      "TAKER_IMBALANCE",
+      "QUOTE_ILLIQ20",
+      "ACCOUNT_LS_RATIO",
+      "LIQUIDATION_IMBALANCE",
+      "AVG_TRADE_QUOTE",
+      "FUNDING_MEAN24",
+      "OI_TREND24",
+      "TAKER_IMB24"
+    ]
+  },
+  "causality": {
+    "240": 0.0,
+    "360": 0.0,
+    "600": 0.0
+  },
+  "variable_normalization": {
+    "240": 0.5970020379298832,
+    "360": 1.6188471480615256,
+    "600": 1.6188471480615256
+  },
+  "desktop_dispatch": {
+    "n_breakout": {
+      "action": "open_short",
+      "quantity": 0,
+      "reason": "向下突破20日低点 97.2849 开空",
+      "confidence": 0.85,
+      "signal": "down_open_short",
+      "breakout_snapshot": {
+        "lookback": 20,
+        "upper": 107.4211,
+        "lower": 97.2849,
+        "close": 96.3661,
+        "bar_time": "2026-01-04 02:55:00"
+      },
+      "parse_ok": true
+    },
+    "ma_cross": {
+      "action": "hold",
+      "quantity": 0,
+      "reason": "无交叉信号（空头排列）",
+      "confidence": 0.4,
+      "signal": "none",
+      "ma_snapshot": {
+        "fast_period": 5,
+        "slow_period": 20,
+        "ma_type": "sma",
+        "fast_prev": 98.8724,
+        "fast_now": 98.1835,
+        "slow_prev": 103.4507,
+        "slow_now": 102.9586,
+        "close": 96.36607631458553
+      },
+      "parse_ok": true
+    },
+    "macd_cross": {
+      "action": "hold",
+      "quantity": 0,
+      "reason": "无交叉信号（DIF<DEA 空头）",
+      "confidence": 0.4,
+      "signal": "none",
+      "parse_ok": true,
+      "macd_snapshot": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "dif_prev": -0.949,
+        "dea_prev": 0.0745,
+        "dif_now": -1.2302,
+        "dea_now": -0.1864,
+        "hist_now": -2.0875
+      }
+    },
+    "kdj_cross": {
+      "action": "hold",
+      "quantity": 0,
+      "reason": "无交叉信号（K<D 空头）",
+      "confidence": 0.4,
+      "signal": "none",
+      "parse_ok": true,
+      "kdj_snapshot": {
+        "n_period": 9,
+        "k_period": 3,
+        "d_period": 3,
+        "k_prev": 4.5728,
+        "d_prev": 8.2321,
+        "k_now": 4.8031,
+        "d_now": 7.0891,
+        "j_now": 0.231,
+        "use_zone": false
+      }
+    },
+    "band_swing": {
+      "action": "hold",
+      "quantity": 0,
+      "reason": "通道内观望（中轨下方，95.82~110.09）",
+      "confidence": 0.4,
+      "signal": "none",
+      "parse_ok": true,
+      "band_snapshot": {
+        "period": 20,
+        "std_mult": 2.0,
+        "upper": 110.095,
+        "middle": 102.9586,
+        "lower": 95.8222,
+        "close": 96.36607631458553
+      }
+    },
+    "swing_pro": {
+      "action": "hold",
+      "quantity": 0,
+      "reason": "不支持的量化策略: swing_pro",
+      "confidence": 0,
+      "parse_ok": true
+    },
+    "strength_entry": {
+      "action": "hold",
+      "quantity": 0,
+      "reason": "不支持的量化策略: strength_entry",
+      "confidence": 0,
+      "parse_ok": true
+    },
+    "strength_entry_v2": {
+      "action": "hold",
+      "quantity": 0,
+      "reason": "不支持的量化策略: strength_entry_v2",
+      "confidence": 0,
+      "parse_ok": true
+    },
+    "factor": {
+      "action": "hold",
+      "quantity": 0,
+      "reason": "数据不足或因子无效",
+      "confidence": 0.0,
+      "signal": "invalid_factor",
+      "parse_ok": true
+    }
+  },
+  "desktop_parity": {
+    "ma_cross": {
+      "evaluations": 102,
+      "action_mismatches": 2,
+      "examples": [
+        {
+          "end": 360,
+          "position": "long",
+          "server": "close",
+          "desktop": "open_short"
+        },
+        {
+          "end": 360,
+          "position": "short",
+          "server": "hold",
+          "desktop": "open_short"
+        }
+      ]
+    },
+    "n_breakout": {
+      "evaluations": 102,
+      "action_mismatches": 28,
+      "examples": [
+        {
+          "end": 300,
+          "position": "long",
+          "server": "hold",
+          "desktop": "open_long"
+        },
+        {
+          "end": 300,
+          "position": "short",
+          "server": "close",
+          "desktop": "open_long"
+        },
+        {
+          "end": 320,
+          "position": "long",
+          "server": "close",
+          "desktop": "open_short"
+        },
+        {
+          "end": 320,
+          "position": "short",
+          "server": "hold",
+          "desktop": "open_short"
+        },
+        {
+          "end": 340,
+          "position": "long",
+          "server": "hold",
+          "desktop": "open_long"
+        }
+      ]
+    },
+    "macd_cross": {
+      "evaluations": 102,
+      "action_mismatches": 0,
+      "examples": []
+    },
+    "kdj_cross": {
+      "evaluations": 102,
+      "action_mismatches": 8,
+      "examples": [
+        {
+          "end": 420,
+          "position": "long",
+          "server": "hold",
+          "desktop": "open_long"
+        },
+        {
+          "end": 420,
+          "position": "short",
+          "server": "close",
+          "desktop": "open_long"
+        },
+        {
+          "end": 520,
+          "position": "long",
+          "server": "close",
+          "desktop": "open_short"
+        },
+        {
+          "end": 520,
+          "position": "short",
+          "server": "hold",
+          "desktop": "open_short"
+        },
+        {
+          "end": 760,
+          "position": "long",
+          "server": "hold",
+          "desktop": "open_long"
+        }
+      ]
+    },
+    "band_swing": {
+      "evaluations": 102,
+      "action_mismatches": 39,
+      "examples": [
+        {
+          "end": 240,
+          "position": "long",
+          "server": "close",
+          "desktop": "hold"
+        },
+        {
+          "end": 260,
+          "position": "long",
+          "server": "close",
+          "desktop": "hold"
+        },
+        {
+          "end": 280,
+          "position": "short",
+          "server": "close",
+          "desktop": "hold"
+        },
+        {
+          "end": 300,
+          "position": "long",
+          "server": "close",
+          "desktop": "hold"
+        },
+        {
+          "end": 320,
+          "position": "short",
+          "server": "close",
+          "desktop": "hold"
+        }
+      ]
+    },
+    "factor": {
+      "evaluations": 102,
+      "action_mismatches": 60,
+      "examples": [
+        {
+          "end": 240,
+          "position": "long",
+          "server": "close",
+          "desktop": "open_short"
+        },
+        {
+          "end": 240,
+          "position": "short",
+          "server": "hold",
+          "desktop": "open_short"
+        },
+        {
+          "end": 260,
+          "position": "long",
+          "server": "hold",
+          "desktop": "open_long"
+        },
+        {
+          "end": 260,
+          "position": "short",
+          "server": "close",
+          "desktop": "open_long"
+        },
+        {
+          "end": 280,
+          "position": "long",
+          "server": "close",
+          "desktop": "open_short"
+        }
+      ]
+    }
+  },
+  "swing_pro_incomplete_htf": {
+    "source_last_open": "2026-01-01 20:05:00",
+    "source_last_close": "2026-01-01 20:10:00",
+    "aggregated_last_open": "2026-01-01 20:00:00",
+    "aggregated_count": 81,
+    "expected_closed_count": 80,
+    "actual_last_volume": 475.1076819735571,
+    "pivot_changes": 59,
+    "examples": [
+      {
+        "end": 265,
+        "partial_htf_pivot": {
+          "time": "2026-01-01 21:30:00",
+          "side": "short",
+          "price": 107.47661885908073,
+          "index": 86,
+          "provisional": false
+        },
+        "closed_only_pivot": null
+      },
+      {
+        "end": 266,
+        "partial_htf_pivot": {
+          "time": "2026-01-01 21:30:00",
+          "side": "short",
+          "price": 107.47661885908073,
+          "index": 86,
+          "provisional": false
+        },
+        "closed_only_pivot": null
+      },
+      {
+        "end": 283,
+        "partial_htf_pivot": {
+          "time": "2026-01-01 23:00:00",
+          "side": "long",
+          "price": 92.21779371036354,
+          "index": 92,
+          "provisional": false
+        },
+        "closed_only_pivot": null
+      }
+    ]
+  },
+  "shortline": {
+    "shortline-eval-v1": {
+      "forming_volume_scores": [
+        0.9103442626483472,
+        -0.2733312247981484,
+        -0.2733312247981484
+      ],
+      "warmup_and_missing_rejected": [
+        true,
+        true
+      ]
+    },
+    "shortline-eval-v2": {
+      "forming_volume_scores": [
+        0.9182439557893229,
+        -0.26190520277957424,
+        -0.26190520277957424
+      ],
+      "warmup_and_missing_rejected": [
+        true,
+        true
+      ]
+    }
+  },
+  "strength_entry_exit_conflict": {
+    "strength_entry": {
+      "count": 96,
+      "examples": [
+        {
+          "end": 277,
+          "entry": {
+            "action": "open_long",
+            "quantity": 0,
+            "reason": "超跌进场 @ 强弱值 3.54",
+            "confidence": 0.85,
+            "signal": "strength_deep_open_long",
+            "parse_ok": true,
+            "strength_entry_snapshot": {
+              "period": 14,
+              "smooth": 3,
+              "smooth2": 1,
+              "trend_ma_period": 10,
+              "swing_threshold": 50.0,
+              "rebound_threshold": 50.0,
+              "oversold_level": 20.0,
+              "rebound_lookback": 10,
+              "deep_level": 5.0,
+              "deep_bars": 3,
+              "cooldown": 3,
+              "exit_threshold": 50.0,
+              "close": 92.7153817716646,
+              "bar_time": "2026-01-01 23:00:00",
+              "strength": 3.54,
+              "last_signal": {
+                "kind": "deep",
+                "index": 239,
+                "time": "2026-01-01 23:00:00",
+                "value": 3.54
+              },
+              "freshness": 0
+            }
+          },
+          "exit": {
+            "action": "close",
+            "quantity": 0,
+            "reason": "强弱值 3.54 跌破退出阈值 50.0，平多",
+            "confidence": 0.7,
+            "signal": "strength_exit_long",
+            "parse_ok": true,
+            "strength_entry_snapshot": {
+              "period": 14,
+              "smooth": 3,
+              "smooth2": 1,
+              "trend_ma_period": 10,
+              "swing_threshold": 50.0,
+              "rebound_threshold": 50.0,
+              "oversold_level": 20.0,
+              "rebound_lookback": 10,
+              "deep_level": 5.0,
+              "deep_bars": 3,
+              "cooldown": 3,
+              "exit_threshold": 50.0,
+              "close": 92.7153817716646,
+              "bar_time": "2026-01-01 23:00:00",
+              "strength": 3.54,
+              "last_signal": null,
+              "freshness": null
+            }
+          }
+        },
+        {
+          "end": 278,
+          "entry": {
+            "action": "open_long",
+            "quantity": 0,
+            "reason": "超跌进场 @ 强弱值 3.54",
+            "confidence": 0.85,
+            "signal": "strength_deep_open_long",
+            "parse_ok": true,
+            "strength_entry_snapshot": {
+              "period": 14,
+              "smooth": 3,
+              "smooth2": 1,
+              "trend_ma_period": 10,
+              "swing_threshold": 50.0,
+              "rebound_threshold": 50.0,
+              "oversold_level": 20.0,
+              "rebound_lookback": 10,
+              "deep_level": 5.0,
+              "deep_bars": 3,
+              "cooldown": 3,
+              "exit_threshold": 50.0,
+              "close": 93.11606932454832,
+              "bar_time": "2026-01-01 23:05:00",
+              "strength": 5.42,
+              "last_signal": {
+                "kind": "deep",
+                "index": 238,
+                "time": "2026-01-01 23:00:00",
+                "value": 3.54
+              },
+              "freshness": 1
+            }
+          },
+          "exit": {
+            "action": "close",
+            "quantity": 0,
+            "reason": "强弱值 5.42 跌破退出阈值 50.0，平多",
+            "confidence": 0.7,
+            "signal": "strength_exit_long",
+            "parse_ok": true,
+            "strength_entry_snapshot": {
+              "period": 14,
+              "smooth": 3,
+              "smooth2": 1,
+              "trend_ma_period": 10,
+              "swing_threshold": 50.0,
+              "rebound_threshold": 50.0,
+              "oversold_level": 20.0,
+              "rebound_lookback": 10,
+              "deep_level": 5.0,
+              "deep_bars": 3,
+              "cooldown": 3,
+              "exit_threshold": 50.0,
+              "close": 93.11606932454832,
+              "bar_time": "2026-01-01 23:05:00",
+              "strength": 5.42,
+              "last_signal": null,
+              "freshness": null
+            }
+          }
+        },
+        {
+          "end": 279,
+          "entry": {
+            "action": "open_long",
+            "quantity": 0,
+            "reason": "超跌进场 @ 强弱值 3.54",
+            "confidence": 0.85,
+            "signal": "strength_deep_open_long",
+            "parse_ok": true,
+            "strength_entry_snapshot": {
+              "period": 14,
+              "smooth": 3,
+              "smooth2": 1,
+              "trend_ma_period": 10,
+              "swing_threshold": 50.0,
+              "rebound_threshold": 50.0,
+              "oversold_level": 20.0,
+              "rebound_lookback": 10,
+              "deep_level": 5.0,
+              "deep_bars": 3,
+              "cooldown": 3,
+              "exit_threshold": 50.0,
+              "close": 93.61136607257134,
+              "bar_time": "2026-01-01 23:10:00",
+              "strength": 8.88,
+              "last_signal": {
+                "kind": "deep",
+                "index": 237,
+                "time": "2026-01-01 23:00:00",
+                "value": 3.54
+              },
+              "freshness": 2
+            }
+          },
+          "exit": {
+            "action": "close",
+            "quantity": 0,
+            "reason": "强弱值 8.88 跌破退出阈值 50.0，平多",
+            "confidence": 0.7,
+            "signal": "strength_exit_long",
+            "parse_ok": true,
+            "strength_entry_snapshot": {
+              "period": 14,
+              "smooth": 3,
+              "smooth2": 1,
+              "trend_ma_period": 10,
+              "swing_threshold": 50.0,
+              "rebound_threshold": 50.0,
+              "oversold_level": 20.0,
+              "rebound_lookback": 10,
+              "deep_level": 5.0,
+              "deep_bars": 3,
+              "cooldown": 3,
+              "exit_threshold": 50.0,
+              "close": 93.61136607257134,
+              "bar_time": "2026-01-01 23:10:00",
+              "strength": 8.88,
+              "last_signal": null,
+              "freshness": null
+            }
+          }
+        }
+      ]
+    },
+    "strength_entry_v2": {
+      "count": 219,
+      "examples": [
+        {
+          "end": 251,
+          "entry": {
+            "action": "open_short",
+            "quantity": 0,
+            "reason": "顶部衰竭 @ 强弱值 96.88",
+            "confidence": 0.85,
+            "signal": "strength_v2_top_exhaust_open_short",
+            "parse_ok": true,
+            "strength_entry_v2_snapshot": {
+              "period": 14,
+              "smooth": 3,
+              "smooth2": 2,
+              "continuation_band": 5,
+              "exhaust_window": 4,
+              "shrink_ratio": 0.45,
+              "flat_eps": 1.2,
+              "zone_drop": 10.0,
+              "price_buffer_atr_mult": 0.3,
+              "atr_period": 14,
+              "cooldown": 8,
+              "close": 106.34132952290368,
+              "bar_time": "2026-01-01 20:50:00",
+              "strength": 96.88,
+              "regime": "up",
+              "last_signal": {
+                "kind": "top_exhaust",
+                "index": 239,
+                "time": "2026-01-01 20:50:00",
+                "value": 96.88
+              },
+              "freshness": 0
+            }
+          },
+          "exit": {
+            "action": "close",
+            "quantity": 0,
+            "reason": "regime 已翻转为 up（强弱多头态，现值 96.88），平空",
+            "confidence": 0.7,
+            "signal": "strength_v2_regime_exit_short",
+            "parse_ok": true,
+            "strength_entry_v2_snapshot": {
+              "period": 14,
+              "smooth": 3,
+              "smooth2": 2,
+              "continuation_band": 5,
+              "exhaust_window": 4,
+              "shrink_ratio": 0.45,
+              "flat_eps": 1.2,
+              "zone_drop": 10.0,
+              "price_buffer_atr_mult": 0.3,
+              "atr_period": 14,
+              "cooldown": 8,
+              "close": 106.34132952290368,
+              "bar_time": "2026-01-01 20:50:00",
+              "strength": 96.88,
+              "regime": "up",
+              "last_signal": {
+                "kind": "top_exhaust",
+                "index": 239,
+                "time": "2026-01-01 20:50:00",
+                "value": 96.88
+              },
+              "freshness": null
+            }
+          }
+        },
+        {
+          "end": 252,
+          "entry": {
+            "action": "open_short",
+            "quantity": 0,
+            "reason": "顶部衰竭 @ 强弱值 96.88",
+            "confidence": 0.85,
+            "signal": "strength_v2_top_exhaust_open_short",
+            "parse_ok": true,
+            "strength_entry_v2_snapshot": {
+              "period": 14,
+              "smooth": 3,
+              "smooth2": 2,
+              "continuation_band": 5,
+              "exhaust_window": 4,
+              "shrink_ratio": 0.45,
+              "flat_eps": 1.2,
+              "zone_drop": 10.0,
+              "price_buffer_atr_mult": 0.3,
+              "atr_period": 14,
+              "cooldown": 8,
+              "close": 106.13778158123252,
+              "bar_time": "2026-01-01 20:55:00",
+              "strength": 96.33,
+              "regime": "up",
+              "last_signal": {
+                "kind": "top_exhaust",
+                "index": 238,
+                "time": "2026-01-01 20:50:00",
+                "value": 96.88
+              },
+              "freshness": 1
+            }
+          },
+          "exit": {
+            "action": "close",
+            "quantity": 0,
+            "reason": "regime 已翻转为 up（强弱多头态，现值 96.33），平空",
+            "confidence": 0.7,
+            "signal": "strength_v2_regime_exit_short",
+            "parse_ok": true,
+            "strength_entry_v2_snapshot": {
+              "period": 14,
+              "smooth": 3,
+              "smooth2": 2,
+              "continuation_band": 5,
+              "exhaust_window": 4,
+              "shrink_ratio": 0.45,
+              "flat_eps": 1.2,
+              "zone_drop": 10.0,
+              "price_buffer_atr_mult": 0.3,
+              "atr_period": 14,
+              "cooldown": 8,
+              "close": 106.13778158123252,
+              "bar_time": "2026-01-01 20:55:00",
+              "strength": 96.33,
+              "regime": "up",
+              "last_signal": {
+                "kind": "top_exhaust",
+                "index": 238,
+                "time": "2026-01-01 20:50:00",
+                "value": 96.88
+              },
+              "freshness": null
+            }
+          }
+        },
+        {
+          "end": 253,
+          "entry": {
+            "action": "open_short",
+            "quantity": 0,
+            "reason": "顶部衰竭 @ 强弱值 96.88",
+            "confidence": 0.85,
+            "signal": "strength_v2_top_exhaust_open_short",
+            "parse_ok": true,
+            "strength_entry_v2_snapshot": {
+              "period": 14,
+              "smooth": 3,
+              "smooth2": 2,
+              "continuation_band": 5,
+              "exhaust_window": 4,
+              "shrink_ratio": 0.45,
+              "flat_eps": 1.2,
+              "zone_drop": 10.0,
+              "price_buffer_atr_mult": 0.3,
+              "atr_period": 14,
+              "cooldown": 8,
+              "close": 105.96606835658282,
+              "bar_time": "2026-01-01 21:00:00",
+              "strength": 95.33,
+              "regime": "up",
+              "last_signal": {
+                "kind": "top_exhaust",
+                "index": 237,
+                "time": "2026-01-01 20:50:00",
+                "value": 96.88
+              },
+              "freshness": 2
+            }
+          },
+          "exit": {
+            "action": "close",
+            "quantity": 0,
+            "reason": "regime 已翻转为 up（强弱多头态，现值 95.33），平空",
+            "confidence": 0.7,
+            "signal": "strength_v2_regime_exit_short",
+            "parse_ok": true,
+            "strength_entry_v2_snapshot": {
+              "period": 14,
+              "smooth": 3,
+              "smooth2": 2,
+              "continuation_band": 5,
+              "exhaust_window": 4,
+              "shrink_ratio": 0.45,
+              "flat_eps": 1.2,
+              "zone_drop": 10.0,
+              "price_buffer_atr_mult": 0.3,
+              "atr_period": 14,
+              "cooldown": 8,
+              "close": 105.96606835658282,
+              "bar_time": "2026-01-01 21:00:00",
+              "strength": 95.33,
+              "regime": "up",
+              "last_signal": {
+                "kind": "top_exhaust",
+                "index": 237,
+                "time": "2026-01-01 20:50:00",
+                "value": 96.88
+              },
+              "freshness": null
+            }
+          }
+        }
+      ]
+    }
+  },
+  "shortline_decision_replay": {
+    "3": {
+      "steps_per_run": 3600,
+      "deterministic": true,
+      "trace_sha256": "b8db3d679f1fbb8d1feab30709e9f83aac77562c997800377e1cd7ed55964763",
+      "actions": {
+        "hold": 1593,
+        "open_long": 5,
+        "close": 9,
+        "skip_bar_limit": 39,
+        "open_short": 4,
+        "skip_hour_limit": 1950
+      },
+      "bad_score_actions": 0
+    },
+    "5": {
+      "steps_per_run": 2160,
+      "deterministic": true,
+      "trace_sha256": "0d656554bb7c0ea3ce9120f7ec2283b3753b722a770c52df05ed289fae35ced3",
+      "actions": {
+        "hold": 1009,
+        "open_long": 5,
+        "close": 9,
+        "skip_bar_limit": 19,
+        "open_short": 4,
+        "skip_hour_limit": 1114
+      },
+      "bad_score_actions": 0
+    },
+    "10": {
+      "steps_per_run": 1080,
+      "deterministic": true,
+      "trace_sha256": "ee11c5c15d521a0416e0654ce4519f150cc71fef684167d9febfe7ca31962f47",
+      "actions": {
+        "hold": 571,
+        "open_long": 5,
+        "close": 9,
+        "open_short": 4,
+        "skip_hour_limit": 487,
+        "skip_bar_limit": 4
+      },
+      "bad_score_actions": 0
+    },
+    "15": {
+      "steps_per_run": 720,
+      "deterministic": true,
+      "trace_sha256": "b969beefaef656236a898291c12fd118d6259247b898801d8f42e79626762250",
+      "actions": {
+        "hold": 429,
+        "open_long": 6,
+        "close": 9,
+        "skip_bar_limit": 7,
+        "open_short": 3,
+        "skip_hour_limit": 266
+      },
+      "bad_score_actions": 0
+    },
+    "30": {
+      "steps_per_run": 360,
+      "deterministic": true,
+      "trace_sha256": "d27e5e72ddb06096810dab40f5a8a29857fb4d7b64043be2b77d6d3906b308bc",
+      "actions": {
+        "hold": 282,
+        "open_short": 3,
+        "close": 9,
+        "open_long": 6,
+        "skip_hour_limit": 60
+      },
+      "bad_score_actions": 0
+    },
+    "60": {
+      "steps_per_run": 180,
+      "deterministic": true,
+      "trace_sha256": "3f968025609e88c933c725c66833fb24a254adba423f99e23adb01454d4d492b",
+      "actions": {
+        "hold": 180
+      },
+      "bad_score_actions": 0
+    }
+  }
+}
