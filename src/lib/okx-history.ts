@@ -63,19 +63,53 @@ const numeric = (s: string | undefined): number => {
   if (!Number.isFinite(n)) throw new Error("OKX 归档包含无效数值")
   return n
 }
+const optionalArchiveNumber = (s: string | undefined): number | null =>
+  s != null && ["", "none", "null"].includes(s.trim().toLowerCase()) ? null : numeric(s)
+class MissingContractVolume extends Error {
+  constructor(readonly time: number) { super("OKX 旧归档缺基础币成交量，需要校验同期合约面值") }
+}
+class ArchiveContentsError extends Error {}
+// Earliest legacy packages omit vol_ccy. Validate units against an official
+// contemporaneous complete archive, rather than hardcoding BTC/ETH multipliers.
+const LEGACY_UNIT_DAY = "2023-08-25"
+const legacyUnits = new Map<string, number>()
 
-export function parseOkxCandles(text: string, symbol: string): MinuteBar[] {
+export function parseOkxCandles(text: string, symbol: string, contractValue?: number): MinuteBar[] {
   const instrument = okxInstrument(symbol), bars: MinuteBar[] = []
+  const byTime = new Map<number, MinuteBar>()
+  let unit = contractValue
+  if (unit != null && (!Number.isFinite(unit) || unit <= 0)) throw new Error("OKX 合约面值非法")
   eachCsv(text, ["instrument_name","open","high","low","close","vol","vol_ccy","vol_quote","open_time","confirm"], (c) => {
     if (c[0] !== instrument) throw new Error("OKX K线归档品种不匹配")
-    const [o,h,l,cl,contracts,base,quote,t] = c.slice(1,9).map(numeric)
-    if (c[9] === "0") return
-    if (c[9] !== "1" || !Number.isSafeInteger(t) || t % 60000 || Math.min(o,h,l,cl) <= 0 || h < Math.max(o,l,cl) || l > Math.min(o,h,cl)
-      || Math.min(contracts,base,quote) < 0) throw new Error("OKX K线归档 OHLC/时间/数量非法")
-    if (bars.length && t <= bars.at(-1)!.open_time!) throw new Error("OKX K线归档重复或时间回退")
-    bars.push({time:msToBarTime(t,false), open:o,high:h,low:l,close:cl,volume:base,quote_volume:quote,
-      contract_volume:contracts,open_time:t,market_source:"okx",settle:null,open_interest:null})
+    const [o,h,l,cl,contracts] = c.slice(1,6).map(numeric), t = numeric(c[8])
+    const base = optionalArchiveNumber(c[6]), quote = optionalArchiveNumber(c[7])
+    if (!["0","1"].includes(c[9]!) || !Number.isSafeInteger(t) || t % 60000 || Math.min(o,h,l,cl) <= 0 || h < Math.max(o,l,cl) || l > Math.min(o,h,cl)
+      || contracts < 0 || (base != null && base < 0) || (quote != null && quote < 0)) throw new Error("OKX K线归档 OHLC/时间/数量非法")
+    // Historical official files also tag fully elapsed candles with confirm=0.
+    // Completion follows elapsed minute time in this archive-only reader.
+    if (t+60000 > Date.now()) return
+    if (base != null && contracts > 0) {
+      const ratio = base/contracts
+      if (!(ratio > 0) || (unit != null && Math.abs(ratio/unit-1) > 1e-7)) throw new Error("OKX 合约数量换算不一致")
+      unit = ratio
+    }
+    const bar: MinuteBar = {time:msToBarTime(t,false), open:o,high:h,low:l,close:cl,volume:base ?? (contracts === 0 ? 0 : NaN),quote_volume:quote,
+      contract_volume:contracts,open_time:t,market_source:"okx",settle:null,open_interest:null,is_closed:true}
+    const prior = byTime.get(t)
+    if (prior) {
+      if (["open","high","low","close","contract_volume","quote_volume"].some(k => prior[k as keyof MinuteBar] !== bar[k as keyof MinuteBar])
+        || !(prior.volume === bar.volume || (Number.isNaN(prior.volume) && Number.isNaN(bar.volume)))) throw new Error("OKX K线归档同一时间存在冲突数据")
+      return // Official monthly packages may repeat identical blocks.
+    }
+    if (bars.length && t < bars.at(-1)!.open_time!) throw new Error("OKX K线归档时间回退")
+    byTime.set(t,bar); bars.push(bar)
   })
+  for (const bar of bars) if (!Number.isFinite(bar.volume)) {
+    const value = unit ?? (bar.open_time! < okxArchiveDayStart(LEGACY_UNIT_DAY) ? legacyUnits.get(instrument) : undefined)
+    if (value == null) throw new MissingContractVolume(bar.open_time!)
+    bar.volume = bar.contract_volume! * value
+    if (!Number.isFinite(bar.volume)) throw new Error("OKX 合约成交量换算溢出")
+  }
   return bars
 }
 
@@ -125,6 +159,27 @@ export function archiveCsv(zip: Uint8Array): string {
 }
 
 function archiveKey(kind: OkxArchiveKind, symbol: string, key: string): string { return `okx-v1:${kind}:${okxInstrument(symbol)}:${key}` }
+async function validateArchive(kind: OkxArchiveKind, symbol: string, key: string, bytes: Uint8Array, signal?: AbortSignal): Promise<void> {
+  if (kind === "candles") {
+    const csv = archiveCsv(bytes)
+    let bars: MinuteBar[]
+    try { bars = parseOkxCandles(csv,symbol) }
+    catch (e) {
+      if (!(e instanceof MissingContractVolume)) throw e
+      if (e.time >= okxArchiveDayStart(LEGACY_UNIT_DAY) || key === LEGACY_UNIT_DAY) throw e
+      const reference = await fetchOkxArchive("candles",symbol,LEGACY_UNIT_DAY,signal)
+      if (!reference) throw new Error("OKX 同期合约面值校验文件未发布，无法换算旧归档成交量")
+      const value = contractValueFromCandles(parseOkxCandles(archiveCsv(reference),symbol))
+      legacyUnits.set(okxInstrument(symbol),value)
+      bars = parseOkxCandles(csv,symbol,value)
+    }
+    if (!bars.length || bars.some(b => !okxArchiveDate(b.open_time!).startsWith(key))) throw new Error("OKX K线文件日期与请求不匹配或文件为空")
+  }
+  if (kind === "funding") {
+    const events = parseOkxFunding(archiveCsv(bytes),symbol)
+    if (!events.length || events.some(e => !okxArchiveDate(e.t).startsWith(key))) throw new Error("OKX 资金费文件日期与请求不匹配或文件为空")
+  }
+}
 async function cachedArchive(kind: OkxArchiveKind, symbol: string, key: string): Promise<Uint8Array | null> {
   const db = await openDb()
   if (!db) return null
@@ -164,7 +219,7 @@ export async function fetchOkxArchive(kind: OkxArchiveKind, symbol: string, key:
   // Validate before cache/network lookup.
   okxArchiveUrl(kind,symbol,key)
   const saved = await cachedArchive(kind,symbol,key)
-  if (saved) return saved
+  if (saved) { await validateArchive(kind,symbol,key,saved,signal); return saved }
   let error: unknown
   for (const origin of [CDN,OFFICIAL]) {
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -179,18 +234,20 @@ export async function fetchOkxArchive(kind: OkxArchiveKind, symbol: string, key:
         const bytes = new Uint8Array(await response.arrayBuffer())
         if (signal?.aborted) throw new DOMException("已停止", "AbortError")
         // Validate contents before persisting (trades are parsed in a Worker).
-        if (kind === "candles") {
-          const bars = parseOkxCandles(archiveCsv(bytes),symbol)
-          if (!bars.length || bars.some((b) => !okxArchiveDate(b.open_time!).startsWith(key))) throw new Error("OKX K线文件日期与请求不匹配或文件为空")
-        }
-        if (kind === "funding") {
-          const events = parseOkxFunding(archiveCsv(bytes),symbol)
-          if (!events.length || events.some((e) => !okxArchiveDate(e.t).startsWith(key))) throw new Error("OKX 资金费文件日期与请求不匹配或文件为空")
+        try { await validateArchive(kind,symbol,key,bytes,signal) }
+        catch (e) {
+          if (signal?.aborted) throw new DOMException("已停止", "AbortError")
+          throw new ArchiveContentsError(e instanceof Error ? e.message : String(e))
         }
         await saveArchive(kind,symbol,key,bytes)
         return bytes
       } catch (e) {
         if (signal?.aborted) throw new DOMException("已停止", "AbortError")
+        // A validated HTTP response with invalid contents is a data error,
+        // not a connection problem; don't download the same ZIP four times.
+        if (e instanceof ArchiveContentsError) {
+          throw new Error(`OKX 官方历史文件校验失败（${key}）：${e.message}；不会转发服务器`)
+        }
         error = e
       } finally { clearTimeout(timer); signal?.removeEventListener("abort",relay) }
     }
@@ -215,7 +272,7 @@ export function resampleOkxBars(minutes: readonly MinuteBar[], period: string): 
     if (!group.length || group.length !== (end-start)/60000 || group.some((b,i) => b.open_time !== start+i*60000)) return
     out.push({time:msToBarTime(start,["1d","3d","1w","1M"].includes(period)),open:group[0]!.open,
       high:Math.max(...group.map((b) => b.high)),low:Math.min(...group.map((b) => b.low)),close:group.at(-1)!.close,
-      volume:group.reduce((s,b) => s+b.volume,0),quote_volume:group.reduce((s,b) => s+(b.quote_volume??0),0),
+      volume:group.reduce((s,b) => s+b.volume,0),quote_volume:group.some(b => b.quote_volume == null) ? null : group.reduce((s,b) => s+b.quote_volume!,0),
       open_time:start,market_source:"okx",settle:null,open_interest:null})
   }
   for (const b of minutes) {

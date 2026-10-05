@@ -14,6 +14,39 @@ beforeEach(() => {
 })
 afterEach(() => vi.unstubAllGlobals())
 describe("OKX local data provenance and persistence",() => {
+  it("loads the legacy July archive through a local verified unit reference without inventing turnover",async () => {
+    const july=Date.UTC(2023,6,1)-8*3600000, reference=Date.UTC(2023,7,25)-8*3600000
+    const head="instrument_name,open,high,low,close,vol,vol_ccy,vol_quote,open_time,confirm\n"
+    const legacy=encode(head+Array.from({length:1440},(_,i)=>`ETH-USDT-SWAP,100,101,99,100,20,None,None,${july+i*60000},1`).join("\n"))
+    const units=encode(head+`ETH-USDT-SWAP,100,101,99,100,20,2,200,${reference},1`)
+    const fn=vi.fn(async (url:string)=> {
+      expect(url).toMatch(/^https:\/\/(dfccd2aelcoyz.cloudfront.net|static.okx.com)\/cdn\//)
+      if(url.includes("candlesticks-2023-07"))return new Response(legacy as BodyInit)
+      if(url.includes("candlesticks-2023-08-25"))return new Response(units as BodyInit)
+      return new Response(null,{status:404})
+    });vi.stubGlobal("fetch",fn)
+    const history=await import("./okx-history")
+    const bars=await history.fetchOkxHistoryRange("ETHUSDT","15m",july,july+86400000-1)
+    expect(bars).toHaveLength(96)
+    expect(bars[0]).toMatchObject({volume:30,quote_volume:null,funding_rate:null})
+    const calls=fn.mock.calls.length
+    expect(await history.fetchOkxHistoryRange("ETHUSDT","15m",july,july+86400000-1)).toEqual(bars)
+    expect(fn.mock.calls.filter(([u])=>u.includes("candlesticks"))).toHaveLength(2)
+    expect(fn.mock.calls.length).toBeGreaterThanOrEqual(calls)
+  })
+  it("reports malformed official data as validation failure without pointless network retries",async()=>{
+    const broken=encode(`instrument_name,open,high,low,close,vol,vol_ccy,vol_quote,open_time,confirm\nBTC-USDT-SWAP,bad,101,99,100,20,2,200,${t},1`)
+    const fn=vi.fn(async()=>new Response(broken as BodyInit));vi.stubGlobal("fetch",fn)
+    const history=await import("./okx-history")
+    await expect(history.fetchOkxArchive("candles","BTCUSDT",day)).rejects.toThrow(/校验失败/)
+    expect(fn).toHaveBeenCalledTimes(1)
+  })
+  it("reports an invalid ZIP as a data problem after a successful HTTP request",async()=>{
+    const fn=vi.fn(async()=>new Response("this is not a zip"));vi.stubGlobal("fetch",fn)
+    const history=await import("./okx-history")
+    await expect(history.fetchOkxArchive("candles","BTCUSDT",day)).rejects.toThrow(/校验失败/)
+    expect(fn).toHaveBeenCalledTimes(1)
+  })
   it("downloads official files once, reuses local cache, and marks unpublished funding missing",async () => {
     const request = vi.fn(async (url:string) => {
       expect(url).toMatch(/^https:\/\/(dfccd2aelcoyz.cloudfront.net|static.okx.com)\/cdn\//)

@@ -20,8 +20,25 @@ describe("OKX official local history", () => {
     expect(contractValueFromCandles(bars)).toBeCloseTo(.01)
     expect(resampleOkxBars(bars,"5m")).toMatchObject([{open:100,close:105,volume:10,quote_volume:1005}])
     expect(resampleOkxBars(bars.slice(0,4),"5m")).toEqual([])
-    expect(() => parseOkxCandles(head+"\n"+candle(t)+"\n"+candle(t),"BTCUSDT")).toThrow()
+    expect(parseOkxCandles(head+"\n"+candle(t)+"\n"+candle(t),"BTCUSDT")).toHaveLength(1)
+    expect(() => parseOkxCandles(head+"\n"+candle(t)+"\n"+candle(t,102),"BTCUSDT")).toThrow()
     expect(() => parseOkxCandles(csv.replace("BTC-USDT-SWAP,100","ETH-USDT-SWAP,100"),"BTCUSDT")).toThrow()
+  })
+  it("recovers legacy missing base volume from verified contract units and preserves missing quote volume", () => {
+    const old = head+"\n"+candle(t).replace(",2,201,",",None,None,")
+    expect(parseOkxCandles(old,"BTCUSDT",.01)[0]).toMatchObject({volume:2,quote_volume:null,contract_volume:200})
+    expect(() => parseOkxCandles(old,"BTCUSDT")).toThrow(/合约面值/)
+    expect(() => parseOkxCandles(old.replace(",None,None,",",broken,None,"),"BTCUSDT",.01)).toThrow()
+  })
+  it("infers units within the mixed August archive and retains historical closed rows tagged zero", () => {
+    const old = candle(t).replace(",2,201,",",None,None,")
+    const normal = candle(t+60000).replace(/,1$/,",0")
+    const bars = parseOkxCandles(head+"\n"+old+"\n"+normal,"BTCUSDT")
+    expect(bars).toHaveLength(2)
+    expect(bars[0]!.volume).toBe(2)
+    expect(resampleOkxBars(bars,"1m")[0]!.quote_volume).toBeNull()
+    const future=candle(Math.ceil(Date.now()/60000)*60000).replace(/,1$/,",0")
+    expect(parseOkxCandles(head+"\n"+future,"BTCUSDT")).toEqual([])
   })
   it("converts contract sizes and taker side; rejects wrong day or order", () => {
     const h = "instrument_name,trade_id,side,price,size,created_time,source\n"
