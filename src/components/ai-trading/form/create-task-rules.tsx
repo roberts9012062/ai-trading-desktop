@@ -44,6 +44,8 @@ export interface RuleFormState {
   bottomTpPct: string
   bottomSlOn: boolean
   bottomSlPct: string
+  lossCooldownOn?: boolean
+  lossCooldownLimit?: string
 }
 
 /** 空白规则表单（各弹窗在此基础上覆盖自己的默认值） */
@@ -78,6 +80,8 @@ export const EMPTY_RULE_FORM: RuleFormState = {
   bottomTpPct: "20",
   bottomSlOn: true,
   bottomSlPct: "10",
+  lossCooldownOn: true,
+  lossCooldownLimit: "2",
 }
 
 interface CreateTaskRulesProps {
@@ -138,6 +142,25 @@ export function CreateTaskRules({
         按保证金收益率实时触发（每 2 秒检查），先于策略/AI 与普通止盈止损，二者互不影响。
         例：100U 保证金 × 5 倍，盈利 50U = 收益率 50%。
       </p>
+      <div className="rounded border border-amber-500/20 p-2 space-y-1.5">
+        <label className="flex items-center gap-2 text-xs">
+          <input type="checkbox" checked={value.lossCooldownOn !== false}
+            onChange={(e) => patch({ lossCooldownOn: e.target.checked })} />
+          亏损冷静期
+        </label>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="shrink-0">本日亏损平仓</span>
+          <Input aria-label="冷静期亏损次数" type="number" min={1} max={10} step={1}
+            className="w-20" disabled={value.lossCooldownOn === false}
+            value={value.lossCooldownLimit ?? "2"}
+            onChange={(e) => patch({ lossCooldownLimit: e.target.value })} />
+          <span>次后停止开仓</span>
+        </div>
+        <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
+          每个任务独立累计，范围 1–10 次，默认 2 次。每轮全部平仓后扣开、平仓手续费亏损记一次；盈利不清零。
+          北京时间每日 06:00 重置，冷静期继续执行止损和平仓。关闭后允许恢复开仓，重新开启沿用本日记录。
+        </p>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <label className="flex items-center gap-2 text-xs">
@@ -527,8 +550,12 @@ export function buildCloseRulesPayload(
 /** 兜底平仓表单 → 提交字段（开=数值，关=null；校验最小值） */
 export function buildBottomPayload(
   rules: RuleFormState,
-): { max_profit_pct: number | null; max_loss_pct: number | null } {
+): { max_profit_pct: number | null; max_loss_pct: number | null; loss_cooldown_enabled: boolean; loss_cooldown_limit: number } {
   buildProfitLockConfig(rules.profitLock)
+  const limit = Number(rules.lossCooldownLimit ?? "2")
+  if (!Number.isInteger(limit) || limit < 1 || limit > 10) {
+    throw new Error("冷静期亏损次数须为 1–10 的整数")
+  }
   const tp = rules.bottomTpOn ? Number(rules.bottomTpPct) : NaN
   const sl = rules.bottomSlOn ? Number(rules.bottomSlPct) : NaN
   if (rules.bottomTpOn && (!Number.isFinite(tp) || tp < 10)) {
@@ -540,6 +567,8 @@ export function buildBottomPayload(
   return {
     max_profit_pct: rules.bottomTpOn ? tp : null,
     max_loss_pct: rules.bottomSlOn ? sl : null,
+    loss_cooldown_enabled: rules.lossCooldownOn !== false,
+    loss_cooldown_limit: limit,
   }
 }
 
@@ -550,6 +579,8 @@ export function rulesFromTask(task: {
   close_on_stop?: boolean | null
   max_profit_pct?: number | null
   max_loss_pct?: number | null
+  loss_cooldown_enabled?: boolean
+  loss_cooldown_limit?: number
 }): RuleFormState {
   const c = (task.close_rules ?? {}) as Record<string, unknown>
   const s = (task.stop_rules ?? {}) as Record<string, unknown>
@@ -594,6 +625,8 @@ export function rulesFromTask(task: {
     bottomTpOn: task.max_profit_pct != null,
     bottomTpPct:
       task.max_profit_pct != null ? String(task.max_profit_pct) : "20",
+    lossCooldownOn: task.loss_cooldown_enabled !== false,
+    lossCooldownLimit: String(task.loss_cooldown_limit ?? 2),
     bottomSlOn: task.max_loss_pct != null,
     bottomSlPct: task.max_loss_pct != null ? String(task.max_loss_pct) : "10",
   }

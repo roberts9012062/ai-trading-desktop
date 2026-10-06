@@ -74,6 +74,8 @@ function payloadFromSnapshot(
     custom_prompt: s.custom_prompt ?? null,
     close_rules: (s.close_rules ?? {}) as unknown as CreateTaskPayload["close_rules"],
     stop_rules: (s.stop_rules ?? {}) as unknown as CreateTaskPayload["stop_rules"],
+    loss_cooldown_enabled: s.loss_cooldown_enabled !== false,
+    loss_cooldown_limit: Number(s.loss_cooldown_limit ?? 2),
     // 兜底平仓随快照克隆（快照无该字段=旧收藏，走后端默认 20%/10%）
     ...(s.max_profit_pct !== undefined || s.max_loss_pct !== undefined
       ? {

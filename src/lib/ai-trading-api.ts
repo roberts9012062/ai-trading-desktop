@@ -94,6 +94,15 @@ export interface MaCrossParams {
 export interface NBreakoutParams {
   lookback: number
 }
+export interface LossCooldownState {
+  enabled: boolean
+  limit: number
+  loss_count: number
+  active: boolean
+  reset_at: string
+  error?: string | null
+}
+
 export interface AITradingTask {
   profit_lock_state?: ProfitLockState
   id: string
@@ -151,6 +160,9 @@ export interface AITradingTask {
   max_profit_pct?: number | null
   /** 兜底止损：保证金收益率%≤-值立即平仓（最高权重）；null=关闭 */
   max_loss_pct?: number | null
+  loss_cooldown_enabled?: boolean
+  loss_cooldown_limit?: number
+  loss_cooldown_state?: LossCooldownState
   status: TaskStatus | string
   /** user=手动暂停；market_closed=休市自动暂停 */
   pause_reason?: string | null
@@ -294,6 +306,9 @@ export interface CreateTaskPayload {
   max_profit_pct?: number | null
   /** 兜底止损：保证金收益率%≤-值立即平仓（最高权重）；null=关闭 */
   max_loss_pct?: number | null
+  loss_cooldown_enabled?: boolean
+  loss_cooldown_limit?: number
+  loss_cooldown_state?: LossCooldownState
   close_on_stop: boolean
   auto_start: boolean
 }
@@ -335,6 +350,9 @@ export interface UpdateTaskPayload {
   max_profit_pct?: number | null
   /** 兜底止损%；null=关闭；不传=不变 */
   max_loss_pct?: number | null
+  loss_cooldown_enabled?: boolean
+  loss_cooldown_limit?: number
+  loss_cooldown_state?: LossCooldownState
   close_on_stop?: boolean
 }
 
@@ -447,6 +465,9 @@ export interface UpdateTaskRulesPayload {
   max_profit_pct?: number | null
   /** 兜底止损%；null=关闭；不传=不变 */
   max_loss_pct?: number | null
+  loss_cooldown_enabled?: boolean
+  loss_cooldown_limit?: number
+  loss_cooldown_state?: LossCooldownState
   /** 杠杆倍数 1-100（运行中可改，仅影响后续新开仓） */
   leverage?: number
 }

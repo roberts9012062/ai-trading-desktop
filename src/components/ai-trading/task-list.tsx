@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import type { AITradingTask } from "@/lib/ai-trading-api"
 import { TaskIcon } from "@/components/ai-trading/task-icon"
 import { TaskActions } from "@/components/ai-trading/task-actions"
+import { TaskLossCooldownStatus } from "./loss-cooldown-status"
 import { TaskProfitLockStatus } from "@/components/ai-trading/profit-lock-status"
 import { useMarketStore } from "@/stores/market"
 import {
@@ -233,6 +234,7 @@ export function TaskList({
               </div>
             </div>
 
+            <TaskLossCooldownStatus task={task} />
             <TaskProfitLockStatus task={task} />
             {isForecast(task)&&<div className="mt-2 flex items-center justify-between text-xs">
               <span className="text-[var(--text-muted)]">AI 预测 · {FORECAST_STAGES[forecastState(task).stage??'watching']??'等待预测'} · 已完成 {forecastState(task).completed_cycles ?? 0} 轮</span>
