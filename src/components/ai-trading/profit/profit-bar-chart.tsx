@@ -8,7 +8,7 @@
 import { useMemo, useState } from "react"
 import type { ProfitCloseBar, AITradingTask } from "@/lib/ai-trading-api"
 import type { Hunter } from "@/lib/hunter/api"
-import { groupHunterRows } from "@/lib/hunter/profit-groups"
+import { groupHunterRows, hunterProfitTotals } from "@/lib/hunter/profit-groups"
 import { visibleHunterChildren } from "@/lib/hunter/task-visibility"
 import { TaskIcon } from "@/components/ai-trading/task-icon"
 import {
@@ -51,9 +51,11 @@ export function ProfitBarChart({
   const grouped = useMemo(() => groupHunterRows(bars, tasks, hunters).map(group => {
     if (!group.hunter) return { ...group, visibleChildren: group.children, bar: group.children[0] }
     const visibleChildren = visibleHunterChildren(group.children, tasks, group.hunter)
-    const realized = group.children.reduce((sum, child) => sum + child.realized, 0)
-    const unrealized = group.children.reduce((sum, child) => sum + child.unrealized, 0)
-    return { ...group, visibleChildren, bar: { ...group.children[0], taskId: group.id, name: group.hunter.name, symbolName: `${visibleChildren.length} 个运行子任务`, symbol: "", modelDisplayName: group.hunter.name, modelId: null, providerName: null, icon: null, strategyType: "multi_cycle_hunter", realized, unrealized, totalPnl: group.children.reduce((sum, child) => sum + child.totalPnl, 0), hasOpen: group.children.some(child => child.hasOpen), status: group.hunter.status } }
+    const totals = hunterProfitTotals(group.hunter, {
+      realized: group.children.reduce((sum, child) => sum + child.realized, 0),
+      unrealized: group.children.reduce((sum, child) => sum + child.unrealized, 0),
+    })
+    return { ...group, visibleChildren, bar: { ...group.children[0], taskId: group.id, name: group.hunter.name, symbolName: `${visibleChildren.length} 个运行子任务`, symbol: "", modelDisplayName: group.hunter.name, modelId: null, providerName: null, icon: null, strategyType: "multi_cycle_hunter", ...totals, hasOpen: group.children.some(child => child.hasOpen), status: group.hunter.status } }
   }).filter(group => !group.hunter || group.hunter.status !== "stopped" || group.visibleChildren.length > 0), [bars, tasks, hunters])
   const hasGroups = grouped.some(group => group.hunter)
   const [hoverId, setHoverId] = useState<string | null>(null)
@@ -68,7 +70,15 @@ export function ProfitBarChart({
     () => [...grouped.map(group => group.bar), ...bars].find((b) => b.taskId === hoverId) ?? null,
     [bars, grouped, hoverId],
   )
-  const displayTotal = hover ? hover.totalPnl : totalPnl
+  const netAdjustment = useMemo(() => groupHunterRows(bars, tasks, hunters).reduce((adjustment, group) => {
+    if (!group.hunter) return adjustment
+    const fallback = {realized: group.children.reduce((s, b) => s + b.realized, 0), unrealized: group.children.reduce((s, b) => s + b.unrealized, 0)}
+    const net = hunterProfitTotals(group.hunter, fallback)
+    return {realized: adjustment.realized + net.realized - fallback.realized, unrealized: adjustment.unrealized + net.unrealized - fallback.unrealized}
+  }, {realized: 0, unrealized: 0}), [bars, tasks, hunters])
+  const netRealized = totalRealized + netAdjustment.realized
+  const netUnrealized = totalUnrealized + netAdjustment.unrealized
+  const displayTotal = hover ? hover.totalPnl : totalPnl + netAdjustment.realized + netAdjustment.unrealized
   const winCount = bars.filter((b) => b.totalPnl > 0).length
   const lossCount = bars.filter((b) => b.totalPnl < 0).length
 
@@ -113,19 +123,19 @@ export function ProfitBarChart({
               已实现{" "}
               <span
                 className={`font-num ${
-                  totalRealized >= 0 ? "text-up" : "text-down"
+                  netRealized >= 0 ? "text-up" : "text-down"
                 }`}
               >
-                {formatProfitAmount(totalRealized)}
+                {formatProfitAmount(netRealized)}
               </span>
               {" · "}
               浮盈{" "}
               <span
                 className={`font-num ${
-                  totalUnrealized >= 0 ? "text-up" : "text-down"
+                  netUnrealized >= 0 ? "text-up" : "text-down"
                 }`}
               >
-                {formatProfitAmount(totalUnrealized)}
+                {formatProfitAmount(netUnrealized)}
               </span>
             </div>
             <div className="text-[11px] px-2.5 py-1 rounded-full border border-[var(--border)] bg-[var(--bg-tertiary)]/60 text-[var(--text-muted)]">

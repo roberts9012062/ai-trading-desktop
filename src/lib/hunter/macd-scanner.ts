@@ -16,7 +16,7 @@ export async function scanMacdHunter(group: Hunter, abort: AbortSignal): Promise
       const current = useHunterStore.getState().groups.find(g=>g.id === group.id)
       if (abort.aborted || current?.status !== "running" || current.config.scan_location === "server") return
       if (active.some(o=>o.symbol === quote.symbol) || quote.spread > .001) continue
-      progress(`${hunterCycleLabel(period)}扫描 ${quote.symbol.toUpperCase()} · MACD新金叉 / 连续3–4根在MA20上方 / MA20向上`)
+      progress(`${hunterCycleLabel(period)}扫描 ${quote.symbol.toUpperCase()} · MACD新金叉 / 连续3–4根实体在MA20上方 / MA20向上`)
       try {
         const data = await hunterApi.data(group.id, quote.symbol, period, abort)
         inspected++

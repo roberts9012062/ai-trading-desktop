@@ -24,3 +24,13 @@ it("uses server all-history hunter totals rather than the limited recent opportu
   expect(html).toContain("+95.00")
   expect(html).toContain("9.50")
 })
+it("uses the net hunter ledger for the bar and header when stale child bars omit costs", () => {
+  const items = [{task_id:"aave",task_name:"AAVE",realized:-8.856,unrealized:0,total_pnl:-8.856},
+    {task_id:"xau",task_name:"XAU",realized:1.096,unrealized:0,total_pnl:1.096}] as unknown as ProfitCloseBar[]
+  const hunter = {id:"hunter",name:"AI 多周期猎手",status:"running",runtime:{realized:-9.3710856,unrealized:0},
+    opportunities:[{task_id:"aave",finished_at:"closed"},{task_id:"xau",finished_at:"closed"}]} as unknown as Hunter
+  const html = renderToString(createElement(ProfitBarChart,{items,hunters:[hunter],tasks:[],totalRealized:-7.76,totalUnrealized:0,totalPnl:-7.76,openPositionCount:0,loading:false}))
+  const summary = html.match(/<summary[^>]*>([\s\S]*?)<\/summary>/)?.[1]
+  expect(summary).toContain("-9.37")
+  expect(html.match(/-9\.37/g)?.length).toBeGreaterThanOrEqual(3)
+})

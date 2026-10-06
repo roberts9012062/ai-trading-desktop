@@ -14,12 +14,12 @@ export function macdMa20Entry(rows: Bar[], period: MacdPeriod, now: number) {
   const dif = fast.map((v,i)=>v-slow[i]), dea = ema(dif, 9)
   const ma = prices.map((_, i)=>i >= 19 ? prices.slice(i-19, i+1).reduce((a,b)=>a+b, 0)/20 : NaN)
   let count = 0
-  for (let i = bars.length-1; i >= 19 && prices[i] > ma[i]; i--) count++
+  for (let i = bars.length-1; i >= 19 && Math.min(bars[i][1], prices[i]) > ma[i]; i--) count++
   const last = bars.length-1
   if (count < 3 || count > 4 || ma[last] <= ma[last-1] || ma[last-1] < ma[last-2] || dif[last-1] > dea[last-1] || dif[last] <= dea[last]) return null
   const close = bars[last][0]/1000+seconds
   return { direction: "long" as const, entry: prices[last], signal_at: close, expires_at: close+seconds,
-    above_count: count, entry_kind: "macd_ma20" as const }
+    above_count: count, above_basis: "body" as const, entry_kind: "macd_ma20" as const }
 }
 
 export function hunterCycleLabel(cycle: string): string {

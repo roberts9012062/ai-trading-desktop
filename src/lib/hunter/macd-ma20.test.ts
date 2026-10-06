@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
 import fixture from "./macd-ma20-fixtures.json"
+import aave from "./aave-okx-entry-fixture.json"
 import { macdMa20Entry, MACD_PERIODS, type MacdPeriod } from "./macd-ma20"
 import type { Bar } from "./rules"
 
@@ -24,4 +25,19 @@ describe("MACD new cross with the complete MA20 entry window", () => {
     expect(macdMa20Entry([...bars.slice(0,50),...bars.slice(51)],"30m",fixture.now)).toBeNull()
     expect(macdMa20Entry(bars.slice(0,90),"30m",fixture.now)).toBeNull()
   })
+  it("rejects the actual AAVE entry with three closes above MA20 but only two bodies", () => {
+    expect(macdMa20Entry(aave.rows.map(row => row.slice(0,6) as Bar), "30m", aave.signal_at + 4)).toBeNull()
+  })
+  for (const period of ["30m", "60m"] as MacdPeriod[]) {
+    it(`${period}: rejects a crossing or touching body and permits a lower wick`, () => {
+      const rows = macdFixture(3, period), i = rows.length - 3
+      const ma = rows.slice(i-19,i+1).reduce((s,b)=>s+b[4],0)/20
+      rows[i][1] = ma-.01; rows[i][3] = Math.min(rows[i][3],rows[i][1]-.01)
+      expect(macdMa20Entry(rows, period, fixture.now)).toBeNull()
+      rows[i][1] = ma
+      expect(macdMa20Entry(rows, period, fixture.now)).toBeNull()
+      rows[i][1] = rows[i][4]
+      expect(macdMa20Entry(rows, period, fixture.now)?.above_basis).toBe("body")
+    })
+  }
 })

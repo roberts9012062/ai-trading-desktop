@@ -74,7 +74,7 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
         {g.runtime.hosting?.blocked && <p className="text-amber-400">{g.runtime.hosting.blocked}</p>}
         {g.config.cycles.map(cycle => { const row = g.runtime.hosting?.cycles[cycle]; return <p key={cycle}>{hunterCycleLabel(cycle)} · {row?.phase === "scanning" ? "正在扫描" : row?.at ? `最近扫描 ${new Date(row.at*1000).toLocaleTimeString("zh-CN")}` : g.status === "running" ? "等待服务器首次扫描" : "扫描已暂停"} · {row?.note ?? "已有持仓继续由服务器管理"}{row?.counts && ` · 信号 ${row.counts.signals ?? 0} / 挂载 ${row.counts.mounted ?? 0}`}</p> })}
       </div>}
-      {g.config.strategy_version === MACD_MA20_VERSION && <p className="text-xs text-[var(--text-muted)]">入场：MACD新金叉＋连续3–4根收盘在MA20上方＋MA20向上。平仓：兜底收益率阈值，或MA20持平/向下且MACD死叉同时成立。{g.blocks.join("；")}</p>}
+      {g.config.strategy_version === MACD_MA20_VERSION && <p className="text-xs text-[var(--text-muted)]">入场：MACD新金叉＋连续3–4根K线实体（开盘与收盘）在MA20上方，穿线K线不计入＋MA20向上。平仓：兜底收益率阈值，或MA20持平/向下且MACD死叉同时成立。{g.blocks.join("；")}</p>}
       {!activeOps.length && <p className="text-xs text-[var(--text-muted)]">暂无运行子任务 · {g.status === "running" ? "继续搜索新机会" : "搜索已暂停"} · 已结束任务已从明细清理，成交记录可在订单中查看</p>}
       <details data-testid="hunter-statistics-group" className="rounded-lg border border-[var(--border)] p-3">
       <summary className="cursor-pointer text-xs text-[var(--text-secondary)]">展开猎手明细 · {activeOps.length} 个运行子任务</summary>

@@ -15,7 +15,7 @@ import { taskPnlFromQuotes } from "../task-list-helpers"
 import { useMarketStore } from "@/stores/market"
 import { buildTaskProfitBars } from "../profit/profit-bar-data"
 import type { Hunter } from "@/lib/hunter/api"
-import { groupHunterRows } from "@/lib/hunter/profit-groups"
+import { groupHunterRows, hunterProfitTotals } from "@/lib/hunter/profit-groups"
 import { visibleHunterChildren } from "@/lib/hunter/task-visibility"
 
 interface EquityLegendProps {
@@ -186,9 +186,11 @@ export function EquityLegend({
   const grouped = useMemo(() => groupHunterRows(rows, allTasks, hunters).map(group => {
     if (!group.hunter) return { ...group, visibleChildren: group.children, row: group.children[0] }
     const visibleChildren = visibleHunterChildren(group.children, allTasks, group.hunter)
-    const row = { ...group.children[0], taskId: group.id, displayName: group.hunter.name, modelId: null, providerName: null, icon: null, strategyType: "multi_cycle_hunter", tagText: `${visibleChildren.length} 个运行子任务`, tagClass: "bg-sky-500/15 text-sky-300", symbol: "", symbolName: "猎手收益汇总", footnote: "点击展开各币收益明细", value: group.children.reduce((sum, child) => sum + child.value, 0) }
+    const childTotal = group.children.reduce((sum, child) => sum + child.value, 0)
+    const value = mode === "total" ? hunterProfitTotals(group.hunter, {realized: childTotal, unrealized: 0}).totalPnl : childTotal
+    const row = { ...group.children[0], taskId: group.id, displayName: group.hunter.name, modelId: null, providerName: null, icon: null, strategyType: "multi_cycle_hunter", tagText: `${visibleChildren.length} 个运行子任务`, tagClass: "bg-sky-500/15 text-sky-300", symbol: "", symbolName: "猎手收益汇总", footnote: "点击展开各币收益明细", value }
     return { ...group, visibleChildren, row }
-  }).filter(group => !group.hunter || group.hunter.status !== "stopped" || group.visibleChildren.length > 0).sort((a, b) => b.row.value - a.row.value), [rows, allTasks, hunters])
+  }).filter(group => !group.hunter || group.hunter.status !== "stopped" || group.visibleChildren.length > 0).sort((a, b) => b.row.value - a.row.value), [rows, allTasks, hunters, mode])
   const maxAbs = useMemo(() => {
     let m = 1
     for (const r of [...rows, ...grouped.map(group => group.row)]) m = Math.max(m, Math.abs(r.value))
