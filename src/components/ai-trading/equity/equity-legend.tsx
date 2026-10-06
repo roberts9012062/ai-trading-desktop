@@ -11,7 +11,8 @@ import type {
 } from "@/lib/ai-trading-api"
 import { resolveSeriesColor } from "@/lib/provider-avatar"
 import { cn } from "@/lib/utils"
-import { taskLivePnl } from "./equity-data"
+import { taskPnlFromQuotes } from "../task-list-helpers"
+import { useMarketStore } from "@/stores/market"
 import { buildTaskProfitBars } from "../profit/profit-bar-data"
 import type { Hunter } from "@/lib/hunter/api"
 import { groupHunterRows } from "@/lib/hunter/profit-groups"
@@ -20,7 +21,6 @@ import { visibleHunterChildren } from "@/lib/hunter/task-visibility"
 interface EquityLegendProps {
   tasks: AITradingTask[]
   series: Record<string, EquityPoint[]>
-  values?: Map<string, number>
   allTasks?: AITradingTask[]
   hunters?: Hunter[]
   /** 总收益榜数据源（/profit-bars 或 showcase profit_items） */
@@ -76,8 +76,6 @@ function fmtPx(p: number): string {
 
 export function EquityLegend({
   tasks,
-  series,
-  values,
   allTasks = tasks,
   hunters = [],
   profitBars,
@@ -85,6 +83,7 @@ export function EquityLegend({
   onHighlightChange,
 }: EquityLegendProps): React.JSX.Element {
   const [mode, setMode] = useState<LegendMode>("floating")
+  const quotes = useMarketStore((s) => s.quotes)
 
   // 持仓任务在折线图中的位置 → 让总收益榜里同任务颜色与折线一致
   const taskIndexInChart = useMemo(
@@ -96,7 +95,7 @@ export function EquityLegend({
   const floatingRows = useMemo<LegendRow[]>(() => {
     return tasks
       .map((task, idx) => {
-        const last = values?.get(task.id) ?? taskLivePnl(task, series[task.id] ?? [])
+        const last = taskPnlFromQuotes(task, quotes).pnl
         const color = resolveSeriesColor(
           task.model_id,
           task.provider_name,
@@ -134,7 +133,7 @@ export function EquityLegend({
         }
       })
       .sort((a, b) => b.value - a.value)
-  }, [tasks, series, values])
+  }, [tasks, quotes])
 
   // 总收益榜：全部任务，value=已实现+浮盈
   const totalRows = useMemo<LegendRow[]>(() => {

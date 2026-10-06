@@ -11,7 +11,7 @@ import { TaskActions } from "@/components/ai-trading/task-actions"
 import { TaskProfitLockStatus } from "@/components/ai-trading/profit-lock-status"
 import { useMarketStore } from "@/stores/market"
 import {
-  livePnl,
+  taskPnlFromQuotes,
   runtimeLabel,
   STATUS_LABEL,
   STATUS_STYLE,
@@ -63,12 +63,7 @@ export function TaskList({
     <><div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
       {tasks.map((task) => {
         const sk = statusKey(task)
-        const sym = (task.symbol || "").toLowerCase()
-        const q =
-          quotes[sym] ??
-          quotes[task.symbol] ??
-          quotes[task.symbol?.toUpperCase?.() || ""]
-        const pos = livePnl(task, q?.last_price)
+        const pos = taskPnlFromQuotes(task, quotes)
         const pnl = pos.hasPosition ? pos.pnl : 0
         const base = Number(task.allocated_capital || task.equity_baseline || 0)
         const pct = base > 0 ? (pnl / base) * 100 : 0

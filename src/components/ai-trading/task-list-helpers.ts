@@ -116,6 +116,16 @@ export function livePnl(
   }
 }
 
+/** Shared live quote snapshot for task cards, floating rankings and the leader. */
+export function taskPnlFromQuotes(
+  task: AITradingTask,
+  quotes: Readonly<Record<string, { last_price: number } | undefined>>,
+): LivePnlView {
+  const symbol = task.symbol || ""
+  const quote = quotes[symbol.toLowerCase()] ?? quotes[symbol] ?? quotes[symbol.toUpperCase()]
+  return livePnl(task, quote?.last_price)
+}
+
 export function strategyLabel(task: AITradingTask): string {
   if (task.strategy_type === "shortline_factor") {
     const p = (task.strategy_params || {}) as {
