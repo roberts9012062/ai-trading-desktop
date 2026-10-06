@@ -16,10 +16,6 @@ const DEFAULT_SETTINGS: SystemSettings = {
   registration_enabled: true,
   daily_register_limit: 100,
   register_reset_hour: 6,
-  paper_claim_amount: 1_000_000,
-  paper_claim_period: "monthly",
-  paper_claim_reset_hour: 6,
-  paper_total_claim_cap: 0,
   system_name: "期货交易模拟系统",
   kline_source_mode: false,
   kline_primary_source: "eastmoney",
@@ -34,7 +30,7 @@ const DEFAULT_SETTINGS: SystemSettings = {
   updated_at: null,
 }
 
-/** 系统设置 —— 注册策略 + 模拟资金 */
+/** 系统设置 —— 注册策略、商城与用量配额 */
 export default function AdminSettingsPage(): React.JSX.Element {
   const [form, setForm] = useState<SystemSettings>(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState(true)
@@ -99,10 +95,6 @@ export default function AdminSettingsPage(): React.JSX.Element {
         registration_enabled: form.registration_enabled,
         daily_register_limit: Number(form.daily_register_limit),
         register_reset_hour: Number(form.register_reset_hour),
-        paper_claim_amount: Number(form.paper_claim_amount),
-        paper_claim_period: form.paper_claim_period,
-        paper_claim_reset_hour: Number(form.paper_claim_reset_hour),
-        paper_total_claim_cap: Number(form.paper_total_claim_cap),
         system_name: form.system_name,
         max_tasks_per_user: Number(form.max_tasks_per_user),
         factor_lab_daily_limit: Number(form.factor_lab_daily_limit),
@@ -224,85 +216,6 @@ export default function AdminSettingsPage(): React.JSX.Element {
               />
               <p className="text-xs text-[var(--text-muted)]">
                 上海时区 0–23，默认 6（早 6 点重置）
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>模拟练手资金</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>单次可领取金额（元）</Label>
-              <Input
-                type="number"
-                min={0}
-                step={1000}
-                value={form.paper_claim_amount}
-                onChange={(e) =>
-                  updateField(
-                    "paper_claim_amount",
-                    Number(e.target.value || 0),
-                  )
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>领取周期</Label>
-              <select
-                className="w-full h-9 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-sm"
-                value={form.paper_claim_period}
-                onChange={(e) =>
-                  updateField(
-                    "paper_claim_period",
-                    e.target.value as "monthly" | "daily",
-                  )
-                }
-              >
-                <option value="monthly">按自然月</option>
-                <option value="daily">按日（受重置小时影响）</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>领取重置时间（小时）</Label>
-              <Input
-                type="number"
-                min={0}
-                max={23}
-                value={form.paper_claim_reset_hour}
-                onChange={(e) =>
-                  updateField(
-                    "paper_claim_reset_hour",
-                    Number(e.target.value || 0),
-                  )
-                }
-              />
-              <p className="text-xs text-[var(--text-muted)]">
-                daily 周期生效；monthly 仍按自然月
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label>可领取总额上限（元）</Label>
-              <Input
-                type="number"
-                min={0}
-                step={1000}
-                value={form.paper_total_claim_cap}
-                onChange={(e) =>
-                  updateField(
-                    "paper_total_claim_cap",
-                    Number(e.target.value || 0),
-                  )
-                }
-              />
-              <p className="text-xs text-[var(--text-muted)]">
-                0 表示不限制用户累计领取总额
               </p>
             </div>
           </div>

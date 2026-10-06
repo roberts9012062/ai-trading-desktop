@@ -63,10 +63,6 @@ export interface SystemSettings {
   registration_enabled: boolean
   daily_register_limit: number
   register_reset_hour: number
-  paper_claim_amount: number
-  paper_claim_period: "monthly" | "daily"
-  paper_claim_reset_hour: number
-  paper_total_claim_cap: number
   system_name: string
   /** 实时行情渠道 */
   market_data_channel?:

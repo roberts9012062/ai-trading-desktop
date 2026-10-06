@@ -1,6 +1,6 @@
 {
   "name": "ai-trading-desktop",
-  "version": "0.2.118",
+  "version": "0.2.119",
   "private": true,
   "type": "module",
   "scripts": {
