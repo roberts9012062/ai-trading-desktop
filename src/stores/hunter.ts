@@ -10,6 +10,7 @@ interface HunterState {
   watches: Record<string, HunterWatch[]>;
   refresh: (signal?: AbortSignal) => Promise<void>;
   create: (cfg: HunterConfig) => Promise<void>;
+  setHosting: (id: string, location: "desktop" | "server") => Promise<void>;
   setProfitLock: (id: string, config: ProfitLockConfig) => Promise<void>;
   control: (id: string, action: "pause" | "resume" | "stop" | "stop_close" | "upgrade" | "upgrade_adaptive" | "upgrade_swing", poolSize?: number) => Promise<void>;
   setProgress: (id: string, message: string) => void;
@@ -18,6 +19,13 @@ interface HunterState {
 }
 let generation = 0
 export const useHunterStore = create<HunterState>((set) => ({
+  setHosting: async (id, location) => {
+    const started = generation
+    const group = await hunterApi.hosting(id, location)
+    if (started !== generation) throw new Error("会话已切换，请查看当前账户猎手")
+    set(s => ({ groups: s.groups.map(g => g.id === id ? group : g), watches: { ...s.watches, [id]: [] },
+      progress: { ...s.progress, [id]: location === "server" ? "已挂载服务器，关闭客户端后继续搜索和交易" : "已解除服务器托管，等待桌面扫描" } }))
+  },
   setProfitLock: async (id, config) => {
     const started = generation
     const updated = await hunterApi.setProfitLock(id, config)

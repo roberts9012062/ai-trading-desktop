@@ -8,6 +8,7 @@ export interface HunterConfig {
   brain: "rules" | "llm" | "jev"; model_id: string | null; rule_fallback: boolean;
   direction: "long" | "both"; whitelist: string[]; blacklist: string[];
   pool_size: number; max_positions: number; scan_seconds: number;
+  scan_location?: "desktop" | "server";
   strategy_version?: RuleVersion;
   profit_lock?: ProfitLockConfig;
   position_mode?: "fixed_margin" | "half" | "full" | "scale_in" | "capital_pct";
@@ -28,7 +29,8 @@ export interface Opportunity {
 export interface Hunter {
   id: string; name: string; status: "running" | "paused" | "stopping" | "stopped";
   trading_mode: string; config: HunterConfig; capital: number; equity: number; blocks: string[];
-  runtime: { realized?: number; unrealized?: number; qualification?: string; execution_account?: { execution_mode: "virtual" | "okx_demo" | "okx_live" }; discovery?: DiscoveryStatus | null };
+  runtime: { realized?: number; unrealized?: number; qualification?: string; execution_account?: { execution_mode: "virtual" | "okx_demo" | "okx_live" }; discovery?: DiscoveryStatus | null;
+    hosting?: { blocked?: string; note?: string; cycles: Record<string, { at?: number; started_at?: number; phase: string; note: string; counts: Record<string, number> }> } | null };
   stats: { trades: number; win_rate: number | null; profit_factor: number | null; payoff: number | null };
   opportunities: Opportunity[];
 }
@@ -46,6 +48,8 @@ export interface HunterCapabilities {
   live_qualified: boolean; trading_mode: string; reason: string;
   can_start?: boolean; execution_mode?: "virtual" | "okx_demo" | "okx_live" | "unavailable";
   supported_versions?: RuleVersion[];
+  server_hosting_available?: boolean;
+  can_server_host?: boolean;
 }
 
 export function canStartHunter(cap: HunterCapabilities): boolean {
@@ -77,6 +81,7 @@ async function request<T>(path: string, init: RequestInit = {}, signal?: AbortSi
   return response.json() as Promise<T>
 }
 export const hunterApi = {
+  hosting: (id: string, scan_location: "desktop" | "server") => request<Hunter>("/groups/" + encodeURIComponent(id) + "/hosting", { method: "PATCH", body: JSON.stringify({ scan_location }) }),
   report: (id: string, report: ScanReport, signal?: AbortSignal) => request<{ ok: boolean }>("/groups/" + id + "/scan-report", { method: "POST", body: JSON.stringify(report) }, signal),
   setProfitLock: (id: string, profit_lock: ProfitLockConfig) => request<ProfitLockUpdateResult>("/groups/" + encodeURIComponent(id) + "/profit-lock", { method: "PATCH", body: JSON.stringify({ profit_lock }) }),
   symbols: (signal?: AbortSignal) => request<HunterSymbol[]>("/symbols", {}, signal),

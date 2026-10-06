@@ -35,4 +35,11 @@ describe("independent MACD hunter scanner",()=>{
     await scanHunter({...g,blocks:["亏损冷静期"]},new AbortController().signal)
     expect(hunterApi.universe).toHaveBeenCalledTimes(1)
   })
+  it("does not run desktop scans for server-hosted hunters",async()=>{
+    const g=group();g.config.scan_location="server";useHunterStore.setState({groups:[g]})
+    await scanHunter(g,new AbortController().signal)
+    expect(hunterApi.universe).not.toHaveBeenCalled()
+    expect(hunterApi.data).not.toHaveBeenCalled()
+    expect(hunterApi.mount).not.toHaveBeenCalled()
+  })
 })

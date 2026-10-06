@@ -71,6 +71,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
   const submit = async () => {
     setError(null)
     if (existingHunter) { setError("当前账户已有未停止的多周期猎手，请先停止后再创建"); return }
+    if (config.scan_location === "server" && !capabilities?.can_server_host) { setError("服务器托管仅限有效VIP或管理员"); return }
     if (config.strategy_version !== "hunter-v1" && !capabilities?.supported_versions?.includes(config.strategy_version!)) { setError("服务器尚未支持所选规则版本，请更新服务器或选择旧版规则"); return }
     if (!config.cycles.length) { setError("请选择至少一个周期"); return }
     try { if (isMacd) { if (!Number.isInteger(config.leverage) || config.leverage < 1 || config.leverage > 100) throw new Error("杠杆范围为1–100倍"); buildBottomPayload(bottomRules) } else validateLeverage(config.leverage) } catch (e) { setError(e instanceof Error ? e.message : "杠杆无效"); return }
@@ -87,11 +88,11 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
     <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>创建多周期猎手</DialogTitle>
-        <DialogDescription>桌面寻找机会，服务器接管交易。同一账户同时只能运行一个猎手。</DialogDescription>
+        <DialogDescription>可选择桌面搜索或服务器托管。同一账户同时只能运行一个猎手。</DialogDescription>
       </DialogHeader>
       <div className="rounded-md border border-[var(--border)] p-3 text-xs text-[var(--text-secondary)]">
         当前账户：{capabilities ? hunterAccountLabel(capabilities.execution_mode ?? (capabilities.trading_mode === "virtual" ? "virtual" : undefined)) : "读取中…"}。新策略验证状态：未验证。
-        桌面关闭后暂停搜索，服务器继续管理已挂载任务。{isMacd ? "按仓位管理设置执行，只做多。" : "杠杆可选 1–50 倍，默认 1 倍；资金可选逐仓或全仓。"}
+        {config.scan_location === "server" ? "服务器托管后，关闭桌面仍会自动搜索和执行交易。" : "桌面关闭后暂停搜索，服务器继续管理已挂载任务。"}{isMacd ? "按仓位管理设置执行，只做多。" : "杠杆可选 1–50 倍，默认 1 倍；资金可选逐仓或全仓。"}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1"><Label htmlFor="hunter-profile">入场规则</Label><select id="hunter-profile" className={selectClass} value={config.strategy_version ?? "hunter-v1"} onChange={e => {
@@ -114,6 +115,14 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
           <option value="long">顺势做多</option><option value="both">顺势双向</option>
         </select></div>
       </div>
+      <section className="space-y-2 rounded-md border border-[var(--border)] p-3">
+        <Label htmlFor="hunter-scan-location">扫描运行位置</Label>
+        <select id="hunter-scan-location" className={selectClass} value={config.scan_location ?? "desktop"} onChange={e => patch({ scan_location: e.target.value as "desktop" | "server" })}>
+          <option value="desktop">桌面扫描</option>
+          <option value="server" disabled={!capabilities?.server_hosting_available || !capabilities.can_server_host}>服务器托管 · VIP / 管理员</option>
+        </select>
+        <p className="text-xs text-[var(--text-muted)]">{config.scan_location === "server" ? "服务器自动扫描、挂载并执行交易，关闭客户端或退出登录后继续运行。" : "客户端开启时搜索新机会；已挂载持仓由服务器继续管理。"} 服务器托管仅限有效VIP，管理员可直接使用。</p>
+      </section>
       {isMacd && <>
         <fieldset className="space-y-2"><legend className="text-sm font-medium">交易周期</legend>
           <div className="grid grid-cols-2 gap-2">{(Object.keys(MACD_PERIODS) as MacdPeriod[]).map(period => <label key={period} className="flex items-center gap-2 rounded-md border border-[var(--border)] p-3 text-sm">

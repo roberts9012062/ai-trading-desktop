@@ -66,7 +66,7 @@ export class BalancedDiscovery {
   constructor(private groupId: string) {}
   private current(group: Hunter, signal: AbortSignal) {
     const latest = useHunterStore.getState().groups.find(g => g.id === this.groupId)
-    return !signal.aborted && latest?.status === "running" && latest.config.strategy_version === group.config.strategy_version && latest.config.pool_size === group.config.pool_size
+    return !signal.aborted && latest?.status === "running" && latest.config.scan_location !== "server" && latest.config.strategy_version === group.config.strategy_version && latest.config.pool_size === group.config.pool_size
   }
   private report(cycle: Cycle, message: string, signal: AbortSignal) {
     if (signal.aborted) return
