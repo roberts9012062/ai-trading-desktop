@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { ChevronDown } from "lucide-react"
-import type { ContractItem } from "@/lib/api"
+import { getContractsApi, type ContractItem } from "@/lib/api"
 
 interface SymbolComboboxProps {
   value: string
@@ -24,7 +24,17 @@ export function SymbolCombobox({
 }: SymbolComboboxProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(value)
+  const [filter, setFilter] = useState("")
   const ref = useRef<HTMLDivElement>(null)
+  const [freshContracts, setFreshContracts] = useState<ContractItem[] | null>(null)
+  const [loading, setLoading] = useState(false)
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    setLoading(true)
+    void getContractsApi().then(list => { if (!cancelled) setFreshContracts(list) }).catch(() => {}).finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [open])
 
   useEffect(() => {
     setQuery(value)
@@ -41,13 +51,19 @@ export function SymbolCombobox({
     return () => document.removeEventListener("mousedown", onDoc)
   }, [])
 
-  const q = query.trim().toLowerCase()
+  function openList(): void {
+    setFilter("")
+    setOpen(true)
+  }
+
+  const q = filter.trim().toLowerCase()
+  const available = freshContracts ?? contracts
   const filtered = (
     q === ""
-      ? contracts
-      : contracts.filter(
+      ? available
+      : available.filter(
           (c) =>
-            c.symbol.toLowerCase().includes(q) || c.name.includes(query.trim()),
+            c.symbol.toLowerCase().includes(q) || c.name.includes(filter.trim()),
         )
   ).slice(0, MAX_OPTIONS)
 
@@ -57,17 +73,20 @@ export function SymbolCombobox({
         value={query}
         onChange={(e) => {
           setQuery(e.target.value)
+          setFilter(e.target.value)
           onChange(e.target.value.trim())
           setOpen(true)
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={openList}
         placeholder="搜索或输入合约，如 rb2610"
         className="w-full h-9 px-3 pr-8 text-xs font-num rounded-md border border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
       />
-      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] pointer-events-none" />
+      <button type="button" aria-label="选择合约币种" aria-expanded={open} onClick={() => open ? setOpen(false) : openList()} className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)]"><ChevronDown className="w-4 h-4" /></button>
 
-      {open && filtered.length > 0 && (
+      {open && (
         <div className="absolute z-50 mt-1 w-full max-h-60 overflow-auto rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] shadow-lg">
+          {loading && <p role="status" className="px-3 py-2 text-xs">正在刷新合约…</p>}
+          {!loading && !filtered.length && <p className="px-3 py-2 text-xs">{q ? "没有匹配合约" : "暂无合约，重新打开可重试"}</p>}
           {filtered.map((c) => (
             <button
               key={c.symbol}

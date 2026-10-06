@@ -12,27 +12,26 @@
  * (日志文件:%APPDATA%/../com.aitrading.desktop/logs/ai-trading-desktop.log)
  */
 
-import type { Update } from "@tauri-apps/plugin-updater"
-import { UPDATE_TOKEN } from "@/lib/update-token"
+import { checkChannel, type DesktopUpdate } from "@/lib/native-updater"
+import { updateChannels, type UpdateChannel } from "@/lib/update-channels"
 import { useUpdateStore } from "@/stores/update"
 
 let errorReportingAttached = false
 
-/** 默认更新代理(内置,UI 不外显其值);用户未设置自定义代理时走它,代理失败自动回退直连 */
-export const DEFAULT_UPDATE_PROXY = "http://bot2:bot123@00n.top:7899"
+/** 用户的自定义 HTTP 传输代理；默认使用免费 GitHub 反向代理池。 */
 const PROXY_KEY = "atd_update_proxy"
 
 /**
- * 当前生效的更新代理。返回 undefined = 直连(不走代理)。
- * 存储三态:键不存在 → 默认代理;存空串 → 直连;存 URL → 自定义。
+ * 用户的 HTTP 传输代理，未指定时由免费反向代理池处理。
+ * 存储三态:键不存在 → 免费池;存空串 → 直连;存 URL → 自定义优先。
  */
 export function getUpdateProxy(): string | undefined {
   try {
     const v = localStorage.getItem(PROXY_KEY)
-    if (v === null) return DEFAULT_UPDATE_PROXY
+    if (v === null) return undefined
     return v === "" ? undefined : v
   } catch {
-    return DEFAULT_UPDATE_PROXY
+    return undefined
   }
 }
 
@@ -54,12 +53,6 @@ export function setUpdateProxy(value: string | undefined): void {
   } catch {
     // 隐私模式等写失败时忽略
   }
-}
-
-/** 私有 Release 下载鉴权头(清单走 gist 无需鉴权;资产下载走 api.github.com 需 token) */
-function updateHeaders(): Record<string, string> {
-  if (!UPDATE_TOKEN || UPDATE_TOKEN.startsWith("__")) return {}
-  return { Authorization: `token ${UPDATE_TOKEN}`, Accept: "application/octet-stream" }
 }
 
 /** 把 JS 错误落到 Rust 日志文件(幂等) */
@@ -97,38 +90,64 @@ function logWarn(msg: string): void {
     .catch(() => {})
 }
 
-/** 单次检查:按给定代理(或直连)检查更新 */
-async function doCheck(
-  proxy: string | undefined,
-): Promise<Update | null> {
-  const { check } = await import("@tauri-apps/plugin-updater")
-  const headers = updateHeaders()
-  logInfo(
-    `检查更新… proxy=${proxy ? proxy.replace(/\/\/.*@/, "//***@") : "直连"} headers=${Object.keys(headers).join(",") || "无"}`,
-  )
-  const update = await check({ headers, ...(proxy ? { proxy } : {}) })
-  if (update === null) logInfo("已是最新版本")
-  else logInfo(`发现新版本 ${update.version}`)
-  return update
+/** 每次请求使用独立通道，下载失败也会切换；不会提前安装。 */
+function configuredChannels(): UpdateChannel[] {
+  return getStoredUpdateProxy() === "" ? [{}] : updateChannels(getUpdateProxy())
 }
 
-/**
- * 检查更新(不下载)。返回 Update 对象(含 version/body 更新说明)或
- * null(已是最新);代理与直连均失败时抛错,由调用方决定如何展示。
- */
-export async function checkForUpdate(): Promise<Update | null> {
-  if (!window.__TAURI_INTERNALS__) return null
-  const proxy = getUpdateProxy()
-  try {
-    return await doCheck(proxy)
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    if (proxy) {
-      // 代理不可达时不让检查卡死:回退直连再试一次
-      logWarn(`代理检查失败(${message}),回退直连重试`)
-      return await doCheck(undefined)
+async function findUpdate(channels: UpdateChannel[]): Promise<{ update: DesktopUpdate | null; index: number }> {
+  let last: unknown
+  for (let index = 0; index < channels.length; index++) {
+    try {
+      const update = await checkChannel(channels[index])
+      return { update, index }
+    } catch (error) {
+      last = error
+      logWarn(`更新通道 ${index + 1} 检查失败，自动尝试下一通道`)
     }
-    throw err
+  }
+  throw last ?? new Error("所有更新通道均不可用")
+}
+
+export async function checkForUpdate(): Promise<DesktopUpdate | null> {
+  if (!window.__TAURI_INTERNALS__) return null
+  const channels = configuredChannels()
+  const found = await findUpdate(channels)
+  if (!found.update) return null
+  const original = found.update
+  let active = original
+  let closed = false
+  logInfo(`发现新版本 ${original.version}`)
+  return {
+    ...original,
+    download: async onEvent => {
+      let last: unknown
+      for (let index = found.index; index < channels.length; index++) {
+        if (closed) throw new Error("更新资源已关闭")
+        try {
+          if (index !== found.index) {
+            const next = await checkChannel(channels[index])
+            if (!next) throw new Error("备用通道暂无更新")
+            // A stale or inconsistent mirror must never replace the selected release.
+            if (next.version !== original.version || JSON.stringify(next.rawJson.platforms) !== JSON.stringify(original.rawJson.platforms)) {
+              await next.close()
+              throw new Error("备用通道的更新版本或签名不一致")
+            }
+            active = next
+          }
+          onEvent?.({event: "Started", data: {}})
+          await active.download(onEvent)
+          return
+        } catch (error) {
+          last = error
+          await active.close().catch(() => {})
+          logWarn(`更新通道 ${index + 1} 下载失败，自动尝试下一通道`)
+        }
+      }
+      throw last ?? new Error("所有下载通道均不可用")
+    },
+    install: () => active.install(),
+    close: async () => { closed = true; await active.close() },
   }
 }
 
@@ -140,7 +159,7 @@ export interface DownloadProgress {
 
 /** 下载更新安装包(代理沿用 check 时配置),onProgress 持续回调累计进度 */
 export async function downloadUpdate(
-  update: Update,
+  update: DesktopUpdate,
   onProgress?: (progress: DownloadProgress) => void,
 ): Promise<void> {
   let downloaded = 0
@@ -149,7 +168,9 @@ export async function downloadUpdate(
     (event) => {
       switch (event.event) {
         case "Started":
+          downloaded = 0
           contentLength = event.data.contentLength ?? 0
+          onProgress?.({ downloaded, contentLength })
           break
         case "Progress":
           downloaded += event.data.chunkLength
@@ -160,12 +181,11 @@ export async function downloadUpdate(
           break
       }
     },
-    { headers: updateHeaders() },
   )
 }
 
 /** 安装已下载的更新并重启应用(NSIS passive 模式,安装后自动重启) */
-export async function installUpdate(update: Update): Promise<void> {
+export async function installUpdate(update: DesktopUpdate): Promise<void> {
   // 安装器为解锁目标文件会直接强杀主进程,窗口 Destroyed 的引擎清理路径
   // 因此不保证执行;若不先显式终结引擎,孤儿 python 进程会锁住
   // native-engine 下的 DLL,导致安装器写文件失败(反复弹 Retry 错误框)。

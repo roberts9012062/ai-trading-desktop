@@ -146,7 +146,7 @@ export async function tryRefreshToken(): Promise<boolean> {
 
 /** 登录 */
 export async function loginApi(req: LoginRequest): Promise<AuthResponse> {
-  return request<AuthResponse>("/api/auth/login", {
+  return request<AuthResponse>("/api/auth/desktop-login", {
     method: "POST",
     body: JSON.stringify({
       username: req.account,

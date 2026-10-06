@@ -9,7 +9,7 @@
  */
 
 import { create } from "zustand"
-import type { Update } from "@tauri-apps/plugin-updater"
+import type { DesktopUpdate as Update } from "@/lib/native-updater"
 
 interface UpdateState {
   /** 检测到的新版本(null = 当前已是最新) */

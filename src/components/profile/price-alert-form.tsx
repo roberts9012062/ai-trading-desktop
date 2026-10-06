@@ -90,6 +90,8 @@ export function PriceAlertForm(props: {
         <select
           className="h-8 text-sm rounded border border-[var(--border)] bg-[var(--bg-primary)] px-2 min-w-[160px]"
           value={selected ? selected.symbol : ""}
+          onPointerDown={() => { void getContractsApi().then(setContracts).catch(() => {}) }}
+          onKeyDown={(event) => { if (event.key === "ArrowDown" || event.key === " ") void getContractsApi().then(setContracts).catch(() => {}) }}
           onChange={(e) => {
             const hit = contracts.find((c) => c.symbol === e.target.value)
             setSelected(hit ?? null)

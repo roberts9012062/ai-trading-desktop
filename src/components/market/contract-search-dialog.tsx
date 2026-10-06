@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Search, Star, Plus, X } from "lucide-react"
 import { useAppStore } from "@/stores/app"
-import { searchContractsApi, addWatchlistApi } from "@/lib/api"
+import { getContractsApi, searchContractsApi, addWatchlistApi } from "@/lib/api"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { ContractItem } from "@/lib/api"
@@ -18,7 +18,6 @@ export function ContractSearchDialog(): React.JSX.Element {
   const [addedSymbols, setAddedSymbols] = useState<Set<string>>(new Set())
   const [addingSymbol, setAddingSymbol] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 弹窗打开时自动聚焦输入框
   useEffect(() => {
@@ -31,27 +30,24 @@ export function ContractSearchDialog(): React.JSX.Element {
     }
   }, [searchOpen])
 
-  // 防抖搜索
-  const doSearch = useCallback(async (q: string) => {
-    if (q.trim().length === 0) {
-      setResults([])
-      return
-    }
+  // 打开即可浏览，输入时过滤；关闭或新查询使旧响应失效。
+  useEffect(() => {
+    if (!searchOpen) return
+    let cancelled = false
     setLoading(true)
-    try {
-      const res = await searchContractsApi(q.trim())
-      setResults(res.contracts)
-    } catch {
-      setResults([])
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+    const timer = setTimeout(() => {
+      const request = query.trim()
+        ? searchContractsApi(query.trim()).then(result => result.contracts)
+        : getContractsApi()
+      void request.then(list => { if (!cancelled) setResults(list) })
+        .catch(() => { if (!cancelled) setResults([]) })
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }, query.trim() ? 300 : 0)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [searchOpen, query])
 
   function handleInputChange(value: string) {
     setQuery(value)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => doSearch(value), 300)
   }
 
   async function handleAddToWatchlist(symbol: string, name: string) {
@@ -112,9 +108,9 @@ export function ContractSearchDialog(): React.JSX.Element {
             </div>
           )}
 
-          {!loading && query.trim().length === 0 && (
+          {!loading && query.trim().length === 0 && results.length === 0 && (
             <div className="px-4 py-8 text-center text-sm text-[var(--text-muted)]">
-              输入关键词搜索合约
+              暂无合约数据，重新打开可重试
             </div>
           )}
 

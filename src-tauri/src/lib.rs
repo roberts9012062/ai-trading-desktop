@@ -1,5 +1,6 @@
 use tauri::Manager;
 mod native_engine;
+mod update_channels;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -10,13 +11,27 @@ pub fn run() {
         default_hook(info);
     }));
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+        }
+    }));
+    builder
         .manage(native_engine::NativeEngineState::default())
+        .manage(update_channels::UpdateChannels::default())
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             native_engine::native_engine_spawn,
             native_engine::native_engine_status,
             native_engine::native_engine_kill,
+            update_channels::update_channel_check,
+            update_channels::update_channel_download,
+            update_channels::update_channel_install,
+            update_channels::update_channel_close,
         ])
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::Destroyed) {

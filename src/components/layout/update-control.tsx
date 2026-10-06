@@ -163,7 +163,7 @@ export function UpdateControl({ collapsed }: { collapsed: boolean }): React.JSX.
           <input
             value={proxyInput}
             onChange={(e) => setProxyInput(e.target.value)}
-            placeholder="留空使用内置更新通道;或填 http://地址:端口"
+            placeholder="留空使用免费 GitHub 加速池;或填 http://地址:端口"
             className="w-full h-7 px-2 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]/60"
           />
           <button
@@ -177,7 +177,7 @@ export function UpdateControl({ collapsed }: { collapsed: boolean }): React.JSX.
             <div className="text-[11px] text-[var(--text-muted)]">{proxySaved}</div>
           )}
           <div className="text-[10px] text-[var(--text-muted)] leading-relaxed">
-            未设置时走内置更新通道;通道不可用会自动回退直连。
+            默认使用免费 GitHub 加速池，故障自动切换并最终直连。自定义 HTTP 代理优先，失败后继续切换。
           </div>
         </div>
       )}

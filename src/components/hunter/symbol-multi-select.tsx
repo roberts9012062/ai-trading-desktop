@@ -19,7 +19,7 @@ export function HunterSymbolMultiSelect({ id, label, value, options, onChange, m
   const names = new Map(options.map(option => [option.symbol, option.name]))
   const filter = query.trim().toLowerCase()
   const visible = options.filter(option => option.symbol.includes(filter) || option.name.toLowerCase().includes(filter))
-  return <Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) setQuery("") }}><div className="space-y-2">
+  return <Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) { setQuery(""); onRetry() } }}><div className="space-y-2">
     <Label htmlFor={id}>{label}</Label>
     <Popover.Trigger asChild><button type="button" id={id}
       className="flex w-full items-center justify-between rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm">

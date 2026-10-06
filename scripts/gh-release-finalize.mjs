@@ -1,5 +1,5 @@
 /**
- * Release 收尾(仅 CI):查资产 → 生成 latest.json(资产 API 链接) →
+ * Release 收尾(仅 CI):查资产 → 生成 latest.json(兼容旧客户端的资产 API 链接) →
  * 上传到 Release → 更新 secret gist(updater 的永久清单地址)。
  *
  * 用法:node scripts/gh-release-finalize.mjs <tag> <notes> <version>
@@ -26,7 +26,7 @@ const exeAsset = release.assets.find((a) => a.name.includes("-setup.exe"))
 const sigAsset = release.assets.find((a) => a.name.endsWith(".sig"))
 if (!exeAsset || !sigAsset) throw new Error("Release 缺少 setup.exe / .sig 资产")
 
-// 2) 私有 Release 经资产 API 下载，与 updater 的鉴权头保持一致。
+// 2) 清单保留资产 API 地址兼容旧客户端；新客户端转换为公开 Release URL。
 const signature = readFileSync(
   join(root, "update-dist", sigAsset.name),
   "utf8",
@@ -38,7 +38,7 @@ const latest = {
   platforms: {
     "windows-x86_64": {
       signature,
-      url: exeAsset.url, // https://api.github.com/repos/.../releases/assets/{id}
+      url: exeAsset.url, // New desktop updater resolves this to the public versioned download URL.
     },
   },
 }

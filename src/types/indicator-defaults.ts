@@ -106,7 +106,7 @@ export const DEFAULT_INDICATOR_CONFIG: IndicatorConfig = {
     shortSignalColor: "#22c55e",
   },
   pivot: {
-    enabled: false,
+    enabled: true,
     left: 3,
     right: 3,
     alternate: true,

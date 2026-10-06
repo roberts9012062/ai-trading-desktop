@@ -21,6 +21,7 @@ const MAX_OPTIONS = 80
 export function MiningSymbolCombobox({ value, onChange }: Props): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(value)
+  const [filter, setFilter] = useState("")
   const [symbols, setSymbols] = useState<MiningSymbol[]>([])
   const [loading, setLoading] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -46,7 +47,7 @@ export function MiningSymbolCombobox({ value, onChange }: Props): React.JSX.Elem
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [open])
 
   // 点击外部关闭
   useEffect(() => {
@@ -63,16 +64,21 @@ export function MiningSymbolCombobox({ value, onChange }: Props): React.JSX.Elem
   const optionValue = (s: MiningSymbol): string => s.symbol ?? s.code
   const optionName = (s: MiningSymbol): string => s.symbol_name ?? s.name
 
-  const q = query.trim().toLowerCase()
+  function openList(): void {
+    setFilter("")
+    setOpen(true)
+  }
+
+  const q = filter.trim().toLowerCase()
   const filtered = (
     q === ""
       ? symbols
       : symbols.filter(
           (s) =>
             optionValue(s).toLowerCase().includes(q) ||
-            optionName(s).includes(query.trim()) ||
+            optionName(s).includes(filter.trim()) ||
             s.code.toLowerCase().includes(q) ||
-            s.name.includes(query.trim()),
+            s.name.includes(filter.trim()),
         )
   ).slice(0, MAX_OPTIONS)
 
@@ -82,10 +88,11 @@ export function MiningSymbolCombobox({ value, onChange }: Props): React.JSX.Elem
         value={query}
         onChange={(e) => {
           setQuery(e.target.value)
+          setFilter(e.target.value)
           onChange(e.target.value.trim().toLowerCase())
           setOpen(true)
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={openList}
         placeholder={
           loading
             ? "加载可挖掘币种…"
@@ -95,7 +102,7 @@ export function MiningSymbolCombobox({ value, onChange }: Props): React.JSX.Elem
         }
         className="w-full h-9 px-3 pr-8 text-xs font-num rounded-md border border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
       />
-      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] pointer-events-none" />
+      <button type="button" aria-label="选择合约币种" aria-expanded={open} onClick={() => open ? setOpen(false) : openList()} className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)]"><ChevronDown className="w-4 h-4" /></button>
 
       {open && filtered.length > 0 && (
         <div className="absolute z-50 mt-1 w-full max-h-72 overflow-auto rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] shadow-lg">

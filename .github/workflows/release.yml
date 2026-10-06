@@ -1,9 +1,8 @@
 name: release
 
-# 打 tag(v*)→ 自动构建签名安装包 → 创建 GitHub Release(私有)
-# 产物:ai-trading-desktop_x.y.z_x64-setup.exe + .sig + latest.json(api 资产 URL 版)
-# 更新分发:secret gist 作为永久清单 + api.github.com 资产端点下载
-# (国内 github.com 下载路径被重置,api.github.com 与 gist CDN 直连可达)
+# 打 tag(v*)→ 自动构建签名安装包 → 创建公开 GitHub Release
+# 产物:ai-trading-desktop_x.y.z_x64-setup.exe + .sig + latest.json
+# 更新分发:secret gist 永久清单 + 公开 Release 资产，客户端支持免费代理池。
 on:
   push:
     tags: ["v*"]
@@ -65,7 +64,6 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
-          UPDATE_TOKEN: ${{ secrets.UPDATE_TOKEN }}
           # 更新说明经环境变量传入:提交信息里的引号/换行若直接内插进
           # run 命令会截断 shell 脚本(v0.1.33 首次构建即因此 127)
           RELEASE_NOTES: ${{ github.event.head_commit.message }}

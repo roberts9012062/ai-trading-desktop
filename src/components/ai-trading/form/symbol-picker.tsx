@@ -55,22 +55,23 @@ export function SymbolPicker({
   const [loading, setLoading] = useState(false)
   const [searchHits, setSearchHits] = useState<PickerItem[]>([])
   const rootRef = useRef<HTMLDivElement>(null)
-  const loadedRef = useRef(false)
 
   // 打开时懒加载全量合约 + 主力标记
   useEffect(() => {
-    if (!open || loadedRef.current) return
-    loadedRef.current = true
+    if (!open) return
+    let cancelled = false
     setLoading(true)
     void Promise.all([
       getContractsApi().catch(() => [] as ContractItem[]),
       getContractsByCodeApi().catch(() => null as CodeTreeMap | null),
     ])
       .then(([list, tree]) => {
+        if (cancelled) return
         const base = Array.isArray(list) ? list : []
         setAllContracts(mergeMasterFlags(base, tree))
       })
-      .finally(() => setLoading(false))
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [open])
 
   // 输入时远程搜索
@@ -168,7 +169,7 @@ export function SymbolPicker({
               className="pl-7 pr-8"
               value={query !== "" ? query : symbol}
               onChange={(e) => handleInputChange(e.target.value)}
-              onFocus={() => setOpen(true)}
+              onFocus={() => { setQuery(""); setOpen(true) }}
               placeholder="输入代码/名称，或点右侧下拉"
               autoComplete="off"
             />
@@ -190,7 +191,7 @@ export function SymbolPicker({
               "text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] shrink-0",
               "inline-flex items-center gap-1",
             )}
-            onClick={() => setOpen((v) => !v)}
+            onClick={() => { setQuery(""); setOpen((v) => !v) }}
           >
             下拉
             <ChevronDown
