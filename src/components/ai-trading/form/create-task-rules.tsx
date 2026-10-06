@@ -85,6 +85,10 @@ export const EMPTY_RULE_FORM: RuleFormState = {
 }
 
 interface CreateTaskRulesProps {
+  /** Reuse only standard bottom controls in the independent hunter strategy. */
+  bottomOnly?: boolean
+  checkSeconds?: number
+  cooldownScope?: "task" | "hunter"
   value: RuleFormState
   onChange: (next: RuleFormState) => void
   /** 量化规则策略传 false，不展示 AI 自主平仓/止损 */
@@ -124,6 +128,9 @@ export function CreateTaskRules({
   showIndicatorExits = true,
   showFactorExit = false,
   factorExitHint,
+  bottomOnly = false,
+  checkSeconds = 2,
+  cooldownScope = "task",
 }: CreateTaskRulesProps): React.JSX.Element {
   function patch(partial: Partial<RuleFormState>): void {
     onChange({ ...value, ...partial })
@@ -139,7 +146,7 @@ export function CreateTaskRules({
         兜底平仓（最高权重）
       </div>
       <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
-        按保证金收益率实时触发（每 2 秒检查），先于策略/AI 与普通止盈止损，二者互不影响。
+        按保证金收益率实时触发（约每 {checkSeconds} 秒检查），先于策略/AI 与普通止盈止损，二者互不影响。
         例：100U 保证金 × 5 倍，盈利 50U = 收益率 50%。
       </p>
       <div className="rounded border border-amber-500/20 p-2 space-y-1.5">
@@ -157,7 +164,7 @@ export function CreateTaskRules({
           <span>次后停止开仓</span>
         </div>
         <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
-          每个任务独立累计，范围 1–10 次，默认 2 次。每轮全部平仓后扣开、平仓手续费亏损记一次；盈利不清零。
+          {cooldownScope === "hunter" ? "本猎手的所有周期与子任务合计" : "每个任务独立"}累计，范围 1–10 次，默认 2 次。每轮全部平仓后扣开、平仓手续费亏损记一次；盈利不清零。
           北京时间每日 06:00 重置，冷静期继续执行止损和平仓。关闭后允许恢复开仓，重新开启沿用本日记录。
         </p>
       </div>
@@ -203,6 +210,8 @@ export function CreateTaskRules({
       </div>
     </div>
   )
+
+  if (bottomOnly) return bottomLineSection
 
   return (
     <>

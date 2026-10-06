@@ -1,18 +1,28 @@
 import type { Bar, Cycle, Direction, RuleVersion, EntryKind } from "./rules"
 import type { ProfitLockConfig, ProfitLockUpdateResult } from "../ai-trading-api"
+import type { MacdPeriod } from "./macd-ma20"
+export type HunterCycle = Cycle | MacdPeriod
 
 export interface HunterConfig {
-  name: string; capital?: number; leverage: number; venue: "okx"; margin_mode: "isolated" | "cross"; cycles: Cycle[];
+  name: string; capital?: number; leverage: number; venue: "okx"; margin_mode: "isolated" | "cross"; cycles: HunterCycle[];
   brain: "rules" | "llm" | "jev"; model_id: string | null; rule_fallback: boolean;
   direction: "long" | "both"; whitelist: string[]; blacklist: string[];
   pool_size: number; max_positions: number; scan_seconds: number;
   strategy_version?: RuleVersion;
   profit_lock?: ProfitLockConfig;
+  position_mode?: "fixed_margin" | "half" | "full" | "scale_in" | "capital_pct";
+  margin_per_trade?: number;
+  capital_usage_min_pct?: number;
+  capital_usage_max_pct?: number;
+  max_profit_pct?: number | null;
+  max_loss_pct?: number | null;
+  loss_cooldown_enabled?: boolean;
+  loss_cooldown_limit?: number;
 }
 export interface Opportunity {
-  id: string; task_id: string | null; symbol: string; cycle: Cycle; status: string;
-  plan: { entry: number; stop: number; quantity: number; risk_budget: number; direction: Direction; leverage?: number; margin?: number; margin_mode?: "isolated" | "cross"; entry_kind?: EntryKind; version?: RuleVersion; target_price?: number; min_net_rr?: number };
-  runtime: { stop?: number; last_price?: number; reason?: string; note?: string; unrealized?: number; entry?: number; net_peak_r?: number; swing?: { regime: string; reason: string } };
+  id: string; task_id: string | null; symbol: string; cycle: HunterCycle; status: string;
+  plan: { entry: number; stop: number | null; quantity: number; risk_budget?: number; direction: Direction; leverage?: number; margin?: number; margin_mode?: "isolated" | "cross"; entry_kind?: EntryKind | "macd_ma20"; version?: RuleVersion; target_price?: number; min_net_rr?: number };
+  runtime: { stop?: number | null; last_price?: number; reason?: string; note?: string; unrealized?: number; entry?: number; net_peak_r?: number; swing?: { regime: string; reason: string } };
   net_profit: number; finished_at: string | null;
 }
 export interface Hunter {
@@ -74,8 +84,8 @@ export const hunterApi = {
   list: (signal?: AbortSignal) => request<Hunter[]>("/groups", {}, signal),
   create: (config: HunterConfig) => request<Hunter>("/groups", { method: "POST", body: JSON.stringify(config) }),
   universe: (id: string, signal?: AbortSignal) => request<HunterTicker[]>("/groups/" + id + "/universe", {}, signal),
-  data: (id: string, symbol: string, cycle: Cycle, signal?: AbortSignal) => request<HunterData>("/groups/" + id + "/data?" + new URLSearchParams({ symbol, cycle }), {}, signal),
+  data: (id: string, symbol: string, cycle: HunterCycle, signal?: AbortSignal) => request<HunterData>("/groups/" + id + "/data?" + new URLSearchParams({ symbol, cycle }), {}, signal),
   snapshot: <T extends RankingSnapshot | ContextSnapshot>(id: string, body: SnapshotBody, signal?: AbortSignal) => request<{ items: T[] }>("/groups/" + id + "/snapshot", { method: "POST", body: JSON.stringify(body) }, signal),
-  mount: (id: string, body: { symbol: string; cycle: Cycle; direction: Direction; signal_at: number; entry_kind?: EntryKind }, signal?: AbortSignal) => request<{ id?: string; task_id?: string; duplicate?: boolean; skipped?: boolean; reason?: string }>("/groups/" + id + "/mount", { method: "POST", body: JSON.stringify(body) }, signal),
+  mount: (id: string, body: { symbol: string; cycle: HunterCycle; direction: Direction; signal_at: number; entry_kind?: EntryKind | "macd_ma20" }, signal?: AbortSignal) => request<{ id?: string; task_id?: string; duplicate?: boolean; skipped?: boolean; reason?: string }>("/groups/" + id + "/mount", { method: "POST", body: JSON.stringify(body) }, signal),
   control: (id: string, action: "pause" | "resume" | "stop" | "stop_close" | "upgrade" | "upgrade_adaptive" | "upgrade_swing", pool_size?: number) => request<Hunter>("/groups/" + id + "/control", { method: "POST", body: JSON.stringify({ action, ...(pool_size === undefined ? {} : { pool_size }) }) }),
 }

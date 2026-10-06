@@ -1,3 +1,6 @@
+import { MACD_MA20_VERSION, MACD_MA20_NAME, MACD_PERIODS, hunterCycleLabel, type MacdPeriod } from "@/lib/hunter/macd-ma20"
+import { MarginLeverageFields } from "@/components/ai-trading/form/margin-leverage-fields"
+import { CreateTaskRules, EMPTY_RULE_FORM, buildBottomPayload } from "@/components/ai-trading/form/create-task-rules"
 import { useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -23,6 +26,8 @@ const initial: HunterConfig = {
 
 export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [config, setConfig] = useState<HunterConfig>(initial)
+  const [bottomRules, setBottomRules] = useState(EMPTY_RULE_FORM)
+  const isMacd = config.strategy_version === MACD_MA20_VERSION
   const [profitLock, setProfitLock] = useState(DEFAULT_PROFIT_LOCK)
   const [models, setModels] = useState<AIModel[]>([])
   const [symbols, setSymbols] = useState<HunterSymbol[]>([])
@@ -68,12 +73,12 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
     if (existingHunter) { setError("当前账户已有未停止的多周期猎手，请先停止后再创建"); return }
     if (config.strategy_version !== "hunter-v1" && !capabilities?.supported_versions?.includes(config.strategy_version!)) { setError("服务器尚未支持所选规则版本，请更新服务器或选择旧版规则"); return }
     if (!config.cycles.length) { setError("请选择至少一个周期"); return }
-    try { validateLeverage(config.leverage) } catch (e) { setError(e instanceof Error ? e.message : "杠杆无效"); return }
+    try { if (isMacd) { if (!Number.isInteger(config.leverage) || config.leverage < 1 || config.leverage > 100) throw new Error("杠杆范围为1–100倍"); buildBottomPayload(bottomRules) } else validateLeverage(config.leverage) } catch (e) { setError(e instanceof Error ? e.message : "杠杆无效"); return }
     if (config.brain !== "rules" && !choices.some(m => m.id === config.model_id)) { setError("请选择对应类型的模型"); return }
     setBusy(true)
     try {
       await create({ ...config, name: config.name.trim(),
-        profit_lock: buildProfitLockConfig(profitLock),
+        ...(isMacd ? buildBottomPayload(bottomRules) : { profit_lock: buildProfitLockConfig(profitLock) }),
         model_id: config.brain === "rules" ? null : config.model_id })
       onClose()
     } catch (e) { setError(e instanceof Error ? e.message : "创建失败") } finally { setBusy(false) }
@@ -86,23 +91,53 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
       </DialogHeader>
       <div className="rounded-md border border-[var(--border)] p-3 text-xs text-[var(--text-secondary)]">
         当前账户：{capabilities ? hunterAccountLabel(capabilities.execution_mode ?? (capabilities.trading_mode === "virtual" ? "virtual" : undefined)) : "读取中…"}。新策略验证状态：未验证。
-        桌面关闭后暂停搜索，服务器继续管理已挂载任务。杠杆可选 1–50 倍，默认 1 倍；资金可选逐仓或全仓。
+        桌面关闭后暂停搜索，服务器继续管理已挂载任务。{isMacd ? "按仓位管理设置执行，只做多。" : "杠杆可选 1–50 倍，默认 1 倍；资金可选逐仓或全仓。"}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-1"><Label htmlFor="hunter-profile">入场规则</Label><select id="hunter-profile" className={selectClass} value={config.strategy_version ?? "hunter-v1"} onChange={e => patch({ strategy_version: e.target.value as HunterConfig["strategy_version"] })}>
-          <option value="hunter-v4">波段持有版 · 计划净3:1 + 多周期延续 + 确认反转</option><option value="hunter-v3">机会增强版 · 突破回踩 + 回调 + 短线延续</option><option value="hunter-v2">均衡版 · 突破回踩 + 趋势回调</option><option value="hunter-v1">原版 · 突破回踩</option>
-        </select><p className="text-xs text-[var(--text-muted)]">{config.strategy_version === "hunter-v4" ? "50币双向、多周期趋势延续；服务器按最差限价和全部预计成本复核净3:1空间。趋势未反转可持有浮亏至结构止损；禁止摊平。" : config.strategy_version === "hunter-v3" ? "短线排名前/后50%，增加趋势延续入口；BTC横盘可筛选自身趋势币，逆向趋势或冲击继续拦截。建议50个币＋短线＋双向，按小时显示信号与挂载结果，未达目标会提示；不因超时强制下单。" : "均衡版：排名前/后30%，短线量能1.3倍、信号有效180秒；原版保持原有条件。"} 尚未完成盈利验证。</p></div>
+        <div className="space-y-1"><Label htmlFor="hunter-profile">入场规则</Label><select id="hunter-profile" className={selectClass} value={config.strategy_version ?? "hunter-v1"} onChange={e => {
+          const version = e.target.value as HunterConfig["strategy_version"]
+          patch({ strategy_version: version, ...(version === MACD_MA20_VERSION ? {
+            cycles: ["30m", "60m"], direction: "long", brain: "rules", model_id: null,
+            leverage: 10, margin_mode: "cross", position_mode: "fixed_margin", margin_per_trade: 100,
+            capital_usage_min_pct: 10, capital_usage_max_pct: 20,
+          } : isMacd ? { cycles: ["short", "medium", "long"], leverage: 1, margin_mode: "isolated", direction: "both" } : {}) })
+        }}>
+          <option value={MACD_MA20_VERSION}>{MACD_MA20_NAME}</option><option value="hunter-v4">波段持有版 · 计划净3:1 + 多周期延续 + 确认反转</option><option value="hunter-v3">机会增强版 · 突破回踩 + 回调 + 短线延续</option><option value="hunter-v2">均衡版 · 突破回踩 + 趋势回调</option><option value="hunter-v1">原版 · 突破回踩</option>
+        </select><p className="text-xs text-[var(--text-muted)]">{isMacd ? "30/60分钟分别扫描；MACD(12,26,9)最新收盘刚金叉，连续3–4根收盘价在SMA20上方，MA20向上。超过4根跳过。" : config.strategy_version === "hunter-v4" ? "50币双向、多周期趋势延续；服务器按最差限价和全部预计成本复核净3:1空间。趋势未反转可持有浮亏至结构止损；禁止摊平。" : config.strategy_version === "hunter-v3" ? "短线排名前/后50%，增加趋势延续入口；BTC横盘可筛选自身趋势币，逆向趋势或冲击继续拦截。建议50个币＋短线＋双向，按小时显示信号与挂载结果，未达目标会提示；不因超时强制下单。" : "均衡版：排名前/后30%，短线量能1.3倍、信号有效180秒；原版保持原有条件。"} 尚未完成盈利验证。</p></div>
         <div className="space-y-1"><Label htmlFor="hunter-name">名称</Label><Input id="hunter-name" maxLength={120} value={config.name} onChange={e => patch({ name: e.target.value })} /></div>
-        <div className="space-y-1"><Label htmlFor="hunter-margin-mode">资金保证金模式</Label><select id="hunter-margin-mode" className={selectClass} value={config.margin_mode} onChange={e => patch({ margin_mode: e.target.value as HunterConfig["margin_mode"] })}>
+        {!isMacd && <><div className="space-y-1"><Label htmlFor="hunter-margin-mode">资金保证金模式</Label><select id="hunter-margin-mode" className={selectClass} value={config.margin_mode} onChange={e => patch({ margin_mode: e.target.value as HunterConfig["margin_mode"] })}>
           <option value="isolated">逐仓</option><option value="cross">全仓</option>
         </select></div>
-        <div className="space-y-1"><Label htmlFor="hunter-leverage">杠杆倍率（1–50 倍）</Label><Input id="hunter-leverage" type="number" min={1} max={50} step={1} value={config.leverage} onChange={e => patch({ leverage: Number(e.target.value) })} /></div>
+        <div className="space-y-1"><Label htmlFor="hunter-leverage">杠杆倍率（1–50 倍）</Label><Input id="hunter-leverage" type="number" min={1} max={50} step={1} value={config.leverage} onChange={e => patch({ leverage: Number(e.target.value) })} /></div></>}
         <div className="space-y-1"><Label htmlFor="hunter-venue">行情交易所</Label><Input id="hunter-venue" value="OKX" readOnly /></div>
-        <div className="space-y-1"><Label htmlFor="hunter-direction">交易方向</Label><select id="hunter-direction" className={selectClass} value={config.direction} onChange={e => patch({ direction: e.target.value as HunterConfig["direction"] })}>
+        <div className="space-y-1"><Label htmlFor="hunter-direction">交易方向</Label><select disabled={isMacd} id="hunter-direction" className={selectClass} value={config.direction} onChange={e => patch({ direction: e.target.value as HunterConfig["direction"] })}>
           <option value="long">顺势做多</option><option value="both">顺势双向</option>
         </select></div>
       </div>
-      <fieldset className="space-y-2"><legend className="text-sm font-medium">交易周期与风险预算</legend>
+      {isMacd && <>
+        <fieldset className="space-y-2"><legend className="text-sm font-medium">交易周期</legend>
+          <div className="grid grid-cols-2 gap-2">{(Object.keys(MACD_PERIODS) as MacdPeriod[]).map(period => <label key={period} className="flex items-center gap-2 rounded-md border border-[var(--border)] p-3 text-sm">
+            <input type="checkbox" checked={config.cycles.includes(period)} onChange={e => patch({ cycles: e.target.checked ? [...config.cycles, period] : config.cycles.filter(x => x !== period) })} />{hunterCycleLabel(period)}
+          </label>)}</div><p className="text-xs text-[var(--text-muted)]">各周期独立判断和管理交易；同一币种已有任务或持仓时跳过，避免重复接管。</p>
+        </fieldset>
+        <section className="space-y-3 rounded-md border border-[var(--border)] p-3">
+          <Label htmlFor="hunter-position-mode">仓位管理</Label>
+          <select id="hunter-position-mode" className={selectClass} value={config.position_mode ?? "fixed_margin"} onChange={e => patch({ position_mode: e.target.value as HunterConfig["position_mode"] })}>
+            <option value="fixed_margin">指定每笔保证金</option><option value="capital_pct">资金使用范围</option>
+            <option value="half">半仓（预算一半）</option><option value="full">全仓（全部预算）</option><option value="scale_in">滚仓（盈利加层）</option>
+          </select>
+          <MarginLeverageFields value={{ marginPerTrade: config.margin_per_trade ?? 100, leverage: config.leverage, marginMode: config.margin_mode }}
+            onChange={v => patch({ margin_per_trade: v.marginPerTrade, leverage: v.leverage, margin_mode: v.marginMode })}
+            scaleIn={config.position_mode === "scale_in"} budgetOnly={["half", "full", "capital_pct"].includes(config.position_mode ?? "")} />
+          {config.position_mode === "capital_pct" && <div className="grid grid-cols-2 gap-2">
+            <div><Label htmlFor="hunter-capital-min">资金使用下限 %</Label><Input id="hunter-capital-min" type="number" min={0} max={100} value={config.capital_usage_min_pct ?? 10} onChange={e => patch({ capital_usage_min_pct: Number(e.target.value) })} /></div>
+            <div><Label htmlFor="hunter-capital-max">资金使用上限 %</Label><Input id="hunter-capital-max" type="number" min={1} max={100} value={config.capital_usage_max_pct ?? 20} onChange={e => patch({ capital_usage_max_pct: Number(e.target.value) })} /></div>
+          </div>}
+          <p className="text-xs text-[var(--text-muted)]">数量 = 保证金 × 杠杆 ÷ 价格。半仓/全仓按下单时实际可用资金计算，并预留成交手续费。资金使用范围在规则模式下使用上限；AI审核只决定是否入场。滚仓浮盈且出现新的合格金叉才加层，最多3层，超过4根不追入。</p>
+        </section>
+        <CreateTaskRules value={bottomRules} onChange={setBottomRules} showAiOptions={false} bottomOnly checkSeconds={5} cooldownScope="hunter" />
+      </>}
+      {!isMacd && <fieldset className="space-y-2"><legend className="text-sm font-medium">交易周期与风险预算</legend>
         {(Object.keys(CYCLES) as Cycle[]).map(cycle => <label key={cycle} className="flex gap-3 items-start rounded-md border border-[var(--border)] px-3 py-2 text-sm">
           <input type="checkbox" checked={config.cycles.includes(cycle)} onChange={e => patch({ cycles: e.target.checked ? [...config.cycles, cycle] : config.cycles.filter(c => c !== cycle) })} />
           <span>{CYCLES[cycle].label} · 单笔风险 {CYCLES[cycle].risk*100}% · {config.strategy_version === "hunter-v4" ? `扣费后目标 ≥ ${Math.max(3, CYCLES[cycle].target)}:1` : `第一目标 ${CYCLES[cycle].target}R`}
@@ -112,16 +147,20 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
         <p className="text-xs text-[var(--text-muted)]">服务器按创建时账户可用资金建立风险基准，每次开仓复核实际可用保证金。保留 20% 资金；单币仓位不超过 20%；合计初始风险不超过 1.2%。目标盈亏比不代表实际收益。</p>
         <p className="text-xs text-[var(--text-muted)]">保证金 = 仓位名义价值 ÷ 杠杆；手续费按完整仓位计算。杠杆不提高单笔风险预算或单币名义仓位上限；止损及估算成本超过初始保证金 50% 的机会会跳过，不会强行缩短结构止损。</p>
         <p className="text-xs text-[var(--text-muted)]">两种模式都遵守单笔止损与策略总风险限额。OKX API 模拟盘和实盘按交易设置中的凭证类型执行，并向交易所提交所选保证金模式和保护单；站内模拟撮合使用统一资金账本。</p>
-      </fieldset>
-      <ProfitLockSettings value={profitLock} onChange={setProfitLock} />
-      <details className="rounded-md border border-[var(--border)] p-3 text-xs space-y-2">
+      </fieldset>}
+      {!isMacd && <ProfitLockSettings value={profitLock} onChange={setProfitLock} />}
+      {isMacd ? <div className="rounded-md border border-[var(--border)] p-3 text-xs space-y-2">
+        <p className="font-medium">平仓标准</p><p>① 兜底收益率达到设置的止盈或止损值，优先全平。</p>
+        <p>② 所属周期的 MA20 持平或拐头向下，并且 MACD 处于死叉状态，两项同时成立才全平。</p>
+        <p>技术指标使用已收盘K线，MA20为20根K线的简单均线；MACD已持续金叉、仅MA20向下、仅MACD死叉都不会单独触发相应交易。创建后自动开始扫描。</p>
+      </div> : <details className="rounded-md border border-[var(--border)] p-3 text-xs space-y-2">
         <summary className="cursor-pointer text-sm">下单、止盈和亏损平仓标准</summary>
         <p>只使用已收盘 K 线：币种趋势、上市时长和流动性合格，相对强弱进入合格区间。{config.strategy_version === "hunter-v4" ? "保留三路短线入口，中长线增加受限趋势延续；重要阻力/支撑阻挡净3:1目标时跳过。" : config.strategy_version === "hunter-v3" ? "短线排名前/后50%，允许BTC横盘，拦截反向趋势及市场冲击；突破回踩、EMA20回调或短线趋势延续收盘确认后申请挂载，中长线保留均衡版条件。" : config.strategy_version === "hunter-v2" ? "排名前/后30%，大盘与币种同向；放量突破回踩或EMA20趋势回调企稳确认后申请挂载。" : "排名前/后20%，大盘与币种同向；放量突破、回踩及收盘确认后申请挂载。"}服务器再次复核报价、成本、风险预算及已有仓位，成本不得超过止损距离的20%。</p>
         {config.strategy_version === "hunter-v4" ? <p>净风险单位包含初始止损与预计全部成本；达到1倍净风险保本、2倍至少锁0.5倍，3倍锁净峰值60%，继续持有波段。EMA20、MACD动量、RSI、连续结构破位与量能确认反转才退出；迟缓单独不平仓，确认回撤后收紧ATR保护。硬止损、盈利保护和用户锁利可先触发。退出后同币同向至少等两根执行K线和新信号。计划3:1不等于实际平均盈亏比3:1。</p> : <p>R 为实际入场价到初始止损的价格距离。短线：2R 平 30%，3R 平 30%；中线：3R 平 25%，5R 平 25%；长线：4R 平 20%，6R 平 20%。剩余仓位随趋势移动止损，实际整笔盈亏比单独统计。</p>}
         <p>触及止损、累计净亏损达到单笔预算、结构/趋势失效、保护缺失或超过持仓期限时平仓。止损只能收紧，禁止亏损加仓。日亏损 2% 或周亏损 5% 暂停搜索，峰值回撤 8% 停止并退出持仓；某周期连亏 3 笔冷却 24 小时。</p>
         <p>盈利验收需独立样本外正期望和扣除全部成本后 PF ≥ 1.2，并通过执行验收；当前尚未取得这些证据。</p>
         {config.strategy_version === "hunter-v4" && <p>开发重放的21笔完整交易实际平均盈亏比约1.55、PF约0.77、净收益为负，未达到实际3:1。窗口仅24小时且缺少历史资金费和深度；后续需要独立样本验证。</p>}
-      </details>
+      </details>}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1"><Label htmlFor="hunter-brain">策略大脑</Label><select id="hunter-brain" className={selectClass} value={config.brain} onChange={e => patch({ brain: e.target.value as HunterConfig["brain"], model_id: null, rule_fallback: false })}>
           <option value="rules">不选模型 · 规则模式</option><option value="llm">AI 大模型 · 候选审核</option><option value="jev">Jev · 决策模型</option>
@@ -131,7 +170,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
         </select></div>}
       </div>
       {config.brain !== "rules" && <div className="space-y-2">
-        <p className="text-xs text-[var(--text-muted)]">模型须赞同规则方向且置信度至少 65%；仓位与止损仍由固定风控决定。</p>
+        <p className="text-xs text-[var(--text-muted)]">模型须赞同规则方向且置信度至少 65%；{isMacd ? "仓位按仓位管理设置，平仓按兜底与联合技术条件。" : "仓位与止损仍由固定风控决定。"}</p>
         <label className="flex gap-2 items-center text-xs"><input type="checkbox" checked={config.rule_fallback} onChange={e => patch({ rule_fallback: e.target.checked })} />模型不可用时允许规则降级（默认关闭）</label>
       </div>}
       <details className="rounded-md border border-[var(--border)] p-3">
@@ -139,7 +178,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
           <div><Label htmlFor="hunter-pool">扫描币池数量（5～50）</Label><Input id="hunter-pool" type="number" min={5} max={50} value={config.pool_size} onChange={e => patch({ pool_size: Number(e.target.value) })} /></div>
           <div><Label htmlFor="hunter-slots">最多持仓任务（1～4）</Label><Input id="hunter-slots" type="number" min={1} max={4} value={config.max_positions} onChange={e => patch({ max_positions: Number(e.target.value) })} /></div>
-          <div><Label htmlFor="hunter-interval">扫描复查间隔（秒）</Label><Input id="hunter-interval" type="number" min={30} max={3600} value={config.scan_seconds} onChange={e => patch({ scan_seconds: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">新版短线按此间隔复查；中线至少5分钟，长线至少30分钟。执行K线收盘后优先更新。</p></div>
+          <div><Label htmlFor="hunter-interval">扫描复查间隔（秒）</Label><Input id="hunter-interval" type="number" min={30} max={3600} value={config.scan_seconds} onChange={e => patch({ scan_seconds: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">{isMacd ? "30/60分钟均按此间隔复查，信号只在各自K线收盘后确认。" : "新版短线按此间隔复查；中线至少5分钟，长线至少30分钟。执行K线收盘后优先更新。"}</p></div>
           <HunterSymbolMultiSelect id="hunter-white" label="白名单" value={config.whitelist} options={symbols}
             onChange={whitelist => patch({ whitelist })} max={50} loading={symbolsLoading} error={symbolsError}
             onRetry={() => setSymbolsReload(n => n + 1)} hint="留空不限制币种；选中后只搜索这些币种，最多 50 个。" />

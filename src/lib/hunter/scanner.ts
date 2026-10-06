@@ -1,3 +1,5 @@
+import { MACD_MA20_VERSION } from "./macd-ma20"
+import { scanMacdHunter } from "./macd-scanner"
 import { hunterApi, type Hunter, type HunterData } from "./api"
 import { CYCLES, findSignal, trend, validateLeverage, type Direction } from "./rules"
 import { useHunterStore } from "@/stores/hunter"
@@ -9,6 +11,7 @@ import { BALANCED_VERSION, ADAPTIVE_VERSION, SWING_VERSION, type Cycle } from ".
 let stopRuntime: (() => void) | null = null
 
 export async function scanHunter(group: Hunter, abort: AbortSignal): Promise<void> {
+  if (group.config.strategy_version === MACD_MA20_VERSION) return scanMacdHunter(group, abort)
   const started = Date.now(), summaries: string[] = []
   const progress = (text: string) => { if (!abort.aborted) useHunterStore.getState().setProgress(group.id, text) }
   if (group.config.venue !== "okx") { progress("多周期猎手行情仅支持 OKX，已停止新机会搜索"); return }
@@ -17,7 +20,7 @@ export async function scanHunter(group: Hunter, abort: AbortSignal): Promise<voi
   const ticker = await hunterApi.universe(group.id, abort)
   let rejection = ""
   const directions: Direction[] = group.config.direction === "both" ? ["long", "short"] : ["long"]
-  for (const cycle of group.config.cycles) {
+  for (const cycle of group.config.cycles.filter((c): c is Cycle=>c in CYCLES)) {
     if (abort.aborted) return
     if (group.blocks.some(x => x.includes(cycle))) { progress("该周期处于风控冷却"); continue }
     const c = CYCLES[cycle], candidates: { symbol: string; data: HunterData; relative: number }[] = []

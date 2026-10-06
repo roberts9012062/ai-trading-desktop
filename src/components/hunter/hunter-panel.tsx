@@ -1,3 +1,4 @@
+import { MACD_MA20_VERSION, MACD_MA20_NAME, hunterCycleLabel } from "@/lib/hunter/macd-ma20"
 import { useEffect, useState } from "react"
 import { Crosshair } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -7,12 +8,17 @@ import { TaskProfitLockStatus } from "@/components/ai-trading/profit-lock-status
 import { TaskCloseControl } from "@/components/ai-trading/task-close-control"
 import { useAITradingStore } from "@/stores/ai-trading"
 import { CYCLES } from "@/lib/hunter/rules"
-import { hunterAccountLabel } from "@/lib/hunter/api"
+import { hunterAccountLabel, type Opportunity } from "@/lib/hunter/api"
 import { HunterProfitSummary } from "./hunter-profit-summary"
 import { visibleHunterOpportunities } from "@/lib/hunter/task-visibility"
 
 const money = (n: number) => n.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const labels = { running: "搜索中", paused: "搜索暂停", stopping: "正在退出持仓", stopped: "搜索已停止" }
+function stopLabel(opportunity: Opportunity): string {
+  const value = Object.prototype.hasOwnProperty.call(opportunity.runtime, "stop") ? opportunity.runtime.stop : opportunity.plan.stop
+  return typeof value === "number" && value > 0 ? value.toPrecision(7) : "兜底止损关闭"
+}
+
 export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => void } = {}) {
   const groups = useHunterStore(s => s.groups)
   const tasks = useAITradingStore(s => s.tasks)
@@ -43,19 +49,20 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
       return <article key={g.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4 space-y-3">
       <div className="flex justify-between gap-3 flex-wrap">
         <div><strong className="text-sm">{g.name}</strong><span className="ml-2 text-xs text-[var(--text-muted)]">{labels[g.status]} · {hunterAccountLabel(g.runtime.execution_account?.execution_mode ?? (g.trading_mode === "virtual" ? "virtual" : undefined))} · {g.config.venue.toUpperCase()} · {g.config.leverage ?? 1} 倍{g.config.margin_mode === "cross" ? "全仓" : "逐仓"} · {g.config.brain === "rules" ? "规则" : g.config.brain === "jev" ? "Jev" : "AI 大模型"}</span>
-          <p className="text-xs text-[var(--text-muted)] mt-1">{g.config.strategy_version === "hunter-v4" ? "波段持有版 · 计划净3:1 / 多周期延续 / 确认反转退出" : g.config.strategy_version === "hunter-v3" ? "机会增强版 · 突破回踩 / 趋势回调 / 短线延续 · 小时覆盖检查" : g.config.strategy_version === "hunter-v2" ? "均衡版 · 突破回踩 / 趋势回调 · 周期独立扫描" : "原版 · 突破回踩"}</p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">{g.config.strategy_version === MACD_MA20_VERSION ? `${MACD_MA20_NAME} · ${g.config.cycles.map(hunterCycleLabel).join(" / ")} · 仅做多` : g.config.strategy_version === "hunter-v4" ? "波段持有版 · 计划净3:1 / 多周期延续 / 确认反转退出" : g.config.strategy_version === "hunter-v3" ? "机会增强版 · 突破回踩 / 趋势回调 / 短线延续 · 小时覆盖检查" : g.config.strategy_version === "hunter-v2" ? "均衡版 · 突破回踩 / 趋势回调 · 周期独立扫描" : "原版 · 突破回踩"}</p>
           <p className="text-xs text-[var(--text-muted)] mt-1 whitespace-pre-line line-clamp-1" title={progress[g.id]}>{progress[g.id] ?? "等待桌面扫描；已挂载持仓由服务器管理"}</p></div>
         <div className="flex gap-2 flex-wrap">
-          <LiveProfitLockControl targetId={g.id} name={g.name} hunter config={g.config.profit_lock} disabled={busy === g.id} onSave={config => setProfitLock(g.id, config)} />
+          {g.config.strategy_version !== MACD_MA20_VERSION && <LiveProfitLockControl targetId={g.id} name={g.name} hunter config={g.config.profit_lock} disabled={busy === g.id} onSave={config => setProfitLock(g.id, config)} />}
           {(g.status === "running" || g.status === "paused") && (g.config.strategy_version ?? "hunter-v1") === "hunter-v1" && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade")}>启用均衡版</Button>}
-          {(g.status === "running" || g.status === "paused") && g.config.strategy_version !== "hunter-v4" && (g.config.strategy_version !== "hunter-v3" || g.config.pool_size < 50) && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade_adaptive", 50)}>{g.config.strategy_version === "hunter-v3" ? "扩大币池至50" : "启用机会增强版 · 50币"}</Button>}
-          {(g.status === "running" || g.status === "paused") && (g.config.strategy_version !== "hunter-v4" || g.config.pool_size < 50) && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade_swing", 50)}>{g.config.strategy_version === "hunter-v4" ? "扩大波段币池至50" : "启用波段持有版 · 计划3:1"}</Button>}
+          {g.config.strategy_version !== MACD_MA20_VERSION && (g.status === "running" || g.status === "paused") && g.config.strategy_version !== "hunter-v4" && (g.config.strategy_version !== "hunter-v3" || g.config.pool_size < 50) && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade_adaptive", 50)}>{g.config.strategy_version === "hunter-v3" ? "扩大币池至50" : "启用机会增强版 · 50币"}</Button>}
+          {g.config.strategy_version !== MACD_MA20_VERSION && (g.status === "running" || g.status === "paused") && (g.config.strategy_version !== "hunter-v4" || g.config.pool_size < 50) && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade_swing", 50)}>{g.config.strategy_version === "hunter-v4" ? "扩大波段币池至50" : "启用波段持有版 · 计划3:1"}</Button>}
           {(g.status === "running" || g.status === "paused") && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, g.status === "running" ? "pause" : "resume")}>{g.status === "running" ? "暂停搜索" : "恢复搜索"}</Button>}
           {g.status !== "stopped" && g.status !== "stopping" && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "stop")}>停止搜索</Button>}
           {g.opportunities.some(o => !o.finished_at) && <Button size="sm" variant="outline" disabled={busy === g.id || g.status === "stopping"} onClick={() => void action(g.id, "stop_close")}>停止并平仓</Button>}
         </div>
       </div>
       <HunterProfitSummary hunter={g} />
+      {g.config.strategy_version === MACD_MA20_VERSION && <p className="text-xs text-[var(--text-muted)]">入场：MACD新金叉＋连续3–4根收盘在MA20上方＋MA20向上。平仓：兜底收益率阈值，或MA20持平/向下且MACD死叉同时成立。{g.blocks.join("；")}</p>}
       {!activeOps.length && <p className="text-xs text-[var(--text-muted)]">暂无运行子任务 · {g.status === "running" ? "继续搜索新机会" : "搜索已暂停"} · 已结束任务已从明细清理，成交记录可在订单中查看</p>}
       <details data-testid="hunter-statistics-group" className="rounded-lg border border-[var(--border)] p-3">
       <summary className="cursor-pointer text-xs text-[var(--text-secondary)]">展开猎手明细 · {activeOps.length} 个运行子任务</summary>
@@ -74,7 +81,7 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
       {activeOps.map(o => {
         const task = tasks.find(t => t.id === o.task_id)
         return task?.close_rules?.profit_lock?.enabled || task?.profit_lock_state?.closing ? <div key={o.id} className="min-w-0">
-          <p className="text-[11px] text-[var(--text-muted)]">{o.symbol.toUpperCase()} · {CYCLES[o.cycle].label}</p>
+          <p className="text-[11px] text-[var(--text-muted)]">{o.symbol.toUpperCase()} · {hunterCycleLabel(o.cycle)}</p>
           <TaskProfitLockStatus task={task!} />
         </div> : null
       })}
@@ -103,10 +110,10 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
             const price = task?.position_last_price ?? o.runtime.last_price
             const floating = (task?.position_qty ?? 0) > 0 ? task?.position_unrealized : o.runtime.unrealized
             return <tr key={o.id} className="border-t border-[var(--border)]" data-testid="hunter-active-task">
-            <td className="p-2"><button type="button" className="text-left hover:underline" disabled={!task || !onSelectTask} onClick={() => task && onSelectTask?.(task.id)}>{o.symbol.toUpperCase()} · {CYCLES[o.cycle].label} · {o.plan.direction === "long" ? "多" : "空"} · {o.plan.leverage ?? 1} 倍{o.plan.margin_mode === "cross" ? "全仓" : "逐仓"} · {o.plan.entry_kind === "continuation" ? "趋势延续" : o.plan.entry_kind === "pullback" ? "趋势回调" : "突破回踩"}</button><span className="block text-[var(--text-muted)]">{o.plan.version ?? "hunter-v1"} · 点击查看任务记录</span></td>
+            <td className="p-2"><button type="button" className="text-left hover:underline" disabled={!task || !onSelectTask} onClick={() => task && onSelectTask?.(task.id)}>{o.symbol.toUpperCase()} · {hunterCycleLabel(o.cycle)} · {o.plan.direction === "long" ? "多" : "空"} · {o.plan.leverage ?? 1} 倍{o.plan.margin_mode === "cross" ? "全仓" : "逐仓"} · {o.plan.entry_kind === "continuation" ? "趋势延续" : o.plan.entry_kind === "pullback" ? "趋势回调" : "突破回踩"}</button><span className="block text-[var(--text-muted)]">{o.plan.version ?? "hunter-v1"} · 点击查看任务记录</span></td>
             <td>{({ mounted: "已挂载", opening: "开仓中", holding: "持仓管理", reconciling: "成交核对", closed: "已结束", cancelled: "未开仓结束" } as Record<string, string>)[o.status] ?? o.status}</td>
             <td className="font-num">{price != null && price > 0 ? price.toPrecision(7) : "等待报价"}<span className="block">{floating != null ? money(floating) + " USDT" : "等待持仓同步"}</span>{task && <span className="block text-[var(--text-muted)]">持仓 {task.position_qty ?? 0} 币</span>}</td>
-            <td>{o.plan.entry.toPrecision(7)} / {(o.runtime.stop ?? o.plan.stop).toPrecision(7)}{o.plan.target_price && <span className="block text-[var(--text-muted)]">净目标 {o.plan.target_price.toPrecision(7)} · ≥{o.plan.min_net_rr}:1</span>}{o.plan.version === "hunter-v4" && <span className="block text-emerald-400">{o.runtime.stop !== undefined && (o.plan.direction === "long" ? o.runtime.stop > (o.runtime.entry ?? o.plan.entry) : o.runtime.stop < (o.runtime.entry ?? o.plan.entry)) ? `盈利保护在 ${o.runtime.stop.toPrecision(7)} 平仓` : "初始结构止损保护"} · {o.runtime.swing?.reason ?? "等待持仓趋势判断"}</span>}</td>
+            <td>{o.plan.entry.toPrecision(7)} / {stopLabel(o)}{o.plan.target_price && <span className="block text-[var(--text-muted)]">净目标 {o.plan.target_price.toPrecision(7)} · ≥{o.plan.min_net_rr}:1</span>}{o.plan.version === "hunter-v4" && <span className="block text-emerald-400">{typeof o.runtime.stop === "number" && (o.plan.direction === "long" ? o.runtime.stop > (o.runtime.entry ?? o.plan.entry) : o.runtime.stop < (o.runtime.entry ?? o.plan.entry)) ? `盈利保护在 ${o.runtime.stop.toPrecision(7)} 平仓` : "初始结构止损保护"} · {o.runtime.swing?.reason ?? "等待持仓趋势判断"}</span>}</td>
             <td>{money(o.net_profit)}<span className="block text-[var(--text-muted)]">{o.runtime.note ?? o.runtime.reason ?? ""}</span>{task && <TaskCloseControl task={task} />}</td>
           </tr>})}</tbody>
         </table></div>
