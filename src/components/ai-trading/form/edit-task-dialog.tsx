@@ -677,7 +677,9 @@ export function EditTaskDialog({
               </div>
               <p className="text-[10px] text-[var(--text-muted)]">
                 最小 3 秒，最大为 K 线周期（{tfMinutes >= 1440 ? "1 天" : tfMinutes + " 分钟"}）。
-                默认每根 K 线收盘分析一次；决策模型任务由其响应频率控制。
+                {quantParams.quantKind === "swing_pivot"
+                  ? "此间隔控制常规分析；新的枢轴进场指标首次出现时立即评估下单，不等待间隔或下一根 K 线。预确认根数包含当前未收盘 K 线。"
+                  : "默认每根 K 线收盘分析一次；决策模型任务由其响应频率控制。"}
               </p>
             </div>
           )}

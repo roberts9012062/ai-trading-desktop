@@ -579,7 +579,9 @@ export function CreateQuantDialog({
               </div>
               <p className="text-[10px] text-[var(--text-muted)]">
                 最小 3 秒，最大为 K 线周期（{secLabel(tfMinutes * 60)}）。
-                默认每根 K 线收盘分析一次；间隔小于周期时按间隔复用最近已收盘 K 线分析。
+                {quant.quantKind === "swing_pivot"
+                  ? "此间隔控制常规分析；新的枢轴进场指标首次出现时立即评估下单，不等待间隔或下一根 K 线。预确认根数包含当前未收盘 K 线。"
+                  : "默认每根 K 线收盘分析一次；间隔小于周期时按间隔复用最近已收盘 K 线分析。"}
                 勾选决策模型后由决策模型的响应频率控制。
               </p>
             </div>
