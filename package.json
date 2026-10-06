@@ -1,6 +1,6 @@
 {
   "name": "ai-trading-desktop",
-  "version": "0.2.117",
+  "version": "0.2.118",
   "private": true,
   "type": "module",
   "scripts": {
@@ -32,7 +32,7 @@
     "@radix-ui/react-tabs": "1.1.13",
     "@radix-ui/react-tooltip": "1.2.8",
     "@tanstack/react-table": "8.21.3",
-    "@tauri-apps/api": "^2.9.0",
+    "@tauri-apps/api": "^2.12.1",
     "@tauri-apps/plugin-http": "^2.5.9",
     "@tauri-apps/plugin-log": "^2.9.0",
     "@tauri-apps/plugin-process": "^2.3.1",
