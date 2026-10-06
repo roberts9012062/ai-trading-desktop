@@ -265,7 +265,7 @@ export default function LoginPage(): React.JSX.Element {
             <BrandLogo size={56} />
           </div>
           <h1 className="text-xl font-semibold text-[var(--text-primary)]">
-            加密货币交易系统
+            周期领航 · CyclePilot
           </h1>
           <p className="text-sm text-[var(--text-muted)] mt-1">
             AI驱动 · OKX / 币安 / 芝麻开门 三所对等交易终端

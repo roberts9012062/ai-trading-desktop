@@ -82,7 +82,7 @@ export function TopNavbar(): React.JSX.Element {
         <div className="flex items-center gap-2">
           <BrandLogo size={32} />
           <span className="text-[var(--text-primary)] font-semibold text-base hidden sm:inline">
-            加密货币交易系统
+            周期领航 · CyclePilot
           </span>
         </div>
         <div

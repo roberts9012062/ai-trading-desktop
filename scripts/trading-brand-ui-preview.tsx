@@ -36,7 +36,7 @@ useAITradingStore.setState({
 createRoot(document.getElementById("root")!).render(<MemoryRouter>
   <div className="h-screen flex flex-col">
     <header className="h-14 shrink-0 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-6 flex items-center gap-3">
-      <BrandLogo size={30} /><span className="text-sm font-semibold">AI Trading Desktop</span><span className="ml-auto text-xs text-[var(--text-muted)]">设计预览 · 模拟数据</span>
+      <BrandLogo size={30} /><span className="text-sm font-semibold">周期领航 · CyclePilot</span><span className="ml-auto text-xs text-[var(--text-muted)]">设计预览 · 模拟数据</span>
     </header>
     <AITradingPage />
   </div>

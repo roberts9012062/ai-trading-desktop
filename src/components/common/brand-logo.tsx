@@ -4,7 +4,7 @@ export function BrandLogo({ size = 32 }: { size?: number }): React.JSX.Element {
     src={size > 64 ? "/brand/256x256.png" : "/brand/64x64.png"}
     width={size}
     height={size}
-    alt="AI Trading Desktop"
+    alt="周期领航 CyclePilot"
     className="shrink-0 object-contain"
   />
 }
