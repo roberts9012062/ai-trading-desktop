@@ -4,8 +4,8 @@
 
 #[path = "../src/desktop_tray.rs"]
 mod desktop_tray;
-#[path = "../src/minimize_prompt.rs"]
-mod minimize_prompt;
+#[path = "../src/window_controls.rs"]
+mod window_controls;
 
 #[tauri::command]
 fn tray_smoke_remove_icon(app: tauri::AppHandle) {
@@ -42,14 +42,14 @@ fn main() {
     ));
     tauri::Builder::default()
         .setup(|app| {
-            minimize_prompt::setup(app.handle())?;
             desktop_tray::setup(app.handle())?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             desktop_tray::desktop_hide_to_tray,
-            minimize_prompt::desktop_minimize_window,
-            minimize_prompt::desktop_set_minimize_prompt_ready,
+            window_controls::desktop_minimize_window,
+            window_controls::desktop_toggle_maximize,
+            window_controls::desktop_close_window,
             tray_smoke_remove_icon
         ])
         .run(context)

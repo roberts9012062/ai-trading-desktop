@@ -17,6 +17,10 @@ user32.GetWindowThreadProcessId.argtypes=[w.HWND,ctypes.POINTER(w.DWORD)]
 user32.GetClassNameW.argtypes=[w.HWND,w.LPWSTR,ctypes.c_int]
 user32.GetWindowTextW.argtypes=[w.HWND,w.LPWSTR,ctypes.c_int]
 user32.IsWindowVisible.argtypes=[w.HWND]; user32.IsIconic.argtypes=[w.HWND]
+user32.IsZoomed.argtypes=[w.HWND]
+user32.GetWindowRect.argtypes=[w.HWND,ctypes.POINTER(w.RECT)]
+user32.SendMessageW.argtypes=[w.HWND,w.UINT,w.WPARAM,w.LPARAM]
+user32.SendMessageW.restype=w.LPARAM
 user32.PostMessageW.argtypes=[w.HWND,w.UINT,w.WPARAM,w.LPARAM]
 user32.ShowWindow.argtypes=[w.HWND,ctypes.c_int]
 
@@ -80,19 +84,42 @@ try:
             assert user32.PostMessageW(tray,6002,0,0x201)
             assert user32.PostMessageW(tray,6002,0,0x202)
             wait_for(lambda:bool(user32.IsWindowVisible(main)) and not user32.IsIconic(main))
-        def minimize_choice():
-            assert user32.PostMessageW(main,0x112,0xf020,0)
-            page.get_by_role('dialog',name='选择最小化方式').wait_for()
-            assert user32.IsWindowVisible(main) and not user32.IsIconic(main)
-        minimize_choice()
-        page.get_by_role('button',name='正常最小化',exact=False).click()
+        controls=page.get_by_role('banner',name='窗口控制')
+        button=controls.get_by_role('button',name='收起到托盘',exact=True)
+        minimize=controls.get_by_role('button',name='最小化',exact=True)
+        tray_box=button.bounding_box();min_box=minimize.bounding_box()
+        assert tray_box and min_box and abs(tray_box['x']+tray_box['width']-min_box['x'])<1
+        assert page.get_by_role('dialog').count()==0
+        assert page.evaluate('document.documentElement.scrollHeight <= innerHeight')
+        controls.get_by_role('button',name='最大化',exact=True).click()
+        wait_for(lambda:bool(user32.IsZoomed(main)))
+        controls.get_by_role('button',name='还原窗口',exact=True).click()
+        wait_for(lambda:not user32.IsZoomed(main))
+        # Exercise the actual drag IPC/permission and the title area's double-click.
+        # Synthetic CDP mouse events do not send a physical mouse-up to the OS
+        # move loop. Cancel only this probe's loop after verifying drag dispatch.
+        cancel_drag=threading.Timer(.3,lambda:user32.PostMessageW(main,0x1f,0,0))
+        cancel_drag.start()
+        page.get_by_test_id('window-drag-region').dispatch_event('mousedown',{'button':0,'detail':1})
+        cancel_drag.join(timeout=1)
+        page.wait_for_timeout(300)
+        assert page.get_by_role('alert').count()==0
+        page.get_by_test_id('window-drag-region').dispatch_event('mousedown',{'button':0,'detail':2})
+        wait_for(lambda:bool(user32.IsZoomed(main)))
+        controls.get_by_role('button',name='还原窗口',exact=True).click()
+        wait_for(lambda:not user32.IsZoomed(main))
+        rect=w.RECT();user32.GetWindowRect(main,ctypes.byref(rect))
+        point=((rect.top+(rect.bottom-rect.top)//2)&0xffff)<<16 | ((rect.left+1)&0xffff)
+        assert user32.SendMessageW(main,0x84,0,point)==10, 'Left edge must remain resizable'
+        page.wait_for_function('window.probe.closeGuardReady')
+        controls.get_by_role('button',name='关闭',exact=True).click()
+        page.wait_for_function('window.probe.closeRequests===1')
+        assert process.poll() is None and user32.IsWindowVisible(main)
+        minimize.click()
         wait_for(lambda:bool(user32.IsIconic(main)));assert user32.IsWindowVisible(main)
+        assert page.get_by_role('dialog').count()==0
         click_tray()
-        minimize_choice();page.keyboard.press('Escape')
-        assert user32.IsWindowVisible(main) and not user32.IsIconic(main)
-        minimize_choice()
-        button=page.get_by_role('button',name='收起到托盘',exact=False)
-        page.screenshot(path=str(root/'.local-data/tray-native-ui.png'))
+        page.screenshot(path=str(root/'.local-data/titlebar-native-ui.png'))
         before=page.evaluate('window.probe');button.click()
         page.wait_for_timeout(500)
         assert page.get_by_role('alert').count()==0, page.get_by_role('alert').inner_text()
@@ -114,25 +141,28 @@ try:
         click_tray()
         assert page.evaluate('window.probe.ticks')>=after['ticks']
         # Both hidden and minimized windows restore without creating a new webview.
-        minimize_choice();button.click();wait_for(lambda:not user32.IsWindowVisible(main));click_tray()
+        button.click();wait_for(lambda:not user32.IsWindowVisible(main));click_tray()
         user32.ShowWindow(main,6);wait_for(lambda:bool(user32.IsIconic(main)));click_tray()
-        minimize_choice()
         page.evaluate('window.__TAURI_INTERNALS__.invoke("tray_smoke_remove_icon")')
         button.click();page.get_by_role('alert').filter(has_text='系统托盘初始化失败').wait_for()
         assert user32.IsWindowVisible(main)
-        page.keyboard.press('Escape')
-        page.evaluate('window.__TAURI_INTERNALS__.invoke("desktop_set_minimize_prompt_ready",{ready:false})')
+        controls.get_by_role('button',name='关闭提示',exact=True).click()
+        # Native taskbar / keyboard minimize also bypasses the removed picker.
         user32.PostMessageW(main,0x112,0xf020,0)
         wait_for(lambda:bool(user32.IsIconic(main)))
         user32.ShowWindow(main,9)
         assert not errors,errors
         result={'native_window_hide_restore':True,'win32_tray_left_click_callback':True,'repeat_hide_restore':True,'minimized_restore':True,'hide_error_keeps_window_visible':True,'hidden_seconds':round(elapsed,2),'timer_ticks':after['ticks']-before['ticks'],'worker_ticks':after['workerTicks']-before['workerTicks'],'max_timer_gap_ms':round(after['maxGap'],2),'page_errors':errors,'isolated_from_trading':True}
-        result.update(native_minimize_choice=True,normal_minimize=True,cancel_minimize=True,listener_unavailable_falls_back_to_normal_minimize=True)
+        result.update(adjacent_tray_minimize_buttons=True,no_minimize_picker=True,normal_minimize=True,native_minimize=True,maximize_restore=True,titlebar_drag_permission=True,titlebar_double_click_maximize=True,edge_resize=True,close_request_guard=True,no_viewport_overflow=True)
+        # Only close the isolated probe. The user's running desktop process is untouched.
+        page.evaluate('window.probe.preventClose=false')
+        with page.expect_event('close',timeout=15000):
+            controls.get_by_role('button',name='关闭',exact=True).click()
+        process.wait(timeout=15)
+        assert not errors, errors
+        result.update(confirmed_close_exits=True)
         (root/'.local-data/tray-native-verification.json').write_text(json.dumps(result,indent=2),encoding='utf8')
         print(json.dumps(result),flush=True)
-        # Only close the isolated probe. The user's running desktop process is untouched.
-        user32.PostMessageW(main,0x10,0,0)
-        process.wait(timeout=15)
 finally:
     if process.poll() is None:process.terminate();process.wait(timeout=15)
     log.close()

@@ -2,7 +2,7 @@ use tauri::Manager;
 mod native_engine;
 mod update_channels;
 mod desktop_tray;
-mod minimize_prompt;
+mod window_controls;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -20,9 +20,6 @@ pub fn run() {
     }));
     builder
         .setup(|app| {
-            if let Err(error) = minimize_prompt::setup(app.handle()) {
-                tauri_plugin_log::log::warn!("最小化选择初始化失败: {error}");
-            }
             if let Err(error) = desktop_tray::setup(app.handle()) {
                 tauri_plugin_log::log::warn!("系统托盘初始化失败: {error}");
             }
@@ -33,8 +30,9 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             desktop_tray::desktop_hide_to_tray,
-            minimize_prompt::desktop_minimize_window,
-            minimize_prompt::desktop_set_minimize_prompt_ready,
+            window_controls::desktop_minimize_window,
+            window_controls::desktop_toggle_maximize,
+            window_controls::desktop_close_window,
             native_engine::native_engine_spawn,
             native_engine::native_engine_status,
             native_engine::native_engine_kill,

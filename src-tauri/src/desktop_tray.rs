@@ -17,7 +17,7 @@ pub fn restore(app: &AppHandle) -> Result<(), String> {
 pub fn desktop_hide_to_tray(app: AppHandle) -> Result<(), String> {
     // Never hide the only window unless a working restore entry has been created.
     if app.tray_by_id(TRAY_ID).is_none() {
-        return Err("系统托盘初始化失败，请选择“正常最小化”".into());
+        return Err("系统托盘初始化失败，请使用最小化按钮".into());
     }
     let window = app.get_webview_window("main").ok_or("主窗口不存在")?;
     // Hide preserves the webview, login session, workers and native engine.

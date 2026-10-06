@@ -58,7 +58,7 @@ export default function AdminLayout({
   }, [loaded, accessToken, user, router])
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg-primary)]">
+    <div className="flex flex-col h-full overflow-hidden bg-[var(--bg-primary)]">
       <header className="h-[56px] flex items-center justify-between px-4 border-b border-[var(--border)] bg-[var(--bg-secondary)] shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded bg-[var(--accent-warn)] flex items-center justify-center text-white font-bold text-sm">

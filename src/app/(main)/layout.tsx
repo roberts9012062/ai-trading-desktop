@@ -108,7 +108,7 @@ export default function MainLayout({
 
   if (!mounted) {
     return (
-      <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg-primary)]">
+      <div className="flex flex-col h-full overflow-hidden bg-[var(--bg-primary)]">
         <div className="h-[56px] border-b border-[var(--border)] bg-[var(--bg-secondary)] shrink-0" />
         <div className="flex flex-1 overflow-hidden">
           <aside className="w-[192px] border-r border-[var(--border)] bg-[var(--bg-secondary)]" />
@@ -119,7 +119,7 @@ export default function MainLayout({
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg-primary)]">
+    <div className="flex flex-col h-full overflow-hidden bg-[var(--bg-primary)]">
       <TopNavbar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
