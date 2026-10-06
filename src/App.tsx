@@ -3,6 +3,7 @@ import { BrowserRouter } from "react-router-dom"
 import { FontSizeProvider } from "@/components/common/font-size-provider"
 import { attachErrorReporting, silentCheckForUpdate } from "@/lib/updater"
 import { AppRoutes } from "./router"
+import { DesktopMinimizeDialog } from "@/components/common/desktop-minimize-dialog"
 
 /** 根组件:对应原 Next 根 layout(FontSizeProvider + 全局路由 + 更新/错误上报) */
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <FontSizeProvider />
+      <DesktopMinimizeDialog />
       <AppRoutes />
     </BrowserRouter>
   )

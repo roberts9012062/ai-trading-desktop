@@ -1,6 +1,8 @@
 use tauri::Manager;
 mod native_engine;
 mod update_channels;
+mod desktop_tray;
+mod minimize_prompt;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -14,17 +16,25 @@ pub fn run() {
     let builder = tauri::Builder::default();
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-        if let Some(window) = app.get_webview_window("main") {
-            let _ = window.show();
-            let _ = window.unminimize();
-            let _ = window.set_focus();
-        }
+        let _ = desktop_tray::restore(app);
     }));
     builder
+        .setup(|app| {
+            if let Err(error) = minimize_prompt::setup(app.handle()) {
+                tauri_plugin_log::log::warn!("最小化选择初始化失败: {error}");
+            }
+            if let Err(error) = desktop_tray::setup(app.handle()) {
+                tauri_plugin_log::log::warn!("系统托盘初始化失败: {error}");
+            }
+            Ok(())
+        })
         .manage(native_engine::NativeEngineState::default())
         .manage(update_channels::UpdateChannels::default())
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
+            desktop_tray::desktop_hide_to_tray,
+            minimize_prompt::desktop_minimize_window,
+            minimize_prompt::desktop_set_minimize_prompt_ready,
             native_engine::native_engine_spawn,
             native_engine::native_engine_status,
             native_engine::native_engine_kill,
