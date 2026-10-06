@@ -154,10 +154,10 @@ async function loadKernel(): Promise<Kernel> {
   await writeFiles(manifest.files)
   pyodide.runPython("import sys; sys.path.insert(0, '/pykernel')")
   // import 语句本身不返回值,需以模块对象作为最后表达式取回
-  const bootstrap = pyodide.runPython<{ run: (a: string, b: string) => string }>(
+  const bootstrap = pyodide.runPython<{ run: (a: string, b: string, progress?: (message: string) => void) => string }>(
     "import bootstrap; bootstrap",
   )
-  return { run: bootstrap.run }
+  return { run: (a, b) => bootstrap.run(a, b, stage) }
 }
 
 /** 因子内核:在基础内核之上懒加载 numpy + 因子文件(首次约 10MB) */
@@ -177,7 +177,7 @@ async function loadFactorKernel(): Promise<FactorKernel> {
     mine_step: (a: string) => string
     mine_dispose: (a: string) => string
   }>("import factor_local; factor_local")
-  const bootstrap = pyodide.runPython<{ run: (a: string, b: string) => string }>(
+  const bootstrap = pyodide.runPython<{ run: (a: string, b: string, progress?: (message: string) => void) => string }>(
     "import bootstrap; bootstrap",
   )
   return {
@@ -185,7 +185,7 @@ async function loadFactorKernel(): Promise<FactorKernel> {
     mine_start: factorLocal.mine_start,
     mine_step: factorLocal.mine_step,
     mine_dispose: factorLocal.mine_dispose,
-    btRun: bootstrap.run,
+    btRun: (a, b) => bootstrap.run(a, b, stage),
   }
 }
 

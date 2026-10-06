@@ -1,4 +1,4 @@
-/** 桌面预取回测数据；服务器只计算，不再下载/转发行情。 */
+/** 桌面预取回测数据；因子公式本机计算，其余策略由服务器计算。 */
 import type { BacktestRunPayload } from "./backtest-api"
 import { fetchBacktestBars } from "./local-backtest"
 import { latestOkxArchiveDay, okxArchiveDayStart, okxArchiveDate } from "./okx-history"

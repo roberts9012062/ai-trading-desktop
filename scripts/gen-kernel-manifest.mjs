@@ -10,6 +10,6 @@ const walk = (d) =>
   )
 const files = walk(dir).sort()
 const factorFiles = files.filter(f =>
-  f.startsWith("factor_lab/") || ["trading_hours.py", "session_profiles.py", "product_sectors.py", "factor_local.py", "signal_strength.py", "strategies/factor_np.py"].includes(f))
+  f.startsWith("factor_lab/") || f.startsWith("crypto_factor_kernel/") || ["crypto_factor.py", "trading_hours.py", "session_profiles.py", "product_sectors.py", "factor_local.py", "signal_strength.py", "strategies/factor_np.py"].includes(f))
 writeFileSync(join(dir, "kernel-files.json"), JSON.stringify({ files, factorFiles }, null, 0))
 console.log(`listed ${files.length} kernel files (${factorFiles.length} factor)`)

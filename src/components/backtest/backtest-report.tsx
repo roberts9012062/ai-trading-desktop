@@ -194,6 +194,7 @@ function ReportHeader({ report }: { report: BacktestReport }): React.JSX.Element
         {String(cfg.symbol_name || cfg.symbol)} · {timeframe} ·{" "}
         {String(cfg.start_date)} → {String(cfg.end_date)} ·{" "}
         {String(cfg.strategy_type)}
+        {cfg.execution_mode === "local" ? " · 本机计算" : ""}
         {cfg.ai_calls ? ` · AI ${String(cfg.ai_calls)} 次` : ""}
       </div>
     </div>

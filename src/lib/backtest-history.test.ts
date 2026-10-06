@@ -1,5 +1,7 @@
 import {beforeEach, describe, expect, it, vi} from "vitest"
 vi.mock("./local-backtest", () => ({fetchBacktestBars:vi.fn()}))
+vi.mock("./local-factor-backtest", () => ({runPreparedFactorBacktest:vi.fn()}))
+import {runPreparedFactorBacktest} from "./local-factor-backtest"
 import {fetchBacktestBars} from "./local-backtest"
 import {backtestDataTimeframe, backtestWarmupBars, prepareBacktestHistory} from "./backtest-history"
 import {runBacktestApi, type BacktestRunPayload} from "./backtest-api"
@@ -10,6 +12,15 @@ import {researchFactorRangeFor} from "@/components/factor-lab/factor-range-limit
 const body: BacktestRunPayload = {symbol:"btcusdt",timeframe:"15m",start_date:"2026-09-28",end_date:"2026-09-28",strategy_type:"n_breakout",data_channel:"okx"}
 beforeEach(() => {vi.clearAllMocks();vi.stubGlobal("fetch",vi.fn()); vi.mocked(fetchBacktestBars).mockResolvedValue([{time:"2026-09-28 00:00:00",open:100,high:101,low:99,close:100,volume:.2,settle:null,open_interest:null}])})
 describe("research defaults and desktop backtest handoff", () => {
+  it("executes the LTC factor formula locally without uploading bars to a server", async () => {
+    const formula = [47,83,81,31,2,65,22,107,68,112,84,5,4,66,78,96,101,64,64]
+    const report = {status:"completed",config:{history_source:"okx_archive_v1",execution_mode:"local"}} as any
+    vi.mocked(runPreparedFactorBacktest).mockResolvedValue(report)
+    const result = await runBacktestApi({...body,symbol:"ltcusdt",strategy_type:"factor",strategy_params:{factor_tokens:formula},leverage:5,margin_per_trade:100})
+    expect(result).toBe(report)
+    expect(runPreparedFactorBacktest).toHaveBeenCalledWith(expect.objectContaining({symbol:"ltcusdt",strategy_params:{factor_tokens:formula},history_source:"okx_archive_v1",leverage:5,margin_per_trade:100}),undefined)
+    expect(fetch).not.toHaveBeenCalled()
+  })
   it("prefetches enough history for long parameters and minute factor normalization", async () => {
     expect(backtestWarmupBars({...body,strategy_type:"ma_cross",strategy_params:{slow_period:300}})).toBeGreaterThanOrEqual(301)
     expect(backtestWarmupBars({...body,strategy_type:"macd_cross",strategy_params:{slow_period:200,signal_period:100}})).toBeGreaterThanOrEqual(302)

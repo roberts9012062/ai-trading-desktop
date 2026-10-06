@@ -204,6 +204,11 @@ export async function runBacktestApi(
 ): Promise<BacktestReport> {
   const { prepareBacktestHistory } = await import("./backtest-history")
   const prepared = await prepareBacktestHistory(body, onProgress)
+  if (body.strategy_type === "factor") {
+    const { runPreparedFactorBacktest } = await import("./local-factor-backtest")
+    onProgress?.("行情已就绪，本机独立引擎开始计算因子回测…")
+    return runPreparedFactorBacktest(prepared, onProgress)
+  }
   const report = await request<BacktestReport>("/api/backtest/run", {
     method: "POST",
     body: JSON.stringify(prepared),
