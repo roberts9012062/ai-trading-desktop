@@ -160,8 +160,8 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
       {!isMacd && <ProfitLockSettings value={profitLock} onChange={setProfitLock} />}
       {isMacd ? <div className="rounded-md border border-[var(--border)] p-3 text-xs space-y-2">
         <p className="font-medium">平仓标准</p><p>① 兜底收益率达到设置的止盈或止损值，优先全平。</p>
-        <p>② 所属周期的 MA20 持平或拐头向下，并且 MACD 处于死叉状态，两项同时成立才全平。</p>
-        <p>技术指标使用已收盘K线，MA20为20根K线的简单均线；MACD已持续金叉、仅MA20向下、仅MACD死叉都不会单独触发相应交易。创建后自动开始扫描。</p>
+        <p>② 所属交易周期的 MA20 拐头向下、MACD 处于死叉状态、连续至少3根已收盘K线实体（开盘价和收盘价）都在各自 MA20 下方，三项同时满足才全平。</p>
+        <p>技术指标使用已收盘K线，MA20为20根K线的简单均线。MA20持平不算向下；穿线或触线的K线实体不计入连续根数。技术平仓需要三项同时成立，兜底平仓优先执行。创建后自动开始扫描。</p>
       </div> : <details className="rounded-md border border-[var(--border)] p-3 text-xs space-y-2">
         <summary className="cursor-pointer text-sm">下单、止盈和亏损平仓标准</summary>
         <p>只使用已收盘 K 线：币种趋势、上市时长和流动性合格，相对强弱进入合格区间。{config.strategy_version === "hunter-v4" ? "保留三路短线入口，中长线增加受限趋势延续；重要阻力/支撑阻挡净3:1目标时跳过。" : config.strategy_version === "hunter-v3" ? "短线排名前/后50%，允许BTC横盘，拦截反向趋势及市场冲击；突破回踩、EMA20回调或短线趋势延续收盘确认后申请挂载，中长线保留均衡版条件。" : config.strategy_version === "hunter-v2" ? "排名前/后30%，大盘与币种同向；放量突破回踩或EMA20趋势回调企稳确认后申请挂载。" : "排名前/后20%，大盘与币种同向；放量突破、回踩及收盘确认后申请挂载。"}服务器再次复核报价、成本、风险预算及已有仓位，成本不得超过止损距离的20%。</p>
