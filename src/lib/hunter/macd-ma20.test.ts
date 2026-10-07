@@ -94,34 +94,36 @@ describe("MACD dead-cross short with the 2-3 body window under MA20", () => {
   }
 })
 
-function reboundBars(c1: [number, number], c2: [number, number], c3: [number, number], seconds = 1800, count = 110, now = fixture.now, start = 100) {
+function reboundBars(c1: [number, number], c2: [number, number], c3?: [number, number], seconds = 1800, count = 110, now = fixture.now, start = 100) {
+  const shaped = c3 ? [c1, c2, c3] : [c1, c2]
   const rows: Bar[] = []
-  for (let i = 0; i < count; i++) rows.push([(now-(count+3-i)*seconds)*1000, start, start+.05, start-.05, start, 10] as Bar)
-  for (let i = 0; i < 3; i++) {
-    const [o, c] = [c1, c2, c3][i]
-    rows.push([(now-(3-i)*seconds)*1000, o, Math.max(o, c)+.05, Math.min(o, c)-.05, c, 10] as Bar)
-  }
+  for (let i = 0; i < count; i++) rows.push([(now-(count+shaped.length-i)*seconds)*1000, start, start+.05, start-.05, start, 10] as Bar)
+  shaped.forEach(([o, c], i) => {
+    rows.push([(now-(shaped.length-i)*seconds)*1000, o, Math.max(o, c)+.05, Math.min(o, c)-.05, c, 10] as Bar)
+  })
   return rows
 }
 
 describe("rebound hunter entries", () => {
-  it("longs the third candle after two red candles exceed 10% of MA20 combined", () => {
-    const crash = reboundBars([100, 95], [95, 89.5], [89.5, 90.2])
+  it("longs at the second close: the order lives only through the third candle", () => {
+    const crash = reboundBars([100, 95], [95, 89.5])
     const signal = reboundLongEntry(crash, "30m", fixture.now)
     expect(signal?.direction).toBe("long")
     expect(signal?.thrust).toBeCloseTo(10.5, 6)
-    expect(reboundLongEntry(reboundBars([100, 101], [101, 89.5], [89.5, 90.2]), "30m", fixture.now)).toBeNull()
-    expect(reboundLongEntry(reboundBars([100, 96], [96, 92], [92, 92.5]), "30m", fixture.now)).toBeNull()
-    expect(reboundLongEntry(reboundBars([100, 96], [96, 92], [92, 92.5]), "30m", fixture.now, .07)).toBeTruthy()
+    expect(signal?.signal_at).toBe(fixture.now)         // close of the second red candle
+    expect(signal?.expires_at).toBe(fixture.now + 1800) // end of the third candle
+    expect(reboundLongEntry(crash, "30m", fixture.now - 1)).toBeNull()
+    expect(reboundLongEntry(crash, "30m", fixture.now + 1800)).toBeNull()
+    expect(reboundLongEntry(reboundBars([100, 101], [101, 89.5]), "30m", fixture.now)).toBeNull()
+    expect(reboundLongEntry(reboundBars([100, 96], [96, 92]), "30m", fixture.now)).toBeNull()
+    expect(reboundLongEntry(reboundBars([100, 96], [96, 92]), "30m", fixture.now, .07)).toBeTruthy()
   })
   it("shorts only when the third candle fades and nears MA20", () => {
     expect(reboundShortEntry(reboundBars([100, 106], [106, 111], [111, 110.9]), "30m", fixture.now)).toBeTruthy()
     expect(reboundShortEntry(reboundBars([100, 106], [106, 111], [111, 116]), "30m", fixture.now)).toBeNull()
   })
   it("ignores stale or gapped data", () => {
-    const crash = reboundBars([100, 95], [95, 89.5], [89.5, 90.2])
-    expect(reboundLongEntry(crash, "30m", fixture.now-1)).toBeNull()
-    expect(reboundLongEntry(crash, "30m", fixture.now+1800)).toBeNull()
+    const crash = reboundBars([100, 95], [95, 89.5])
     expect(reboundLongEntry([...crash.slice(0, 50), ...crash.slice(51)], "30m", fixture.now)).toBeNull()
   })
 })

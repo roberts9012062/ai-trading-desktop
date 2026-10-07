@@ -88,12 +88,10 @@ describe("independent MACD hunter scanner",()=>{
 function reboundData(): HunterData {
   const seconds = 1800, now = fixture.now, start = 100
   const bars: Bar[] = []
-  for (let i = 0; i < 110; i++) bars.push([(now-(113-i)*seconds)*1000, start, start+.05, start-.05, start, 10] as unknown as Bar)
-  for (const [o, c] of [[100, 95], [95, 89.5], [89.5, 90.2]] as [number, number][]) {
-    bars.push([(now-(3-bars.length+110)*seconds)*1000, o, Math.max(o, c)+.05, Math.min(o, c)-.05, c, 10] as unknown as Bar)
+  for (let i = 0; i < 110; i++) bars.push([(now-(112-i)*seconds)*1000, start, start+.05, start-.05, start, 10] as unknown as Bar)
+  for (const [o, c] of [[100, 95], [95, 89.5]] as [number, number][]) {
+    bars.push([(now-(112-bars.length)*seconds)*1000, o, Math.max(o, c)+.05, Math.min(o, c)-.05, c, 10] as unknown as Bar)
   }
-  // fix timestamps for the three shaped bars
-  for (let i = 3; i > 0; i--) bars[110+3-i] = [(now-i*seconds)*1000+0, ...bars[110+3-i].slice(1)] as Bar
   return { now, bars: { "30m": bars, "60m": bars }, market: [], market_week: [] }
 }
 describe("rebound hunter scanner", () => {

@@ -69,16 +69,17 @@ function indicatorsFor(rows: Bar[], period: MacdPeriod, now: number) {
   return { bars, ma }
 }
 
-/** 反弹做多：前两根合计柱体 ≥ 阈值×MA20 的阴线，第三根已收盘即入场。 */
+/** 反弹做多：前两根合计柱体 ≥ 阈值×MA20 的阴线——第二根收盘（第三根开盘）立即挂单，
+ *  信号只在第三根K线内有效，绝不等到第三根收盘。 */
 export function reboundLongEntry(rows: Bar[], period: MacdPeriod, now: number, threshold = .10) {
   const data = indicatorsFor(rows, period, now)
   if (!data) return null
   const { bars, ma } = data
-  const [b1, b2, b3] = [bars.at(-3)!, bars.at(-2)!, bars.at(-1)!]
+  const [b1, b2] = [bars.at(-2)!, bars.at(-1)!]
   const down1 = b1[1]-b1[4], down2 = b2[1]-b2[4]
   if (down1 <= 0 || down2 <= 0 || down1+down2 < threshold*ma.at(-1)!) return null
-  const seconds = MACD_PERIODS[period], close = b3[0]/1000+seconds
-  return { direction: "long" as const, entry: b3[4], signal_at: close, expires_at: close+seconds,
+  const seconds = MACD_PERIODS[period], close = b2[0]/1000+seconds
+  return { direction: "long" as const, entry: b2[4], signal_at: close, expires_at: close+seconds,
     entry_kind: "rebound" as const, thrust: down1+down2, thrust_ratio: (down1+down2)/ma.at(-1)! }
 }
 

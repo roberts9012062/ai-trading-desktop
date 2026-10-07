@@ -25,7 +25,7 @@ export interface Opportunity {
   id: string; task_id: string | null; symbol: string; cycle: HunterCycle; status: string;
   plan: { entry: number; stop: number | null; quantity: number; risk_budget?: number; direction: Direction; leverage?: number; margin?: number; margin_mode?: "isolated" | "cross"; entry_kind?: EntryKind | "macd_ma20" | "rebound"; version?: RuleVersion; target_price?: number; min_net_rr?: number; manual_entry?: boolean; thrust?: number; threshold?: number };
   runtime: { stop?: number | null; last_price?: number; reason?: string; note?: string; unrealized?: number; entry?: number; initial_qty?: number; technical_exit?: string; net_peak_r?: number; swing?: { regime: string; reason: string } };
-  net_profit: number; finished_at: string | null;
+  net_profit: number; finished_at: string | null; created_at?: string | null;
 }
 export interface Hunter {
   id: string; name: string; status: "running" | "paused" | "stopping" | "stopped";

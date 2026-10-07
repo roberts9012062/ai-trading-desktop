@@ -12,6 +12,7 @@ import { CYCLES } from "@/lib/hunter/rules"
 import { hunterApi, hunterAccountLabel, type Opportunity, type HunterCapabilities } from "@/lib/hunter/api"
 import { HunterProfitSummary } from "./hunter-profit-summary"
 import { OpportunitySignalDialog } from "./opportunity-signal-dialog"
+import { HunterHistoryDialog } from "./hunter-history-dialog"
 import { visibleHunterOpportunities } from "@/lib/hunter/task-visibility"
 
 const money = (n: number) => n.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -35,6 +36,7 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [signalFor, setSignalFor] = useState<Opportunity | null>(null)
+  const [historyFor, setHistoryFor] = useState<string | null>(null)
   const [manualBusy, setManualBusy] = useState<string | null>(null)
   const [poolDraft, setPoolDraft] = useState<Record<string, number>>({})
   useEffect(() => {
@@ -78,6 +80,7 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
           {(g.status === "running" || g.status === "paused") && (g.config.strategy_version ?? "hunter-v1") === "hunter-v1" && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade")}>启用均衡版</Button>}
           {g.config.strategy_version !== MACD_MA20_VERSION && (g.status === "running" || g.status === "paused") && g.config.strategy_version !== "hunter-v4" && (g.config.strategy_version !== "hunter-v3" || g.config.pool_size < 50) && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade_adaptive", 50)}>{g.config.strategy_version === "hunter-v3" ? "扩大币池至50" : "启用机会增强版 · 50币"}</Button>}
           {g.config.strategy_version !== MACD_MA20_VERSION && (g.status === "running" || g.status === "paused") && (g.config.strategy_version !== "hunter-v4" || g.config.pool_size < 50) && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade_swing", 50)}>{g.config.strategy_version === "hunter-v4" ? "扩大波段币池至50" : "启用波段持有版 · 计划3:1"}</Button>}
+          <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => setHistoryFor(historyFor === g.id ? null : g.id)}>交易历史（{g.opportunities.filter(o => o.finished_at).length}）</Button>
           {(g.status === "running" || g.status === "paused") && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, g.status === "running" ? "pause" : "resume")}>{g.status === "running" ? "暂停搜索" : "恢复搜索"}</Button>}
           {g.status !== "stopped" && g.status !== "stopping" && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "stop")}>停止搜索</Button>}
           {g.opportunities.some(o => !o.finished_at) && <Button size="sm" variant="outline" disabled={busy === g.id || g.status === "stopping"} onClick={() => void action(g.id, "stop_close")}>停止并平仓</Button>}
@@ -88,7 +91,7 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
         {g.runtime.hosting?.blocked && <p className="text-amber-400">{g.runtime.hosting.blocked}</p>}
         {g.config.cycles.map(cycle => { const row = g.runtime.hosting?.cycles[cycle]; return <p key={cycle}>{hunterCycleLabel(cycle)} · {row?.phase === "scanning" ? "正在扫描" : row?.at ? `最近扫描 ${new Date(row.at*1000).toLocaleTimeString("zh-CN")}` : g.status === "running" ? "等待服务器首次扫描" : "扫描已暂停"} · {row?.note ?? "已有持仓继续由服务器管理"}{row?.counts && ` · 扫描 ${row.counts.scanned ?? 0}/${row.counts.pool ?? 0} · 信号 ${row.counts.signals ?? 0} / 挂载 ${row.counts.mounted ?? 0}`}</p> })}
       </div>}
-      {g.config.strategy_version === REBOUND_VERSION && <p className="text-xs text-[var(--text-muted)]">入场：{g.config.direction === "short" ? "前两根阳线柱体合计≥" : "前两根阴线柱体合计≥"}{g.config.rebound_threshold_pct ?? 10}%×MA20{g.config.direction === "short" ? "，第三根递减且距均线距离缩短即卖空" : "，第三根收盘即买多抢反弹"}。平仓：兜底止损优先；盈利按锁利跟踪（净收益达激活线后回吐超过让利幅度即全平），按持仓方向计算多空盈亏。{g.blocks.join("；")}</p>}
+      {g.config.strategy_version === REBOUND_VERSION && <p className="text-xs text-[var(--text-muted)]">入场：{g.config.direction === "short" ? "前两根阳线柱体合计≥" : "前两根阴线柱体合计≥"}{g.config.rebound_threshold_pct ?? 10}%×MA20{g.config.direction === "short" ? "，第三根递减且距均线距离缩短即卖空" : "，第二根收盘（第三根开盘）立即挂单买入，只在第三根K线内有效"}。平仓：兜底止损优先；盈利按锁利跟踪（净收益达激活线后回吐超过让利幅度即全平），按持仓方向计算多空盈亏。{g.blocks.join("；")}</p>}
       {g.config.strategy_version === MACD_MA20_VERSION && <p className="text-xs text-[var(--text-muted)]">入场：{g.config.direction === "short" ? "MACD死叉状态（不要求刚死叉）＋MA20向下＋连续2–3根K线实体（开盘与收盘）在MA20下方，实体穿线或触线中断计数，达到4根不追空。" : g.config.direction === "both" ? "做多=MACD新金叉＋连续3–4根实体在MA20上方＋MA20向上（超过4根跳过）；做空=MACD死叉状态＋MA20向下＋连续2–3根实体在MA20下方（达到4根不追空）。" : "MACD新金叉＋连续3–4根K线实体（开盘与收盘）在MA20上方，穿线K线不计入＋MA20向上。"}平仓：兜底收益率阈值优先；{g.config.direction === "short" ? "空仓在完整做多信号（MACD新金叉＋MA20向上＋连续3–4根实体在MA20上方）出现时平空，不自动反手。" : g.config.direction === "both" ? "多仓须MA20向下＋MACD死叉＋连续至少3根实体在MA20下方三项同时成立；空仓在完整做多信号出现时平空，不自动反手。" : "技术平仓须MA20拐头向下＋MACD死叉＋连续至少3根实体在MA20下方三项同时成立。"}{g.blocks.join("；")}</p>}
       {!activeOps.length && <p className="text-xs text-[var(--text-muted)]">暂无运行子任务 · {g.status === "running" ? "继续搜索新机会" : "搜索已暂停"} · 已结束任务已从明细清理，成交记录可在订单中查看</p>}
       <details data-testid="hunter-statistics-group" className="rounded-lg border border-[var(--border)] p-3">
@@ -177,6 +180,7 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
           </div>
         })()}
       </div>
+      {historyFor === g.id && <HunterHistoryDialog group={g} onSelect={o => setSignalFor(o)} onClose={() => setHistoryFor(null)} />}
       <OpportunitySignalDialog group={g} opportunity={signalFor?.id && g.opportunities.some(o => o.id === signalFor.id) ? signalFor : null} onClose={() => setSignalFor(null)} />
       <p className="text-[11px] text-[var(--text-muted)]">{g.trading_mode === "live" ? "OKX API 执行 · 成交费用及已对账资金费计入收益，模型调用费另计" : "站内模拟研究 · 成交手续费已计入，资金费和模型费尚未模拟结算"}；尚未取得独立盈利验证。停止搜索不会关闭已有持仓保护。</p>
       </div></details>
