@@ -1,6 +1,6 @@
 import { MACD_MA20_VERSION, MACD_MA20_NAME, hunterCycleLabel, macdDirectionLabel } from "@/lib/hunter/macd-ma20"
 import { useEffect, useState } from "react"
-import { Crosshair } from "lucide-react"
+import { Crosshair, CandlestickChart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useHunterStore } from "@/stores/hunter"
 import { LiveProfitLockControl } from "@/components/ai-trading/form/live-profit-lock-control"
@@ -10,6 +10,7 @@ import { useAITradingStore } from "@/stores/ai-trading"
 import { CYCLES } from "@/lib/hunter/rules"
 import { hunterApi, hunterAccountLabel, type Opportunity, type HunterCapabilities } from "@/lib/hunter/api"
 import { HunterProfitSummary } from "./hunter-profit-summary"
+import { OpportunitySignalDialog } from "./opportunity-signal-dialog"
 import { visibleHunterOpportunities } from "@/lib/hunter/task-visibility"
 
 const money = (n: number) => n.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -32,6 +33,8 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
   const connectionError = useHunterStore(s => s.error)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [signalFor, setSignalFor] = useState<Opportunity | null>(null)
+  const [manualBusy, setManualBusy] = useState<string | null>(null)
   useEffect(() => {
     const abort = new AbortController()
     void useHunterStore.getState().refresh(abort.signal).catch(() => {})
@@ -46,6 +49,15 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
   const changeHosting = async (id: string, location: "desktop" | "server") => {
     setBusy(id); setError(null)
     try { await setHosting(id, location) } catch (e) { setError(e instanceof Error ? e.message : "托管切换失败") } finally { setBusy(null) }
+  }
+  const manualEntry = async (groupId: string, opportunity: Opportunity) => {
+    setManualBusy(opportunity.id); setError(null)
+    try {
+      await hunterApi.manualEntry(groupId, opportunity.id)
+      const abort = new AbortController()
+      await useHunterStore.getState().refresh(abort.signal)
+      await useAITradingStore.getState().loadTasks({ silent: true })
+    } catch (e) { setError(e instanceof Error ? e.message : "立即开仓失败") } finally { setManualBusy(null) }
   }
   return <section aria-label="多周期猎手" className="space-y-3">
     <div className="flex gap-2 items-center text-sm font-medium"><Crosshair className="w-4 h-4" />多周期猎手</div>
@@ -122,14 +134,38 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
             const price = task?.position_last_price ?? o.runtime.last_price
             const floating = (task?.position_qty ?? 0) > 0 ? task?.position_unrealized : o.runtime.unrealized
             return <tr key={o.id} className="border-t border-[var(--border)]" data-testid="hunter-active-task">
-            <td className="p-2"><button type="button" className="text-left hover:underline" disabled={!task || !onSelectTask} onClick={() => task && onSelectTask?.(task.id)}>{o.symbol.toUpperCase()} · {hunterCycleLabel(o.cycle)} · {o.plan.direction === "long" ? "多" : "空"} · {o.plan.leverage ?? 1} 倍{o.plan.margin_mode === "cross" ? "全仓" : "逐仓"} · {o.plan.entry_kind === "macd_ma20" ? "MACD+MA20" : o.plan.entry_kind === "continuation" ? "趋势延续" : o.plan.entry_kind === "pullback" ? "趋势回调" : "突破回踩"}</button><span className="block text-[var(--text-muted)]">{o.plan.version ?? "hunter-v1"} · 点击查看任务记录</span></td>
+            <td className="p-2">
+              <div className="flex items-center gap-1">
+                <button type="button" className="text-left hover:underline" disabled={!task || !onSelectTask} onClick={() => task && onSelectTask?.(task.id)}>{o.symbol.toUpperCase()} · {hunterCycleLabel(o.cycle)} · {o.plan.direction === "long" ? "多" : "空"} · {o.plan.leverage ?? 1} 倍{o.plan.margin_mode === "cross" ? "全仓" : "逐仓"} · {o.plan.entry_kind === "macd_ma20" ? "MACD+MA20" : o.plan.entry_kind === "continuation" ? "趋势延续" : o.plan.entry_kind === "pullback" ? "趋势回调" : "突破回踩"}</button>
+                <button type="button" title="查看K线信号图" aria-label={`查看${o.symbol}K线信号图`} className="p-1 rounded hover:bg-[var(--bg-primary)]" onClick={() => setSignalFor(o)}><CandlestickChart className="w-3.5 h-3.5" /></button>
+              </div>
+              <span className="block text-[var(--text-muted)]">{o.plan.version ?? "hunter-v1"} · 点击文字查看任务记录</span>
+            </td>
             <td>{({ mounted: "已挂载", opening: "开仓中", holding: "持仓管理", reconciling: "成交核对", closed: "已结束", cancelled: "未开仓结束" } as Record<string, string>)[o.status] ?? o.status}</td>
             <td className="font-num">{price != null && price > 0 ? price.toPrecision(7) : "等待报价"}<span className="block">{floating != null ? money(floating) + " USDT" : "等待持仓同步"}</span>{task && <span className="block text-[var(--text-muted)]">持仓 {task.position_qty ?? 0} 币</span>}</td>
             <td>{o.plan.entry.toPrecision(7)} / {stopLabel(o)}{o.plan.target_price && <span className="block text-[var(--text-muted)]">净目标 {o.plan.target_price.toPrecision(7)} · ≥{o.plan.min_net_rr}:1</span>}{o.plan.version === "hunter-v4" && <span className="block text-emerald-400">{typeof o.runtime.stop === "number" && (o.plan.direction === "long" ? o.runtime.stop > (o.runtime.entry ?? o.plan.entry) : o.runtime.stop < (o.runtime.entry ?? o.plan.entry)) ? `盈利保护在 ${o.runtime.stop.toPrecision(7)} 平仓` : "初始结构止损保护"} · {o.runtime.swing?.reason ?? "等待持仓趋势判断"}</span>}</td>
             <td>{money(o.net_profit)}<span className="block text-[var(--text-muted)]">{o.runtime.note ?? o.runtime.reason ?? ""}</span>{task && <TaskCloseControl task={task} />}</td>
           </tr>})}</tbody>
         </table></div>
+        {(() => {
+          const cutoff = Date.now()/1000-2*3600
+          const unfilled = g.opportunities.filter(o => o.finished_at && !o.runtime.initial_qty && !o.runtime.entry
+            && Date.parse(o.finished_at)/1000 >= cutoff).slice(-6)
+          if (!unfilled.length) return null
+          return <div className="mt-3 space-y-2" aria-label="最近挂载未成交">
+            <p className="text-xs">最近挂载未成交（2小时内） · 可查看信号图或手动立即开仓</p>
+            {unfilled.map(o => <div key={o.id} className="flex items-center justify-between gap-2 rounded border border-[var(--border)] px-2 py-1.5 text-xs">
+              <span>{o.symbol.toUpperCase()} · {hunterCycleLabel(o.cycle)} · {o.plan.direction === "long" ? "做多" : "做空"}
+                <span className="block text-[var(--text-muted)]">{o.runtime.reason ?? o.runtime.note ?? "挂载后未成交"}</span></span>
+              <span className="flex gap-1 shrink-0">
+                <Button size="sm" variant="outline" onClick={() => setSignalFor(o)}>信号图</Button>
+                <Button size="sm" disabled={manualBusy === o.id || g.status !== "running"} onClick={() => void manualEntry(g.id, o)}>{manualBusy === o.id ? "开仓中…" : "立即开仓"}</Button>
+              </span>
+            </div>)}
+          </div>
+        })()}
       </div>
+      <OpportunitySignalDialog group={g} opportunity={signalFor?.id && g.opportunities.some(o => o.id === signalFor.id) ? signalFor : null} onClose={() => setSignalFor(null)} />
       <p className="text-[11px] text-[var(--text-muted)]">{g.trading_mode === "live" ? "OKX API 执行 · 成交费用及已对账资金费计入收益，模型调用费另计" : "站内模拟研究 · 成交手续费已计入，资金费和模型费尚未模拟结算"}；尚未取得独立盈利验证。停止搜索不会关闭已有持仓保护。</p>
       </div></details>
     </article>})}
