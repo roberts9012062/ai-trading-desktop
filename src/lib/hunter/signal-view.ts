@@ -18,6 +18,8 @@ export interface SignalViewModel {
   maRising: boolean; maFalling: boolean
   longSignal: boolean; shortSignal: boolean
   lastClosedAt: number
+  /** Signal-candle open's distance to its own MA20, in price-percent terms. */
+  ma20GapPct: number | null
 }
 
 /**
@@ -51,6 +53,8 @@ export function buildSignalView(rows: Bar[], period: MacdPeriod, now: number, lo
     longSignal: Boolean(macdMa20Entry(rows, period, now)),
     shortSignal: Boolean(macdMa20ShortEntry(rows, period, now)),
     lastClosedAt: bars.length ? bars[last][0]/1000+seconds : 0,
+    ma20GapPct: last >= 19 && Number.isFinite(ma[last])
+      ? (ma[last]-bars[last][1])/bars[last][1]*100 : null,
   }
   if (last < 19 || points.length === 0) return view
   // Mirror the entry loops: walk back over closed bodies strictly on one side

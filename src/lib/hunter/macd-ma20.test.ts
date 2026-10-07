@@ -69,6 +69,17 @@ describe("MACD dead-cross short with the 2-3 body window under MA20", () => {
     rows.push([last[0]+seconds*1000, close, close+.1, close-.1, close, 100])
     expect(macdMa20ShortEntry(rows,"30m",fixture.now+seconds)?.below_count).toBe(3)
   })
+
+  it("rejects shorts whose MA20 gap exceeds 4% of margin at the given leverage", () => {
+    const rows = mirrored(macdFixture(2,"30m")), last = rows.length-1
+    const ma = rows.slice(last-19,last+1).reduce((s,b)=>s+b[4],0)/20
+    const ratio = (ma-rows[last][1])/rows[last][1]
+    expect(Boolean(macdMa20ShortEntry(rows,"30m",fixture.now,5))).toBe(ratio*5 <= .04)
+    expect(macdMa20ShortEntry(rows,"30m",fixture.now,10)).toBeNull()  // ~0.43% x 10 breaches 4%
+    expect(macdMa20ShortEntry(rows,"30m",fixture.now,1)?.ma20_gap).toBeCloseTo(ma-rows[last][1], 10)
+    expect(macdMa20ShortEntry(rows,"30m",fixture.now)).toBeTruthy()  // no leverage keeps the guard off
+  })
+
   for (const period of ["30m", "60m"] as MacdPeriod[]) {
     it(`${period}: rejects a crossing or touching body but permits an upper wick`, () => {
       const rows = mirrored(macdFixture(2, period)), i = rows.length - 2

@@ -23,7 +23,7 @@ export function macdMa20Entry(rows: Bar[], period: MacdPeriod, now: number) {
     above_count: count, above_basis: "body" as const, entry_kind: "macd_ma20" as const }
 }
 
-export function macdMa20ShortEntry(rows: Bar[], period: MacdPeriod, now: number) {
+export function macdMa20ShortEntry(rows: Bar[], period: MacdPeriod, now: number, leverage?: number) {
   const seconds = MACD_PERIODS[period]
   const bars = closedBars(rows, seconds, now)
   if (bars.length < 100 || now - (bars.at(-1)![0]/1000 + seconds) >= seconds) return null
@@ -38,9 +38,13 @@ export function macdMa20ShortEntry(rows: Bar[], period: MacdPeriod, now: number)
   // Dead-cross regime (not a fresh cross), strictly falling MA20, and the complete
   // streak must be exactly 2-3 candles; four or more never chases the short.
   if (count < 2 || count > 3 || ma[last] >= ma[last-1] || dif[last] >= dea[last]) return null
+  // MA20-distance guard: a mere reversion to the line costing more than 4% of
+  // the margin means the candle stretched too far below — never chase it.
+  const gap = ma[last]-bars[last][1]
+  if (leverage && gap > bars[last][1]*.04/leverage) return null
   const close = bars[last][0]/1000+seconds
   return { direction: "short" as const, entry: prices[last], signal_at: close, expires_at: close+seconds,
-    below_count: count, below_basis: "body" as const, entry_kind: "macd_ma20" as const }
+    below_count: count, below_basis: "body" as const, entry_kind: "macd_ma20" as const, ma20_gap: gap }
 }
 
 export function hunterCycleLabel(cycle: string): string {

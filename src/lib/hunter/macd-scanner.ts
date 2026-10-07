@@ -27,7 +27,7 @@ export async function scanMacdHunter(group: Hunter, abort: AbortSignal): Promise
           const data = await hunterApi.data(group.id, quote.symbol, period, abort)
           inspected++
           const signal = direction === "short"
-            ? macdMa20ShortEntry(data.bars[period] ?? [], period, Date.now()/1000)
+            ? macdMa20ShortEntry(data.bars[period] ?? [], period, Date.now()/1000, group.config.leverage)
             : macdMa20Entry(data.bars[period] ?? [], period, Date.now()/1000)
           if (!signal) continue
           found++

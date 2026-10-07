@@ -99,7 +99,7 @@ export function OpportunitySignalDialog({ group, opportunity, onClose }: {
       {view ? <SignalChart view={view} plan={o.plan} livePrice={livePrice} /> :
         error ? <p role="alert" className="text-xs text-red-400">{error}</p> :
         <p className="text-xs text-[var(--text-muted)]">行情加载中…</p>}
-      {view && <ConditionList view={view} isShort={isShort} />}
+      {view && <ConditionList view={view} isShort={isShort} leverage={group.config.leverage} />}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
         <div>计划入场<span className="block text-base mt-1">{money(o.plan.entry)}</span></div>
         <div>保护止损<span className="block text-base mt-1">{typeof o.plan.stop === "number" ? money(o.plan.stop) : "兜底止损关闭"}</span></div>
@@ -115,7 +115,7 @@ export function OpportunitySignalDialog({ group, opportunity, onClose }: {
   </Dialog>
 }
 
-function ConditionList({ view, isShort }: { view: ReturnType<typeof buildSignalView>; isShort: boolean }) {
+function ConditionList({ view, isShort, leverage }: { view: ReturnType<typeof buildSignalView>; isShort: boolean; leverage: number }) {
   const item = (ok: boolean, text: string) => <p className={ok ? "text-emerald-400" : "text-[var(--text-muted)]"}>
     {ok ? "✓" : "✗"} {text}{ok ? "" : "（未成立）"}</p>
   return <div className="rounded-md border border-[var(--border)] p-3 text-xs space-y-1">
@@ -125,6 +125,8 @@ function ConditionList({ view, isShort }: { view: ReturnType<typeof buildSignalV
       {item(view.maFalling, "MA20 拐头向下：最新已收盘K线的 MA20 低于上一根，持平不算向下")}
       {item(view.streakSide === "short" && (view.streakCount === 2 || view.streakCount === 3),
         `连续 ${view.streakCount} 根实体在 MA20 下方（仅 2–3 根可入场，4 根及以上不追空）`)}
+      {item(view.ma20GapPct != null && view.ma20GapPct*leverage <= 4,
+        `MA20 距离守卫：开盘价距 MA20 ${view.ma20GapPct?.toFixed(3)}% × ${leverage} 倍 = ${view.ma20GapPct != null ? (view.ma20GapPct*leverage).toFixed(2) : "—"}% 保证金，须 ≤ 4%`)}
     </> : <>
       {item(view.macdFreshGolden, "MACD 新金叉：上一根 DIF 不高于 DEA，最新一根高于")}
       {item(view.maRising, "MA20 向上：最新高于上一根，上一根不低于再前一根")}
