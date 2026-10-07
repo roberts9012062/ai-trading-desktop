@@ -1,4 +1,4 @@
-import { MACD_MA20_VERSION, MACD_MA20_NAME, hunterCycleLabel } from "@/lib/hunter/macd-ma20"
+import { MACD_MA20_VERSION, MACD_MA20_NAME, hunterCycleLabel, macdDirectionLabel } from "@/lib/hunter/macd-ma20"
 import { useEffect, useState } from "react"
 import { Crosshair } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -56,7 +56,7 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
       return <article key={g.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4 space-y-3">
       <div className="flex justify-between gap-3 flex-wrap">
         <div><strong className="text-sm">{g.name}</strong><span className="ml-2 text-xs text-[var(--text-muted)]">{labels[g.status]} · {hunterAccountLabel(g.runtime.execution_account?.execution_mode ?? (g.trading_mode === "virtual" ? "virtual" : undefined))} · {g.config.venue.toUpperCase()} · {g.config.leverage ?? 1} 倍{g.config.margin_mode === "cross" ? "全仓" : "逐仓"} · {g.config.brain === "rules" ? "规则" : g.config.brain === "jev" ? "Jev" : "AI 大模型"}</span>
-          <p className="text-xs text-[var(--text-muted)] mt-1">{g.config.strategy_version === MACD_MA20_VERSION ? `${MACD_MA20_NAME} · ${g.config.cycles.map(hunterCycleLabel).join(" / ")} · 仅做多` : g.config.strategy_version === "hunter-v4" ? "波段持有版 · 计划净3:1 / 多周期延续 / 确认反转退出" : g.config.strategy_version === "hunter-v3" ? "机会增强版 · 突破回踩 / 趋势回调 / 短线延续 · 小时覆盖检查" : g.config.strategy_version === "hunter-v2" ? "均衡版 · 突破回踩 / 趋势回调 · 周期独立扫描" : "原版 · 突破回踩"}</p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">{g.config.strategy_version === MACD_MA20_VERSION ? `${MACD_MA20_NAME} · ${g.config.cycles.map(hunterCycleLabel).join(" / ")} · ${macdDirectionLabel(g.config.direction)}` : g.config.strategy_version === "hunter-v4" ? "波段持有版 · 计划净3:1 / 多周期延续 / 确认反转退出" : g.config.strategy_version === "hunter-v3" ? "机会增强版 · 突破回踩 / 趋势回调 / 短线延续 · 小时覆盖检查" : g.config.strategy_version === "hunter-v2" ? "均衡版 · 突破回踩 / 趋势回调 · 周期独立扫描" : "原版 · 突破回踩"}</p>
           <p className="text-xs text-[var(--text-muted)] mt-1 whitespace-pre-line line-clamp-1" title={progress[g.id]}>{g.config.scan_location === "server" ? "服务器托管 · 关闭客户端后继续自动搜索、下单与持仓管理" : progress[g.id] ?? "等待桌面扫描；已挂载持仓由服务器管理"}</p></div>
         <div className="flex gap-2 flex-wrap">
           {(g.status === "running" || g.status === "paused") && <Button size="sm" variant="outline" disabled={busy === g.id || (g.config.scan_location !== "server" && !capabilities?.can_server_host)} title={g.config.scan_location === "server" ? "切换回桌面扫描" : "有效VIP或管理员可服务器托管"} onClick={() => void changeHosting(g.id, g.config.scan_location === "server" ? "desktop" : "server")}>{g.config.scan_location === "server" ? "解除服务器托管" : "挂载到服务器 · VIP"}</Button>}
@@ -74,7 +74,7 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
         {g.runtime.hosting?.blocked && <p className="text-amber-400">{g.runtime.hosting.blocked}</p>}
         {g.config.cycles.map(cycle => { const row = g.runtime.hosting?.cycles[cycle]; return <p key={cycle}>{hunterCycleLabel(cycle)} · {row?.phase === "scanning" ? "正在扫描" : row?.at ? `最近扫描 ${new Date(row.at*1000).toLocaleTimeString("zh-CN")}` : g.status === "running" ? "等待服务器首次扫描" : "扫描已暂停"} · {row?.note ?? "已有持仓继续由服务器管理"}{row?.counts && ` · 信号 ${row.counts.signals ?? 0} / 挂载 ${row.counts.mounted ?? 0}`}</p> })}
       </div>}
-      {g.config.strategy_version === MACD_MA20_VERSION && <p className="text-xs text-[var(--text-muted)]">入场：MACD新金叉＋连续3–4根K线实体（开盘与收盘）在MA20上方，穿线K线不计入＋MA20向上。平仓：兜底收益率阈值优先；技术平仓须MA20拐头向下＋MACD死叉＋连续至少3根已收盘K线实体（开盘与收盘）在各自MA20下方，三项同时成立。{g.blocks.join("；")}</p>}
+      {g.config.strategy_version === MACD_MA20_VERSION && <p className="text-xs text-[var(--text-muted)]">入场：{g.config.direction === "short" ? "MACD死叉状态（不要求刚死叉）＋MA20向下＋连续2–3根K线实体（开盘与收盘）在MA20下方，实体穿线或触线中断计数，达到4根不追空。" : g.config.direction === "both" ? "做多=MACD新金叉＋连续3–4根实体在MA20上方＋MA20向上（超过4根跳过）；做空=MACD死叉状态＋MA20向下＋连续2–3根实体在MA20下方（达到4根不追空）。" : "MACD新金叉＋连续3–4根K线实体（开盘与收盘）在MA20上方，穿线K线不计入＋MA20向上。"}平仓：兜底收益率阈值优先；{g.config.direction === "short" ? "空仓在完整做多信号（MACD新金叉＋MA20向上＋连续3–4根实体在MA20上方）出现时平空，不自动反手。" : g.config.direction === "both" ? "多仓须MA20向下＋MACD死叉＋连续至少3根实体在MA20下方三项同时成立；空仓在完整做多信号出现时平空，不自动反手。" : "技术平仓须MA20拐头向下＋MACD死叉＋连续至少3根实体在MA20下方三项同时成立。"}{g.blocks.join("；")}</p>}
       {!activeOps.length && <p className="text-xs text-[var(--text-muted)]">暂无运行子任务 · {g.status === "running" ? "继续搜索新机会" : "搜索已暂停"} · 已结束任务已从明细清理，成交记录可在订单中查看</p>}
       <details data-testid="hunter-statistics-group" className="rounded-lg border border-[var(--border)] p-3">
       <summary className="cursor-pointer text-xs text-[var(--text-secondary)]">展开猎手明细 · {activeOps.length} 个运行子任务</summary>

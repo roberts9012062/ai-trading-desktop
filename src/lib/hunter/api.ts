@@ -6,7 +6,7 @@ export type HunterCycle = Cycle | MacdPeriod
 export interface HunterConfig {
   name: string; capital?: number; leverage: number; venue: "okx"; margin_mode: "isolated" | "cross"; cycles: HunterCycle[];
   brain: "rules" | "llm" | "jev"; model_id: string | null; rule_fallback: boolean;
-  direction: "long" | "both"; whitelist: string[]; blacklist: string[];
+  direction: "long" | "short" | "both"; whitelist: string[]; blacklist: string[];
   pool_size: number; max_positions: number; scan_seconds: number;
   scan_location?: "desktop" | "server";
   strategy_version?: RuleVersion;

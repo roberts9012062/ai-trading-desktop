@@ -14,6 +14,10 @@ function data(count:number,period:MacdPeriod):HunterData {
   const prices=fixture.prices[String(count) as keyof typeof fixture.prices], seconds=MACD_PERIODS[period]
   return {now:fixture.now,bars:{[period]:prices.map((p,i)=>[(fixture.now-(prices.length-i)*seconds)*1000,p,p+.1,p-.1,p,100])},market:[],market_week:[]}
 }
+function shortData(count:number,period:MacdPeriod):HunterData {
+  const base=data(count,period)
+  return {...base,bars:{[period]:base.bars[period].map(b=>[b[0],300-b[1],300-b[3],300-b[2],300-b[4],b[5]])}}
+}
 describe("independent MACD hunter scanner",()=>{
   beforeEach(()=>{vi.restoreAllMocks();vi.clearAllMocks();useHunterStore.getState().reset();vi.spyOn(Date,"now").mockReturnValue(fixture.now*1000)})
   it("scans 60m even when 30m has already run for five above-MA candles",async()=>{
@@ -41,5 +45,31 @@ describe("independent MACD hunter scanner",()=>{
     expect(hunterApi.universe).not.toHaveBeenCalled()
     expect(hunterApi.data).not.toHaveBeenCalled()
     expect(hunterApi.mount).not.toHaveBeenCalled()
+  })
+  it("mounts a short signal for a short-only hunter within the 2-3 window",async()=>{
+    const g=group();g.config.direction="short";useHunterStore.setState({groups:[g]})
+    vi.mocked(hunterApi.universe).mockResolvedValue([{symbol:"ethusdt",spread:0}] as never)
+    vi.mocked(hunterApi.data).mockImplementation(async (_id,_symbol,period)=>shortData(3,period as MacdPeriod))
+    vi.mocked(hunterApi.mount).mockResolvedValue({id:"mounted",task_id:"task"})
+    vi.mocked(hunterApi.list).mockResolvedValue([g])
+    await scanHunter(g,new AbortController().signal)
+    expect(hunterApi.mount).toHaveBeenCalledWith(g.id,expect.objectContaining({cycle:"30m",direction:"short",entry_kind:"macd_ma20"}),expect.any(AbortSignal))
+  })
+  it("never mounts a short when the hunter is long-only and data only qualifies short",async()=>{
+    const g=group();useHunterStore.setState({groups:[g]})
+    vi.mocked(hunterApi.universe).mockResolvedValue([{symbol:"ethusdt",spread:0}] as never)
+    vi.mocked(hunterApi.data).mockImplementation(async (_id,_symbol,period)=>shortData(2,period as MacdPeriod))
+    await scanHunter(g,new AbortController().signal)
+    expect(hunterApi.mount).not.toHaveBeenCalled()
+  })
+  it("scans both directions for a both-way hunter and mounts the qualifying leg",async()=>{
+    const g=group();g.config.direction="both";useHunterStore.setState({groups:[g]})
+    vi.mocked(hunterApi.universe).mockResolvedValue([{symbol:"ethusdt",spread:0}] as never)
+    vi.mocked(hunterApi.data).mockImplementation(async (_id,_symbol,period)=>shortData(2,period as MacdPeriod))
+    vi.mocked(hunterApi.mount).mockResolvedValue({id:"mounted",task_id:"task"})
+    vi.mocked(hunterApi.list).mockResolvedValue([g])
+    await scanHunter(g,new AbortController().signal)
+    expect(hunterApi.mount).toHaveBeenCalledTimes(1)
+    expect(hunterApi.mount).toHaveBeenCalledWith(g.id,expect.objectContaining({direction:"short"}),expect.any(AbortSignal))
   })
 })

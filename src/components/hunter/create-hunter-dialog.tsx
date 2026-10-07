@@ -92,7 +92,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
       </DialogHeader>
       <div className="rounded-md border border-[var(--border)] p-3 text-xs text-[var(--text-secondary)]">
         当前账户：{capabilities ? hunterAccountLabel(capabilities.execution_mode ?? (capabilities.trading_mode === "virtual" ? "virtual" : undefined)) : "读取中…"}。新策略验证状态：未验证。
-        {config.scan_location === "server" ? "服务器托管后，关闭桌面仍会自动搜索和执行交易。" : "桌面关闭后暂停搜索，服务器继续管理已挂载任务。"}{isMacd ? "按仓位管理设置执行，只做多。" : "杠杆可选 1–50 倍，默认 1 倍；资金可选逐仓或全仓。"}
+        {config.scan_location === "server" ? "服务器托管后，关闭桌面仍会自动搜索和执行交易。" : "桌面关闭后暂停搜索，服务器继续管理已挂载任务。"}{isMacd ? "按仓位管理设置执行，方向按所选做多/做空独立判断。" : "杠杆可选 1–50 倍，默认 1 倍；资金可选逐仓或全仓。"}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1"><Label htmlFor="hunter-profile">入场规则</Label><select id="hunter-profile" className={selectClass} value={config.strategy_version ?? "hunter-v1"} onChange={e => {
@@ -104,15 +104,22 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
           } : isMacd ? { cycles: ["short", "medium", "long"], leverage: 1, margin_mode: "isolated", direction: "both" } : {}) })
         }}>
           <option value={MACD_MA20_VERSION}>{MACD_MA20_NAME}</option><option value="hunter-v4">波段持有版 · 计划净3:1 + 多周期延续 + 确认反转</option><option value="hunter-v3">机会增强版 · 突破回踩 + 回调 + 短线延续</option><option value="hunter-v2">均衡版 · 突破回踩 + 趋势回调</option><option value="hunter-v1">原版 · 突破回踩</option>
-        </select><p className="text-xs text-[var(--text-muted)]">{isMacd ? "30/60分钟分别扫描；MACD(12,26,9)最新收盘刚金叉，连续3–4根K线实体（开盘价和收盘价）在SMA20上方，穿线K线不计入，MA20向上。超过4根跳过。" : config.strategy_version === "hunter-v4" ? "50币双向、多周期趋势延续；服务器按最差限价和全部预计成本复核净3:1空间。趋势未反转可持有浮亏至结构止损；禁止摊平。" : config.strategy_version === "hunter-v3" ? "短线排名前/后50%，增加趋势延续入口；BTC横盘可筛选自身趋势币，逆向趋势或冲击继续拦截。建议50个币＋短线＋双向，按小时显示信号与挂载结果，未达目标会提示；不因超时强制下单。" : "均衡版：排名前/后30%，短线量能1.3倍、信号有效180秒；原版保持原有条件。"} 尚未完成盈利验证。</p></div>
+        </select><p className="text-xs text-[var(--text-muted)]">{isMacd ? (config.direction === "short" ? "30/60分钟分别扫描；MACD(12,26,9)处于死叉状态（不要求刚发生死叉），MA20拐头向下（持平不算），连续2–3根已收盘K线实体（开盘价和收盘价）严格在SMA20下方；实体穿线或触线中断计数，上影线可触线越线；达到4根不追空。" : config.direction === "both" ? "30/60分钟分别扫描；做多=MACD新金叉＋连续3–4根实体在SMA20上方＋MA20向上，超过4根跳过；做空=MACD死叉状态＋MA20向下＋连续2–3根实体在SMA20下方，达到4根不追空。同一时刻只满足其中一个方向。" : "30/60分钟分别扫描；MACD(12,26,9)最新收盘刚金叉，连续3–4根K线实体（开盘价和收盘价）在SMA20上方，穿线K线不计入，MA20向上。超过4根跳过。") : config.strategy_version === "hunter-v4" ? "50币双向、多周期趋势延续；服务器按最差限价和全部预计成本复核净3:1空间。趋势未反转可持有浮亏至结构止损；禁止摊平。" : config.strategy_version === "hunter-v3" ? "短线排名前/后50%，增加趋势延续入口；BTC横盘可筛选自身趋势币，逆向趋势或冲击继续拦截。建议50个币＋短线＋双向，按小时显示信号与挂载结果，未达目标会提示；不因超时强制下单。" : "均衡版：排名前/后30%，短线量能1.3倍、信号有效180秒；原版保持原有条件。"} 尚未完成盈利验证。</p></div>
         <div className="space-y-1"><Label htmlFor="hunter-name">名称</Label><Input id="hunter-name" maxLength={120} value={config.name} onChange={e => patch({ name: e.target.value })} /></div>
         {!isMacd && <><div className="space-y-1"><Label htmlFor="hunter-margin-mode">资金保证金模式</Label><select id="hunter-margin-mode" className={selectClass} value={config.margin_mode} onChange={e => patch({ margin_mode: e.target.value as HunterConfig["margin_mode"] })}>
           <option value="isolated">逐仓</option><option value="cross">全仓</option>
         </select></div>
         <div className="space-y-1"><Label htmlFor="hunter-leverage">杠杆倍率（1–50 倍）</Label><Input id="hunter-leverage" type="number" min={1} max={50} step={1} value={config.leverage} onChange={e => patch({ leverage: Number(e.target.value) })} /></div></>}
         <div className="space-y-1"><Label htmlFor="hunter-venue">行情交易所</Label><Input id="hunter-venue" value="OKX" readOnly /></div>
-        <div className="space-y-1"><Label htmlFor="hunter-direction">交易方向</Label><select disabled={isMacd} id="hunter-direction" className={selectClass} value={config.direction} onChange={e => patch({ direction: e.target.value as HunterConfig["direction"] })}>
-          <option value="long">顺势做多</option><option value="both">顺势双向</option>
+        <div className="space-y-1"><Label htmlFor="hunter-direction">交易方向</Label><select id="hunter-direction" className={selectClass} value={config.direction} onChange={e => patch({ direction: e.target.value as HunterConfig["direction"] })}>
+          {isMacd ? <>
+            <option value="long">做多 · MACD金叉＋实体在MA20上方</option>
+            <option value="short">做空 · MACD死叉＋实体在MA20下方</option>
+            <option value="both">双向 · 多空独立判断</option>
+          </> : <>
+            <option value="long">顺势做多</option>
+            <option value="both">顺势双向</option>
+          </>}
         </select></div>
       </div>
       <section className="space-y-2 rounded-md border border-[var(--border)] p-3">
@@ -160,8 +167,9 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
       {!isMacd && <ProfitLockSettings value={profitLock} onChange={setProfitLock} />}
       {isMacd ? <div className="rounded-md border border-[var(--border)] p-3 text-xs space-y-2">
         <p className="font-medium">平仓标准</p><p>① 兜底收益率达到设置的止盈或止损值，优先全平。</p>
-        <p>② 所属交易周期的 MA20 拐头向下、MACD 处于死叉状态、连续至少3根已收盘K线实体（开盘价和收盘价）都在各自 MA20 下方，三项同时满足才全平。</p>
-        <p>技术指标使用已收盘K线，MA20为20根K线的简单均线。MA20持平不算向下；穿线或触线的K线实体不计入连续根数。技术平仓需要三项同时成立，兜底平仓优先执行。创建后自动开始扫描。</p>
+        {config.direction !== "short" && <p>② 做多：所属交易周期的 MA20 拐头向下、MACD 处于死叉状态、连续至少3根已收盘K线实体（开盘价和收盘价）都在各自 MA20 下方，三项同时满足才全平。</p>}
+        {config.direction !== "long" && <p>② 做空：出现完整做多入场信号（MACD新金叉＋MA20向上＋连续3–4根已收盘K线实体在各自 MA20 上方）时平掉空仓；平空不自动反手开多，做多开仓由做多策略独立判断并遵守仓位、冷静期及重复开仓限制。</p>}
+        <p>技术指标使用已收盘K线，MA20为20根K线的简单均线。MA20持平不算拐头；穿线或触线的K线实体不计入连续根数。持仓后的技术平仓按该笔交易所属周期判断，不混用周期。兜底平仓优先执行。创建后自动开始扫描。</p>
       </div> : <details className="rounded-md border border-[var(--border)] p-3 text-xs space-y-2">
         <summary className="cursor-pointer text-sm">下单、止盈和亏损平仓标准</summary>
         <p>只使用已收盘 K 线：币种趋势、上市时长和流动性合格，相对强弱进入合格区间。{config.strategy_version === "hunter-v4" ? "保留三路短线入口，中长线增加受限趋势延续；重要阻力/支撑阻挡净3:1目标时跳过。" : config.strategy_version === "hunter-v3" ? "短线排名前/后50%，允许BTC横盘，拦截反向趋势及市场冲击；突破回踩、EMA20回调或短线趋势延续收盘确认后申请挂载，中长线保留均衡版条件。" : config.strategy_version === "hunter-v2" ? "排名前/后30%，大盘与币种同向；放量突破回踩或EMA20趋势回调企稳确认后申请挂载。" : "排名前/后20%，大盘与币种同向；放量突破、回踩及收盘确认后申请挂载。"}服务器再次复核报价、成本、风险预算及已有仓位，成本不得超过止损距离的20%。</p>
