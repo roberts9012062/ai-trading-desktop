@@ -193,7 +193,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
       <details className="rounded-md border border-[var(--border)] p-3">
         <summary className="cursor-pointer text-sm">搜索参数</summary>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-          <div><Label htmlFor="hunter-pool">扫描币池数量（5～50）</Label><Input id="hunter-pool" type="number" min={5} max={50} value={config.pool_size} onChange={e => patch({ pool_size: Number(e.target.value) })} /></div>
+          <div><Label htmlFor="hunter-pool">扫描币池数量（5～200）</Label><Input id="hunter-pool" type="number" min={5} max={200} value={config.pool_size} onChange={e => patch({ pool_size: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">按 24 小时成交额从大到小取前 N 个最活跃币种，默认 50；运行中也可在猎手面板随时调整。</p></div>
           <div><Label htmlFor="hunter-slots">最多持仓任务（1～4）</Label><Input id="hunter-slots" type="number" min={1} max={4} value={config.max_positions} onChange={e => patch({ max_positions: Number(e.target.value) })} /></div>
           <div><Label htmlFor="hunter-interval">扫描复查间隔（秒）</Label><Input id="hunter-interval" type="number" min={30} max={3600} value={config.scan_seconds} onChange={e => patch({ scan_seconds: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">{isMacd ? "30/60分钟均按此间隔复查，信号只在各自K线收盘后确认。" : "新版短线按此间隔复查；中线至少5分钟，长线至少30分钟。执行K线收盘后优先更新。"}</p></div>
           <HunterSymbolMultiSelect id="hunter-white" label="白名单" value={config.whitelist} options={symbols}

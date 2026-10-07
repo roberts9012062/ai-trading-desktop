@@ -2,6 +2,7 @@ import { MACD_MA20_VERSION, MACD_MA20_NAME, hunterCycleLabel, macdDirectionLabel
 import { useEffect, useState } from "react"
 import { Crosshair, CandlestickChart } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { useHunterStore } from "@/stores/hunter"
 import { LiveProfitLockControl } from "@/components/ai-trading/form/live-profit-lock-control"
 import { TaskProfitLockStatus } from "@/components/ai-trading/profit-lock-status"
@@ -35,6 +36,7 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
   const [error, setError] = useState<string | null>(null)
   const [signalFor, setSignalFor] = useState<Opportunity | null>(null)
   const [manualBusy, setManualBusy] = useState<string | null>(null)
+  const [poolDraft, setPoolDraft] = useState<Record<string, number>>({})
   useEffect(() => {
     const abort = new AbortController()
     void useHunterStore.getState().refresh(abort.signal).catch(() => {})
@@ -91,6 +93,15 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
       <details data-testid="hunter-statistics-group" className="rounded-lg border border-[var(--border)] p-3">
       <summary className="cursor-pointer text-xs text-[var(--text-secondary)]">展开猎手明细 · {activeOps.length} 个运行子任务</summary>
       <div className="mt-3 space-y-3">
+      {g.config.strategy_version === MACD_MA20_VERSION && <div className="rounded-md border border-[var(--border)] p-3 text-xs flex flex-wrap items-center gap-2" aria-label="扫描币池调整">
+        <span>扫描币池数量（5–200，当前 {g.config.pool_size}）：按 24 小时成交额取最活跃的前 N 个币种，调整后立即生效</span>
+        <Input className="w-24" type="number" min={5} max={200} aria-label="币池数量"
+          value={poolDraft[g.id] ?? g.config.pool_size}
+          onChange={e => setPoolDraft({ ...poolDraft, [g.id]: Number(e.target.value) })} />
+        <Button size="sm" variant="outline" disabled={busy === g.id || g.status === "stopped" || g.status === "stopping"
+          || !(poolDraft[g.id] ?? g.config.pool_size) || (poolDraft[g.id] ?? g.config.pool_size) === g.config.pool_size}
+          onClick={() => void action(g.id, "set_pool", poolDraft[g.id] ?? g.config.pool_size)}>应用币池</Button>
+      </div>}
       {g.config.scan_location !== "server" && (g.config.strategy_version === "hunter-v3" || g.config.strategy_version === "hunter-v4") && <div className="rounded-md border border-[var(--border)] p-3 text-xs space-y-1" aria-label="小时扫描检查">
         {g.runtime.discovery ? <>
           <p>近1小时：规则信号 {g.runtime.discovery.hour_signals} 个（待成本和模型复核） · 服务器已挂载 {g.runtime.discovery.hour_mounted} 个</p>

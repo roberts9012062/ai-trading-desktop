@@ -6,7 +6,7 @@
  * 未成交的挂载机会可一键「立即开仓」。
  */
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { hunterApi, type Hunter, type HunterData, type Opportunity } from "@/lib/hunter/api"
@@ -15,9 +15,13 @@ import { hunterCycleLabel, type MacdPeriod } from "@/lib/hunter/macd-ma20"
 import { useHunterStore } from "@/stores/hunter"
 import { useAITradingStore } from "@/stores/ai-trading"
 
-const UP = "#22c55e", DOWN = "#ef4444", MA_LINE = "#eab308", DIF_LINE = "#3b82f6", DEA_LINE = "#f97316"
+const UP = "#ef4444", DOWN = "#22c55e", MA_LINE = "#eab308", DIF_LINE = "#3b82f6", DEA_LINE = "#f97316"
 const OUTLINE = "#f59e0b"
 const money = (n: number) => n.toLocaleString("zh-CN", { maximumFractionDigits: 6 })
+const countdown = (seconds: number) => {
+  const s = Math.max(0, Math.floor(seconds))
+  return `${String(Math.floor(s/60)).padStart(2, "0")}:${String(s%60).padStart(2, "0")}`
+}
 
 function canManualEntry(group: Hunter, o: Opportunity): boolean {
   return group.status === "running" && Boolean(o.finished_at) && !o.runtime.initial_qty
@@ -28,6 +32,9 @@ export function OpportunitySignalDialog({ group, opportunity, onClose }: {
   group: Hunter; opportunity: Opportunity | null; onClose: () => void
 }) {
   const [data, setData] = useState<HunterData | null>(null)
+  const [ticker, setTicker] = useState<{ price: number; ts_ms: number } | null>(null)
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null)
+  const [, setHeartbeat] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [manualNote, setManualNote] = useState<string | null>(null)
@@ -35,12 +42,25 @@ export function OpportunitySignalDialog({ group, opportunity, onClose }: {
   const o = opportunity
   useEffect(() => {
     if (!o) return
+    const id = setInterval(() => setHeartbeat(t => t+1), 1000)
+    return () => clearInterval(id)
+  }, [o?.id])
+  useEffect(() => {
+    if (!o) return
     const abort = new AbortController()
-    setData(null); setError(null); setManualNote(null)
-    hunterApi.data(group.id, o.symbol, o.cycle as MacdPeriod, abort.signal).then(rows => {
-      if (!abort.signal.aborted) setData(rows)
-    }).catch(e => { if (!abort.signal.aborted) setError(e instanceof Error ? e.message : "行情加载失败") })
-    return () => abort.abort()
+    let alive = true
+    setData(null); setTicker(null); setError(null); setManualNote(null); setUpdatedAt(null)
+    const load = () => {
+      hunterApi.data(group.id, o.symbol, o.cycle as MacdPeriod, abort.signal).then(rows => {
+        if (alive) { setData(rows); setUpdatedAt(Date.now()) }
+      }).catch(e => { if (alive) setError(e instanceof Error ? e.message : "行情加载失败") })
+      hunterApi.universe(group.id, abort.signal).then(list => {
+        if (alive) setTicker(list.find(t => t.symbol === o.symbol) ?? null)
+      }).catch(() => {})
+    }
+    load()
+    const id = setInterval(load, 5000)
+    return () => { alive = false; clearInterval(id); abort.abort() }
   }, [o?.id, group.id])
   const view = useMemo(() => data && o ? buildSignalView(data.bars[o.cycle] ?? [], o.cycle as MacdPeriod, data.now) : null,
     [data, o?.id, o?.cycle])
@@ -59,16 +79,24 @@ export function OpportunitySignalDialog({ group, opportunity, onClose }: {
   if (!o) return null
   const isShort = o.plan.direction === "short"
   const showManual = canManualEntry(group, o)
+  const livePrice = ticker && ticker.price > 0 ? ticker.price : null
+  const nextClose = view ? view.lastClosedAt + (o.cycle === "60m" ? 3600 : 1800) : 0
+  const remaining = nextClose ? nextClose - Date.now()/1000 : 0
   return <Dialog open={Boolean(o)} onOpenChange={v => { if (!v && !busy) onClose() }}>
     <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>{o.symbol.toUpperCase()} · {hunterCycleLabel(o.cycle)} · {isShort ? "做空信号" : "做多信号"}</DialogTitle>
         <DialogDescription>
-          MACD(12,26,9) 与 SMA20 只使用已收盘K线；描边K线为实体严格站上/处于 MA20 {isShort ? "下方" : "上方"}的连续计数，
-          上/下影线可触线。{showManual ? "该机会挂载后未成交，可立即按当前信号开仓。" : ""}
+          每 5 秒自动刷新；MACD(12,26,9) 与 SMA20 只使用已收盘K线，红涨绿跌；描边K线为实体严格站上/处于 MA20 {isShort ? "下方" : "上方"}的连续计数，影线可触线。{showManual ? "该机会挂载后未成交，可立即按当前信号开仓。" : ""}
         </DialogDescription>
       </DialogHeader>
-      {view ? <SignalChart view={view} plan={o.plan} /> :
+      <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs" aria-label="实时状态">
+        <span>实时价 <strong className="font-num">{livePrice != null ? money(livePrice) : "—"}</strong></span>
+        <span className="text-[var(--text-muted)]">最近收盘 {money(o.runtime.last_price ?? view?.points.at(-1)?.close ?? 0)}</span>
+        <span className="text-[var(--text-muted)]">下一根收盘还有 <strong className="font-num">{countdown(remaining)}</strong></span>
+        <span className="text-[var(--text-muted)]">更新于 {updatedAt ? new Date(updatedAt).toLocaleTimeString("zh-CN") : "—"}</span>
+      </div>
+      {view ? <SignalChart view={view} plan={o.plan} livePrice={livePrice} /> :
         error ? <p role="alert" className="text-xs text-red-400">{error}</p> :
         <p className="text-xs text-[var(--text-muted)]">行情加载中…</p>}
       {view && <ConditionList view={view} isShort={isShort} />}
@@ -108,9 +136,8 @@ function ConditionList({ view, isShort }: { view: ReturnType<typeof buildSignalV
   </div>
 }
 
-function SignalChart({ view, plan }: { view: ReturnType<typeof buildSignalView>; plan: Opportunity["plan"] }) {
+function SignalChart({ view, plan, livePrice }: { view: ReturnType<typeof buildSignalView>; plan: Opportunity["plan"]; livePrice: number | null }) {
   const width = 880, priceH = 300, macdH = 110, padL = 8, padR = 64, padY = 8
-  const ref = useRef<HTMLDivElement>(null)
   const points = view.points
   if (points.length < 2) return <p className="text-xs text-[var(--text-muted)]">K线数据不足</p>
   const lows = points.map(p => Math.min(p.low, p.ma20 ?? p.low)), highs = points.map(p => Math.max(p.high, p.ma20 ?? p.high))
@@ -118,6 +145,7 @@ function SignalChart({ view, plan }: { view: ReturnType<typeof buildSignalView>;
   const hasEntry = typeof plan.entry === "number" && plan.entry > 0
   if (hasStop) { lows.push(plan.stop!); highs.push(plan.stop!) }
   if (hasEntry) { lows.push(plan.entry!); highs.push(plan.entry!) }
+  if (livePrice != null) { lows.push(livePrice); highs.push(livePrice) }
   const minP = Math.min(...lows), maxP = Math.max(...highs), spanP = maxP-minP || 1
   const macdVals = points.flatMap(p => [p.dif, p.dea]).filter(Number.isFinite)
   const maxM = Math.max(...macdVals.map(Math.abs), 1e-9)
@@ -129,7 +157,7 @@ function SignalChart({ view, plan }: { view: ReturnType<typeof buildSignalView>;
   const difPath = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${yM(p.dif).toFixed(1)}`).join(" ")
   const deaPath = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${yM(p.dea).toFixed(1)}`).join(" ")
   const last = points[points.length-1]
-  return <div ref={ref} className="rounded-md border border-[var(--border)] p-2 overflow-x-auto" aria-label="信号K线图">
+  return <div className="rounded-md border border-[var(--border)] p-2 overflow-x-auto" aria-label="信号K线图">
     <svg viewBox={`0 0 ${width} ${priceH+macdH+26}`} className="w-full min-w-[640px]" role="img" aria-label={`${plan.direction === "short" ? "做空" : "做多"}信号K线与MACD`}>
       {points.map((p, i) => {
         const up = p.close >= p.open, color = up ? UP : DOWN
@@ -146,6 +174,8 @@ function SignalChart({ view, plan }: { view: ReturnType<typeof buildSignalView>;
       <path d={maPath} fill="none" stroke={MA_LINE} strokeWidth={1.4} />
       {hasEntry && <g><line x1={padL} x2={width-padR} y1={yP(plan.entry!)} y2={yP(plan.entry!)} stroke="#94a3b8" strokeDasharray="5 4" strokeWidth={1} />
         <text x={width-padR+4} y={yP(plan.entry!)+4} fontSize={10} fill="#94a3b8">入场 {money(plan.entry!)}</text></g>}
+      {livePrice != null && <g><line x1={padL} x2={width-padR} y1={yP(livePrice)} y2={yP(livePrice)} stroke="#38bdf8" strokeWidth={1} />
+        <text x={width-padR+4} y={yP(livePrice)+4} fontSize={10} fill="#38bdf8">实时 {money(livePrice)}</text></g>}
       {hasStop && <g><line x1={padL} x2={width-padR} y1={yP(plan.stop!)} y2={yP(plan.stop!)} stroke={DOWN} strokeDasharray="5 4" strokeWidth={1} />
         <text x={width-padR+4} y={yP(plan.stop!)+4} fontSize={10} fill={DOWN}>止损 {money(plan.stop!)}</text></g>}
       <text x={width-padR+4} y={yP(last.close)+4} fontSize={10} fill="#cbd5e1">{money(last.close)}</text>

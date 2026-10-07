@@ -12,7 +12,7 @@ interface HunterState {
   create: (cfg: HunterConfig) => Promise<void>;
   setHosting: (id: string, location: "desktop" | "server") => Promise<void>;
   setProfitLock: (id: string, config: ProfitLockConfig) => Promise<void>;
-  control: (id: string, action: "pause" | "resume" | "stop" | "stop_close" | "upgrade" | "upgrade_adaptive" | "upgrade_swing", poolSize?: number) => Promise<void>;
+  control: (id: string, action: "pause" | "resume" | "stop" | "stop_close" | "upgrade" | "upgrade_adaptive" | "upgrade_swing" | "set_pool", poolSize?: number) => Promise<void>;
   setProgress: (id: string, message: string) => void;
   setWatch: (id: string, cycle: Cycle, entries: HunterWatch[]) => void;
   reset: () => void;
