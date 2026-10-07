@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import fixture from "./macd-ma20-fixtures.json"
+import type { Bar } from "./rules"
 import { scanHunter } from "./scanner"
 import { hunterApi, type Hunter, type HunterData } from "./api"
-import { MACD_PERIODS, MACD_MA20_VERSION, type MacdPeriod } from "./macd-ma20"
+import { MACD_PERIODS, MACD_MA20_VERSION, REBOUND_VERSION, type MacdPeriod } from "./macd-ma20"
 import { useHunterStore } from "@/stores/hunter"
 
 vi.mock("@/stores/ai-trading",()=>({useAITradingStore:{getState:()=>({loadTasks:vi.fn()})}}))
@@ -81,5 +82,33 @@ describe("independent MACD hunter scanner",()=>{
     await scanHunter(g,new AbortController().signal)
     expect(hunterApi.mount).toHaveBeenCalledTimes(1)
     expect(hunterApi.mount).toHaveBeenCalledWith(g.id,expect.objectContaining({direction:"short"}),expect.any(AbortSignal))
+  })
+})
+
+function reboundData(): HunterData {
+  const seconds = 1800, now = fixture.now, start = 100
+  const bars: Bar[] = []
+  for (let i = 0; i < 110; i++) bars.push([(now-(113-i)*seconds)*1000, start, start+.05, start-.05, start, 10] as unknown as Bar)
+  for (const [o, c] of [[100, 95], [95, 89.5], [89.5, 90.2]] as [number, number][]) {
+    bars.push([(now-(3-bars.length+110)*seconds)*1000, o, Math.max(o, c)+.05, Math.min(o, c)-.05, c, 10] as unknown as Bar)
+  }
+  // fix timestamps for the three shaped bars
+  for (let i = 3; i > 0; i--) bars[110+3-i] = [(now-i*seconds)*1000+0, ...bars[110+3-i].slice(1)] as Bar
+  return { now, bars: { "30m": bars, "60m": bars }, market: [], market_week: [] }
+}
+describe("rebound hunter scanner", () => {
+  beforeEach(() => { vi.restoreAllMocks(); vi.clearAllMocks(); useHunterStore.getState().reset(); vi.spyOn(Date, "now").mockReturnValue(fixture.now*1000) })
+  it("mounts rebound long signals with entry_kind rebound", async () => {
+    const g = group()
+    g.config.strategy_version = REBOUND_VERSION
+    g.config.direction = "both"
+    g.config.rebound_threshold_pct = 10
+    useHunterStore.setState({ groups: [g] })
+    vi.mocked(hunterApi.universe).mockResolvedValue([{ symbol: "ethusdt", spread: 0 }] as never)
+    vi.mocked(hunterApi.data).mockImplementation(async () => reboundData())
+    vi.mocked(hunterApi.mount).mockResolvedValue({ id: "m", task_id: "t" })
+    vi.mocked(hunterApi.list).mockResolvedValue([g])
+    await scanHunter(g, new AbortController().signal)
+    expect(hunterApi.mount).toHaveBeenCalledWith(g.id, expect.objectContaining({ cycle: "30m", direction: "long", entry_kind: "rebound" }), expect.any(AbortSignal))
   })
 })

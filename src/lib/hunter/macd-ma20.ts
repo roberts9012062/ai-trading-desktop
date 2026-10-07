@@ -54,3 +54,45 @@ export function hunterCycleLabel(cycle: string): string {
 export function macdDirectionLabel(direction: string | undefined): string {
   return ({ long: "仅做多", short: "仅做空", both: "多空双向" } as Record<string, string>)[direction ?? "long"] ?? "仅做多"
 }
+
+export const REBOUND_VERSION = "hunter-rebound" as const
+export const REBOUND_LONG_NAME = "急跌两根柱体合计超MA20的10%后抢反弹做多"
+export const REBOUND_SHORT_NAME = "急涨两根柱体合计超MA20的10%且第三根递减回落卖空"
+
+function indicatorsFor(rows: Bar[], period: MacdPeriod, now: number) {
+  const seconds = MACD_PERIODS[period]
+  const bars = closedBars(rows, seconds, now)
+  if (bars.length < 100 || now - (bars.at(-1)![0]/1000 + seconds) >= seconds) return null
+  if (bars.some((b, i) => i > 0 && b[0]-bars[i-1][0] !== seconds*1000)) return null
+  const prices = bars.map(b=>b[4])
+  const ma = prices.map((_, i)=>i >= 19 ? prices.slice(i-19, i+1).reduce((a,b)=>a+b, 0)/20 : NaN)
+  return { bars, ma }
+}
+
+/** 反弹做多：前两根合计柱体 ≥ 阈值×MA20 的阴线，第三根已收盘即入场。 */
+export function reboundLongEntry(rows: Bar[], period: MacdPeriod, now: number, threshold = .10) {
+  const data = indicatorsFor(rows, period, now)
+  if (!data) return null
+  const { bars, ma } = data
+  const [b1, b2, b3] = [bars.at(-3)!, bars.at(-2)!, bars.at(-1)!]
+  const down1 = b1[1]-b1[4], down2 = b2[1]-b2[4]
+  if (down1 <= 0 || down2 <= 0 || down1+down2 < threshold*ma.at(-1)!) return null
+  const seconds = MACD_PERIODS[period], close = b3[0]/1000+seconds
+  return { direction: "long" as const, entry: b3[4], signal_at: close, expires_at: close+seconds,
+    entry_kind: "rebound" as const, thrust: down1+down2, thrust_ratio: (down1+down2)/ma.at(-1)! }
+}
+
+/** 反弹做空：前两根合计柱体 ≥ 阈值×MA20 的阳线，第三根递减且距均线距离缩短。 */
+export function reboundShortEntry(rows: Bar[], period: MacdPeriod, now: number, threshold = .10) {
+  const data = indicatorsFor(rows, period, now)
+  if (!data) return null
+  const { bars, ma } = data
+  const [b1, b2, b3] = [bars.at(-3)!, bars.at(-2)!, bars.at(-1)!]
+  const up1 = b1[4]-b1[1], up2 = b2[4]-b2[1]
+  if (up1 <= 0 || up2 <= 0 || up1+up2 < threshold*ma.at(-1)!) return null
+  if (Math.abs(b3[1]-b3[4]) >= Math.min(up1, up2)) return null
+  if (Math.abs(b3[4]-ma.at(-1)!) >= Math.abs(b2[4]-ma.at(-2)!)) return null
+  const seconds = MACD_PERIODS[period], close = b3[0]/1000+seconds
+  return { direction: "short" as const, entry: b3[4], signal_at: close, expires_at: close+seconds,
+    entry_kind: "rebound" as const, thrust: up1+up2, thrust_ratio: (up1+up2)/ma.at(-1)! }
+}

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest"
 import fixture from "./macd-ma20-fixtures.json"
 import aave from "./aave-okx-entry-fixture.json"
-import { macdMa20Entry, macdMa20ShortEntry, MACD_PERIODS, type MacdPeriod } from "./macd-ma20"
+import { macdMa20Entry, macdMa20ShortEntry, reboundLongEntry, reboundShortEntry, MACD_PERIODS, type MacdPeriod } from "./macd-ma20"
 import type { Bar } from "./rules"
 
 export function macdFixture(count: number, period: MacdPeriod, now = fixture.now): Bar[] {
@@ -92,4 +92,36 @@ describe("MACD dead-cross short with the 2-3 body window under MA20", () => {
       expect(macdMa20ShortEntry(rows, period, fixture.now)?.below_basis).toBe("body")
     })
   }
+})
+
+function reboundBars(c1: [number, number], c2: [number, number], c3: [number, number], seconds = 1800, count = 110, now = fixture.now, start = 100) {
+  const rows: Bar[] = []
+  for (let i = 0; i < count; i++) rows.push([(now-(count+3-i)*seconds)*1000, start, start+.05, start-.05, start, 10] as Bar)
+  for (let i = 0; i < 3; i++) {
+    const [o, c] = [c1, c2, c3][i]
+    rows.push([(now-(3-i)*seconds)*1000, o, Math.max(o, c)+.05, Math.min(o, c)-.05, c, 10] as Bar)
+  }
+  return rows
+}
+
+describe("rebound hunter entries", () => {
+  it("longs the third candle after two red candles exceed 10% of MA20 combined", () => {
+    const crash = reboundBars([100, 95], [95, 89.5], [89.5, 90.2])
+    const signal = reboundLongEntry(crash, "30m", fixture.now)
+    expect(signal?.direction).toBe("long")
+    expect(signal?.thrust).toBeCloseTo(10.5, 6)
+    expect(reboundLongEntry(reboundBars([100, 101], [101, 89.5], [89.5, 90.2]), "30m", fixture.now)).toBeNull()
+    expect(reboundLongEntry(reboundBars([100, 96], [96, 92], [92, 92.5]), "30m", fixture.now)).toBeNull()
+    expect(reboundLongEntry(reboundBars([100, 96], [96, 92], [92, 92.5]), "30m", fixture.now, .07)).toBeTruthy()
+  })
+  it("shorts only when the third candle fades and nears MA20", () => {
+    expect(reboundShortEntry(reboundBars([100, 106], [106, 111], [111, 110.9]), "30m", fixture.now)).toBeTruthy()
+    expect(reboundShortEntry(reboundBars([100, 106], [106, 111], [111, 116]), "30m", fixture.now)).toBeNull()
+  })
+  it("ignores stale or gapped data", () => {
+    const crash = reboundBars([100, 95], [95, 89.5], [89.5, 90.2])
+    expect(reboundLongEntry(crash, "30m", fixture.now-1)).toBeNull()
+    expect(reboundLongEntry(crash, "30m", fixture.now+1800)).toBeNull()
+    expect(reboundLongEntry([...crash.slice(0, 50), ...crash.slice(51)], "30m", fixture.now)).toBeNull()
+  })
 })

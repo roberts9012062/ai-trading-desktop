@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button"
 import { hunterApi, type Hunter, type HunterData, type Opportunity } from "@/lib/hunter/api"
 import { buildSignalView } from "@/lib/hunter/signal-view"
-import { hunterCycleLabel, type MacdPeriod } from "@/lib/hunter/macd-ma20"
+import { hunterCycleLabel, REBOUND_VERSION, type MacdPeriod } from "@/lib/hunter/macd-ma20"
 import { useHunterStore } from "@/stores/hunter"
 import { useAITradingStore } from "@/stores/ai-trading"
 
@@ -62,8 +62,8 @@ export function OpportunitySignalDialog({ group, opportunity, onClose }: {
     const id = setInterval(load, 5000)
     return () => { alive = false; clearInterval(id); abort.abort() }
   }, [o?.id, group.id])
-  const view = useMemo(() => data && o ? buildSignalView(data.bars[o.cycle] ?? [], o.cycle as MacdPeriod, data.now) : null,
-    [data, o?.id, o?.cycle])
+  const view = useMemo(() => data && o ? buildSignalView(data.bars[o.cycle] ?? [], o.cycle as MacdPeriod, data.now, 90,
+    (group.config.rebound_threshold_pct ?? 10)/100) : null, [data, o?.id, o?.cycle, group.config.rebound_threshold_pct])
   const manual = async () => {
     if (!o) return
     setBusy(true); setError(null); setManualNote(null)
@@ -99,7 +99,13 @@ export function OpportunitySignalDialog({ group, opportunity, onClose }: {
       {view ? <SignalChart view={view} plan={o.plan} livePrice={livePrice} /> :
         error ? <p role="alert" className="text-xs text-red-400">{error}</p> :
         <p className="text-xs text-[var(--text-muted)]">行情加载中…</p>}
-      {view && <ConditionList view={view} isShort={isShort} leverage={group.config.leverage} />}
+      {view && (o.plan.entry_kind === "rebound" || group.config.strategy_version === REBOUND_VERSION
+        ? <div className="rounded-md border border-[var(--border)] p-3 text-xs space-y-1">
+            <p className="font-medium">反弹策略条件（当前盘面）</p>
+            <p className={view.reboundSignal ? "text-emerald-400" : "text-[var(--text-muted)]"}>{view.reboundSignal ? "✓" : "✗"} 反弹入场条件{view.reboundSignal ? "成立" : "未成立（柱体合计/递减/距离缩短不满足）"}</p>
+            <p className="text-[var(--text-muted)]">最近收盘K线：{view.lastClosedAt ? new Date(view.lastClosedAt*1000).toLocaleString("zh-CN") : "无"}；盈利由锁利管理，亏损由兜底止损保护。</p>
+          </div>
+        : <ConditionList view={view} isShort={isShort} leverage={group.config.leverage} />)}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
         <div>计划入场<span className="block text-base mt-1">{money(o.plan.entry)}</span></div>
         <div>保护止损<span className="block text-base mt-1">{typeof o.plan.stop === "number" ? money(o.plan.stop) : "兜底止损关闭"}</span></div>

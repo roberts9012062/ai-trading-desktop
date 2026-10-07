@@ -1,4 +1,4 @@
-import { MACD_MA20_VERSION } from "./macd-ma20"
+import { MACD_MA20_VERSION, REBOUND_VERSION } from "./macd-ma20"
 import { scanMacdHunter } from "./macd-scanner"
 import { hunterApi, type Hunter, type HunterData } from "./api"
 import { CYCLES, findSignal, trend, validateLeverage, type Direction } from "./rules"
@@ -12,7 +12,7 @@ let stopRuntime: (() => void) | null = null
 
 export async function scanHunter(group: Hunter, abort: AbortSignal): Promise<void> {
   if (group.config.scan_location === "server") return
-  if (group.config.strategy_version === MACD_MA20_VERSION) return scanMacdHunter(group, abort)
+  if (group.config.strategy_version === MACD_MA20_VERSION || group.config.strategy_version === REBOUND_VERSION) return scanMacdHunter(group, abort)
   const started = Date.now(), summaries: string[] = []
   const progress = (text: string) => { if (!abort.aborted) useHunterStore.getState().setProgress(group.id, text) }
   if (group.config.venue !== "okx") { progress("多周期猎手行情仅支持 OKX，已停止新机会搜索"); return }

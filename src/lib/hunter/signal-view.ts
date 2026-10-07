@@ -1,5 +1,5 @@
 import { closedBars, ema, type Bar } from "./rules"
-import { MACD_PERIODS, macdMa20Entry, macdMa20ShortEntry, type MacdPeriod } from "./macd-ma20"
+import { MACD_PERIODS, macdMa20Entry, macdMa20ShortEntry, reboundLongEntry, reboundShortEntry, type MacdPeriod } from "./macd-ma20"
 
 /** One closed candle with the indicator overlays the detail chart draws. */
 export interface SignalViewPoint {
@@ -17,6 +17,7 @@ export interface SignalViewModel {
   macdGolden: boolean; macdFreshGolden: boolean; macdDead: boolean
   maRising: boolean; maFalling: boolean
   longSignal: boolean; shortSignal: boolean
+  reboundLong: boolean; reboundShort: boolean; reboundSignal: boolean
   lastClosedAt: number
   /** Signal-candle open's distance to its own MA20, in price-percent terms. */
   ma20GapPct: number | null
@@ -27,7 +28,7 @@ export interface SignalViewModel {
  * plus the exact candle range whose bodies form the qualifying streak, so the
  * dialog can outline the candles that make the signal true.
  */
-export function buildSignalView(rows: Bar[], period: MacdPeriod, now: number, lookback = 90): SignalViewModel {
+export function buildSignalView(rows: Bar[], period: MacdPeriod, now: number, lookback = 90, reboundThreshold = .10): SignalViewModel {
   const seconds = MACD_PERIODS[period]
   const bars = closedBars(rows, seconds, now)
   const points: SignalViewPoint[] = []
@@ -52,6 +53,9 @@ export function buildSignalView(rows: Bar[], period: MacdPeriod, now: number, lo
     maFalling: last >= 2 && ma[last] < ma[last-1],
     longSignal: Boolean(macdMa20Entry(rows, period, now)),
     shortSignal: Boolean(macdMa20ShortEntry(rows, period, now)),
+    reboundLong: Boolean(reboundLongEntry(rows, period, now, reboundThreshold)),
+    reboundShort: Boolean(reboundShortEntry(rows, period, now, reboundThreshold)),
+    reboundSignal: false,
     lastClosedAt: bars.length ? bars[last][0]/1000+seconds : 0,
     ma20GapPct: last >= 19 && Number.isFinite(ma[last])
       ? (ma[last]-bars[last][1])/bars[last][1]*100 : null,
@@ -74,5 +78,6 @@ export function buildSignalView(rows: Bar[], period: MacdPeriod, now: number, lo
     view.streakCount = count
     view.streakFrom = Math.max(0, points.length-count)
   }
+  view.reboundSignal = view.reboundLong || view.reboundShort
   return view
 }
