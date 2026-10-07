@@ -39,6 +39,16 @@ describe("independent MACD hunter scanner",()=>{
     await scanHunter({...g,blocks:["亏损冷静期"]},new AbortController().signal)
     expect(hunterApi.universe).toHaveBeenCalledTimes(1)
   })
+
+  it("scans wide-spread symbols too; execution guards stay at mount time",async()=>{
+    const g=group();useHunterStore.setState({groups:[g]})
+    vi.mocked(hunterApi.universe).mockResolvedValue([{symbol:"ethusdt",spread:.02}] as never)
+    vi.mocked(hunterApi.data).mockImplementation(async (_id,_symbol,period)=>data(2,period as MacdPeriod))
+    await scanHunter(g,new AbortController().signal)
+    expect(hunterApi.data).toHaveBeenCalled()
+    expect(hunterApi.mount).not.toHaveBeenCalled()
+  })
+
   it("does not run desktop scans for server-hosted hunters",async()=>{
     const g=group();g.config.scan_location="server";useHunterStore.setState({groups:[g]})
     await scanHunter(g,new AbortController().signal)

@@ -13,16 +13,19 @@ export async function scanMacdHunter(group: Hunter, abort: AbortSignal): Promise
     : group.config.direction === "short" ? ["short"] as const : ["long"] as const
   const scansShort = group.config.direction === "both" || group.config.direction === "short"
   const rows = await hunterApi.universe(group.id, abort)
+  const periods = group.config.cycles.filter((x): x is MacdPeriod=>x in MACD_PERIODS)
+  const planned = rows.length*periods.length
   let found = 0, failures = 0, rejection = "", inspected = 0
-  for (const period of group.config.cycles.filter((x): x is MacdPeriod=>x in MACD_PERIODS)) {
-    for (const quote of rows) {
+  for (const period of periods) {
+    for (let i = 0; i < rows.length; i++) {
+      const quote = rows[i]
       const current = useHunterStore.getState().groups.find(g=>g.id === group.id)
       if (abort.aborted || current?.status !== "running" || current.config.scan_location === "server") return
-      if (active.some(o=>o.symbol === quote.symbol) || quote.spread > .001) continue
+      if (active.some(o=>o.symbol === quote.symbol)) continue
       for (const direction of directions) {
         if (abort.aborted) return
-        progress(`${hunterCycleLabel(period)}扫描 ${quote.symbol.toUpperCase()} · ${direction === "short"
-          ? "MACD死叉状态 / 连续2–3根实体在MA20下方 / MA20向下" : "MACD新金叉 / 连续3–4根实体在MA20上方 / MA20向上"}`)
+        progress(`${hunterCycleLabel(period)} (${inspected+1}/${planned}) 扫描 ${quote.symbol.toUpperCase()} · ${direction === "short"
+          ? "MACD死叉状态 / 连续2–3根实体在MA20下方 / MA20向下 / 距均线≤4%保证金" : "MACD新金叉 / 连续3–4根实体在MA20上方 / MA20向上"}`)
         try {
           const data = await hunterApi.data(group.id, quote.symbol, period, abort)
           inspected++
@@ -47,7 +50,7 @@ export async function scanMacdHunter(group: Hunter, abort: AbortSignal): Promise
       }
     }
   }
-  progress(`本轮完成：${inspected} 个币种/周期检查，${found} 个新信号，${failures} 次读取或挂载失败。${rejection || (scansShort
-    ? "等待下一次新金叉或死叉信号；做多超过4根、做空达到4根站上/下MA20的行情跳过。"
+  progress(`本轮完成：检查 ${inspected}/${planned} 个币种/周期组合（币池 ${rows.length}），${found} 个新信号，${failures} 次读取或挂载失败。${rejection || (scansShort
+    ? "等待下一次新金叉或死叉信号；做多超过4根、做空达到4根或距离均线过远的行情跳过。"
     : "等待下一次新金叉；超过4根站上MA20的行情跳过。")}`)
 }
