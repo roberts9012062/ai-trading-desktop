@@ -17,7 +17,7 @@ import { HunterSymbolMultiSelect } from "./symbol-multi-select"
 import { ProfitLockSettings } from "@/components/ai-trading/form/profit-lock-settings"
 import { DEFAULT_PROFIT_LOCK, buildProfitLockConfig } from "@/lib/profit-lock"
 import { CYCLES, validateLeverage, type Cycle } from "@/lib/hunter/rules"
-import { PIVOT_VERSION, type HunterPivotParams } from "@/lib/hunter/pivot"
+import { PIVOT_VERSION, DEFAULT_PIVOT_PARAMS, type HunterPivotParams } from "@/lib/hunter/pivot"
 import { DEFAULT_QUANT_PARAMS, buildStrategyParams, validateQuantParams } from "@/lib/quant-strategy"
 import { KindParams } from "@/components/ai-trading/form/create-quant-params"
 
@@ -34,7 +34,8 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
   const isRebound = config.strategy_version === REBOUND_VERSION
   const isPivot = config.strategy_version === PIVOT_VERSION
   const isNewStrategy = isRebound || isPivot
-  const [pivotQuant, setPivotQuant] = useState({ ...DEFAULT_QUANT_PARAMS, quantKind: "swing_pivot" as const })
+  const [pivotQuant, setPivotQuant] = useState({ ...DEFAULT_QUANT_PARAMS, quantKind: "swing_pivot" as const,
+    swingMinAmplitude: DEFAULT_PIVOT_PARAMS.min_amplitude_pct, swingMinAtrMult: DEFAULT_PIVOT_PARAMS.min_atr_mult })
   const [profitLock, setProfitLock] = useState(DEFAULT_PROFIT_LOCK)
   const [models, setModels] = useState<AIModel[]>([])
   const [symbols, setSymbols] = useState<HunterSymbol[]>([])
@@ -130,7 +131,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
             ...(!toNew && fromNew ? { cycles: ["short", "medium", "long"], leverage: 1, margin_mode: "isolated", direction: "both" } : {}) })
         }}>
           {HUNTER_STRATEGIES.map(strategy => <option key={strategy.version} value={strategy.version}>{strategy.label}</option>)}
-        </select><p className="text-xs text-[var(--text-muted)]">{isPivot ? "枢轴波段：固定60分钟扫描波谷多信号、波峰空信号，参数与创建量化交易一致；仅最近2根K线内可入场，批量下单最多同时10单。兜底优先，锁利自动开启，枢轴失效或反向枢轴退出。每币亏损两次冷静至次日北京时间06:00。" : isRebound ? `均值回归：做多=前两根阴线柱体合计≥${config.rebound_threshold_pct ?? 10}%×MA20，第二根收盘（第三根开盘）立即挂单买入；做空=前两根阳线柱体合计≥${config.rebound_threshold_pct ?? 10}%×MA20，第三根实际收阴、低于第二根收盘，实体递减且距均线距离缩短才卖。做多价格须在MA20下方，做空须在上方；执行前限制追价并复核回归空间。盈利由锁利跟踪平仓，亏损由兜底止损保护；无技术指标平仓、不滚仓。` : "趋势猎手V4：多周期趋势延续；服务器按最差限价和全部预计成本复核净3:1空间。趋势未反转可持有浮亏至结构止损；禁止摊平。V1–V3已合并，不再单独提供。"} 尚未完成盈利验证。</p></div>
+        </select><p className="text-xs text-[var(--text-muted)]">{isPivot ? "枢轴波段：固定60分钟扫描波谷多信号、波峰空信号，参数与创建量化交易一致；仅确认信号出现后的最近2根K线内可入场，右侧须有已收盘阳线转强做多或阴线转弱做空，报价维持确认方向。新建默认振幅1% / ATR1倍，参数可调；批量下单最多同时10单。兜底优先，锁利自动开启，枢轴失效或反向枢轴退出。每币亏损两次冷静至次日北京时间06:00。" : isRebound ? `均值回归：做多=前两根阴线柱体合计≥${config.rebound_threshold_pct ?? 10}%×MA20，第二根收盘（第三根开盘）立即挂单买入；做空=前两根阳线柱体合计≥${config.rebound_threshold_pct ?? 10}%×MA20，第三根实际收阴、低于第二根收盘，实体递减且距均线距离缩短才卖。做多价格须在MA20下方，做空须在上方；执行前限制追价并复核回归空间。盈利由锁利跟踪平仓，亏损由兜底止损保护；无技术指标平仓、不滚仓。` : "趋势猎手V4：多周期趋势延续；服务器按最差限价和全部预计成本复核净3:1空间。趋势未反转可持有浮亏至结构止损；禁止摊平。V1–V3已合并，不再单独提供。"} 尚未完成盈利验证。</p></div>
         <div className="space-y-1"><Label htmlFor="hunter-name">名称</Label><Input id="hunter-name" maxLength={120} value={config.name} onChange={e => patch({ name: e.target.value })} /></div>
         {!isNewStrategy && <><div className="space-y-1"><Label htmlFor="hunter-margin-mode">资金保证金模式</Label><select id="hunter-margin-mode" className={selectClass} value={config.margin_mode} onChange={e => patch({ margin_mode: e.target.value as HunterConfig["margin_mode"] })}>
           <option value="isolated">逐仓</option><option value="cross">全仓</option>
@@ -183,7 +184,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
             onChange={e => patch({ rebound_threshold_pct: Number(e.target.value) })} />
           <p className="text-xs text-[var(--text-muted)]">做多：前两根阴线柱体高度之和 ≥ 该百分比×MA20，第二根收盘（第三根开盘）立即挂单买入，信号只在第三根K线内有效；做空：前两根阳线柱体之和 ≥ 该百分比×MA20 且第三根递减、距均线距离缩短才触发。默认 10%，多空共用同一设置。</p>
         </section>}
-        {isPivot && <section className="space-y-3 rounded-md border border-[var(--border)] p-3"><p className="text-sm font-medium">枢轴波段参数 · 与量化交易共用</p><KindParams quant={pivotQuant} onQuant={q => setPivotQuant({ ...q, quantKind: "swing_pivot" })} symbol="" timeframe="60m" /><p className="text-xs text-[var(--text-muted)]">只接收最近2根K线内的信号。同币不重复下单；每笔平仓后自动进入历史。</p></section>}
+        {isPivot && <section className="space-y-3 rounded-md border border-[var(--border)] p-3"><p className="text-sm font-medium">枢轴波段参数 · 与量化交易共用</p><KindParams quant={pivotQuant} onQuant={q => setPivotQuant({ ...q, quantKind: "swing_pivot" })} symbol="" timeframe="60m" /><p className="text-xs text-[var(--text-muted)]">按预确认参数P识别信号，从确认出现时计龄，保留确认后的最近2根K线。同币不重复下单；每笔平仓后自动进入历史。</p></section>}
         <CreateTaskRules value={bottomRules} onChange={setBottomRules} showAiOptions={false} bottomOnly checkSeconds={5} cooldownScope={isPivot ? "symbol" : "hunter"} cooldownRequired={isPivot} />
       </>}
       {!isNewStrategy && <fieldset className="space-y-2"><legend className="text-sm font-medium">交易周期与风险预算</legend>
@@ -232,7 +233,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
           <div><Label htmlFor="hunter-pool">扫描币池数量（5～200）</Label><Input id="hunter-pool" type="number" min={5} max={200} value={config.pool_size} onChange={e => patch({ pool_size: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">按 24 小时成交额从大到小取前 N 个最活跃币种，默认 50；运行中也可在猎手面板随时调整。</p></div>
           <div><Label htmlFor="hunter-slots">最多同时创建单数（1～{isPivot ? 10 : 4}）</Label><Input id="hunter-slots" type="number" min={1} max={isPivot ? 10 : 4} value={config.max_positions} onChange={e => patch({ max_positions: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">已挂载、待成交及持仓均占用名额；完成后自动释放。</p></div>
-          <div><Label htmlFor="hunter-interval">扫描复查间隔（秒）</Label><Input id="hunter-interval" type="number" min={30} max={3600} value={config.scan_seconds} onChange={e => patch({ scan_seconds: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">{isPivot ? "60分钟K线按此间隔复查，包括参数允许的盘中预确认；挂载及下单前均复核最近2根K线的信号。" : isRebound ? "各周期按此间隔独立复查，使用已收盘K线，执行前再次复核信号和报价。" : "新版短线按此间隔复查；中线至少5分钟，长线至少30分钟。执行K线收盘后优先更新。"}</p></div>
+          <div><Label htmlFor="hunter-interval">扫描复查间隔（秒）</Label><Input id="hunter-interval" type="number" min={30} max={3600} value={config.scan_seconds} onChange={e => patch({ scan_seconds: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">{isPivot ? "60分钟K线按此间隔复查，包括参数允许的盘中预确认；挂载及下单前均复核确认出现后的最近2根K线信号。" : isRebound ? "各周期按此间隔独立复查，使用已收盘K线，执行前再次复核信号和报价。" : "新版短线按此间隔复查；中线至少5分钟，长线至少30分钟。执行K线收盘后优先更新。"}</p></div>
           <HunterSymbolMultiSelect id="hunter-white" label="白名单" value={config.whitelist} options={symbols}
             onChange={whitelist => patch({ whitelist })} max={50} loading={symbolsLoading} error={symbolsError}
             onRetry={() => setSymbolsReload(n => n + 1)} hint="留空不限制币种；选中后只搜索这些币种，最多 50 个。" />

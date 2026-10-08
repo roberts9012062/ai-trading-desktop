@@ -14,7 +14,11 @@ function group(): Hunter {
     pool_size: 50, pivot_params: fixture[0].params,
   }, opportunities: [] } as unknown as Hunter
 }
-function data(index = 0): HunterData { return { now: fixture[index].now, bars: { "60m": fixture[index].rows as Bar[] }, market: [], market_week: [] } }
+function data(index = 1): HunterData {
+  const direction = fixture[index].direction
+  const rows = fixture[index].rows.map((b, i) => i >= fixture[index].rows.length-2 ? [b[0], b[4]+(direction === "short" ? 2 : -2), ...b.slice(2)] : b)
+  return { now: fixture[index].now, bars: { "60m": rows as Bar[] }, market: [], market_week: [] }
+}
 describe("pivot batch scanner", () => {
   beforeEach(() => { vi.restoreAllMocks(); vi.clearAllMocks(); useHunterStore.getState().reset(); vi.spyOn(Date, "now").mockReturnValue(fixture[0].now*1000) })
   function setup(g: Hunter, count = 15) {
@@ -40,7 +44,7 @@ describe("pivot batch scanner", () => {
     expect(hunterApi.data).not.toHaveBeenCalledWith(g.id, "coin1usdt", "60m", expect.anything())
   })
   it("shares one snapshot for long/short and mounts short pivots", async () => {
-    const g = group(); setup(g, 1); vi.mocked(hunterApi.data).mockResolvedValue(data(5))
+    const g = group(); setup(g, 1); vi.mocked(hunterApi.data).mockResolvedValue(data(6))
     await scanHunter(g, new AbortController().signal)
     expect(hunterApi.data).toHaveBeenCalledTimes(1)
     expect(hunterApi.mount).toHaveBeenCalledWith(g.id, expect.objectContaining({ direction: "short" }), expect.any(AbortSignal))

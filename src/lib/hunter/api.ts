@@ -1,7 +1,7 @@
 import type { Bar, Cycle, Direction, RuleVersion, EntryKind } from "./rules"
 import type { ProfitLockConfig, ProfitLockUpdateResult } from "../ai-trading-api"
 import type { MacdPeriod } from "./macd-ma20"
-import type { HunterPivotParams, PivotEvidence } from "./pivot"
+import type { HunterPivotParams, PivotEvidence, PivotConfirmation } from "./pivot"
 export type HunterCycle = Cycle | MacdPeriod
 
 export interface HunterConfig {
@@ -25,8 +25,8 @@ export interface HunterConfig {
 }
 export interface Opportunity {
   id: string; task_id: string | null; symbol: string; cycle: HunterCycle; status: string;
-  plan: { entry: number; stop: number | null; quantity: number; risk_budget?: number; direction: Direction; leverage?: number; margin?: number; margin_mode?: "isolated" | "cross"; entry_kind?: EntryKind | "macd_ma20" | "rebound" | "swing_pivot"; version?: RuleVersion; target_price?: number; min_net_rr?: number; manual_entry?: boolean; thrust?: number; threshold?: number; pivot_params?: HunterPivotParams; entry_evidence?: PivotEvidence };
-  runtime: { stop?: number | null; last_price?: number; reason?: string; note?: string; unrealized?: number; entry?: number; initial_qty?: number; technical_exit?: string; net_peak_r?: number; swing?: { regime: string; reason: string } };
+  plan: { entry: number; stop: number | null; quantity: number; risk_budget?: number; direction: Direction; leverage?: number; margin?: number; margin_mode?: "isolated" | "cross"; entry_kind?: EntryKind | "macd_ma20" | "rebound" | "swing_pivot"; version?: RuleVersion; target_price?: number; min_net_rr?: number; manual_entry?: boolean; thrust?: number; threshold?: number; pivot_params?: HunterPivotParams; entry_evidence?: PivotEvidence; pivot_confirmation?: PivotConfirmation };
+  runtime: { stop?: number | null; last_price?: number; reason?: string; note?: string; exit_required?: string; unrealized?: number; entry?: number; initial_qty?: number; technical_exit?: string; net_peak_r?: number; swing?: { regime: string; reason: string } };
   net_profit: number; finished_at: string | null; created_at?: string | null;
 }
 export interface Hunter {

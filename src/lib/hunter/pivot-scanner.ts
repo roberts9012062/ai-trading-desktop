@@ -1,5 +1,5 @@
 import { hunterApi, type Hunter } from "./api"
-import { PIVOT_VERSION, pivotEntry } from "./pivot"
+import { PIVOT_VERSION, pivotEntry, pivotConfirmation } from "./pivot"
 import { useHunterStore } from "@/stores/hunter"
 import { useAITradingStore } from "@/stores/ai-trading"
 import type { Direction } from "./rules"
@@ -37,7 +37,11 @@ export async function scanPivotHunter(group: Hunter, abort: AbortSignal): Promis
         progress(`60分钟枢轴 · 扫描 ${scanned}/${pool.length} · ${symbol.toUpperCase()}`)
         for (const direction of directions) {
           const signal = pivotEntry(data.bars["60m"] ?? [], Date.now()/1000, group.config.pivot_params, direction)
-          if (signal) results[index].push({ symbol, direction, signal_at: signal.signal_at })
+          if (signal) {
+            const { reason } = pivotConfirmation(data.bars["60m"] ?? [], Date.now()/1000, signal, direction)
+            if (reason) rejection = `${symbol.toUpperCase()} · ${reason}`
+            else results[index].push({ symbol, direction, signal_at: signal.signal_at })
+          }
         }
       } catch (error) {
         if (!valid()) return
@@ -65,5 +69,5 @@ export async function scanPivotHunter(group: Hunter, abort: AbortSignal): Promis
   }
   if (!valid()) return
   if (mounted) await useAITradingStore.getState().loadTasks({ silent: true })
-  progress(`60分钟枢轴：扫描 ${scanned}/${pool.length}，本轮挂载 ${mounted} 单（最多同时10单），失败 ${failures} 次。${rejection || "等待最近2根K线内的多空信号。"}`)
+  progress(`60分钟枢轴：扫描 ${scanned}/${pool.length}，本轮挂载 ${mounted} 单（最多同时10单），失败 ${failures} 次。${rejection || "等待按P确认出现后的最近2根K线多空信号。"}`)
 }

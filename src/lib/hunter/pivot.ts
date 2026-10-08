@@ -8,10 +8,10 @@ export interface HunterPivotParams {
 }
 export const DEFAULT_PIVOT_PARAMS: HunterPivotParams = {
   alternate: true, left: 3, right: 3, min_right_live: 1,
-  min_amplitude_pct: 1.5, min_atr_mult: 1.5, atr_period: 14,
+  min_amplitude_pct: 1.0, min_atr_mult: 1.0, atr_period: 14,
 }
 
-/** Same fractal calculation and two-bar entry window as quant pivot. */
+/** Same fractal calculation and confirmation-relative entry window as quant. */
 export function pivotEntry(rows: Bar[], now: number, params = DEFAULT_PIVOT_PARAMS, direction: Direction = "long") {
   const unique = [...new Map(rows.map(b => [b[0], b])).values()].sort((a, b) => a[0]-b[0])
   if (unique.some((b, i) => b.length < 6 || !b.slice(0, 6).every(Number.isFinite) || b[0]/1000 > now
@@ -28,13 +28,26 @@ export function pivotEntry(rows: Bar[], now: number, params = DEFAULT_PIVOT_PARA
     alternate: params.alternate, minRightLive: params.min_right_live,
     minAmplitudePct: params.min_amplitude_pct, minAtrMult: params.min_atr_mult, atrPeriod: params.atr_period,
   }).at(-1)
-  if (!point || point.side !== direction || bars.length-1-point.index > 2) return null
+  if (!point || point.side !== direction) return null
+  const age = bars.length-1-point.index-params.min_right_live
+  if (age < 0 || age > 2) return null
   const signal_at = Date.parse(point.time)/1000
-  const expires_at = signal_at+(formal ? 4 : 3)*3600
+  const expires_at = signal_at+(params.min_right_live+(formal ? 4 : 3))*3600
   return now < expires_at ? { signal_at, expires_at, point } : null
 }
 
 export interface PivotEvidence {
   candles: { time: string; open: number; high: number; low: number; close: number; volume: number }[];
   pivot: PivotSignalPoint;
+}
+
+export interface PivotConfirmation { direction: Direction; time: string; open: number; close: number; previous_close: number }
+export function pivotConfirmation(rows: Bar[], now: number, signal: { signal_at: number }, direction: Direction): { confirmation: PivotConfirmation | null; reason: string | null } {
+  const bars = [...new Map(rows.map(b => [b[0], b])).values()].sort((a, b) => a[0]-b[0])
+  const i = bars.findLastIndex(b => b[0]/1000+3600 <= now)
+  if (i <= 0 || bars[i][0]/1000 <= signal.signal_at) return { confirmation: null, reason: "枢轴右侧尚无已收盘反转K线，等待确认" }
+  const b = bars[i], prev = bars[i-1], sign = direction === "long" ? 1 : -1
+  if (sign*(b[4]-b[1]) <= 0 || sign*(b[4]-prev[4]) <= 0) return { confirmation: null, reason: direction === "long" ? "波谷右侧仍为阴线或未收盘转强，跳过做多" : "波峰右侧仍为阳线或未收盘转弱，跳过做空" }
+  if (sign*(bars.at(-1)![4]-b[4]) < 0) return { confirmation: null, reason: "报价已回到反转确认收盘价的不利一侧，跳过枢轴入场" }
+  return { confirmation: { direction, time: new Date(b[0]).toISOString(), open: b[1], close: b[4], previous_close: prev[4] }, reason: null }
 }
