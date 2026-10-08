@@ -70,6 +70,7 @@ export default function OrdersPage(): React.JSX.Element {
   const submitting = usePaperTradingStore((s) => s.submitting)
   const lastMessage = usePaperTradingStore((s) => s.lastMessage)
   const error = usePaperTradingStore((s) => s.error)
+  const historyError = usePaperTradingStore((s) => s.historyError)
   const refresh = usePaperTradingStore((s) => s.refresh)
   const cancel = usePaperTradingStore((s) => s.cancel)
   const cancelAllPending = usePaperTradingStore((s) => s.cancelAllPending)
@@ -142,6 +143,12 @@ export default function OrdersPage(): React.JSX.Element {
         </div>
       )}
 
+      {historyError && (
+        <div role="status" className="mb-2 text-xs rounded px-3 py-2 bg-amber-500/10 text-amber-300">
+          {historyError}。已保留本账号上次记录，请刷新重试。
+        </div>
+      )}
+
       <Tabs defaultValue="pending" className="flex flex-col h-full">
         <TabsList>
           <TabsTrigger value="pending">
@@ -179,7 +186,7 @@ export default function OrdersPage(): React.JSX.Element {
             rows={history}
             showCancel={false}
             submitting={false}
-            emptyText="暂无历史委托"
+            emptyText={historyError ? '历史委托暂时无法更新，请刷新重试。' : '暂无历史委托'}
           />
         </TabsContent>
 

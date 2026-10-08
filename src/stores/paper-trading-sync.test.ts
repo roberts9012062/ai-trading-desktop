@@ -3,7 +3,7 @@ import { usePaperTradingStore } from './paper-trading'
 import { useAuthStore } from './auth'
 import * as api from '@/lib/live-api'
 import type { User } from '@/types'
-import type { PaperPositionItem } from '@/lib/paper-api'
+import type { PaperPositionItem, PaperOrderItem } from '@/lib/paper-api'
 
 vi.mock('@/lib/live-api', async original => ({...await original<typeof import('@/lib/live-api')>(), getLiveAccountApi:vi.fn(),getLiveOrdersApi:vi.fn(),getLivePositionsApi:vi.fn(),placeLiveOrderApi:vi.fn()}))
 const refresh=usePaperTradingStore.getState().refresh
@@ -76,4 +76,17 @@ it('a late full refresh cannot overwrite a newer pushed position refresh',async(
  await refresh({sections:['positions']})
  slow.resolve([{...position,id:'old'}]);await old
  expect(usePaperTradingStore.getState().positions).toEqual([position])
+})
+it('keeps same-account history on a failed update and isolates its error from trading',async()=>{
+ const old={id:'past',symbol:'btcusdt',status:'filled',filled_qty:1} as PaperOrderItem
+ usePaperTradingStore.setState({orders:[old]})
+ vi.mocked(api.getLiveOrdersApi).mockImplementation((_v,history)=>history?Promise.reject('connection reset'):Promise.resolve([]))
+ await refresh({sections:['orders']})
+ expect(usePaperTradingStore.getState().orders).toEqual([old])
+ expect(usePaperTradingStore.getState().error).toBeNull()
+ expect(usePaperTradingStore.getState().historyError).toContain('connection reset')
+ vi.mocked(api.getLiveOrdersApi).mockResolvedValue([])
+ await refresh({sections:['orders']})
+ expect(usePaperTradingStore.getState().historyError).toBeNull()
+ expect(usePaperTradingStore.getState().orders).toEqual([])
 })

@@ -46,6 +46,7 @@ export function OrderList(): React.JSX.Element {
   const orders = usePaperTradingStore((s) => s.orders)
   const mode = usePaperTradingStore((s) => s.mode)
   const loading = usePaperTradingStore((s) => s.loading)
+  const historyError = usePaperTradingStore((s) => s.historyError)
   const submitting = usePaperTradingStore((s) => s.submitting)
   const refresh = usePaperTradingStore((s) => s.refresh)
   const cancel = usePaperTradingStore((s) => s.cancel)
@@ -93,6 +94,7 @@ export function OrderList(): React.JSX.Element {
           </Button>
         </div>
       </div>
+      {historyError && <p role="status" className="px-3 py-2 text-xs text-amber-300">{historyError}。已保留本账号上次记录，请刷新重试。</p>}
       <Table>
         <TableHeader>
           <TableRow>

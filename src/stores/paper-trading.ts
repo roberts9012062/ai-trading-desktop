@@ -19,6 +19,7 @@ import {
   getLiveOrdersApi,
   getLivePositionsApi,
   getStoredVenue,
+  liveErrorMessage,
   placeLiveOrderApi,
   storeVenue,
   type TradingVenue,
@@ -83,6 +84,7 @@ interface PaperTradingState {
   loading: boolean
   submitting: boolean
   error: string | null
+  historyError: string | null
   lastMessage: string | null
   loaded: boolean
   liveSyncConnected: boolean
@@ -135,19 +137,20 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
   loading: false,
   submitting: false,
   error: null,
+  historyError: null,
   lastMessage: null,
   loaded: false,
   liveSyncConnected: false,
   liveSyncAt: 0,
   lastRefreshAt: 0,
 
-  clearMessage: () => set({ error: null, lastMessage: null }),
+  clearMessage: () => set({ error: null, historyError: null, lastMessage: null }),
 
   setVenue: (venue) => {
     refreshGeneration++
     liveReadErrors.clear()
     storeVenue(venue)
-    set({ venue, orders: [], positions: [], account: null, loaded: false, liveSyncConnected: false, liveSyncAt: 0 })
+    set({ venue, orders: [], positions: [], account: null, loaded: false, historyError: null, liveSyncConnected: false, liveSyncAt: 0 })
     void get().refresh()
   },
 
@@ -161,6 +164,7 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
       ledgers: [],
       loading: false,
       error: null,
+      historyError: null,
       lastMessage: null,
       loaded: false,
       submitting: false,
@@ -203,11 +207,18 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
               if (currentPart('orders')) { liveReadErrors.delete('orders');set({ orders: mergeLiveOrders(open, get().orders) }) }
               return open
             }),
-            getLiveOrdersApi(venue, true).then(history => { if (currentPart('orders')) liveReadErrors.delete('history');return history }).catch(e => { if (currentPart('orders')) liveReadErrors.set('history', e instanceof Error ? e.message : '历史委托查询失败');return [] as PaperOrderItem[] }),
+            getLiveOrdersApi(venue, true).then(history => { if (currentPart('orders')) liveReadErrors.delete('history');return history }).catch(e => {
+              if (!currentPart('orders')) return [] as PaperOrderItem[]
+              liveReadErrors.set('history', `历史委托更新失败：${liveErrorMessage(e, '网络连接异常')}`)
+              return get().orders
+            }),
           ])
             .then(([open, history]) => { if (currentPart('orders')) set({ orders: mergeLiveOrders(open, history) }) }).catch(e => failed('orders', e)) : Promise.resolve(),
         ])
-        if (current()) set({ mode, venue, ledgers: [], loaded: true, error: [...liveReadErrors.values()].join('；') || null, ...(full ? { loading: false, lastRefreshAt: Date.now() } : {}) })
+        if (current()) set({ mode, venue, ledgers: [], loaded: true,
+          error: [...liveReadErrors].filter(([part]) => part !== 'history').map(([, message]) => message).join('；') || null,
+          historyError: liveReadErrors.get('history') || null,
+          ...(full ? { loading: false, lastRefreshAt: Date.now() } : {}) })
         return
       }
       const [account, ordersRes, positionsRes, ledgersRes] = await Promise.all([

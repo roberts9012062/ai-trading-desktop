@@ -8,6 +8,17 @@ import type { PaperAccountSummary, PaperOrderItem, PaperPositionItem } from "@/l
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
 
+export function liveErrorMessage(error: unknown, fallback = '交易请求失败'): string {
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error === 'string' && error.trim()) return error.trim()
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') return error.message
+  return fallback
+}
+
+class LiveRequestError extends Error {
+  constructor(message: string, readonly retryable = false) { super(message) }
+}
+
 /** 带鉴权的 JSON 请求（与 paper-api 同款） */
 async function liveRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token =
@@ -19,20 +30,27 @@ async function liveRequest<T>(path: string, options: RequestInit = {}): Promise<
   if (token) {
     headers["Authorization"] = `Bearer ${token}`
   }
-  const response = await fetch(`${API_BASE}${path}`, { ...options, headers })
-  if (response.status === 401 && typeof window !== "undefined") {
-    window.location.href = "/login"
-    throw new Error("认证过期")
-  }
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "请求失败" }))
-    let detailText = `请求失败: ${response.status}`
-    if (typeof error?.detail === "string") {
-      detailText = error.detail
+  try {
+    const response = await fetch(`${API_BASE}${path}`, { ...options, headers })
+    if (response.status === 401 && typeof window !== "undefined") {
+      window.location.href = "/login"
+      throw new LiveRequestError("认证过期")
     }
-    throw new Error(detailText)
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      let detailText = `请求失败: ${response.status}`
+      if (typeof error?.detail === "string") {
+        detailText = error.detail
+      }
+      throw new LiveRequestError(detailText, [408, 500, 502, 503, 504].includes(response.status))
+    }
+    return await response.json() as T
+  } catch (error) {
+    if (error instanceof LiveRequestError) throw error
+    const message = liveErrorMessage(error)
+    const cancelled = options.signal?.aborted || (error instanceof Error && error.name === 'AbortError') || /request cancel(?:led|ed)/i.test(message)
+    throw new LiveRequestError(message, !cancelled)
   }
-  return response.json() as Promise<T>
 }
 
 /** 交易所标识 */
@@ -190,9 +208,21 @@ export async function getLiveOrdersApi(
   venue: string,
   history = false
 ): Promise<PaperOrderItem[]> {
-  const res = await liveRequest<{ orders: Array<Record<string, unknown>> }>(
-    `/api/live/orders?venue=${venue}&history=${history ? "true" : "false"}`
-  )
+  const read = async () => {
+    const response = await liveRequest<{ orders: Array<Record<string, unknown>> }>(
+      `/api/live/orders?venue=${venue}&history=${history ? "true" : "false"}`
+    )
+    if (!Array.isArray(response.orders)) throw new LiveRequestError('委托查询响应格式错误')
+    return response
+  }
+  let res: Awaited<ReturnType<typeof read>>
+  try { res = await read() } catch (error) {
+    // Read-only history can recover from a transient Rust transport/body error.
+    // Submission, cancellation and authorization failures are never retried.
+    if (!history || !(error instanceof LiveRequestError) || !error.retryable) throw error
+    await new Promise(resolve => setTimeout(resolve, 250))
+    res = await read()
+  }
   return res.orders.map((o, i) => ({
     id: o.order_kind === "algo" ? `algo:${o.algo_id ?? o.order_id ?? o.id}` : String(o.id ?? o.order_id ?? `${venue}-${i}`),
     symbol: String(o.symbol),
