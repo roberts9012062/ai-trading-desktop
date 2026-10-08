@@ -23,6 +23,15 @@ describe("MACD new cross with the complete MA20 entry window", () => {
       if (signal) expect(signal.above_count).toBe(count)
     })
   }
+  it("accepts a stale golden state within the 3-4 body window", () => {
+    for (const period of ["30m", "60m"] as MacdPeriod[]) {
+      const rows = macdFixture(3, period), seconds = MACD_PERIODS[period]
+      const last = rows[rows.length-1], close = last[4]+.2
+      rows.push([last[0]+seconds*1000, close, close+.1, close-.1, close, 100])
+      const signal = macdMa20Entry(rows, period, fixture.now+seconds)
+      expect(signal?.above_count).toBe(4)  // cross is one candle old now — still enters
+    }
+  })
   it("ignores an unfinished cross and stale/gapped OHLC data", () => {
     const bars = macdFixture(3,"30m")
     expect(macdMa20Entry(bars,"30m",fixture.now-1)).toBeNull()

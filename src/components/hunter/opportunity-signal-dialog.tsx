@@ -134,7 +134,7 @@ function ConditionList({ view, isShort, leverage }: { view: ReturnType<typeof bu
       {item(view.ma20GapPct != null && view.ma20GapPct*leverage <= 4,
         `MA20 距离守卫：开盘价距 MA20 ${view.ma20GapPct?.toFixed(3)}% × ${leverage} 倍 = ${view.ma20GapPct != null ? (view.ma20GapPct*leverage).toFixed(2) : "—"}% 保证金，须 ≤ 4%`)}
     </> : <>
-      {item(view.macdFreshGolden, "MACD 新金叉：上一根 DIF 不高于 DEA，最新一根高于")}
+      {item(view.macdGolden, "MACD 处于金叉状态：DIF 高于 DEA（不要求刚发生）")}
       {item(view.maRising, "MA20 向上：最新高于上一根，上一根不低于再前一根")}
       {item(view.streakSide === "long" && (view.streakCount === 3 || view.streakCount === 4),
         `连续 ${view.streakCount} 根实体在 MA20 上方（仅 3–4 根可入场，超过 4 根跳过）`)}

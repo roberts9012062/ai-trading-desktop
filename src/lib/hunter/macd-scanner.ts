@@ -29,7 +29,7 @@ export async function scanMacdHunter(group: Hunter, abort: AbortSignal): Promise
         progress(`${hunterCycleLabel(period)} (${inspected+1}/${planned}) 扫描 ${quote.symbol.toUpperCase()} · ${rebound
           ? (direction === "short" ? `急涨两根柱体≥${group.config.rebound_threshold_pct ?? 10}%MA20 / 第三根递减` : `急跌两根柱体≥${group.config.rebound_threshold_pct ?? 10}%MA20 / 第二根收盘立即买`)
           : direction === "short"
-            ? "MACD死叉状态 / 连续2–3根实体在MA20下方 / MA20向下 / 距均线≤4%保证金" : "MACD新金叉 / 连续3–4根实体在MA20上方 / MA20向上"}`)
+            ? "MACD死叉状态 / 连续2–3根实体在MA20下方 / MA20向下 / 距均线≤4%保证金" : "MACD金叉状态（不要求刚金叉） / 连续3–4根实体在MA20上方 / MA20向上"}`)
         try {
           const data = await hunterApi.data(group.id, quote.symbol, period, abort)
           inspected++
