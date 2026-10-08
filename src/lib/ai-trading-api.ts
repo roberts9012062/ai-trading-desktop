@@ -192,6 +192,7 @@ export interface AITradingTask {
   position_direction?: string | null
   /** 持仓手数 */
   position_qty?: number | null
+  position_sync_status?: "reconciling" | "unavailable" | null
   /** 开仓均价 */
   position_avg_price?: number | null
   /** 最新价（服务端 Redis 行情） */

@@ -10,6 +10,7 @@ import { wavePositionKey, wavePositionStatus, type EquityTraces } from "./equity
 import { dayWaveSamples } from "./equity-wave-day"
 import { useWaveDay } from "./use-wave-day"
 import type { Hunter } from "@/lib/hunter/api"
+import { comparisonTasks } from "@/lib/hunter/task-visibility"
 
 interface EquityChartProps {
   tasks: AITradingTask[]
@@ -24,9 +25,10 @@ export function EquityChart({ tasks, series, traces = {}, profitBars = [], hunte
   const day = useWaveDay()
   const quotes = useMarketStore((s) => s.quotes)
   const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null)
-  const chartTasks = useMemo(() => tasks.filter(t => wavePositionStatus(t) !== "flat" && traces[t.id]?.positionKey === wavePositionKey(t) && traces[t.id]?.samples.length > 0), [tasks, traces])
+  const chartTasks = useMemo(() => tasks.filter(t => wavePositionStatus(t) !== "flat" && (wavePositionStatus(t) === "unknown" || traces[t.id]?.positionKey === wavePositionKey(t)) && traces[t.id]?.samples.length > 0), [tasks, traces])
+  const legendTasks = useMemo(() => comparisonTasks(tasks, hunters), [tasks, hunters])
   const values = useMemo(() => new Map(chartTasks.map(t => [t.id, taskPnlFromQuotes(t, quotes).pnl])), [chartTasks, quotes])
-  const leader = chartTasks.reduce<AITradingTask | null>((best, task) => !best || values.get(task.id)! > values.get(best.id)! ? task : best, null)
+  const leader = chartTasks.filter(t => wavePositionStatus(t) === "open").reduce<AITradingTask | null>((best, task) => !best || values.get(task.id)! > values.get(best.id)! ? task : best, null)
   const pointCount = chartTasks.reduce((count, task) => count + dayWaveSamples(traces[task.id].samples, day).length, 0)
   const activeHighlight = chartTasks.some(t => t.id === highlightTaskId) ? highlightTaskId : null
 
@@ -52,7 +54,7 @@ export function EquityChart({ tasks, series, traces = {}, profitBars = [], hunte
         </div>
       </div>
       <EquityWavePlot tasks={chartTasks} traces={traces} highlightTaskId={activeHighlight} day={day} />
-      <EquityLegend tasks={chartTasks} allTasks={tasks} hunters={hunters} series={series} profitBars={profitBars} highlightTaskId={activeHighlight} onHighlightChange={setHighlightTaskId} />
+      <EquityLegend tasks={legendTasks} allTasks={tasks} hunters={hunters} series={series} profitBars={profitBars} highlightTaskId={activeHighlight} onHighlightChange={setHighlightTaskId} />
     </div>
   </div>
 }

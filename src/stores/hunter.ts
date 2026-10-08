@@ -38,8 +38,18 @@ export const useHunterStore = create<HunterState>((set) => ({
     const started = generation
     try {
       const groups = await hunterApi.list(signal)
-      if (!signal?.aborted && started === generation) set(s => ({ groups, error: null, loaded: true,
-        watches: Object.fromEntries(Object.entries(s.watches).filter(([id]) => groups.some(g => g.id === id && g.status === "running"))) }))
+      if (!signal?.aborted && started === generation) {
+        set(s => ({ groups, error: null, loaded: true,
+          watches: Object.fromEntries(Object.entries(s.watches).filter(([id]) => groups.some(g => g.id === id && g.status === "running"))) }))
+        // A hosted mount may arrive before the task-list poll. Fetch missing
+        // children immediately so both panels can resolve the same task IDs.
+        void import("@/stores/ai-trading").then(m => {
+          if (signal?.aborted || started !== generation) return
+          const store = m.useAITradingStore.getState()
+          const ids = new Set(store.tasks.map(t => t.id))
+          if (groups.some(g => g.opportunities.some(o => !o.finished_at && o.task_id && !ids.has(o.task_id)))) return store.loadTasks({ silent: true })
+        }).catch(() => {})
+      }
     } catch (e) {
       if (!signal?.aborted && started === generation) set({ error: e instanceof Error ? e.message : "猎手加载失败", loaded: true })
       throw e

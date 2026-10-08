@@ -55,6 +55,7 @@ interface LegendRow {
   symbol: string
   footnote: string
   value: number
+  valuePending?: boolean
   color: string
 }
 
@@ -104,12 +105,18 @@ export function EquityLegend({
         )
         let tagText = "空仓"
         let tagClass = "bg-white/5 text-[var(--text-muted)]"
-        if (task.position_direction === "long") {
+        const valuePending = Boolean(task.position_sync_status)
+        if (valuePending) {
+          tagText = task.position_sync_status === "reconciling" ? "持仓待对账" : "持仓读取中断"
+          tagClass = "bg-amber-500/15 text-amber-400"
+        } else if (task.position_direction === "long" && (task.position_qty ?? 0) > 0) {
           tagText = `多 ${fmtQty(Number(task.position_qty ?? 0))} 币`
           tagClass = "bg-red-500/15 text-up"
-        } else if (task.position_direction === "short") {
+        } else if (task.position_direction === "short" && (task.position_qty ?? 0) > 0) {
           tagText = `空 ${fmtQty(Number(task.position_qty ?? 0))} 币`
           tagClass = "bg-emerald-500/15 text-down"
+        } else if (task.strategy_type === "multi_cycle_hunter") {
+          tagText = "等待成交"
         }
         return {
           taskId: task.id,
@@ -128,7 +135,8 @@ export function EquityLegend({
               ? ` · 开 ${fmtPx(Number(task.position_avg_price))}`
               : ""
           }`,
-          value: last,
+          value: valuePending ? 0 : last,
+          valuePending,
           color,
         }
       })
@@ -189,7 +197,7 @@ export function EquityLegend({
     const childTotal = group.children.reduce((sum, child) => sum + child.value, 0)
     const value = mode === "total" ? hunterProfitTotals(group.hunter, {realized: childTotal, unrealized: 0}).totalPnl : childTotal
     const row = { ...group.children[0], taskId: group.id, displayName: group.hunter.name, modelId: null, providerName: null, icon: null, strategyType: "multi_cycle_hunter", tagText: `${visibleChildren.length} 个运行子任务`, tagClass: "bg-sky-500/15 text-sky-300", symbol: "", symbolName: "猎手收益汇总", footnote: "点击展开各币收益明细", value }
-    return { ...group, visibleChildren, row }
+    return { ...group, visibleChildren, row: { ...row, valuePending: mode === "floating" && group.children.some(child => child.valuePending) } }
   }).filter(group => !group.hunter || group.hunter.status !== "stopped" || group.visibleChildren.length > 0).sort((a, b) => b.row.value - a.row.value), [rows, allTasks, hunters, mode])
   const maxAbs = useMemo(() => {
     let m = 1
@@ -210,7 +218,7 @@ export function EquityLegend({
         </TabButton>
         <span className="ml-auto text-[10px] text-[var(--text-muted)]">
           {mode === "floating"
-            ? "当前持仓浮动盈亏（不含已实现）"
+            ? "持仓浮盈与猎手运行任务（待成交／待对账单列）"
             : "已实现 + 持仓浮盈"}
         </span>
       </div>
@@ -372,7 +380,7 @@ function LegendCard({
           last === 0 && "text-[var(--text-muted)]",
         )}
       >
-        {formatMoney(last)}
+        {row.valuePending ? "--" : formatMoney(last)}
       </div>
 
       <div className="mt-1.5 h-1 rounded-full bg-white/5 overflow-hidden">

@@ -9,6 +9,7 @@ export const WAVE_GAP_MS = 15000
 
 /** Contradictory/missing position fields are unknown, never confirmation of a close. */
 export function wavePositionStatus(task: AITradingTask): "open" | "flat" | "unknown" {
+  if (task.position_sync_status) return "unknown"
   const qty = task.position_qty
   if (qty != null && Number.isFinite(qty)) {
     if (qty > 0 && (task.position_direction === "long" || task.position_direction === "short")) return "open"

@@ -4,8 +4,10 @@ import { hunterApi, type Hunter, type HunterConfig } from "@/lib/hunter/api"
 import { useAiMarketStore } from "./ai-market"
 vi.mock("./ai-market", () => ({ useAiMarketStore: { getState: () => ({ loadTasks: refreshWatchTasks }) } }))
 const { refreshWatchTasks } = vi.hoisted(() => ({ refreshWatchTasks: vi.fn().mockResolvedValue(undefined) }))
+const aiTasks = vi.hoisted(() => ({ tasks: [] as { id: string }[], loadTasks: vi.fn().mockResolvedValue(undefined) }))
+vi.mock("@/stores/ai-trading", () => ({ useAITradingStore: { getState: () => aiTasks } }))
 vi.mock("@/lib/hunter/api", () => ({ hunterApi: { list: vi.fn(), create: vi.fn(), control: vi.fn(), hosting: vi.fn() } }))
-beforeEach(() => { vi.clearAllMocks(); useHunterStore.getState().reset() })
+beforeEach(() => { vi.clearAllMocks(); aiTasks.tasks = []; useHunterStore.getState().reset() })
 
 it("never restores an old session's groups after logout or mode change", async () => {
   let resolve!: (groups: Hunter[]) => void
@@ -50,4 +52,14 @@ it("discards a late hosting response after logout", async () => {
   resolve({ id: "previous-user" } as Hunter)
   await expect(pending).rejects.toThrow("会话")
   expect(useHunterStore.getState().groups).toEqual([])
+})
+
+it("refreshes newly hosted child IDs before the task poll and skips known children", async () => {
+  vi.mocked(hunterApi.list).mockResolvedValue([{ id: "hunter", status: "running", opportunities: [{ task_id: "new", finished_at: null }] }] as Hunter[])
+  await useHunterStore.getState().refresh()
+  await vi.waitFor(() => expect(aiTasks.loadTasks).toHaveBeenCalledWith({ silent: true }))
+  aiTasks.loadTasks.mockClear(); aiTasks.tasks = [{ id: "new" }]
+  await useHunterStore.getState().refresh()
+  await new Promise(resolve => setTimeout(resolve, 20))
+  expect(aiTasks.loadTasks).not.toHaveBeenCalled()
 })
