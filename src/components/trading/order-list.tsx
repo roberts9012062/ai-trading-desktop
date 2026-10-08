@@ -22,6 +22,7 @@ import {
 import { Loader2 } from "lucide-react"
 import type { PaperOrderItem } from "@/lib/paper-api"
 import { canCancelLiveOrder } from "@/lib/live-order-merge"
+import { hasFreshLiveSync } from '@/lib/live-trading-sync'
 
 function statusLabel(status: string): string {
   const map: Record<string, string> = {
@@ -55,7 +56,7 @@ export function OrderList(): React.JSX.Element {
   useEffect(() => {
     void refresh()
     const timer = setInterval(() => {
-      void refresh()
+      if (!hasFreshLiveSync()) void refresh()
     }, 10_000)
     return () => clearInterval(timer)
   }, [refresh])

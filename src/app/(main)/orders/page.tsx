@@ -1,4 +1,5 @@
 "use client"
+import { hasFreshLiveSync } from '@/lib/live-trading-sync'
 
 import { NumericInput } from "@/components/ui/numeric-input"
 import { usePaperTradingStore } from "@/stores/paper-trading"
@@ -77,7 +78,7 @@ export default function OrdersPage(): React.JSX.Element {
   useEffect(() => {
     void refresh()
     const timer = setInterval(() => {
-      void refresh()
+      if (!hasFreshLiveSync()) void refresh()
     }, 10_000)
     return () => clearInterval(timer)
   }, [refresh])

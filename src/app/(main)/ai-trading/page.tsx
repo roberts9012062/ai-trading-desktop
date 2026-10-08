@@ -94,10 +94,10 @@ export default function AITradingPage(): React.JSX.Element {
     if (!shouldPoll) return
     const taskTimer = setInterval(() => {
       void loadTasks({ silent: true })
-    }, 1000)
+    }, 5000)
     const profitTimer = setInterval(() => {
       void loadProfitBars({ silent: true })
-    }, 1000)
+    }, 5000)
     const equityTimer = setInterval(() => {
       void loadEquity()
     }, 5000)

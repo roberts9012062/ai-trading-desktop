@@ -20,6 +20,7 @@ import {
 import { Search, Loader2 } from "lucide-react"
 import type { PaperPositionItem } from "@/lib/paper-api"
 import { positionDisplay } from "@/lib/position-pnl"
+import { hasFreshLiveSync } from '@/lib/live-trading-sync'
 
 type Source = "manual" | "ai" | "quant"
 
@@ -72,7 +73,7 @@ export default function PositionsPage(): React.JSX.Element {
     void loadTasks({ silent: true })
     // 定期刷新持仓（手数/保证金随成交变化）；现价与浮亏由全局行情 WS 每秒推送的 quote 驱动更新
     const timer = setInterval(() => {
-      void refresh()
+      if (!hasFreshLiveSync()) void refresh()
     }, 10000)
     return () => clearInterval(timer)
   }, [refresh, loadTasks])

@@ -38,6 +38,16 @@ import {
   type PlacePaperOrderRequest,
 } from "@/lib/paper-api"
 import { useAuthStore } from "@/stores/auth"
+import { RefreshCoordinator } from '@/lib/refresh-coordinator'
+
+const refreshCoordinator = new RefreshCoordinator()
+const liveReadErrors = new Map<string, string>()
+const liveReadVersions = new Map<string, number>()
+let refreshGeneration = 0
+function refreshOwner(): string {
+  const user = useAuthStore.getState().user
+  return JSON.stringify([refreshGeneration, user?.id, user?.trading_mode, getStoredVenue(), typeof window === 'undefined' ? '' : window.__QH_API_BASE__])
+}
 
 /** 下单入参（面板 / 持仓平仓共用） */
 export interface PlaceInput {
@@ -75,11 +85,14 @@ interface PaperTradingState {
   error: string | null
   lastMessage: string | null
   loaded: boolean
+  liveSyncConnected: boolean
+  liveSyncAt: number
+  lastRefreshAt: number
   /** 清空账户/委托/持仓内存态（切换账号/查询失败时防上一账号数据残留） */
   reset: () => void
 
   setVenue: (venue: TradingVenue) => void
-  refresh: () => Promise<void>
+  refresh: (options?: { afterCurrent?: boolean; sections?: Array<'account' | 'positions' | 'orders'> }) => Promise<void>
   place: (input: PlaceInput) => Promise<PaperOrderItem | null>
   cancel: (orderId: string) => Promise<void>
   cancelAllPending: () => Promise<void>
@@ -124,16 +137,23 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
   error: null,
   lastMessage: null,
   loaded: false,
+  liveSyncConnected: false,
+  liveSyncAt: 0,
+  lastRefreshAt: 0,
 
   clearMessage: () => set({ error: null, lastMessage: null }),
 
   setVenue: (venue) => {
+    refreshGeneration++
+    liveReadErrors.clear()
     storeVenue(venue)
-    set({ venue, orders: [], positions: [], account: null, loaded: false })
+    set({ venue, orders: [], positions: [], account: null, loaded: false, liveSyncConnected: false, liveSyncAt: 0 })
     void get().refresh()
   },
 
-  reset: () =>
+  reset: () => {
+    refreshGeneration++
+    liveReadErrors.clear()
     set({
       account: null,
       orders: [],
@@ -143,38 +163,51 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
       error: null,
       lastMessage: null,
       loaded: false,
-    }),
+      submitting: false,
+      liveSyncConnected: false,
+      liveSyncAt: 0,
+      lastRefreshAt: 0,
+    })
+  },
 
-  refresh: async () => {
+  refresh: (options) => {
+    const owner = refreshOwner()
+    const sections = new Set(options?.sections ?? ['account', 'positions', 'orders'])
+    const full = sections.size === 3
+    return refreshCoordinator.run(owner+':'+[...sections].sort().join(','), async () => {
+    if (owner !== refreshOwner()) return
     const mode = currentMode()
-    set({ loading: true, error: null, mode })
+    const current = () => owner === refreshOwner()
+    if (full || mode !== 'live') set({ loading: true, error: null, mode })
     try {
       if (mode === "live") {
         const venue = getStoredVenue()
-        let ordersError: string | null = null
-        const [account, openOrders, historyOrders, positionsRes] =
-          await Promise.all([
-            getLiveAccountApi(venue),
-            getLiveOrdersApi(venue, false).catch((e: unknown) => {
-              ordersError =
-                e instanceof Error ? e.message : "实盘挂单查询失败"
-              return [] as PaperOrderItem[]
+        const versions = new Map([...sections].map(part => {
+          const version = (liveReadVersions.get(part) ?? 0) + 1
+          liveReadVersions.set(part, version)
+          return [part, version] as const
+        }))
+        const currentPart = (part: 'account' | 'positions' | 'orders') => current() && versions.get(part) === liveReadVersions.get(part)
+        const failed = (part: 'account' | 'positions' | 'orders', error: unknown) => {
+          if (!currentPart(part)) return
+          liveReadErrors.set(part, error instanceof Error ? error.message : '交易状态查询失败')
+          set(part === 'account' ? { account: null } : part === 'positions' ? { positions: [] } : { orders: [] })
+        }
+        // Each section paints as soon as it arrives. Slow order history must
+        // not hide already received positions or account information.
+        await Promise.all([
+          sections.has('account') ? getLiveAccountApi(venue).then(account => { if (currentPart('account')) { liveReadErrors.delete('account');set({ account }) } }).catch(e => failed('account', e)) : Promise.resolve(),
+          sections.has('positions') ? getLivePositionsApi(venue).then(positions => { if (currentPart('positions')) { liveReadErrors.delete('positions');set({ positions }) } }).catch(e => failed('positions', e)) : Promise.resolve(),
+          sections.has('orders') ? Promise.all([
+            getLiveOrdersApi(venue, false).then(open => {
+              if (currentPart('orders')) { liveReadErrors.delete('orders');set({ orders: mergeLiveOrders(open, get().orders) }) }
+              return open
             }),
-            getLiveOrdersApi(venue, true).catch(() => [] as PaperOrderItem[]),
-            getLivePositionsApi(venue).catch(() => []),
+            getLiveOrdersApi(venue, true).then(history => { if (currentPart('orders')) liveReadErrors.delete('history');return history }).catch(e => { if (currentPart('orders')) liveReadErrors.set('history', e instanceof Error ? e.message : '历史委托查询失败');return [] as PaperOrderItem[] }),
           ])
-        const merged = mergeLiveOrders(openOrders, historyOrders)
-        set({
-          mode,
-          venue,
-          account,
-          orders: merged,
-          positions: positionsRes,
-          ledgers: [],
-          loading: false,
-          loaded: true,
-          error: ordersError,
-        })
+            .then(([open, history]) => { if (currentPart('orders')) set({ orders: mergeLiveOrders(open, history) }) }).catch(e => failed('orders', e)) : Promise.resolve(),
+        ])
+        if (current()) set({ mode, venue, ledgers: [], loaded: true, error: [...liveReadErrors.values()].join('；') || null, ...(full ? { loading: false, lastRefreshAt: Date.now() } : {}) })
         return
       }
       const [account, ordersRes, positionsRes, ledgersRes] = await Promise.all([
@@ -183,6 +216,7 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
         getPaperPositions(),
         getPaperLedgers(50, 0),
       ])
+      if (!current()) return
       set({
         mode,
         account,
@@ -191,8 +225,10 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
         ledgers: ledgersRes.items,
         loading: false,
         loaded: true,
+        lastRefreshAt: Date.now(),
       })
     } catch (err) {
+      if (!current()) return
       // 查询失败也必须清空业务数据：否则残留的可能是上一账号
       // （或上一交易所）的持仓/委托——安全隔离不允许"失败时显示旧数据"
       set({
@@ -205,9 +241,11 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
         ledgers: [],
       })
     }
+    }, options?.afterCurrent)
   },
 
   place: async (input) => {
+    const owner = refreshOwner()
     set({ submitting: true, error: null, lastMessage: null })
     try {
       const { direction, offset } = mapAction(input)
@@ -236,11 +274,15 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
           reduce_only: offset === "close",
           margin_mode: input.marginMode ?? "cross",
         })) as unknown as PaperOrderItem
+        if (owner !== refreshOwner()) return order
         set({
           submitting: false,
           lastMessage: `实盘委托已提交（${venue.toUpperCase()}）${input.symbol} ${direction === "buy" ? "买入" : "卖出"} ${input.quantity} @${input.orderType === "market" ? "市价" : input.price}`,
         })
-        await get().refresh()
+        // The exchange ACK has arrived; subsequent reads are background work.
+        // Keep the returned state (live/partially filled/etc.), never invent a fill.
+        set({ orders: [{ ...order, status: order.status === 'live' ? 'pending' : order.status }, ...get().orders.filter(o => o.id !== order.id)] })
+        void get().refresh({ afterCurrent: true })
         return order
       }
 
@@ -311,6 +353,7 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
         sl_price: input.slPrice ?? null,
       }
       const order = await placePaperOrder(body)
+      if (owner !== refreshOwner()) return order
       const tradeParams = (order as PaperOrderItem & {
         trade_params?: { pre_market?: boolean }
         message?: string
@@ -329,6 +372,7 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
       await get().refresh()
       return order
     } catch (err) {
+      if (owner !== refreshOwner()) return null
       set({
         submitting: false,
         error: err instanceof Error ? err.message : "下单失败",
@@ -436,6 +480,12 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
     })
   },
 }))
+
+useAuthStore.subscribe((state, previous) => {
+  if (state.user?.id !== previous.user?.id || state.user?.trading_mode !== previous.user?.trading_mode) {
+    usePaperTradingStore.getState().reset()
+  }
+})
 
 /** 预估开仓占用（给下单面板展示；实盘模式返回 null 由交易所计收） */
 export async function estimateOpenCost(

@@ -16,6 +16,7 @@ import { usePaperTradingStore } from "@/stores/paper-trading"
 import { broadcastContractChange } from "@/hooks/sync"
 import { getCurrentKlinePeriod } from "@/components/market/kline/current-period"
 import { prefetchKlineHistory } from "@/components/market/kline/use-kline-history"
+import { hasFreshLiveSync } from '@/lib/live-trading-sync'
 
 interface PositionContractRow {
   symbol: string
@@ -40,7 +41,7 @@ export function PositionContractList(): React.JSX.Element {
   // 进入页面立即拉一次；3s 轮询保证买单成交（含 AI 任务）后及时出现
   useEffect(() => {
     void refresh()
-    const timer = setInterval(() => void refresh(), 3000)
+    const timer = setInterval(() => { if (!hasFreshLiveSync()) void refresh() }, 3000)
     return () => clearInterval(timer)
   }, [refresh])
 

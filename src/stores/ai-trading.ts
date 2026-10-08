@@ -2,6 +2,8 @@
 
 import { create } from "zustand"
 import { useAuthStore } from "@/stores/auth"
+import { RefreshCoordinator } from '@/lib/refresh-coordinator'
+const pollingReads = new RefreshCoordinator()
 import { updateEquityTraces, type EquityTraces } from "@/components/ai-trading/equity/equity-wave-data"
 import { clearWaveCache, readWaveCache, saveWaveCache } from "@/components/ai-trading/equity/equity-wave-cache"
 import {
@@ -121,6 +123,7 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
   detailLoading: false,
 
   loadTasks: async (opts) => {
+    const read = async () => {
     const owner = currentWaveOwner()
     const generation = sessionGeneration
     const request = ++taskRequest
@@ -144,6 +147,8 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
         error: err instanceof Error ? err.message : "加载失败",
       })
     }
+    }
+    return opts?.silent ? pollingReads.run('tasks:'+sessionGeneration+':'+currentWaveOwner(), read) : read()
   },
 
   loadEquity: async () => {
@@ -166,6 +171,7 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
   },
 
   loadProfitBars: async (opts) => {
+    const read = async () => {
     const owner = currentWaveOwner()
     const generation = sessionGeneration
     const silent = Boolean(opts?.silent)
@@ -185,6 +191,8 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
       if (generation !== sessionGeneration || currentWaveOwner() !== owner) return
       if (!silent) set({ profitLoading: false })
     }
+    }
+    return opts?.silent ? pollingReads.run('profits:'+sessionGeneration+':'+currentWaveOwner(), read) : read()
   },
 
   createTask: async (payload) => {
