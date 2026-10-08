@@ -5,6 +5,7 @@ import type { HunterPivotParams, PivotEvidence, PivotConfirmation } from "./pivo
 export type HunterCycle = Cycle | MacdPeriod
 
 export interface HunterConfig {
+  bottom_line_revision?: string;
   name: string; capital?: number; leverage: number; venue: "okx"; margin_mode: "isolated" | "cross"; cycles: HunterCycle[];
   brain: "rules" | "llm" | "jev"; model_id: string | null; rule_fallback: boolean;
   direction: "long" | "short" | "both"; whitelist: string[]; blacklist: string[];
@@ -84,6 +85,7 @@ async function request<T>(path: string, init: RequestInit = {}, signal?: AbortSi
   return response.json() as Promise<T>
 }
 export const hunterApi = {
+  setBottomLine: (id: string, bottom: HunterBottomLine) => request<HunterBottomLineResult>("/groups/" + encodeURIComponent(id) + "/bottom-line", { method: "PATCH", body: JSON.stringify(bottom) }),
   hosting: (id: string, scan_location: "desktop" | "server") => request<Hunter>("/groups/" + encodeURIComponent(id) + "/hosting", { method: "PATCH", body: JSON.stringify({ scan_location }) }),
   report: (id: string, report: ScanReport, signal?: AbortSignal) => request<{ ok: boolean }>("/groups/" + id + "/scan-report", { method: "POST", body: JSON.stringify(report) }, signal),
   setProfitLock: (id: string, profit_lock: ProfitLockConfig) => request<ProfitLockUpdateResult>("/groups/" + encodeURIComponent(id) + "/profit-lock", { method: "PATCH", body: JSON.stringify({ profit_lock }) }),
@@ -99,3 +101,6 @@ export const hunterApi = {
   manualEntry: (id: string, opportunityId: string, signal?: AbortSignal) => request<{ id: string; task_id: string; status: string }>("/groups/" + encodeURIComponent(id) + "/opportunities/" + encodeURIComponent(opportunityId) + "/manual-entry", { method: "POST" }, signal),
   control: (id: string, action: "pause" | "resume" | "stop" | "stop_close" | "upgrade" | "upgrade_adaptive" | "upgrade_swing" | "set_pool", pool_size?: number) => request<Hunter>("/groups/" + id + "/control", { method: "POST", body: JSON.stringify({ action, ...(pool_size === undefined ? {} : { pool_size }) }) }),
 }
+
+export interface HunterBottomLine { max_profit_pct: number | null; max_loss_pct: number | null }
+export interface HunterBottomLineResult extends HunterBottomLine { id: string; bottom_line_revision: string; affected_tasks: number }

@@ -6,7 +6,7 @@ vi.mock("./ai-market", () => ({ useAiMarketStore: { getState: () => ({ loadTasks
 const { refreshWatchTasks } = vi.hoisted(() => ({ refreshWatchTasks: vi.fn().mockResolvedValue(undefined) }))
 const aiTasks = vi.hoisted(() => ({ tasks: [] as { id: string }[], loadTasks: vi.fn().mockResolvedValue(undefined) }))
 vi.mock("@/stores/ai-trading", () => ({ useAITradingStore: { getState: () => aiTasks } }))
-vi.mock("@/lib/hunter/api", () => ({ hunterApi: { list: vi.fn(), create: vi.fn(), control: vi.fn(), hosting: vi.fn() } }))
+vi.mock("@/lib/hunter/api", () => ({ hunterApi: { list: vi.fn(), create: vi.fn(), control: vi.fn(), hosting: vi.fn(), setBottomLine: vi.fn() } }))
 beforeEach(() => { vi.clearAllMocks(); aiTasks.tasks = []; useHunterStore.getState().reset() })
 
 it("never restores an old session's groups after logout or mode change", async () => {
@@ -61,5 +61,25 @@ it("refreshes newly hosted child IDs before the task poll and skips known childr
   aiTasks.loadTasks.mockClear(); aiTasks.tasks = [{ id: "new" }]
   await useHunterStore.getState().refresh()
   await new Promise(resolve => setTimeout(resolve, 20))
+  expect(aiTasks.loadTasks).not.toHaveBeenCalled()
+})
+
+it("saves only bottom thresholds, preserves other config and reloads child tasks", async () => {
+  useHunterStore.setState({ groups: [{ id: "hunter", config: { leverage: 5, profit_lock: { enabled: true } } } as Hunter] })
+  vi.mocked(hunterApi.setBottomLine).mockResolvedValue({ id: "hunter", max_profit_pct: null, max_loss_pct: 25, bottom_line_revision: "revision", affected_tasks: 2 })
+  await useHunterStore.getState().setBottomLine("hunter", { max_profit_pct: null, max_loss_pct: 25 })
+  expect(hunterApi.setBottomLine).toHaveBeenCalledWith("hunter", { max_profit_pct: null, max_loss_pct: 25 })
+  expect(useHunterStore.getState().groups[0].config).toEqual({ leverage: 5, profit_lock: { enabled: true }, max_profit_pct: null, max_loss_pct: 25, bottom_line_revision: "revision" })
+  expect(aiTasks.loadTasks).toHaveBeenCalledWith({ silent: true })
+})
+
+it("discards late bottom edits and task refresh after a session change", async () => {
+  let resolve!: (result: Awaited<ReturnType<typeof hunterApi.setBottomLine>>) => void
+  vi.mocked(hunterApi.setBottomLine).mockReturnValue(new Promise(r => { resolve = r }))
+  const pending = useHunterStore.getState().setBottomLine("old", { max_profit_pct: 20, max_loss_pct: 10 })
+  useHunterStore.getState().reset()
+  resolve({ id: "old", max_profit_pct: 20, max_loss_pct: 10, bottom_line_revision: "old", affected_tasks: 1 })
+  await expect(pending).rejects.toThrow("会话")
+  expect(useHunterStore.getState().groups).toEqual([])
   expect(aiTasks.loadTasks).not.toHaveBeenCalled()
 })

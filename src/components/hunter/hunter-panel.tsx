@@ -15,6 +15,7 @@ import { HunterProfitSummary } from "./hunter-profit-summary"
 import { OpportunitySignalDialog } from "./opportunity-signal-dialog"
 import { PivotSignalDialog } from "./pivot-signal-dialog"
 import { HunterHistoryDialog } from "./hunter-history-dialog"
+import { LiveBottomLineControl } from "./live-bottom-line-control"
 import { visibleHunterOpportunities } from "@/lib/hunter/task-visibility"
 
 const money = (n: number) => n.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -79,6 +80,7 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
           <p className="text-xs text-[var(--text-muted)] mt-1">{g.config.strategy_version === "hunter-pivot" ? "枢轴波段 · 60分钟 / 按P确认后2根K线 / 最多10单 / 自动锁利" : g.config.strategy_version === MACD_MA20_VERSION ? `${MACD_MA20_NAME} · ${g.config.cycles.map(hunterCycleLabel).join(" / ")} · ${macdDirectionLabel(g.config.direction)}` : g.config.strategy_version === REBOUND_VERSION ? `反弹猎手 · 两根柱体≥${g.config.rebound_threshold_pct ?? 10}%×MA20 · ${g.config.cycles.map(hunterCycleLabel).join(" / ")} · ${macdDirectionLabel(g.config.direction)} · 锁利管理` : g.config.strategy_version === "hunter-v4" ? "趋势猎手 V4 · 计划净3:1 / 多周期延续 / 确认反转退出" : g.config.strategy_version === "hunter-v3" ? "历史版本 V3 · 待合并至趋势猎手V4" : g.config.strategy_version === "hunter-v2" ? "历史版本 V2 · 待合并至趋势猎手V4" : "历史版本 V1 · 待合并至趋势猎手V4"}</p>
           <p className="text-xs text-[var(--text-muted)] mt-1 whitespace-pre-line line-clamp-1" title={progress[g.id]}>{g.config.scan_location === "server" ? "服务器托管 · 关闭客户端后继续自动搜索、下单与持仓管理" : progress[g.id] ?? "等待桌面扫描；已挂载持仓由服务器管理"}</p></div>
         <div className="flex gap-2 flex-wrap">
+          <LiveBottomLineControl hunter={g} disabled={busy === g.id} />
           {isAdmin && (g.status === "running" || g.status === "paused") && <Button size="sm" variant="outline" disabled={busy === g.id || (g.config.scan_location !== "server" && !capabilities?.can_server_host)} title={g.config.scan_location === "server" ? "切换回本机扫描" : "服务器托管暂时仅限管理员"} onClick={() => void changeHosting(g.id, g.config.scan_location === "server" ? "desktop" : "server")}>{g.config.scan_location === "server" ? "解除服务器托管" : "挂载到服务器 · 管理员"}</Button>}
           {g.config.strategy_version !== MACD_MA20_VERSION && <LiveProfitLockControl targetId={g.id} name={g.name} hunter required={g.config.strategy_version === "hunter-pivot"} config={g.config.profit_lock} disabled={busy === g.id} onSave={config => setProfitLock(g.id, config)} />}
           {g.config.strategy_version !== MACD_MA20_VERSION && g.config.strategy_version !== REBOUND_VERSION && g.config.strategy_version !== "hunter-pivot" && (g.status === "running" || g.status === "paused") && g.config.strategy_version !== "hunter-v4" && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade_swing")}>合并至趋势猎手 V4</Button>}

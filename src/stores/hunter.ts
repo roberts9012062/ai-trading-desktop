@@ -2,6 +2,7 @@ import { create } from "zustand"
 import { hunterApi, type Hunter, type HunterConfig } from "@/lib/hunter/api"
 import type { Cycle, Direction } from "@/lib/hunter/rules"
 import type { ProfitLockConfig } from "@/lib/ai-trading-api"
+import type { HunterBottomLine } from "@/lib/hunter/api"
 
 export interface HunterWatch { symbol: string; cycle: Cycle; direction: Direction; stage: string; expires: number }
 
@@ -12,6 +13,7 @@ interface HunterState {
   create: (cfg: HunterConfig) => Promise<void>;
   setHosting: (id: string, location: "desktop" | "server") => Promise<void>;
   setProfitLock: (id: string, config: ProfitLockConfig) => Promise<void>;
+  setBottomLine: (id: string, bottom: HunterBottomLine) => Promise<void>;
   control: (id: string, action: "pause" | "resume" | "stop" | "stop_close" | "upgrade" | "upgrade_adaptive" | "upgrade_swing" | "set_pool", poolSize?: number) => Promise<void>;
   setProgress: (id: string, message: string) => void;
   setWatch: (id: string, cycle: Cycle, entries: HunterWatch[]) => void;
@@ -19,6 +21,14 @@ interface HunterState {
 }
 let generation = 0
 export const useHunterStore = create<HunterState>((set) => ({
+  setBottomLine: async (id, bottom) => {
+    const started = generation
+    const updated = await hunterApi.setBottomLine(id, bottom)
+    if (started !== generation) throw new Error("会话已切换，请查看当前账户猎手")
+    set(s => ({ groups: s.groups.map(g => g.id === id ? { ...g, config: { ...g.config, max_profit_pct: updated.max_profit_pct, max_loss_pct: updated.max_loss_pct, bottom_line_revision: updated.bottom_line_revision } } : g) }))
+    const m = await import("@/stores/ai-trading")
+    if (started === generation) await m.useAITradingStore.getState().loadTasks({ silent: true })
+  },
   setHosting: async (id, location) => {
     const started = generation
     const group = await hunterApi.hosting(id, location)

@@ -90,6 +90,7 @@ interface CreateTaskRulesProps {
   checkSeconds?: number
   cooldownScope?: "task" | "hunter" | "symbol"
   cooldownRequired?: boolean
+  showCooldown?: boolean
   value: RuleFormState
   onChange: (next: RuleFormState) => void
   /** 量化规则策略传 false，不展示 AI 自主平仓/止损 */
@@ -133,6 +134,7 @@ export function CreateTaskRules({
   checkSeconds = 2,
   cooldownScope = "task",
   cooldownRequired = false,
+  showCooldown = true,
 }: CreateTaskRulesProps): React.JSX.Element {
   function patch(partial: Partial<RuleFormState>): void {
     onChange({ ...value, ...partial })
@@ -151,7 +153,7 @@ export function CreateTaskRules({
         按保证金收益率实时触发（约每 {checkSeconds} 秒检查），先于策略/AI 与普通止盈止损，二者互不影响。
         例：100U 保证金 × 5 倍，盈利 50U = 收益率 50%。
       </p>
-      <div className="rounded border border-amber-500/20 p-2 space-y-1.5">
+      {showCooldown && <div className="rounded border border-amber-500/20 p-2 space-y-1.5">
         <label className="flex items-center gap-2 text-xs">
           <input type="checkbox" checked={cooldownRequired || value.lossCooldownOn !== false} disabled={cooldownRequired}
             onChange={(e) => patch({ lossCooldownOn: e.target.checked })} />
@@ -169,7 +171,7 @@ export function CreateTaskRules({
           {cooldownScope === "symbol" ? "每个币种多空及历史子任务合计，2次后只冻结该币种，禁止扫描和挂单。" : cooldownScope === "hunter" ? "本猎手的所有周期与子任务合计，范围1–10次，默认2次。" : "每个任务独立累计，范围1–10次，默认2次。"}每轮全部平仓后扣开、平仓手续费亏损记一次；盈利不清零。
           北京时间每日 06:00 重置，冷静期继续执行止损和平仓。{!cooldownRequired && "关闭后允许恢复开仓，重新开启沿用本日记录。"}
         </p>
-      </div>
+      </div>}
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <label className="flex items-center gap-2 text-xs">
