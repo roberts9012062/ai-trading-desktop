@@ -1,4 +1,4 @@
-import { MACD_MA20_VERSION, MACD_MA20_NAME, MACD_PERIODS, REBOUND_VERSION, hunterCycleLabel, type MacdPeriod } from "@/lib/hunter/macd-ma20"
+import { MACD_PERIODS, REBOUND_VERSION, hunterCycleLabel, type MacdPeriod } from "@/lib/hunter/macd-ma20"
 import { MarginLeverageFields } from "@/components/ai-trading/form/margin-leverage-fields"
 import { CreateTaskRules, EMPTY_RULE_FORM, buildBottomPayload } from "@/components/ai-trading/form/create-task-rules"
 import { useEffect, useState } from "react"
@@ -27,9 +27,8 @@ const initial: HunterConfig = {
 export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [config, setConfig] = useState<HunterConfig>(initial)
   const [bottomRules, setBottomRules] = useState(EMPTY_RULE_FORM)
-  const isMacd = config.strategy_version === MACD_MA20_VERSION
   const isRebound = config.strategy_version === REBOUND_VERSION
-  const isNewStrategy = isMacd || isRebound
+  const isNewStrategy = isRebound
   const [profitLock, setProfitLock] = useState(DEFAULT_PROFIT_LOCK)
   const [models, setModels] = useState<AIModel[]>([])
   const [symbols, setSymbols] = useState<HunterSymbol[]>([])
@@ -105,8 +104,8 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1"><Label htmlFor="hunter-profile">入场规则</Label><select id="hunter-profile" className={selectClass} value={config.strategy_version ?? "hunter-v1"} onChange={e => {
           const version = e.target.value as HunterConfig["strategy_version"]
-          const toNew = version === MACD_MA20_VERSION || version === REBOUND_VERSION
-          const fromNew = isMacd || isRebound
+          const toNew = version === REBOUND_VERSION
+          const fromNew = isRebound
           patch({ strategy_version: version,
             ...(toNew ? {
               cycles: ["30m", "60m"], direction: version === REBOUND_VERSION ? "both" : "long", brain: "rules", model_id: null,
@@ -115,8 +114,8 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
               ...(version === REBOUND_VERSION ? { rebound_threshold_pct: 10 } : {}) } : {}),
             ...(!toNew && fromNew ? { cycles: ["short", "medium", "long"], leverage: 1, margin_mode: "isolated", direction: "both" } : {}) })
         }}>
-          <option value={MACD_MA20_VERSION}>{MACD_MA20_NAME}</option><option value={REBOUND_VERSION}>反弹猎手 · 急跌抢反弹/急涨动能衰竭 · 锁利管理</option><option value="hunter-v4">波段持有版 · 计划净3:1 + 多周期延续 + 确认反转</option><option value="hunter-v3">机会增强版 · 突破回踩 + 回调 + 短线延续</option><option value="hunter-v2">均衡版 · 突破回踩 + 趋势回调</option><option value="hunter-v1">原版 · 突破回踩</option>
-        </select><p className="text-xs text-[var(--text-muted)]">{isRebound ? `均值回归：做多=前两根阴线柱体合计≥${config.rebound_threshold_pct ?? 10}%×MA20，第二根收盘（第三根开盘）立即挂单买入；做空=前两根阳线柱体合计≥${config.rebound_threshold_pct ?? 10}%×MA20，第三根递减且距均线距离缩短才卖。盈利由锁利跟踪平仓，亏损由兜底止损保护；无技术指标平仓、不滚仓。` : isMacd ? (config.direction === "short" ? "5/15/30/60分钟分别扫描；MACD(12,26,9)处于死叉状态（不要求刚发生死叉），MA20拐头向下（持平不算），连续2–3根已收盘K线实体（开盘价和收盘价）严格在SMA20下方；实体穿线或触线中断计数，上影线可触线越线；达到4根不追空。" : config.direction === "both" ? "5/15/30/60分钟分别扫描；做多=MACD金叉状态（不要求刚发生）＋连续3–4根实体在SMA20上方＋MA20向上，超过4根跳过；做空=MACD死叉状态＋MA20向下＋连续2–3根实体在SMA20下方，达到4根不追空。同一时刻只满足其中一个方向。" : "5/15/30/60分钟分别扫描；MACD(12,26,9)处于金叉状态（DIF高于DEA，不要求刚发生），连续3–4根K线实体（开盘价和收盘价）在SMA20上方，穿线K线不计入，MA20向上。超过4根跳过。") : config.strategy_version === "hunter-v4" ? "50币双向、多周期趋势延续；服务器按最差限价和全部预计成本复核净3:1空间。趋势未反转可持有浮亏至结构止损；禁止摊平。" : config.strategy_version === "hunter-v3" ? "短线排名前/后50%，增加趋势延续入口；BTC横盘可筛选自身趋势币，逆向趋势或冲击继续拦截。建议50个币＋短线＋双向，按小时显示信号与挂载结果，未达目标会提示；不因超时强制下单。" : "均衡版：排名前/后30%，短线量能1.3倍、信号有效180秒；原版保持原有条件。"} 尚未完成盈利验证。</p></div>
+          <option value={REBOUND_VERSION}>反弹猎手 · 急跌抢反弹/急涨动能衰竭 · 锁利管理</option><option value="hunter-v4">波段持有版 · 计划净3:1 + 多周期延续 + 确认反转</option><option value="hunter-v3">机会增强版 · 突破回踩 + 回调 + 短线延续</option><option value="hunter-v2">均衡版 · 突破回踩 + 趋势回调</option><option value="hunter-v1">原版 · 突破回踩</option>
+        </select><p className="text-xs text-[var(--text-muted)]">{isRebound ? `均值回归：做多=前两根阴线柱体合计≥${config.rebound_threshold_pct ?? 10}%×MA20，第二根收盘（第三根开盘）立即挂单买入；做空=前两根阳线柱体合计≥${config.rebound_threshold_pct ?? 10}%×MA20，第三根实际收阴、低于第二根收盘，实体递减且距均线距离缩短才卖。做多价格须在MA20下方，做空须在上方；执行前限制追价并复核回归空间。盈利由锁利跟踪平仓，亏损由兜底止损保护；无技术指标平仓、不滚仓。` : config.strategy_version === "hunter-v4" ? "50币双向、多周期趋势延续；服务器按最差限价和全部预计成本复核净3:1空间。趋势未反转可持有浮亏至结构止损；禁止摊平。" : config.strategy_version === "hunter-v3" ? "短线排名前/后50%，增加趋势延续入口；BTC横盘可筛选自身趋势币，逆向趋势或冲击继续拦截。建议50个币＋短线＋双向，按小时显示信号与挂载结果，未达目标会提示；不因超时强制下单。" : "均衡版：排名前/后30%，短线量能1.3倍、信号有效180秒；原版保持原有条件。"} 尚未完成盈利验证。</p></div>
         <div className="space-y-1"><Label htmlFor="hunter-name">名称</Label><Input id="hunter-name" maxLength={120} value={config.name} onChange={e => patch({ name: e.target.value })} /></div>
         {!isNewStrategy && <><div className="space-y-1"><Label htmlFor="hunter-margin-mode">资金保证金模式</Label><select id="hunter-margin-mode" className={selectClass} value={config.margin_mode} onChange={e => patch({ margin_mode: e.target.value as HunterConfig["margin_mode"] })}>
           <option value="isolated">逐仓</option><option value="cross">全仓</option>
@@ -125,8 +124,6 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
         <div className="space-y-1"><Label htmlFor="hunter-venue">行情交易所</Label><Input id="hunter-venue" value="OKX" readOnly /></div>
         <div className="space-y-1"><Label htmlFor="hunter-direction">交易方向</Label><select id="hunter-direction" className={selectClass} value={config.direction} onChange={e => patch({ direction: e.target.value as HunterConfig["direction"] })}>
         {isNewStrategy ? <>
-            {isMacd && <option value="long">做多 · MACD金叉＋实体在MA20上方</option>}
-            {isMacd && <option value="short">做空 · MACD死叉＋实体在MA20下方</option>}
             {isRebound && <option value="long">只抢急跌反弹做多</option>}
             {isRebound && <option value="short">只做冲高回落做空</option>}
             <option value="both">双向 · 多空独立判断</option>
@@ -191,10 +188,8 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
       </section>}
       {isNewStrategy ? <div className="rounded-md border border-[var(--border)] p-3 text-xs space-y-2">
         <p className="font-medium">平仓标准</p><p>① 兜底收益率达到设置的止盈或止损值，优先全平。</p>
-        {isMacd && config.direction !== "short" && <p>② 做多：所属交易周期的 MA20 拐头向下、MACD 处于死叉状态、连续至少3根已收盘K线实体（开盘价和收盘价）都在各自 MA20 下方，三项同时满足才全平。</p>}
-        {isMacd && config.direction !== "long" && <p>② 做空：出现完整做多入场信号（MACD金叉状态＋MA20向上＋连续3–4根已收盘K线实体在各自 MA20 上方）时平掉空仓；平空不自动反手开多，做多开仓由做多策略独立判断并遵守仓位、冷静期及重复开仓限制。</p>}
         {isRebound && <p>② 锁利：净收益达到激活线后开始跟踪峰值，回吐超过让利幅度即全平锁住利润；按持仓方向计算多空盈亏（空头=入场价−现价）。反弹策略无技术指标平仓、不做滚仓加层。</p>}
-        <p>技术指标使用已收盘K线，MA20为20根K线的简单均线。MA20持平不算拐头；穿线或触线的K线实体不计入连续根数。持仓后的平仓按该笔交易所属周期判断，不混用周期。兜底平仓优先执行。创建后自动开始扫描。</p>
+        <p>入场形态使用已收盘K线，MA20为20根简单均线。各周期独立判断；实际收阴且价格回落才计作做空衰竭确认。兜底平仓优先执行。创建后自动开始扫描。</p>
       </div> : <details className="rounded-md border border-[var(--border)] p-3 text-xs space-y-2">
         <summary className="cursor-pointer text-sm">下单、止盈和亏损平仓标准</summary>
         <p>只使用已收盘 K 线：币种趋势、上市时长和流动性合格，相对强弱进入合格区间。{config.strategy_version === "hunter-v4" ? "保留三路短线入口，中长线增加受限趋势延续；重要阻力/支撑阻挡净3:1目标时跳过。" : config.strategy_version === "hunter-v3" ? "短线排名前/后50%，允许BTC横盘，拦截反向趋势及市场冲击；突破回踩、EMA20回调或短线趋势延续收盘确认后申请挂载，中长线保留均衡版条件。" : config.strategy_version === "hunter-v2" ? "排名前/后30%，大盘与币种同向；放量突破回踩或EMA20趋势回调企稳确认后申请挂载。" : "排名前/后20%，大盘与币种同向；放量突破、回踩及收盘确认后申请挂载。"}服务器再次复核报价、成本、风险预算及已有仓位，成本不得超过止损距离的20%。</p>
@@ -220,7 +215,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
           <div><Label htmlFor="hunter-pool">扫描币池数量（5～200）</Label><Input id="hunter-pool" type="number" min={5} max={200} value={config.pool_size} onChange={e => patch({ pool_size: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">按 24 小时成交额从大到小取前 N 个最活跃币种，默认 50；运行中也可在猎手面板随时调整。</p></div>
           <div><Label htmlFor="hunter-slots">最多持仓任务（1～4）</Label><Input id="hunter-slots" type="number" min={1} max={4} value={config.max_positions} onChange={e => patch({ max_positions: Number(e.target.value) })} /></div>
-          <div><Label htmlFor="hunter-interval">扫描复查间隔（秒）</Label><Input id="hunter-interval" type="number" min={30} max={3600} value={config.scan_seconds} onChange={e => patch({ scan_seconds: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">{isMacd ? "5/15/30/60分钟均按此间隔复查，信号只在各自K线收盘后确认。" : "新版短线按此间隔复查；中线至少5分钟，长线至少30分钟。执行K线收盘后优先更新。"}</p></div>
+          <div><Label htmlFor="hunter-interval">扫描复查间隔（秒）</Label><Input id="hunter-interval" type="number" min={30} max={3600} value={config.scan_seconds} onChange={e => patch({ scan_seconds: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">{isRebound ? "各周期按此间隔独立复查，使用已收盘K线，执行前再次复核信号和报价。" : "新版短线按此间隔复查；中线至少5分钟，长线至少30分钟。执行K线收盘后优先更新。"}</p></div>
           <HunterSymbolMultiSelect id="hunter-white" label="白名单" value={config.whitelist} options={symbols}
             onChange={whitelist => patch({ whitelist })} max={50} loading={symbolsLoading} error={symbolsError}
             onRetry={() => setSymbolsReload(n => n + 1)} hint="留空不限制币种；选中后只搜索这些币种，最多 50 个。" />

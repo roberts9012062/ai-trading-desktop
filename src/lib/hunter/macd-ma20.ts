@@ -78,7 +78,7 @@ export function reboundLongEntry(rows: Bar[], period: MacdPeriod, now: number, t
   const { bars, ma } = data
   const [b1, b2] = [bars.at(-2)!, bars.at(-1)!]
   const down1 = b1[1]-b1[4], down2 = b2[1]-b2[4]
-  if (down1 <= 0 || down2 <= 0 || down1+down2 < threshold*ma.at(-1)!) return null
+  if (down1 <= 0 || down2 <= 0 || down1+down2 < threshold*ma.at(-1)! || b2[4] >= ma.at(-1)!) return null
   const seconds = MACD_PERIODS[period], close = b2[0]/1000+seconds
   return { direction: "long" as const, entry: b2[4], signal_at: close, expires_at: close+seconds,
     entry_kind: "rebound" as const, thrust: down1+down2, thrust_ratio: (down1+down2)/ma.at(-1)! }
@@ -91,6 +91,7 @@ export function reboundShortEntry(rows: Bar[], period: MacdPeriod, now: number, 
   const { bars, ma } = data
   const [b1, b2, b3] = [bars.at(-3)!, bars.at(-2)!, bars.at(-1)!]
   const up1 = b1[4]-b1[1], up2 = b2[4]-b2[1]
+  if (b3[4] >= b3[1] || b3[4] >= b2[4] || b3[4] <= ma.at(-1)!) return null
   if (up1 <= 0 || up2 <= 0 || up1+up2 < threshold*ma.at(-1)!) return null
   if (Math.abs(b3[1]-b3[4]) >= Math.min(up1, up2)) return null
   if (Math.abs(b3[4]-ma.at(-1)!) >= Math.abs(b2[4]-ma.at(-2)!)) return null

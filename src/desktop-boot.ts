@@ -15,20 +15,10 @@
 
 const DEFAULT_SERVER_BASE = "https://b.00n.top"
 
-/** 历史默认值迁移:统一迁到公网入口 https://b.00n.top(WS 升级已实测可用) */
-const LEGACY_SERVER_MIGRATIONS: Record<string, string> = {
-  "http://143.47.108.63:3001": "https://b.00n.top",
-  "http://143.47.108.63:8002": "https://b.00n.top",
-}
-
 export function resolveDesktopServerBase(): string {
   let override = ""
   try {
     override = localStorage.getItem("atd_desktop_server") ?? ""
-    if (override && LEGACY_SERVER_MIGRATIONS[override]) {
-      override = LEGACY_SERVER_MIGRATIONS[override]
-      localStorage.setItem("atd_desktop_server", override)
-    }
   } catch {
     // localStorage 不可用时静默回落默认值
   }

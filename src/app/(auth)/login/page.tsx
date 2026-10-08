@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useAuthStore } from "@/stores/auth"
 import { loginApi, getMeApi } from "@/lib/api"
 import { resolveDesktopServerBase } from "@/desktop-boot"
+import { loadServers, saveServer, deleteServer, selectServer, normalizeServerBase, type ServerProfile } from "@/lib/server-profiles"
 import { BrandLogo } from "@/components/common/brand-logo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,12 +16,6 @@ const REMEMBER_KEY = "qihuo_login_remember"
 const SAVED_USER_KEY = "qihuo_login_username"
 const SAVED_PASS_KEY = "qihuo_login_password"
 const SERVER_OVERRIDE_KEY = "atd_desktop_server"
-
-/** 预置服务器入口(DT 后端部署就绪后在此登记;当前留空,用户用自定义入口填写) */
-const PRESET_SERVERS: Array<{ label: string; base: string }> = [
-  { label: "公网入口", base: "https://b.00n.top" },
-  { label: "直连备用", base: "http://143.47.108.63:8002" },
-]
 
 /** 后端系统身份(依据 FastAPI openapi info.title 判定,防连错期货系统后端) */
 const BACKEND_TITLE = "加密货币交易系统"
@@ -77,14 +72,6 @@ async function probeServer(
   } finally {
     clearTimeout(timer)
   }
-}
-
-/** 规范化服务器地址:补协议、去尾部斜杠 */
-function normalizeServerBase(raw: string): string {
-  let v = raw.trim()
-  if (!v) return ""
-  if (!/^https?:\/\//i.test(v)) v = `https://${v}`
-  return v.replace(/\/+$/, "")
 }
 
 /** 网络类错误(failed to fetch / 网络错误 / 超时)识别——翻译成可操作提示 */
@@ -155,8 +142,11 @@ export default function LoginPage(): React.JSX.Element {
   const isTauri = Boolean(typeof window !== "undefined" && window.__TAURI_INTERNALS__)
   const [serverBase, setServerBase] = useState("")
   const [serverOverridden, setServerOverridden] = useState(false)
-  const [showServerPanel, setShowServerPanel] = useState(false)
+  const [showServerPanel, setShowServerPanel] = useState(true)
   const [customBase, setCustomBase] = useState("")
+  const [servers, setServers] = useState<ServerProfile[]>([])
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [serverName, setServerName] = useState("")
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState("")
 
@@ -168,14 +158,15 @@ export default function LoginPage(): React.JSX.Element {
     setRemember(saved.remember)
     const base = resolveDesktopServerBase()
     setServerBase(base)
-    setCustomBase(base)
+    setServers(loadServers())
     setServerOverridden(Boolean(localStorage.getItem(SERVER_OVERRIDE_KEY)))
     if (!base) setShowServerPanel(true)
     setHydrated(true)
   }, [])
 
   async function handleTestServer(base: string): Promise<void> {
-    const norm = normalizeServerBase(base)
+    let norm: string
+    try { norm = normalizeServerBase(base) } catch (e) { setTestResult(e instanceof Error ? e.message : "地址无效"); return }
     if (!norm) {
       setTestResult("✗ 请先填写服务器地址")
       return
@@ -188,26 +179,40 @@ export default function LoginPage(): React.JSX.Element {
   }
 
   function handleSaveServer(base: string): void {
-    const norm = normalizeServerBase(base)
-    if (!norm) {
-      setTestResult("✗ 请先填写服务器地址")
-      return
-    }
     try {
-      localStorage.setItem(SERVER_OVERRIDE_KEY, norm)
-    } catch {
-      // 写失败时静默
+      const next = saveServer(servers, { id: editingId ?? crypto.randomUUID(), name: serverName, base })
+      setServers(next); setEditingId(null); setCustomBase(""); setServerName("")
+      setTestResult("✓ 已保存到服务器列表")
+      const previous = servers.find(s => s.id === editingId)
+      const updated = next.find(s => s.id === editingId)
+      if (previous?.base === serverBase && updated && updated.base !== serverBase) handleSelectServer(updated.base)
+    } catch (e) {
+      setTestResult(e instanceof Error ? e.message : "保存失败")
     }
-    location.reload()
   }
 
-  function handleResetServer(): void {
+  function handleSelectServer(base: string): void {
+    if (base === serverBase) return
     try {
-      localStorage.removeItem(SERVER_OVERRIDE_KEY)
-    } catch {
-      // 同上
-    }
-    location.reload()
+      selectServer(serverBase, base)
+      window.location.assign(localStorage.getItem("access_token") ? "/dashboard" : "/login")
+    } catch (e) { setTestResult(e instanceof Error ? e.message : "切换失败") }
+  }
+
+  function handleDeleteServer(profile: ServerProfile): void {
+    try {
+      const next = deleteServer(servers, profile.id)
+      setServers(next)
+      if (editingId === profile.id) { setEditingId(null); setCustomBase(""); setServerName("") }
+      if (profile.base === serverBase) {
+        if (next[0]) handleSelectServer(next[0].base)
+        else {
+          selectServer(serverBase, "https://b.00n.top")
+          localStorage.removeItem(SERVER_OVERRIDE_KEY)
+          window.location.assign("/login")
+        }
+      }
+    } catch (e) { setTestResult(e instanceof Error ? e.message : "删除失败") }
   }
 
   async function handleSubmit(e: React.FormEvent): Promise<void> {
@@ -364,28 +369,26 @@ export default function LoginPage(): React.JSX.Element {
 
             {showServerPanel && (
               <div className="mt-3 space-y-3">
-                {PRESET_SERVERS.length > 0 && (
-                  <div className="grid grid-cols-2 gap-2">
-                    {PRESET_SERVERS.map((p) => (
-                      <button
-                        key={p.base}
-                        type="button"
-                        onClick={() => {
-                          setCustomBase(p.base)
-                          void handleTestServer(p.base)
-                        }}
-                        className={`h-8 rounded-md border text-xs transition-colors ${
-                          serverBase === p.base
-                            ? "border-[var(--primary)] bg-[var(--primary)]/15 text-[var(--primary)]"
-                            : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--primary)]/50"
-                        }`}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <Label htmlFor="server-list">服务器列表</Label>
+                <select id="server-list" value={serverBase} disabled={loading || testing}
+                  onChange={e => handleSelectServer(e.target.value)}
+                  className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-2 text-sm">
+                  {!servers.some(s => s.base === serverBase) && <option value={serverBase}>{serverBase || "请选择服务器"}</option>}
+                  {servers.map(s => <option key={s.id} value={s.base}>{s.name} · {s.base}</option>)}
+                </select>
+                <div className="max-h-36 overflow-y-auto space-y-2">
+                  {servers.map(s => <div key={s.id} className="flex items-center gap-2">
+                    <span className="flex-1 min-w-0 truncate" title={s.base}>{s.name}</span>
+                    <button type="button" disabled={loading || testing} className="text-[var(--primary)]" onClick={() => {
+                      setEditingId(s.id); setServerName(s.name); setCustomBase(s.base); setTestResult("")
+                    }} aria-label={`编辑${s.name}`}>编辑</button>
+                    <button type="button" disabled={loading || testing} className="text-[var(--accent-danger)]" onClick={() => handleDeleteServer(s)} aria-label={`删除${s.name}`}>删除</button>
+                  </div>)}
+                </div>
+                <Label htmlFor="server-name">{editingId ? "编辑服务器" : "添加服务器"}</Label>
+                <Input id="server-name" value={serverName} onChange={e => setServerName(e.target.value)} placeholder="服务器名称" maxLength={60} className="h-8 text-xs" />
                 <Input
+                  aria-label="服务器地址"
                   value={customBase}
                   onChange={(e) => setCustomBase(e.target.value)}
                   placeholder="后端地址,如 http://192.168.6.xx:8002 或 https://域名:端口"
@@ -396,7 +399,7 @@ export default function LoginPage(): React.JSX.Element {
                     type="button"
                     size="sm"
                     variant="outline"
-                    disabled={testing}
+                    disabled={testing || loading}
                     onClick={() => void handleTestServer(customBase)}
                   >
                     {testing ? "测试中..." : "测试连接"}
@@ -404,20 +407,12 @@ export default function LoginPage(): React.JSX.Element {
                   <Button
                     type="button"
                     size="sm"
+                    disabled={loading || testing}
                     onClick={() => handleSaveServer(customBase)}
                   >
-                    保存并生效
+                    {editingId ? "保存修改" : "添加到列表"}
                   </Button>
-                  {serverOverridden && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={handleResetServer}
-                    >
-                      恢复默认
-                    </Button>
-                  )}
+                  {editingId && <Button type="button" size="sm" variant="ghost" onClick={() => { setEditingId(null); setServerName(""); setCustomBase("") }}>取消编辑</Button>}
                 </div>
                 {testResult && (
                   <div
@@ -431,7 +426,7 @@ export default function LoginPage(): React.JSX.Element {
                   </div>
                 )}
                 <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
-                  {`填写加密货币交易系统(${BACKEND_TITLE})后端地址;测试会校验后端身份,期货系统后端将被拒绝`}
+                  {`选择服务器后立即切换连接；各服务器分别保存登录信息。填写${BACKEND_TITLE}后端地址，可先测试连接。`}
                 </p>
               </div>
             )}

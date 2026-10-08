@@ -23,10 +23,9 @@ const countdown = (seconds: number) => {
   return `${String(Math.floor(s/60)).padStart(2, "0")}:${String(s%60).padStart(2, "0")}`
 }
 
-function canManualEntry(group: Hunter, o: Opportunity): boolean {
-  return group.status === "running" && Boolean(o.finished_at) && !o.runtime.initial_qty
-    && !o.runtime.entry && Date.now()/1000 - Date.parse(o.finished_at ?? "")/1000 < 2*3600
-}
+// The retired MACD hunter has no manual or automatic entry path.
+function canManualEntry(_group: Hunter, _o: Opportunity): boolean { return false }
+
 
 export function OpportunitySignalDialog({ group, opportunity, onClose }: {
   group: Hunter; opportunity: Opportunity | null; onClose: () => void
