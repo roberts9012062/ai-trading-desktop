@@ -11,6 +11,9 @@ def direction_signal_label(snapshot_key: str, snapshot: dict[str, Any], bullish:
     if snapshot_key == "swing_snapshot":
         label = "枢轴波谷反转做多信号" if bullish else "枢轴波峰反转做空信号"
         pivot = snapshot.get("last_pivot") or {}
+        if snapshot.get("reverse_entry"):
+            source = "波谷多" if pivot.get("side") == "long" else "波峰空"
+            label = f"枢轴{source}信号 → 反向{'做多' if bullish else '做空'}"
         if pivot.get("provisional"):
             label += "（预确认）"
         elif pivot:

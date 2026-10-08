@@ -51,7 +51,7 @@ export function CreateQuantParams({
           timeframe={timeframe}
         />
         <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
-          {hintFor(quant.quantKind)}
+          {hintFor(quant.quantKind, quant.swingReverseEntry)}
         </p>
       </div>
     </>
@@ -183,6 +183,15 @@ export function KindParams({
             className="accent-[var(--primary)]" />
           多空交替（与图表波段设置一致）
         </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={quant.swingReverseEntry === true}
+            onChange={(e) => onQuant({ ...quant, swingReverseEntry: e.target.checked })}
+            className="accent-[var(--primary)]" />
+          反向入场（空信号做多，多信号做空）
+        </label>
+        <p className="text-[10px] text-[var(--text-muted)]">
+          默认关闭。开启后保留原信号与入场窗口，止损和锁利润按实际持仓方向计算。
+        </p>
         <div className="grid grid-cols-2 gap-2">
           <Field
             label="左分型根数"
@@ -403,7 +412,7 @@ function Field({
   )
 }
 
-function hintFor(kind: QuantKind): string {
+function hintFor(kind: QuantKind, reverseEntry = false): string {
   if (kind === "n_breakout") {
     return "收盘突破前 N 根最高 → 买多；跌破最低 → 卖空。反向持仓先平。"
   }
@@ -417,6 +426,7 @@ function hintFor(kind: QuantKind): string {
     return "K 上穿 D → 买多；下穿 → 卖空。可选仅在超买超卖区生效。"
   }
   if (kind === "swing_pivot") {
+    if (reverseEntry) return "反向入场：波峰空信号 → 做多；波谷多信号 → 做空。按预确认根数P识别信号，只在确认后的最近2根K线内入场；同一枢轴不重复开仓。止损和锁利润按实际持仓方向计算，已有持仓保留入场时的方向设置。"
     return "波谷反转 → 买多；波峰反转 → 卖空。按盘中预确认最少右侧根数P识别信号，入场新鲜度从确认信号出现时起算，保留确认后的最近2根。例如P2的波谷在3根前，信号才出现1根，仍可入场。盘中预确认根数包含当前未收盘K线。开仓波谷被跌破或波峰被突破时立即提交市价止损，成交确认后等待新枢轴，同一枢轴不重复开仓。P设为右侧确认根数时，等待这些K线全部收盘再触发正式信号。"
   }
   if (kind === "swing_pivot_v2") {

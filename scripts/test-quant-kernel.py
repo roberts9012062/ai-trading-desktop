@@ -1,5 +1,6 @@
 """Local source regressions. Run with a Python environment containing numpy."""
 import math
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -22,6 +23,19 @@ def bars(scale=1.):
 
 
 class QuantKernelRepairs(unittest.TestCase):
+    def test_pivot_reverse_matches_batch_source_and_confirmation_window(self):
+        cases = json.loads((Path(__file__).resolve().parents[1]/"src/lib/hunter/pivot-fixtures.json").read_text())
+        for case in cases:
+            formal = case["params"]["min_right_live"] == case["params"]["right"]
+            rows = [dict(time=str(b[0]), open=b[1], high=b[2], low=b[3], close=b[4], volume=b[5],
+                         is_closed=b[0]/1000+3600 <= case["now"]) for b in case["rows"]
+                    if not formal or b[0]/1000+3600 <= case["now"]]
+            actual = "short" if case["direction"] == "long" else "long"
+            out = compute_quant_signal("swing_pivot", rows, {**case["params"], "reverse_entry":True}, "both", None)
+            self.assertEqual(out["action"], "open_"+actual if case["expected"] else "hold", case["name"])
+            if case["expected"]:
+                self.assertEqual(out["swing_snapshot"]["last_pivot"]["side"], case["direction"])
+
     def test_fractional_position_has_same_decision_as_whole_unit(self):
         rows=bars()
         for kind in ("ma_cross","n_breakout","macd_cross","kdj_cross","band_swing"):

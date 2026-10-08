@@ -34,6 +34,12 @@ describe("pivot batch scanner", () => {
     expect(hunterApi.mount).toHaveBeenCalledTimes(10)
     expect(hunterApi.mount).toHaveBeenCalledWith(g.id, expect.objectContaining({ cycle: "60m", direction: "long", entry_kind: "swing_pivot" }), expect.any(AbortSignal))
   })
+  it("mounts only actual shorts for long source signals when reverse is enabled", async () => {
+    const g = group(); g.config.pivot_params = { ...g.config.pivot_params!, reverse_entry: true }; g.config.direction = "short"
+    setup(g, 1)
+    await scanHunter(g, new AbortController().signal)
+    expect(hunterApi.mount).toHaveBeenCalledWith(g.id, expect.objectContaining({ direction: "short", entry_kind: "swing_pivot" }), expect.any(AbortSignal))
+  })
   it("counts reservations and skips both active and cooling coins before market reads", async () => {
     const g = group(); g.opportunities = [{ symbol: "coin0usdt", finished_at: null }] as never
     g.runtime.symbol_cooldowns = { coin1usdt: { active: true, loss_count: 2, reset_at: "2026-10-09T06:00:00+08:00" } }

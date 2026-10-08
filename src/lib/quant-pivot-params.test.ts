@@ -15,3 +15,10 @@ it("rejects out-of-range pivot parameters on submission instead of silent server
   expect(validateQuantParams({ ...DEFAULT_QUANT_PARAMS, quantKind: "swing_pivot", swingLeft: 21 })).toBeTruthy()
   expect(validateQuantParams({ ...DEFAULT_QUANT_PARAMS, quantKind: "swing_pivot", swingMinAtrMult: 11 })).toBeTruthy()
 })
+
+it("round trips explicit reverse entry while legacy tasks remain normal", () => {
+  expect(paramsToQuantState("swing_pivot", {}).swingReverseEntry).toBe(false)
+  const p = { ...buildStrategyParams({ ...DEFAULT_QUANT_PARAMS, quantKind: "swing_pivot" }), reverse_entry: true }
+  expect(paramsToQuantState("swing_pivot", p).swingReverseEntry).toBe(true)
+  expect(buildStrategyParams(paramsToQuantState("swing_pivot", p))).toEqual(p)
+})

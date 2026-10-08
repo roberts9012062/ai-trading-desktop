@@ -9,7 +9,7 @@
 - 盘中预确认（min_right_live < right，provisional=True）同样触发交易，
   与图表「盘中预确认」箭头一致；预确认信号会随行情破坏而消失，
   该风险由参数选择承担（设为 right 则只出正式确认）
-- 新鲜度窗口 last_idx - last["index"] <= right 视为有效新信号
+- 入场新鲜度从 min_right_live 对应的确认信号出现时起算，保留最近 2 根
 - 已有同向仓 hold；反向信号先 close（由 handle_bullish/handle_bearish 完成）
 
 strategy_params:
@@ -20,6 +20,7 @@ strategy_params:
   min_amplitude_pct: float  最小幅度百分比过滤，默认 1.5
   min_atr_mult: float  最小 ATR 倍数过滤，默认 1.5
   atr_period: int      ATR 计算周期，默认 14
+  reverse_entry: bool  默认关闭；开启时原空信号做多、原多信号做空
 """
 
 from __future__ import annotations
@@ -72,13 +73,31 @@ def normalize_swing_pivot_params(raw: dict[str, Any] | None) -> dict[str, Any]:
     min_atr_mult = max(0.0, min(10.0, _as_float("min_atr_mult", (), 1.5)))
     atr_period = max(1, min(100, _as_int("atr_period", (), 14)))
     return {
+        "alternate": src.get("alternate") is not False,
         "left": left,
         "right": right,
         "min_right_live": min_right_live,
         "min_amplitude_pct": min_amplitude_pct,
         "min_atr_mult": min_atr_mult,
         "atr_period": atr_period,
+        **({"reverse_entry": True} if src.get("reverse_entry") is True else {}),
     }
+
+
+def reverse_risk_pivot(bars, policy, direction):
+    """Freeze a still-intact opposite extreme on the actual position's side."""
+    signals = calc_pivot_signals(bars, left=policy["left"], right=policy["right"],
+        min_right_live=policy["min_right_live"], alternate=policy["alternate"],
+        min_amplitude_pct=policy["min_amplitude_pct"], min_atr_mult=policy["min_atr_mult"], atr_period=policy["atr_period"])
+    key = "low" if direction == "long" else "high"
+    for point in reversed(signals):
+        if point["side"] != direction:
+            continue
+        price = float(point["price"])
+        later = [float(b[key]) for b in bars[int(point["index"])+1:]]
+        if later and all(v > price if direction == "long" else v < price for v in later):
+            return dict(point)
+    return None
 
 
 def _latest_confirmed_pivot(
@@ -105,7 +124,7 @@ def _latest_confirmed_pivot(
         bars,
         left=left,
         right=right,
-        alternate=True,
+        alternate=bool(p["alternate"]),
         min_amplitude_pct=min_amp,
         min_atr_mult=min_atr,
         atr_period=atr_period,
@@ -124,9 +143,12 @@ def compute_swing_pivot_signal(
 ) -> dict[str, Any]:
     """根据 K 线计算枢轴波段反转信号
 
-    bars 末根应为当前已收盘 bar。
+    预确认允许末根为 forming；正式确认要求右侧 K 线全部收盘。
     返回 signal_result 统一结构，快照键 swing_snapshot。
     """
+    # Match the chart and batch scanner's stable signal window. Loading older
+    # history must not change alternation or amplitude filtering at entry.
+    bars = bars[-240:]
     p = normalize_swing_pivot_params(params)
     left = int(p["left"])
     right = int(p["right"])
@@ -146,6 +168,7 @@ def compute_swing_pivot_signal(
     # 基线快照：参数 + 当前 bar 收盘 + 最新枢轴状态
     close = float(bars[-1].get("close") or 0)
     snapshot: dict[str, Any] = {
+        "alternate": p["alternate"],
         "left": left,
         "right": right,
         "min_right_live": min_right_live,
@@ -182,12 +205,18 @@ def compute_swing_pivot_signal(
         "provisional": is_provisional,
     }
     snapshot["freshness"] = freshness
-
-    # 新鲜度窗口：枢轴须在最近 right 根的确认窗口内（预确认 freshness < right 恒通过）
-    if freshness > right:
+    signal_age = freshness-min_right_live
+    snapshot["signal_age_bars"] = signal_age
+    snapshot["confirmation_bars"] = min_right_live
+    snapshot["confirmed_bar_time"] = bars[pivot_idx+min_right_live].get("time") if pivot_idx+min_right_live <= last_idx else None
+    snapshot["entry_max_age_bars"] = min_right_live+2
+    snapshot["entry_signal_max_age_bars"] = 2
+    # The right-side confirmation delay is part of recognizing the signal,
+    # not elapsed time after it appeared (P2 + one later bar is still fresh).
+    if signal_age < 0 or signal_age > 2:
         return signal_result(
             "hold",
-            f"无新枢轴（最近{freshness}根前的{('波峰' if pivot_side == 'short' else '波谷')}，已过确认窗口）",
+            f"无新枢轴（按P{min_right_live}确认后已有{signal_age}根K线，超出确认后的最近2根入场窗口；枢轴在{freshness}根前）",
             0.35,
             "stale",
             _SNAP,
@@ -199,47 +228,21 @@ def compute_swing_pivot_signal(
     # 此处为防御性兜底）。预确认信号会随行情破坏消失，由快照 provisional 标记区分。
     pos_qty, pos_dir = position_qty_dir(position)
     mode = (side_mode or "both").strip().lower()
-
-    if pivot_side == "long":
-        if is_provisional:
-            return handle_bullish(
-                mode,
-                pos_qty,
-                pos_dir,
-                f"枢轴波谷反转做多（预确认，右侧仅{freshness}根）@ {pivot_price:.2f}",
-                _SNAP,
-                snapshot,
-                "swing_valley",
-            )
-        return handle_bullish(
-            mode,
-            pos_qty,
-            pos_dir,
-            f"枢轴波谷反转做多 @ {pivot_price:.2f}",
-            _SNAP,
-            snapshot,
-            "swing_valley",
-        )
-    if pivot_side == "short":
-        if is_provisional:
-            return handle_bearish(
-                mode,
-                pos_qty,
-                pos_dir,
-                f"枢轴波峰反转做空（预确认，右侧仅{freshness}根）@ {pivot_price:.2f}",
-                _SNAP,
-                snapshot,
-                "swing_peak",
-            )
-        return handle_bearish(
-            mode,
-            pos_qty,
-            pos_dir,
-            f"枢轴波峰反转做空 @ {pivot_price:.2f}",
-            _SNAP,
-            snapshot,
-            "swing_peak",
-        )
+    state = (params or {}).get("_swing_entry_signal") or {}
+    frozen = state.get("source_pivot") or state.get("pivot")
+    reverse = bool(state.get("reverse_entry", False)) if pos_qty > 0 and frozen else bool(p.get("reverse_entry"))
+    if pivot_side in ("long", "short"):
+        trade_side = ("short" if pivot_side == "long" else "long") if reverse else pivot_side
+        if reverse:
+            snapshot.update(reverse_entry=True, signal_direction=pivot_side, trade_direction=trade_side,
+                risk_pivot=reverse_risk_pivot(bars, p, trade_side))
+        label = "波谷" if pivot_side == "long" else "波峰"
+        action_label = "做多" if trade_side == "long" else "做空"
+        reason = (f"枢轴{label}{'多' if pivot_side == 'long' else '空'}信号 → 反向{action_label}" if reverse
+                  else f"枢轴{label}反转{action_label}")
+        reason += (f"（预确认，右侧仅{freshness}根）" if is_provisional else "") + f" @ {pivot_price:.2f}"
+        return (handle_bullish if trade_side == "long" else handle_bearish)(mode, pos_qty, pos_dir, reason,
+            _SNAP, snapshot, "swing_valley" if pivot_side == "long" else "swing_peak")
     # 理论不可达（side 仅 long/short），兜底
     return signal_result(
         "hold",

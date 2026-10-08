@@ -5,10 +5,12 @@ export const PIVOT_VERSION = "hunter-pivot" as const
 export interface HunterPivotParams {
   alternate: boolean; left: number; right: number; min_right_live: number;
   min_amplitude_pct: number; min_atr_mult: number; atr_period: number;
+  reverse_entry?: boolean;
 }
 export const DEFAULT_PIVOT_PARAMS: HunterPivotParams = {
   alternate: true, left: 3, right: 3, min_right_live: 1,
   min_amplitude_pct: 1.0, min_atr_mult: 1.0, atr_period: 14,
+  reverse_entry: false,
 }
 
 /** Same fractal calculation and confirmation-relative entry window as quant. */
@@ -28,7 +30,9 @@ export function pivotEntry(rows: Bar[], now: number, params = DEFAULT_PIVOT_PARA
     alternate: params.alternate, minRightLive: params.min_right_live,
     minAmplitudePct: params.min_amplitude_pct, minAtrMult: params.min_atr_mult, atrPeriod: params.atr_period,
   }).at(-1)
-  if (!point || point.side !== direction) return null
+  if (!point) return null
+  const tradeSide = params.reverse_entry === true ? (point.side === "long" ? "short" : "long") : point.side
+  if (tradeSide !== direction) return null
   const age = bars.length-1-point.index-params.min_right_live
   if (age < 0 || age > 2) return null
   const signal_at = Date.parse(point.time)/1000
@@ -42,7 +46,8 @@ export interface PivotEvidence {
 }
 
 export interface PivotConfirmation { direction: Direction; time: string; open: number; close: number; previous_close: number }
-export function pivotConfirmation(rows: Bar[], now: number, signal: { signal_at: number }, direction: Direction): { confirmation: PivotConfirmation | null; reason: string | null } {
+export function pivotConfirmation(rows: Bar[], now: number, signal: { signal_at: number; point?: PivotSignalPoint }, direction: Direction): { confirmation: PivotConfirmation | null; reason: string | null } {
+  direction = signal.point?.side ?? direction
   const bars = [...new Map(rows.map(b => [b[0], b])).values()].sort((a, b) => a[0]-b[0])
   const i = bars.findLastIndex(b => b[0]/1000+3600 <= now)
   if (i <= 0 || bars[i][0]/1000 <= signal.signal_at) return { confirmation: null, reason: "枢轴右侧尚无已收盘反转K线，等待确认" }

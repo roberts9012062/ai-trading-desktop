@@ -38,6 +38,7 @@ export interface QuantParamsState {
   swingRight: number
   /** 盘中预确认最少右侧根数（1–swingRight，与图表波段信号同口径，默认 1） */
   swingMinRightLive: number
+  swingReverseEntry: boolean
   swingAlternate: boolean
   swingMinAmplitude: number
   swingMinAtrMult: number
@@ -105,6 +106,7 @@ export const DEFAULT_QUANT_PARAMS: QuantParamsState = {
   swingLeft: 3,
   swingRight: 3,
   swingMinRightLive: 1,
+  swingReverseEntry: false,
   swingAlternate: true,
   swingMinAmplitude: 1.5,
   swingMinAtrMult: 1.5,
@@ -229,6 +231,7 @@ export function paramsToQuantState(
       return {
         ...base,
         swingAlternate: p.alternate !== false,
+        swingReverseEntry: p.reverse_entry === true,
         swingLeft: n("left", 3),
         swingRight: n("right", 3),
         swingMinRightLive: n("min_right_live", n("right", 3)),
@@ -311,6 +314,7 @@ export function buildStrategyParams(
     case "swing_pivot":
       return {
         alternate: q.swingAlternate !== false,
+        ...(q.swingReverseEntry ? { reverse_entry: true } : {}),
         left: q.swingLeft,
         right: q.swingRight,
         min_right_live: q.swingMinRightLive,
