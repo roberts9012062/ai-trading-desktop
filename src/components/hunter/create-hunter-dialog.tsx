@@ -1,3 +1,4 @@
+import { DEFAULT_HUNTER_VERSION, HUNTER_STRATEGIES } from "@/lib/hunter/profiles"
 import { MACD_PERIODS, REBOUND_VERSION, hunterCycleLabel, type MacdPeriod } from "@/lib/hunter/macd-ma20"
 import { MarginLeverageFields } from "@/components/ai-trading/form/margin-leverage-fields"
 import { CreateTaskRules, EMPTY_RULE_FORM, buildBottomPayload } from "@/components/ai-trading/form/create-task-rules"
@@ -21,7 +22,7 @@ const selectClass = "w-full rounded-md border border-[var(--border)] bg-[var(--b
 const initial: HunterConfig = {
   name: "AI 多周期猎手", leverage: 1, venue: "okx", margin_mode: "isolated", cycles: ["short", "medium", "long"],
   brain: "rules", model_id: null, rule_fallback: false, direction: "both", whitelist: [], blacklist: [],
-  pool_size: 50, max_positions: 4, scan_seconds: 60, strategy_version: "hunter-v3",
+  pool_size: 50, max_positions: 4, scan_seconds: 60, strategy_version: DEFAULT_HUNTER_VERSION,
 }
 
 export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -73,7 +74,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
     setError(null)
     if (existingHunter) { setError("当前账户已有未停止的多周期猎手，请先停止后再创建"); return }
     if (config.scan_location === "server" && !capabilities?.can_server_host) { setError("服务器托管仅限有效VIP或管理员"); return }
-    if (config.strategy_version !== "hunter-v1" && !capabilities?.supported_versions?.includes(config.strategy_version!)) { setError("服务器尚未支持所选规则版本，请更新服务器或选择旧版规则"); return }
+    if (!capabilities?.supported_versions?.includes(config.strategy_version!)) { setError("服务器尚未支持所选规则版本，请更新服务器"); return }
     if (!config.cycles.length) { setError("请选择至少一个周期"); return }
     try {
       if (isNewStrategy) {
@@ -102,7 +103,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
         {config.scan_location === "server" ? "服务器托管后，关闭桌面仍会自动搜索和执行交易。" : "桌面关闭后暂停搜索，服务器继续管理已挂载任务。"}{isNewStrategy ? "按仓位管理设置执行，方向按所选做多/做空独立判断。" : "杠杆可选 1–50 倍，默认 1 倍；资金可选逐仓或全仓。"}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-1"><Label htmlFor="hunter-profile">入场规则</Label><select id="hunter-profile" className={selectClass} value={config.strategy_version ?? "hunter-v1"} onChange={e => {
+        <div className="space-y-1"><Label htmlFor="hunter-profile">入场规则</Label><select id="hunter-profile" className={selectClass} value={config.strategy_version ?? DEFAULT_HUNTER_VERSION} onChange={e => {
           const version = e.target.value as HunterConfig["strategy_version"]
           const toNew = version === REBOUND_VERSION
           const fromNew = isRebound
@@ -114,8 +115,8 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
               ...(version === REBOUND_VERSION ? { rebound_threshold_pct: 10 } : {}) } : {}),
             ...(!toNew && fromNew ? { cycles: ["short", "medium", "long"], leverage: 1, margin_mode: "isolated", direction: "both" } : {}) })
         }}>
-          <option value={REBOUND_VERSION}>反弹猎手 · 急跌抢反弹/急涨动能衰竭 · 锁利管理</option><option value="hunter-v4">波段持有版 · 计划净3:1 + 多周期延续 + 确认反转</option><option value="hunter-v3">机会增强版 · 突破回踩 + 回调 + 短线延续</option><option value="hunter-v2">均衡版 · 突破回踩 + 趋势回调</option><option value="hunter-v1">原版 · 突破回踩</option>
-        </select><p className="text-xs text-[var(--text-muted)]">{isRebound ? `均值回归：做多=前两根阴线柱体合计≥${config.rebound_threshold_pct ?? 10}%×MA20，第二根收盘（第三根开盘）立即挂单买入；做空=前两根阳线柱体合计≥${config.rebound_threshold_pct ?? 10}%×MA20，第三根实际收阴、低于第二根收盘，实体递减且距均线距离缩短才卖。做多价格须在MA20下方，做空须在上方；执行前限制追价并复核回归空间。盈利由锁利跟踪平仓，亏损由兜底止损保护；无技术指标平仓、不滚仓。` : config.strategy_version === "hunter-v4" ? "50币双向、多周期趋势延续；服务器按最差限价和全部预计成本复核净3:1空间。趋势未反转可持有浮亏至结构止损；禁止摊平。" : config.strategy_version === "hunter-v3" ? "短线排名前/后50%，增加趋势延续入口；BTC横盘可筛选自身趋势币，逆向趋势或冲击继续拦截。建议50个币＋短线＋双向，按小时显示信号与挂载结果，未达目标会提示；不因超时强制下单。" : "均衡版：排名前/后30%，短线量能1.3倍、信号有效180秒；原版保持原有条件。"} 尚未完成盈利验证。</p></div>
+          {HUNTER_STRATEGIES.map(strategy => <option key={strategy.version} value={strategy.version}>{strategy.label}</option>)}
+        </select><p className="text-xs text-[var(--text-muted)]">{isRebound ? `均值回归：做多=前两根阴线柱体合计≥${config.rebound_threshold_pct ?? 10}%×MA20，第二根收盘（第三根开盘）立即挂单买入；做空=前两根阳线柱体合计≥${config.rebound_threshold_pct ?? 10}%×MA20，第三根实际收阴、低于第二根收盘，实体递减且距均线距离缩短才卖。做多价格须在MA20下方，做空须在上方；执行前限制追价并复核回归空间。盈利由锁利跟踪平仓，亏损由兜底止损保护；无技术指标平仓、不滚仓。` : "趋势猎手V4：多周期趋势延续；服务器按最差限价和全部预计成本复核净3:1空间。趋势未反转可持有浮亏至结构止损；禁止摊平。V1–V3已合并，不再单独提供。"} 尚未完成盈利验证。</p></div>
         <div className="space-y-1"><Label htmlFor="hunter-name">名称</Label><Input id="hunter-name" maxLength={120} value={config.name} onChange={e => patch({ name: e.target.value })} /></div>
         {!isNewStrategy && <><div className="space-y-1"><Label htmlFor="hunter-margin-mode">资金保证金模式</Label><select id="hunter-margin-mode" className={selectClass} value={config.margin_mode} onChange={e => patch({ margin_mode: e.target.value as HunterConfig["margin_mode"] })}>
           <option value="isolated">逐仓</option><option value="cross">全仓</option>

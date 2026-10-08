@@ -30,7 +30,7 @@ export interface Opportunity {
 export interface Hunter {
   id: string; name: string; status: "running" | "paused" | "stopping" | "stopped";
   trading_mode: string; config: HunterConfig; capital: number; equity: number; blocks: string[];
-  runtime: { realized?: number; unrealized?: number; qualification?: string; execution_account?: { execution_mode: "virtual" | "okx_demo" | "okx_live" }; discovery?: DiscoveryStatus | null;
+  runtime: { consolidation?: { from: string; to: string; at: number; note: string }; realized?: number; unrealized?: number; qualification?: string; execution_account?: { execution_mode: "virtual" | "okx_demo" | "okx_live" }; discovery?: DiscoveryStatus | null;
     hosting?: { blocked?: string; note?: string; cycles: Record<string, { at?: number; started_at?: number; phase: string; note: string; counts: Record<string, number> }> } | null };
   stats: { trades: number; win_rate: number | null; profit_factor: number | null; payoff: number | null };
   opportunities: Opportunity[];

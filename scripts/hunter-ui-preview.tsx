@@ -36,7 +36,7 @@ globalThis.fetch = async (input, init) => {
     { symbol: "btcusdt", name: "BTC / USDT" }, { symbol: "ethusdt", name: "ETH / USDT" },
     { symbol: "solusdt", name: "SOL / USDT" }, { symbol: "dogeusdt", name: "DOGE / USDT" },
   ])
-  if (url.endsWith("/capabilities")) return Response.json({ supported_versions: ["hunter-v1", "hunter-v2", "hunter-v3", "hunter-v4"], live_qualified: false, trading_mode: tradingMode, execution_mode: executionMode, can_start: true, reason: "" })
+  if (url.endsWith("/capabilities")) return Response.json({ supported_versions: ["hunter-v4", "hunter-rebound"], live_qualified: false, trading_mode: tradingMode, execution_mode: executionMode, can_start: true, reason: "" })
   if (url.endsWith("/api/ai/models")) return Response.json([
     { id: "fixture-chat", display_name: "验收大模型", capabilities: ["chat"], provider_api_type: "openai" },
     { id: "fixture-jev", display_name: "验收 Jev", capabilities: ["decision"], provider_api_type: "jev" },
