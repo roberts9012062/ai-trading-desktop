@@ -17,6 +17,9 @@ import { HunterSymbolMultiSelect } from "./symbol-multi-select"
 import { ProfitLockSettings } from "@/components/ai-trading/form/profit-lock-settings"
 import { DEFAULT_PROFIT_LOCK, buildProfitLockConfig } from "@/lib/profit-lock"
 import { CYCLES, validateLeverage, type Cycle } from "@/lib/hunter/rules"
+import { PIVOT_VERSION, type HunterPivotParams } from "@/lib/hunter/pivot"
+import { DEFAULT_QUANT_PARAMS, buildStrategyParams, validateQuantParams } from "@/lib/quant-strategy"
+import { KindParams } from "@/components/ai-trading/form/create-quant-params"
 
 const selectClass = "w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm"
 const initial: HunterConfig = {
@@ -29,7 +32,9 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
   const [config, setConfig] = useState<HunterConfig>(initial)
   const [bottomRules, setBottomRules] = useState(EMPTY_RULE_FORM)
   const isRebound = config.strategy_version === REBOUND_VERSION
-  const isNewStrategy = isRebound
+  const isPivot = config.strategy_version === PIVOT_VERSION
+  const isNewStrategy = isRebound || isPivot
+  const [pivotQuant, setPivotQuant] = useState({ ...DEFAULT_QUANT_PARAMS, quantKind: "swing_pivot" as const })
   const [profitLock, setProfitLock] = useState(DEFAULT_PROFIT_LOCK)
   const [models, setModels] = useState<AIModel[]>([])
   const [symbols, setSymbols] = useState<HunterSymbol[]>([])
@@ -78,6 +83,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
     if (!config.cycles.length) { setError("请选择至少一个周期"); return }
     try {
       if (isNewStrategy) {
+        if (isPivot) { const message = validateQuantParams(pivotQuant); if (message) throw new Error(message) }
         if (!Number.isInteger(config.leverage) || config.leverage < 1 || config.leverage > 100) throw new Error("杠杆范围为1–100倍")
         if (isRebound && (!(config.rebound_threshold_pct ?? 10) || (config.rebound_threshold_pct ?? 10) <= 0 || (config.rebound_threshold_pct ?? 10) > 50)) throw new Error("反弹柱体阈值须为0–50之间")
         buildBottomPayload(bottomRules)
@@ -87,7 +93,8 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
     setBusy(true)
     try {
       await create({ ...config, name: config.name.trim(),
-        ...(isNewStrategy ? { ...buildBottomPayload(bottomRules), ...(isRebound ? { profit_lock: buildProfitLockConfig(profitLock) } : {}) } : { profit_lock: buildProfitLockConfig(profitLock) }),
+        ...(isNewStrategy ? { ...buildBottomPayload(bottomRules), profit_lock: buildProfitLockConfig({ ...profitLock, ...(isPivot ? { enabled: true } : {}) }),
+          ...(isPivot ? { cycles: ["60m"], pivot_params: buildStrategyParams(pivotQuant) as unknown as HunterPivotParams, loss_cooldown_enabled: true, loss_cooldown_limit: 2 } : {}) } : { profit_lock: buildProfitLockConfig(profitLock) }),
         model_id: config.brain === "rules" ? null : config.model_id })
       onClose()
     } catch (e) { setError(e instanceof Error ? e.message : "创建失败") } finally { setBusy(false) }
@@ -105,18 +112,21 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1"><Label htmlFor="hunter-profile">入场规则</Label><select id="hunter-profile" className={selectClass} value={config.strategy_version ?? DEFAULT_HUNTER_VERSION} onChange={e => {
           const version = e.target.value as HunterConfig["strategy_version"]
-          const toNew = version === REBOUND_VERSION
-          const fromNew = isRebound
+          const toPivot = version === PIVOT_VERSION
+          const toNew = version === REBOUND_VERSION || toPivot
+          const fromNew = isNewStrategy
+          if (toPivot) setProfitLock(s => ({ ...s, enabled: true, mode: "auto" }))
           patch({ strategy_version: version,
+            max_positions: toPivot ? 10 : 4,
             ...(toNew ? {
-              cycles: ["30m", "60m"], direction: version === REBOUND_VERSION ? "both" : "long", brain: "rules", model_id: null,
+              cycles: toPivot ? ["60m"] : ["30m", "60m"], direction: "both", brain: "rules", model_id: null,
               leverage: 10, margin_mode: "cross", position_mode: "fixed_margin", margin_per_trade: 100,
               capital_usage_min_pct: 10, capital_usage_max_pct: 20,
               ...(version === REBOUND_VERSION ? { rebound_threshold_pct: 10 } : {}) } : {}),
             ...(!toNew && fromNew ? { cycles: ["short", "medium", "long"], leverage: 1, margin_mode: "isolated", direction: "both" } : {}) })
         }}>
           {HUNTER_STRATEGIES.map(strategy => <option key={strategy.version} value={strategy.version}>{strategy.label}</option>)}
-        </select><p className="text-xs text-[var(--text-muted)]">{isRebound ? `均值回归：做多=前两根阴线柱体合计≥${config.rebound_threshold_pct ?? 10}%×MA20，第二根收盘（第三根开盘）立即挂单买入；做空=前两根阳线柱体合计≥${config.rebound_threshold_pct ?? 10}%×MA20，第三根实际收阴、低于第二根收盘，实体递减且距均线距离缩短才卖。做多价格须在MA20下方，做空须在上方；执行前限制追价并复核回归空间。盈利由锁利跟踪平仓，亏损由兜底止损保护；无技术指标平仓、不滚仓。` : "趋势猎手V4：多周期趋势延续；服务器按最差限价和全部预计成本复核净3:1空间。趋势未反转可持有浮亏至结构止损；禁止摊平。V1–V3已合并，不再单独提供。"} 尚未完成盈利验证。</p></div>
+        </select><p className="text-xs text-[var(--text-muted)]">{isPivot ? "枢轴波段：固定60分钟扫描波谷多信号、波峰空信号，参数与创建量化交易一致；仅最近2根K线内可入场，批量下单最多同时10单。兜底优先，锁利自动开启，枢轴失效或反向枢轴退出。每币亏损两次冷静至次日北京时间06:00。" : isRebound ? `均值回归：做多=前两根阴线柱体合计≥${config.rebound_threshold_pct ?? 10}%×MA20，第二根收盘（第三根开盘）立即挂单买入；做空=前两根阳线柱体合计≥${config.rebound_threshold_pct ?? 10}%×MA20，第三根实际收阴、低于第二根收盘，实体递减且距均线距离缩短才卖。做多价格须在MA20下方，做空须在上方；执行前限制追价并复核回归空间。盈利由锁利跟踪平仓，亏损由兜底止损保护；无技术指标平仓、不滚仓。` : "趋势猎手V4：多周期趋势延续；服务器按最差限价和全部预计成本复核净3:1空间。趋势未反转可持有浮亏至结构止损；禁止摊平。V1–V3已合并，不再单独提供。"} 尚未完成盈利验证。</p></div>
         <div className="space-y-1"><Label htmlFor="hunter-name">名称</Label><Input id="hunter-name" maxLength={120} value={config.name} onChange={e => patch({ name: e.target.value })} /></div>
         {!isNewStrategy && <><div className="space-y-1"><Label htmlFor="hunter-margin-mode">资金保证金模式</Label><select id="hunter-margin-mode" className={selectClass} value={config.margin_mode} onChange={e => patch({ margin_mode: e.target.value as HunterConfig["margin_mode"] })}>
           <option value="isolated">逐仓</option><option value="cross">全仓</option>
@@ -125,8 +135,8 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
         <div className="space-y-1"><Label htmlFor="hunter-venue">行情交易所</Label><Input id="hunter-venue" value="OKX" readOnly /></div>
         <div className="space-y-1"><Label htmlFor="hunter-direction">交易方向</Label><select id="hunter-direction" className={selectClass} value={config.direction} onChange={e => patch({ direction: e.target.value as HunterConfig["direction"] })}>
         {isNewStrategy ? <>
-            {isRebound && <option value="long">只抢急跌反弹做多</option>}
-            {isRebound && <option value="short">只做冲高回落做空</option>}
+            <option value="long">{isPivot ? "只做波谷多信号" : "只抢急跌反弹做多"}</option>
+            <option value="short">{isPivot ? "只做波峰空信号" : "只做冲高回落做空"}</option>
             <option value="both">双向 · 多空独立判断</option>
           </> : <>
             <option value="long">顺势做多</option>
@@ -144,15 +154,15 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
       </section>
       {isNewStrategy && <>
         <fieldset className="space-y-2"><legend className="text-sm font-medium">交易周期</legend>
-          <div className="grid grid-cols-2 gap-2">{(Object.keys(MACD_PERIODS) as MacdPeriod[]).map(period => <label key={period} className="flex items-center gap-2 rounded-md border border-[var(--border)] p-3 text-sm">
-            <input type="checkbox" checked={config.cycles.includes(period)} onChange={e => patch({ cycles: e.target.checked ? [...config.cycles, period] : config.cycles.filter(x => x !== period) })} />{hunterCycleLabel(period)}
+          <div className="grid grid-cols-2 gap-2">{(isPivot ? ["60m"] as MacdPeriod[] : Object.keys(MACD_PERIODS) as MacdPeriod[]).map(period => <label key={period} className="flex items-center gap-2 rounded-md border border-[var(--border)] p-3 text-sm">
+            <input type="checkbox" disabled={isPivot} checked={config.cycles.includes(period)} onChange={e => patch({ cycles: e.target.checked ? [...config.cycles, period] : config.cycles.filter(x => x !== period) })} />{hunterCycleLabel(period)}
           </label>)}</div><p className="text-xs text-[var(--text-muted)]">各周期独立判断和管理交易；同一币种已有任务或持仓时跳过，避免重复接管。</p>
         </fieldset>
         <section className="space-y-3 rounded-md border border-[var(--border)] p-3">
           <Label htmlFor="hunter-position-mode">仓位管理</Label>
           <select id="hunter-position-mode" className={selectClass} value={config.position_mode ?? "fixed_margin"} onChange={e => patch({ position_mode: e.target.value as HunterConfig["position_mode"] })}>
             <option value="fixed_margin">指定每笔保证金</option><option value="capital_pct">资金使用范围</option>
-            <option value="half">半仓（预算一半）</option><option value="full">全仓（全部预算）</option><option value="scale_in">滚仓（盈利加层）</option>
+            <option value="half">半仓（预算一半）</option><option value="full">全仓（全部预算）</option>{!isPivot && <option value="scale_in">滚仓（盈利加层）</option>}
           </select>
           <MarginLeverageFields value={{ marginPerTrade: config.margin_per_trade ?? 100, leverage: config.leverage, marginMode: config.margin_mode }}
             onChange={v => patch({ margin_per_trade: v.marginPerTrade, leverage: v.leverage, margin_mode: v.marginMode })}
@@ -161,7 +171,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
             <div><Label htmlFor="hunter-capital-min">资金使用下限 %</Label><Input id="hunter-capital-min" type="number" min={0} max={100} value={config.capital_usage_min_pct ?? 10} onChange={e => patch({ capital_usage_min_pct: Number(e.target.value) })} /></div>
             <div><Label htmlFor="hunter-capital-max">资金使用上限 %</Label><Input id="hunter-capital-max" type="number" min={1} max={100} value={config.capital_usage_max_pct ?? 20} onChange={e => patch({ capital_usage_max_pct: Number(e.target.value) })} /></div>
           </div>}
-          <p className="text-xs text-[var(--text-muted)]">数量 = 保证金 × 杠杆 ÷ 价格。半仓/全仓按下单时实际可用资金计算，并预留成交手续费。资金使用范围在规则模式下使用上限；AI审核只决定是否入场。滚仓浮盈且出现新的合格金叉才加层，最多3层，超过4根不追入。</p>
+          <p className="text-xs text-[var(--text-muted)]">数量 = 保证金 × 杠杆 ÷ 价格。半仓/全仓按下单时实际可用资金计算，并预留成交手续费。资金使用范围在规则模式下使用上限；AI审核只决定是否入场。{isPivot ? "枢轴策略不滚仓；同一币种只管理一单。" : "滚仓浮盈且出现新的合格金叉才加层，最多3层，超过4根不追入。"}</p>
         </section>
         {isRebound && <section className="space-y-2 rounded-md border border-[var(--border)] p-3">
           <Label htmlFor="hunter-rebound-threshold">反弹柱体阈值（两根合计占 MA20 的 %，0–50）</Label>
@@ -169,7 +179,8 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
             onChange={e => patch({ rebound_threshold_pct: Number(e.target.value) })} />
           <p className="text-xs text-[var(--text-muted)]">做多：前两根阴线柱体高度之和 ≥ 该百分比×MA20，第二根收盘（第三根开盘）立即挂单买入，信号只在第三根K线内有效；做空：前两根阳线柱体之和 ≥ 该百分比×MA20 且第三根递减、距均线距离缩短才触发。默认 10%，多空共用同一设置。</p>
         </section>}
-        <CreateTaskRules value={bottomRules} onChange={setBottomRules} showAiOptions={false} bottomOnly checkSeconds={5} cooldownScope="hunter" />
+        {isPivot && <section className="space-y-3 rounded-md border border-[var(--border)] p-3"><p className="text-sm font-medium">枢轴波段参数 · 与量化交易共用</p><KindParams quant={pivotQuant} onQuant={q => setPivotQuant({ ...q, quantKind: "swing_pivot" })} symbol="" timeframe="60m" /><p className="text-xs text-[var(--text-muted)]">只接收最近2根K线内的信号。同币不重复下单；每笔平仓后自动进入历史。</p></section>}
+        <CreateTaskRules value={bottomRules} onChange={setBottomRules} showAiOptions={false} bottomOnly checkSeconds={5} cooldownScope={isPivot ? "symbol" : "hunter"} cooldownRequired={isPivot} />
       </>}
       {!isNewStrategy && <fieldset className="space-y-2"><legend className="text-sm font-medium">交易周期与风险预算</legend>
         {(Object.keys(CYCLES) as Cycle[]).map(cycle => <label key={cycle} className="flex gap-3 items-start rounded-md border border-[var(--border)] px-3 py-2 text-sm">
@@ -183,14 +194,15 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
         <p className="text-xs text-[var(--text-muted)]">两种模式都遵守单笔止损与策略总风险限额。OKX API 模拟盘和实盘按交易设置中的凭证类型执行，并向交易所提交所选保证金模式和保护单；站内模拟撮合使用统一资金账本。</p>
       </fieldset>}
       {!isNewStrategy && <ProfitLockSettings value={profitLock} onChange={setProfitLock} />}
-      {isRebound && <section className="space-y-2">
-        <p className="text-sm font-medium">锁利设置（反弹策略的盈利平仓方式）</p>
-        <ProfitLockSettings value={profitLock} onChange={setProfitLock} />
+      {isNewStrategy && <section className="space-y-2">
+        <p className="text-sm font-medium">{isPivot ? "枢轴波段 · 自动开启锁利润" : "锁利设置（反弹策略的盈利平仓方式）"}</p>
+        <ProfitLockSettings value={profitLock} onChange={setProfitLock} required={isPivot} />
       </section>}
       {isNewStrategy ? <div className="rounded-md border border-[var(--border)] p-3 text-xs space-y-2">
         <p className="font-medium">平仓标准</p><p>① 兜底收益率达到设置的止盈或止损值，优先全平。</p>
         {isRebound && <p>② 锁利：净收益达到激活线后开始跟踪峰值，回吐超过让利幅度即全平锁住利润；按持仓方向计算多空盈亏（空头=入场价−现价）。反弹策略无技术指标平仓、不做滚仓加层。</p>}
-        <p>入场形态使用已收盘K线，MA20为20根简单均线。各周期独立判断；实际收阴且价格回落才计作做空衰竭确认。兜底平仓优先执行。创建后自动开始扫描。</p>
+        {isPivot && <p>② 自动锁利跟踪净利润；③ 入场枢轴极值被突破，或出现新的反向枢轴时全平。本单完成自动入历史。每个币种多空合计亏损2次后禁止扫描与挂单，次日北京时间06:00解锁。</p>}
+        {!isPivot && <p>入场形态使用已收盘K线，MA20为20根简单均线。各周期独立判断；实际收阴且价格回落才计作做空衰竭确认。兜底平仓优先执行。创建后自动开始扫描。</p>}
       </div> : <details className="rounded-md border border-[var(--border)] p-3 text-xs space-y-2">
         <summary className="cursor-pointer text-sm">下单、止盈和亏损平仓标准</summary>
         <p>只使用已收盘 K 线：币种趋势、上市时长和流动性合格，相对强弱进入合格区间。{config.strategy_version === "hunter-v4" ? "保留三路短线入口，中长线增加受限趋势延续；重要阻力/支撑阻挡净3:1目标时跳过。" : config.strategy_version === "hunter-v3" ? "短线排名前/后50%，允许BTC横盘，拦截反向趋势及市场冲击；突破回踩、EMA20回调或短线趋势延续收盘确认后申请挂载，中长线保留均衡版条件。" : config.strategy_version === "hunter-v2" ? "排名前/后30%，大盘与币种同向；放量突破回踩或EMA20趋势回调企稳确认后申请挂载。" : "排名前/后20%，大盘与币种同向；放量突破、回踩及收盘确认后申请挂载。"}服务器再次复核报价、成本、风险预算及已有仓位，成本不得超过止损距离的20%。</p>
@@ -208,15 +220,15 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
         </select></div>}
       </div>
       {config.brain !== "rules" && <div className="space-y-2">
-        <p className="text-xs text-[var(--text-muted)]">模型须赞同规则方向且置信度至少 65%；{isNewStrategy ? (isRebound ? "仓位按仓位管理设置，平仓按兜底止损与锁利。" : "仓位按仓位管理设置，平仓按兜底与联合技术条件。") : "仓位与止损仍由固定风控决定。"}</p>
+        <p className="text-xs text-[var(--text-muted)]">模型须赞同规则方向且置信度至少 65%；{isNewStrategy ? (isPivot ? "仓位按仓位管理设置，平仓按兜底、锁利和枢轴失效/反向信号。" : "仓位按仓位管理设置，平仓按兜底止损与锁利。") : "仓位与止损仍由固定风控决定。"}</p>
         <label className="flex gap-2 items-center text-xs"><input type="checkbox" checked={config.rule_fallback} onChange={e => patch({ rule_fallback: e.target.checked })} />模型不可用时允许规则降级（默认关闭）</label>
       </div>}
       <details className="rounded-md border border-[var(--border)] p-3">
         <summary className="cursor-pointer text-sm">搜索参数</summary>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
           <div><Label htmlFor="hunter-pool">扫描币池数量（5～200）</Label><Input id="hunter-pool" type="number" min={5} max={200} value={config.pool_size} onChange={e => patch({ pool_size: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">按 24 小时成交额从大到小取前 N 个最活跃币种，默认 50；运行中也可在猎手面板随时调整。</p></div>
-          <div><Label htmlFor="hunter-slots">最多持仓任务（1～4）</Label><Input id="hunter-slots" type="number" min={1} max={4} value={config.max_positions} onChange={e => patch({ max_positions: Number(e.target.value) })} /></div>
-          <div><Label htmlFor="hunter-interval">扫描复查间隔（秒）</Label><Input id="hunter-interval" type="number" min={30} max={3600} value={config.scan_seconds} onChange={e => patch({ scan_seconds: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">{isRebound ? "各周期按此间隔独立复查，使用已收盘K线，执行前再次复核信号和报价。" : "新版短线按此间隔复查；中线至少5分钟，长线至少30分钟。执行K线收盘后优先更新。"}</p></div>
+          <div><Label htmlFor="hunter-slots">最多同时创建单数（1～{isPivot ? 10 : 4}）</Label><Input id="hunter-slots" type="number" min={1} max={isPivot ? 10 : 4} value={config.max_positions} onChange={e => patch({ max_positions: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">已挂载、待成交及持仓均占用名额；完成后自动释放。</p></div>
+          <div><Label htmlFor="hunter-interval">扫描复查间隔（秒）</Label><Input id="hunter-interval" type="number" min={30} max={3600} value={config.scan_seconds} onChange={e => patch({ scan_seconds: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">{isPivot ? "60分钟K线按此间隔复查，包括参数允许的盘中预确认；挂载及下单前均复核最近2根K线的信号。" : isRebound ? "各周期按此间隔独立复查，使用已收盘K线，执行前再次复核信号和报价。" : "新版短线按此间隔复查；中线至少5分钟，长线至少30分钟。执行K线收盘后优先更新。"}</p></div>
           <HunterSymbolMultiSelect id="hunter-white" label="白名单" value={config.whitelist} options={symbols}
             onChange={whitelist => patch({ whitelist })} max={50} loading={symbolsLoading} error={symbolsError}
             onRetry={() => setSymbolsReload(n => n + 1)} hint="留空不限制币种；选中后只搜索这些币种，最多 50 个。" />

@@ -88,7 +88,8 @@ interface CreateTaskRulesProps {
   /** Reuse only standard bottom controls in the independent hunter strategy. */
   bottomOnly?: boolean
   checkSeconds?: number
-  cooldownScope?: "task" | "hunter"
+  cooldownScope?: "task" | "hunter" | "symbol"
+  cooldownRequired?: boolean
   value: RuleFormState
   onChange: (next: RuleFormState) => void
   /** 量化规则策略传 false，不展示 AI 自主平仓/止损 */
@@ -131,6 +132,7 @@ export function CreateTaskRules({
   bottomOnly = false,
   checkSeconds = 2,
   cooldownScope = "task",
+  cooldownRequired = false,
 }: CreateTaskRulesProps): React.JSX.Element {
   function patch(partial: Partial<RuleFormState>): void {
     onChange({ ...value, ...partial })
@@ -151,21 +153,21 @@ export function CreateTaskRules({
       </p>
       <div className="rounded border border-amber-500/20 p-2 space-y-1.5">
         <label className="flex items-center gap-2 text-xs">
-          <input type="checkbox" checked={value.lossCooldownOn !== false}
+          <input type="checkbox" checked={cooldownRequired || value.lossCooldownOn !== false} disabled={cooldownRequired}
             onChange={(e) => patch({ lossCooldownOn: e.target.checked })} />
           亏损冷静期
         </label>
         <div className="flex items-center gap-2 text-xs">
           <span className="shrink-0">本日亏损平仓</span>
           <Input aria-label="冷静期亏损次数" type="number" min={1} max={10} step={1}
-            className="w-20" disabled={value.lossCooldownOn === false}
-            value={value.lossCooldownLimit ?? "2"}
+            className="w-20" disabled={cooldownRequired || value.lossCooldownOn === false}
+            value={cooldownRequired ? "2" : value.lossCooldownLimit ?? "2"}
             onChange={(e) => patch({ lossCooldownLimit: e.target.value })} />
           <span>次后停止开仓</span>
         </div>
         <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
-          {cooldownScope === "hunter" ? "本猎手的所有周期与子任务合计" : "每个任务独立"}累计，范围 1–10 次，默认 2 次。每轮全部平仓后扣开、平仓手续费亏损记一次；盈利不清零。
-          北京时间每日 06:00 重置，冷静期继续执行止损和平仓。关闭后允许恢复开仓，重新开启沿用本日记录。
+          {cooldownScope === "symbol" ? "每个币种多空及历史子任务合计，2次后只冻结该币种，禁止扫描和挂单。" : cooldownScope === "hunter" ? "本猎手的所有周期与子任务合计，范围1–10次，默认2次。" : "每个任务独立累计，范围1–10次，默认2次。"}每轮全部平仓后扣开、平仓手续费亏损记一次；盈利不清零。
+          北京时间每日 06:00 重置，冷静期继续执行止损和平仓。{!cooldownRequired && "关闭后允许恢复开仓，重新开启沿用本日记录。"}
         </p>
       </div>
       <div className="grid grid-cols-2 gap-2">

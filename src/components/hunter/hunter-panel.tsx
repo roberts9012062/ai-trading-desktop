@@ -12,6 +12,7 @@ import { CYCLES } from "@/lib/hunter/rules"
 import { hunterApi, hunterAccountLabel, type Opportunity, type HunterCapabilities } from "@/lib/hunter/api"
 import { HunterProfitSummary } from "./hunter-profit-summary"
 import { OpportunitySignalDialog } from "./opportunity-signal-dialog"
+import { PivotSignalDialog } from "./pivot-signal-dialog"
 import { HunterHistoryDialog } from "./hunter-history-dialog"
 import { visibleHunterOpportunities } from "@/lib/hunter/task-visibility"
 
@@ -35,6 +36,7 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
   const connectionError = useHunterStore(s => s.error)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [signalGroup, setSignalGroup] = useState<string | null>(null)
   const [signalFor, setSignalFor] = useState<Opportunity | null>(null)
   const [historyFor, setHistoryFor] = useState<string | null>(null)
   const [manualBusy, setManualBusy] = useState<string | null>(null)
@@ -45,7 +47,7 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
     void hunterApi.capabilities().then(cap => { if (!abort.signal.aborted) setCapabilities(cap) }).catch(() => {})
     return () => abort.abort()
   }, [])
-  if (!visible.length) return null
+  if (!groups.length) return null
   const action = async (id: string, cmd: Parameters<typeof control>[1], poolSize?: number) => {
     setBusy(id); setError(null)
     try { await control(id, cmd, poolSize) } catch (e) { setError(e instanceof Error ? e.message : "操作失败") } finally { setBusy(null) }
@@ -64,7 +66,7 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
     } catch (e) { setError(e instanceof Error ? e.message : "立即开仓失败") } finally { setManualBusy(null) }
   }
   return <section aria-label="多周期猎手" className="space-y-3">
-    <div className="flex gap-2 items-center text-sm font-medium"><Crosshair className="w-4 h-4" />多周期猎手</div>
+    <div className="flex gap-2 items-center text-sm font-medium"><Crosshair className="w-4 h-4" />多周期猎手<select aria-label="查看历史猎手" className="ml-auto rounded border border-[var(--border)] bg-[var(--bg-primary)] p-1 text-xs" value={historyFor ?? ""} onChange={e => setHistoryFor(e.target.value || null)}><option value="">查看交易历史…</option>{groups.map(g => <option key={g.id} value={g.id}>{g.name} · {labels[g.status]}</option>)}</select></div>
     {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
     {connectionError && <p role="alert" className="text-xs text-red-400">{connectionError}</p>}
     {visible.map(g => {
@@ -72,19 +74,20 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
       return <article key={g.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4 space-y-3">
       <div className="flex justify-between gap-3 flex-wrap">
         <div><strong className="text-sm">{g.name}</strong><span className="ml-2 text-xs text-[var(--text-muted)]">{labels[g.status]} · {hunterAccountLabel(g.runtime.execution_account?.execution_mode ?? (g.trading_mode === "virtual" ? "virtual" : undefined))} · {g.config.venue.toUpperCase()} · {g.config.leverage ?? 1} 倍{g.config.margin_mode === "cross" ? "全仓" : "逐仓"} · {g.config.brain === "rules" ? "规则" : g.config.brain === "jev" ? "Jev" : "AI 大模型"}</span>
-          <p className="text-xs text-[var(--text-muted)] mt-1">{g.config.strategy_version === MACD_MA20_VERSION ? `${MACD_MA20_NAME} · ${g.config.cycles.map(hunterCycleLabel).join(" / ")} · ${macdDirectionLabel(g.config.direction)}` : g.config.strategy_version === REBOUND_VERSION ? `反弹猎手 · 两根柱体≥${g.config.rebound_threshold_pct ?? 10}%×MA20 · ${g.config.cycles.map(hunterCycleLabel).join(" / ")} · ${macdDirectionLabel(g.config.direction)} · 锁利管理` : g.config.strategy_version === "hunter-v4" ? "趋势猎手 V4 · 计划净3:1 / 多周期延续 / 确认反转退出" : g.config.strategy_version === "hunter-v3" ? "历史版本 V3 · 待合并至趋势猎手V4" : g.config.strategy_version === "hunter-v2" ? "历史版本 V2 · 待合并至趋势猎手V4" : "历史版本 V1 · 待合并至趋势猎手V4"}</p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">{g.config.strategy_version === "hunter-pivot" ? "枢轴波段 · 60分钟 / 最近2根K线 / 最多10单 / 自动锁利" : g.config.strategy_version === MACD_MA20_VERSION ? `${MACD_MA20_NAME} · ${g.config.cycles.map(hunterCycleLabel).join(" / ")} · ${macdDirectionLabel(g.config.direction)}` : g.config.strategy_version === REBOUND_VERSION ? `反弹猎手 · 两根柱体≥${g.config.rebound_threshold_pct ?? 10}%×MA20 · ${g.config.cycles.map(hunterCycleLabel).join(" / ")} · ${macdDirectionLabel(g.config.direction)} · 锁利管理` : g.config.strategy_version === "hunter-v4" ? "趋势猎手 V4 · 计划净3:1 / 多周期延续 / 确认反转退出" : g.config.strategy_version === "hunter-v3" ? "历史版本 V3 · 待合并至趋势猎手V4" : g.config.strategy_version === "hunter-v2" ? "历史版本 V2 · 待合并至趋势猎手V4" : "历史版本 V1 · 待合并至趋势猎手V4"}</p>
           <p className="text-xs text-[var(--text-muted)] mt-1 whitespace-pre-line line-clamp-1" title={progress[g.id]}>{g.config.scan_location === "server" ? "服务器托管 · 关闭客户端后继续自动搜索、下单与持仓管理" : progress[g.id] ?? "等待桌面扫描；已挂载持仓由服务器管理"}</p></div>
         <div className="flex gap-2 flex-wrap">
           {(g.status === "running" || g.status === "paused") && <Button size="sm" variant="outline" disabled={busy === g.id || (g.config.scan_location !== "server" && !capabilities?.can_server_host)} title={g.config.scan_location === "server" ? "切换回桌面扫描" : "有效VIP或管理员可服务器托管"} onClick={() => void changeHosting(g.id, g.config.scan_location === "server" ? "desktop" : "server")}>{g.config.scan_location === "server" ? "解除服务器托管" : "挂载到服务器 · VIP"}</Button>}
-          {g.config.strategy_version !== MACD_MA20_VERSION && g.config.strategy_version !== REBOUND_VERSION && <LiveProfitLockControl targetId={g.id} name={g.name} hunter config={g.config.profit_lock} disabled={busy === g.id} onSave={config => setProfitLock(g.id, config)} />}
-          {g.config.strategy_version !== MACD_MA20_VERSION && g.config.strategy_version !== REBOUND_VERSION && (g.status === "running" || g.status === "paused") && g.config.strategy_version !== "hunter-v4" && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade_swing")}>合并至趋势猎手 V4</Button>}
-          <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => setHistoryFor(historyFor === g.id ? null : g.id)}>交易历史（{g.opportunities.filter(o => o.finished_at).length}）</Button>
+          {g.config.strategy_version !== MACD_MA20_VERSION && <LiveProfitLockControl targetId={g.id} name={g.name} hunter required={g.config.strategy_version === "hunter-pivot"} config={g.config.profit_lock} disabled={busy === g.id} onSave={config => setProfitLock(g.id, config)} />}
+          {g.config.strategy_version !== MACD_MA20_VERSION && g.config.strategy_version !== REBOUND_VERSION && g.config.strategy_version !== "hunter-pivot" && (g.status === "running" || g.status === "paused") && g.config.strategy_version !== "hunter-v4" && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "upgrade_swing")}>合并至趋势猎手 V4</Button>}
+          <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => setHistoryFor(historyFor === g.id ? null : g.id)}>交易历史</Button>
           {(g.status === "running" || g.status === "paused") && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, g.status === "running" ? "pause" : "resume")}>{g.status === "running" ? "暂停搜索" : "恢复搜索"}</Button>}
           {g.status !== "stopped" && g.status !== "stopping" && <Button size="sm" variant="outline" disabled={busy === g.id} onClick={() => void action(g.id, "stop")}>停止搜索</Button>}
           {g.opportunities.some(o => !o.finished_at) && <Button size="sm" variant="outline" disabled={busy === g.id || g.status === "stopping"} onClick={() => void action(g.id, "stop_close")}>停止并平仓</Button>}
         </div>
       </div>
       <HunterProfitSummary hunter={g} />
+      {g.config.strategy_version === "hunter-pivot" && <div className="text-xs space-y-1" aria-label="枢轴单币冷静期"><p>每币多空合计亏损2次后暂停该币种扫描及挂单，次日北京时间06:00解锁；平仓后自动入历史。</p>{Object.entries(g.runtime.symbol_cooldowns ?? {}).filter(([, state]) => state.active || state.error).map(([symbol, state]) => <p key={symbol} className="text-amber-400">{symbol.toUpperCase()} · 亏损{state.loss_count}次 · {state.error || "冷静期"} · 解锁 {new Date(state.reset_at).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })} 北京时间</p>)}</div>}
       {g.config.scan_location === "server" && <div aria-label="服务器托管扫描" className="rounded-md border border-[var(--border)] p-3 text-xs space-y-1">
         {g.runtime.hosting?.blocked && <p className="text-amber-400">{g.runtime.hosting.blocked}</p>}
         {g.config.cycles.map(cycle => { const row = g.runtime.hosting?.cycles[cycle]; return <p key={cycle}>{hunterCycleLabel(cycle)} · {row?.phase === "scanning" ? "正在扫描" : row?.at ? `最近扫描 ${new Date(row.at*1000).toLocaleTimeString("zh-CN")}` : g.status === "running" ? "等待服务器首次扫描" : "扫描已暂停"} · {row?.note ?? "已有持仓继续由服务器管理"}{row?.counts && ` · 扫描 ${row.counts.scanned ?? 0}/${row.counts.pool ?? 0} · 信号 ${row.counts.signals ?? 0} / 挂载 ${row.counts.mounted ?? 0}`}</p> })}
@@ -95,7 +98,7 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
       <details data-testid="hunter-statistics-group" className="rounded-lg border border-[var(--border)] p-3">
       <summary className="cursor-pointer text-xs text-[var(--text-secondary)]">展开猎手明细 · {activeOps.length} 个运行子任务</summary>
       <div className="mt-3 space-y-3">
-      {g.config.strategy_version === MACD_MA20_VERSION && <div className="rounded-md border border-[var(--border)] p-3 text-xs flex flex-wrap items-center gap-2" aria-label="扫描币池调整">
+      {(g.config.strategy_version === MACD_MA20_VERSION || g.config.strategy_version === "hunter-pivot") && <div className="rounded-md border border-[var(--border)] p-3 text-xs flex flex-wrap items-center gap-2" aria-label="扫描币池调整">
         <span>扫描币池数量（5–200，当前 {g.config.pool_size}）：按 24 小时成交额取最活跃的前 N 个币种，调整后立即生效</span>
         <Input className="w-24" type="number" min={5} max={200} aria-label="币池数量"
           value={poolDraft[g.id] ?? g.config.pool_size}
@@ -151,7 +154,7 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
             <td className="p-2">
               <div className="flex items-center gap-1">
                 <button type="button" className="text-left hover:underline" disabled={!task || !onSelectTask} onClick={() => task && onSelectTask?.(task.id)}>{o.symbol.toUpperCase()} · {hunterCycleLabel(o.cycle)} · {o.plan.direction === "long" ? "多" : "空"} · {o.plan.leverage ?? 1} 倍{o.plan.margin_mode === "cross" ? "全仓" : "逐仓"} · {o.plan.entry_kind === "macd_ma20" ? "MACD+MA20" : o.plan.entry_kind === "rebound" ? "反弹" : o.plan.entry_kind === "continuation" ? "趋势延续" : o.plan.entry_kind === "pullback" ? "趋势回调" : "突破回踩"}</button>
-                <button type="button" title="查看K线信号图" aria-label={`查看${o.symbol}K线信号图`} className="p-1 rounded hover:bg-[var(--bg-primary)]" onClick={() => setSignalFor(o)}><CandlestickChart className="w-3.5 h-3.5" /></button>
+                <button type="button" title="查看K线信号图" aria-label={`查看${o.symbol}K线信号图`} className="p-1 rounded hover:bg-[var(--bg-primary)]" onClick={() => { setSignalGroup(g.id); setSignalFor(o) }}><CandlestickChart className="w-3.5 h-3.5" /></button>
               </div>
               <span className="block text-[var(--text-muted)]">{o.plan.version ?? "hunter-v1"} · 点击文字查看任务记录</span>
             </td>
@@ -167,22 +170,22 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
             && Date.parse(o.finished_at)/1000 >= cutoff).slice(-6)
           if (!unfilled.length) return null
           return <div className="mt-3 space-y-2" aria-label="最近挂载未成交">
-            <p className="text-xs">最近挂载未成交（2小时内） · 可查看信号图或手动立即开仓</p>
+            <p className="text-xs">最近挂载未成交（2小时内） · 可查看保存的信号图</p>
             {unfilled.map(o => <div key={o.id} className="flex items-center justify-between gap-2 rounded border border-[var(--border)] px-2 py-1.5 text-xs">
               <span>{o.symbol.toUpperCase()} · {hunterCycleLabel(o.cycle)} · {o.plan.direction === "long" ? "做多" : "做空"}
                 <span className="block text-[var(--text-muted)]">{o.runtime.reason ?? o.runtime.note ?? "挂载后未成交"}</span></span>
               <span className="flex gap-1 shrink-0">
-                <Button size="sm" variant="outline" onClick={() => setSignalFor(o)}>信号图</Button>
-                <Button size="sm" disabled={manualBusy === o.id || g.status !== "running"} onClick={() => void manualEntry(g.id, o)}>{manualBusy === o.id ? "开仓中…" : "立即开仓"}</Button>
+                <Button size="sm" variant="outline" onClick={() => { setSignalGroup(g.id); setSignalFor(o) }}>信号图</Button>
+                {g.config.strategy_version === MACD_MA20_VERSION && <Button size="sm" disabled={manualBusy === o.id || g.status !== "running"} onClick={() => void manualEntry(g.id, o)}>{manualBusy === o.id ? "开仓中…" : "立即开仓"}</Button>}
               </span>
             </div>)}
           </div>
         })()}
       </div>
-      {historyFor === g.id && <HunterHistoryDialog group={g} onSelect={o => setSignalFor(o)} onClose={() => setHistoryFor(null)} />}
-      <OpportunitySignalDialog group={g} opportunity={signalFor?.id && g.opportunities.some(o => o.id === signalFor.id) ? signalFor : null} onClose={() => setSignalFor(null)} />
       <p className="text-[11px] text-[var(--text-muted)]">{g.trading_mode === "live" ? "OKX API 执行 · 成交费用及已对账资金费计入收益，模型调用费另计" : "站内模拟研究 · 成交手续费已计入，资金费和模型费尚未模拟结算"}；尚未取得独立盈利验证。停止搜索不会关闭已有持仓保护。</p>
       </div></details>
     </article>})}
+    {groups.filter(g => g.id === historyFor).map(g => <HunterHistoryDialog key={g.id} group={g} onSelect={o => { setSignalGroup(g.id); setSignalFor(o) }} onClose={() => setHistoryFor(null)} />)}
+    {signalFor && groups.filter(g => g.id === signalGroup).map(g => signalFor.plan.version === "hunter-pivot" ? <PivotSignalDialog key={signalFor.id} group={g} opportunity={signalFor} onClose={() => setSignalFor(null)} /> : <OpportunitySignalDialog key={signalFor.id} group={g} opportunity={signalFor} onClose={() => setSignalFor(null)} />)}
   </section>
 }

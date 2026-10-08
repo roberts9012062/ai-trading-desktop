@@ -7,9 +7,9 @@ import { liveProfitLockDraft, liveProfitLockConfig } from "@/lib/profit-lock"
 import type { ProfitLockConfig } from "@/lib/ai-trading-api"
 import { useAuthStore } from "@/stores/auth"
 
-export function LiveProfitLockControl({ targetId, name, config, onSave, disabled = false, hunter = false }: {
+export function LiveProfitLockControl({ targetId, name, config, onSave, disabled = false, hunter = false, required = false }: {
   targetId: string; name: string; config?: ProfitLockConfig | null;
-  onSave: (config: ProfitLockConfig) => Promise<void>; disabled?: boolean; hunter?: boolean
+  onSave: (config: ProfitLockConfig) => Promise<void>; disabled?: boolean; hunter?: boolean; required?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(() => liveProfitLockDraft(config))
@@ -27,7 +27,7 @@ export function LiveProfitLockControl({ targetId, name, config, onSave, disabled
     const started = generation.current
     const active = () => mounted.current && started === generation.current
     try {
-      await onSave(liveProfitLockConfig(draft))
+      await onSave(liveProfitLockConfig({ ...draft, ...(required ? { enabled: true } : {}) }))
       if (active()) setOpen(false)
     } catch (e) { if (active()) setError(e instanceof Error ? e.message : "锁利设置保存失败") }
     finally { if (active()) setBusy(false) }
@@ -43,7 +43,7 @@ export function LiveProfitLockControl({ targetId, name, config, onSave, disabled
           任务状态保持不变，其他止盈止损规则继续生效。
         </DialogDescription></DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto space-y-3">
-          <fieldset disabled={busy} className={busy ? "min-w-0 opacity-70" : "min-w-0"}><ProfitLockSettings value={draft} onChange={setDraft} /></fieldset>
+          <fieldset disabled={busy} className={busy ? "min-w-0 opacity-70" : "min-w-0"}><ProfitLockSettings value={draft} onChange={setDraft} required={required} /></fieldset>
           <p className="text-xs text-[var(--text-muted)]">首次开启从当前净盈利开始追踪；已锁住的利润线不会降低。满足锁利平仓条件时由服务器执行，实际收益以成交为准。已提交的平仓委托不会因关闭锁利而撤销。</p>
           {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
         </div>

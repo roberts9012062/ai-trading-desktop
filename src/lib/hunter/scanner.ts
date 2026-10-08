@@ -1,5 +1,6 @@
 import { MACD_MA20_VERSION, REBOUND_VERSION } from "./macd-ma20"
 import { scanMacdHunter } from "./macd-scanner"
+import { scanPivotHunter } from "./pivot-scanner"
 import { hunterApi, type Hunter, type HunterData } from "./api"
 import { CYCLES, findSignal, trend, validateLeverage, type Direction } from "./rules"
 import { useHunterStore } from "@/stores/hunter"
@@ -11,6 +12,7 @@ import { BALANCED_VERSION, ADAPTIVE_VERSION, SWING_VERSION, type Cycle } from ".
 let stopRuntime: (() => void) | null = null
 
 export async function scanHunter(group: Hunter, abort: AbortSignal): Promise<void> {
+  if (group.config.strategy_version === "hunter-pivot") return scanPivotHunter(group, abort)
   if (group.config.scan_location === "server") return
   if (group.config.strategy_version === MACD_MA20_VERSION || group.config.strategy_version === REBOUND_VERSION) return scanMacdHunter(group, abort)
   const started = Date.now(), summaries: string[] = []

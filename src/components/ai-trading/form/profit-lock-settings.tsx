@@ -5,19 +5,19 @@ import { DEFAULT_PROFIT_LOCK, type ProfitLockFormState } from "@/lib/profit-lock
 import { ProfitLockTemplatePicker } from "./profit-lock-template-picker"
 
 const selectClass = "w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1.5 text-xs"
-export function ProfitLockSettings({ value = DEFAULT_PROFIT_LOCK, onChange }: {
-  value?: ProfitLockFormState; onChange: (value: ProfitLockFormState) => void
+export function ProfitLockSettings({ value = DEFAULT_PROFIT_LOCK, onChange, required = false }: {
+  value?: ProfitLockFormState; onChange: (value: ProfitLockFormState) => void; required?: boolean
 }) {
   const id = useId()
-  const patch = (part: Partial<ProfitLockFormState>) => onChange({ ...value, ...part })
+  const patch = (part: Partial<ProfitLockFormState>) => onChange({ ...value, ...part, ...(required ? { enabled: true } : {}) })
   const unit = value.unit === "percent" ? "%" : "USDT"
   const activation = Number(value.activation), gap = Number(value.giveback)
   const valid = Number.isFinite(activation) && Number.isFinite(gap) && activation > gap && gap > 0
   return <fieldset data-numeric-scope className="rounded-md border border-emerald-500/30 p-3 space-y-3">
     <legend className="px-1 text-sm font-medium">锁利润</legend>
-    <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={value.enabled} onChange={e => patch({ enabled: e.target.checked })} />开启锁利润</label>
-    {value.enabled && <>
-      <ProfitLockTemplatePicker id={id} value={value} onChange={onChange} />
+    <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={required || value.enabled} disabled={required} onChange={e => patch({ enabled: e.target.checked })} />{required ? "锁利润自动开启（此策略必需）" : "开启锁利润"}</label>
+    {(required || value.enabled) && <>
+      <ProfitLockTemplatePicker id={id} value={value} onChange={next => patch(next)} />
       <div className="space-y-1"><Label htmlFor={id + "-mode"}>锁利模式</Label><select id={id + "-mode"} className={selectClass} value={value.mode} onChange={e => patch({ mode: e.target.value as ProfitLockFormState["mode"] })}>
         <option value="auto">自动 · 净收益达到5%激活</option><option value="manual">手动 · 自定义激活与回撤</option>
       </select></div>
