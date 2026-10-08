@@ -1,7 +1,7 @@
 import { closedBars, ema, type Bar } from "./rules"
 
 export const MACD_MA20_VERSION = "hunter-macd-ma20" as const
-export const MACD_PERIODS = { "30m": 1800, "60m": 3600 } as const
+export const MACD_PERIODS = { "5m": 300, "15m": 900, "30m": 1800, "60m": 3600 } as const
 export type MacdPeriod = keyof typeof MACD_PERIODS
 export const MACD_MA20_NAME = "macd金叉+K线3根以上在ma20均线上"
 export const MACD_MA20_SHORT_NAME = "macd死叉+MA20向下+K线2-3根实体在ma20均线下"
@@ -49,7 +49,7 @@ export function macdMa20ShortEntry(rows: Bar[], period: MacdPeriod, now: number,
 }
 
 export function hunterCycleLabel(cycle: string): string {
-  return ({ short: "短线", medium: "中线", long: "长线", "30m": "30分钟", "60m": "60分钟" } as Record<string, string>)[cycle] ?? cycle
+  return ({ short: "短线", medium: "中线", long: "长线", "5m": "5分钟", "15m": "15分钟", "30m": "30分钟", "60m": "60分钟" } as Record<string, string>)[cycle] ?? cycle
 }
 
 export function macdDirectionLabel(direction: string | undefined): string {
