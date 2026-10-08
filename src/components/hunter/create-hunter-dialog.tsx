@@ -46,9 +46,13 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
   const [ready, setReady] = useState(false)
   const [capabilities, setCapabilities] = useState<HunterCapabilities | null>(null)
   const mode = useAuthStore(s => s.user?.trading_mode)
+  const isAdmin = useAuthStore(s => s.user?.role === "admin")
   const create = useHunterStore(s => s.create)
   const existingHunter = useHunterStore(s => s.groups.find(g => g.status !== "stopped"))
   const patch = (values: Partial<HunterConfig>) => setConfig(s => ({ ...s, ...values }))
+  useEffect(() => {
+    if (!isAdmin) setConfig(s => ({ ...s, scan_location: "desktop" }))
+  }, [isAdmin, open])
   useEffect(() => {
     if (!open) return
     const controller = new AbortController()
@@ -73,12 +77,12 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
     }).catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : "服务器模块不可用") })
     void getAIModels().then(list => { if (!cancelled) setModels(list) }).catch(() => { if (!cancelled) setModels([]) })
     return () => { cancelled = true }
-  }, [open, mode])
+  }, [open, mode, isAdmin])
   const choices = config.brain === "jev" ? decisionModelsOnly(models) : chatModelsOnly(models)
   const submit = async () => {
     setError(null)
     if (existingHunter) { setError("当前账户已有未停止的多周期猎手，请先停止后再创建"); return }
-    if (config.scan_location === "server" && !capabilities?.can_server_host) { setError("服务器托管仅限有效VIP或管理员"); return }
+    if (isAdmin && config.scan_location === "server" && !capabilities?.can_server_host) { setError("服务器托管暂时仅限管理员"); return }
     if (!capabilities?.supported_versions?.includes(config.strategy_version!)) { setError("服务器尚未支持所选规则版本，请更新服务器"); return }
     if (!config.cycles.length) { setError("请选择至少一个周期"); return }
     try {
@@ -92,7 +96,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
     if (config.brain !== "rules" && !choices.some(m => m.id === config.model_id)) { setError("请选择对应类型的模型"); return }
     setBusy(true)
     try {
-      await create({ ...config, name: config.name.trim(),
+      await create({ ...config, scan_location: isAdmin ? config.scan_location ?? "desktop" : "desktop", name: config.name.trim(),
         ...(isNewStrategy ? { ...buildBottomPayload(bottomRules), profit_lock: buildProfitLockConfig({ ...profitLock, ...(isPivot ? { enabled: true } : {}) }),
           ...(isPivot ? { cycles: ["60m"], pivot_params: buildStrategyParams(pivotQuant) as unknown as HunterPivotParams, loss_cooldown_enabled: true, loss_cooldown_limit: 2 } : {}) } : { profit_lock: buildProfitLockConfig(profitLock) }),
         model_id: config.brain === "rules" ? null : config.model_id })
@@ -103,7 +107,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
     <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>创建多周期猎手</DialogTitle>
-        <DialogDescription>可选择桌面搜索或服务器托管。同一账户同时只能运行一个猎手。</DialogDescription>
+        <DialogDescription>{isAdmin ? "可选择本机搜索或服务器托管。" : "由自己的电脑扫描并挂载新机会。"}同一账户同时只能运行一个猎手。</DialogDescription>
       </DialogHeader>
       <div className="rounded-md border border-[var(--border)] p-3 text-xs text-[var(--text-secondary)]">
         当前账户：{capabilities ? hunterAccountLabel(capabilities.execution_mode ?? (capabilities.trading_mode === "virtual" ? "virtual" : undefined)) : "读取中…"}。新策略验证状态：未验证。
@@ -144,14 +148,14 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
           </>}
         </select></div>
       </div>
-      <section className="space-y-2 rounded-md border border-[var(--border)] p-3">
+      {isAdmin ? <section className="space-y-2 rounded-md border border-[var(--border)] p-3">
         <Label htmlFor="hunter-scan-location">扫描运行位置</Label>
         <select id="hunter-scan-location" className={selectClass} value={config.scan_location ?? "desktop"} onChange={e => patch({ scan_location: e.target.value as "desktop" | "server" })}>
-          <option value="desktop">桌面扫描</option>
-          <option value="server" disabled={!capabilities?.server_hosting_available || !capabilities.can_server_host}>服务器托管 · VIP / 管理员</option>
+          <option value="desktop">本机扫描</option>
+          <option value="server" disabled={!capabilities?.server_hosting_available || !capabilities.can_server_host}>服务器托管 · 仅管理员</option>
         </select>
-        <p className="text-xs text-[var(--text-muted)]">{config.scan_location === "server" ? "服务器自动扫描、挂载并执行交易，关闭客户端或退出登录后继续运行。" : "客户端开启时搜索新机会；已挂载持仓由服务器继续管理。"} 服务器托管仅限有效VIP，管理员可直接使用。</p>
-      </section>
+        <p className="text-xs text-[var(--text-muted)]">{config.scan_location === "server" ? "服务器自动扫描、挂载并执行交易，关闭客户端或退出登录后继续运行。" : "客户端开启时搜索新机会；已挂载持仓由服务器继续管理。"} 服务器托管暂时仅限管理员。</p>
+      </section> : <p className="text-xs text-[var(--text-muted)]">本机扫描：电脑客户端开启时扫描并挂载新机会，关闭后暂停搜索；已有持仓由服务器继续管理。</p>}
       {isNewStrategy && <>
         <fieldset className="space-y-2"><legend className="text-sm font-medium">交易周期</legend>
           <div className="grid grid-cols-2 gap-2">{(isPivot ? ["60m"] as MacdPeriod[] : Object.keys(MACD_PERIODS) as MacdPeriod[]).map(period => <label key={period} className="flex items-center gap-2 rounded-md border border-[var(--border)] p-3 text-sm">
