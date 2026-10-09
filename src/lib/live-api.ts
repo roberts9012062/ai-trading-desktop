@@ -5,6 +5,7 @@
  */
 
 import type { PaperAccountSummary, PaperOrderItem, PaperPositionItem } from "@/lib/paper-api"
+import { tryDesktopLiveRequest } from "./desktop-exchange"
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
 
@@ -31,7 +32,7 @@ async function liveRequest<T>(path: string, options: RequestInit = {}): Promise<
     headers["Authorization"] = `Bearer ${token}`
   }
   try {
-    const response = await fetch(`${API_BASE}${path}`, { ...options, headers })
+    const response = await tryDesktopLiveRequest(path, options) ?? await fetch(`${API_BASE}${path}`, { ...options, headers })
     if (response.status === 401 && typeof window !== "undefined") {
       window.location.href = "/login"
       throw new LiveRequestError("认证过期")

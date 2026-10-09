@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest"
 import { getKlineApi, getKlineBundleApi } from "./api"
+vi.mock('./desktop-routing', () => ({ ensureDesktopRouting: async () => {}, isServerMode: () => true }))
 
 afterEach(() => vi.unstubAllGlobals())
 

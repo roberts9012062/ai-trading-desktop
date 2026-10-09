@@ -1,5 +1,5 @@
 /** Public display market data only. Never attach product or exchange credentials. */
-import type { KlineBar } from "@/types"
+import type { KlineBar, TradeRecord } from "@/types"
 import type { ChartSubscriptionKey, ConnectionState, MessageHandler, QuoteData, StateHandler } from "./websocket"
 
 const PUBLIC_URL = "wss://okx-ws-test.kins.eu.org/ws/v5/public"
@@ -168,6 +168,10 @@ export class OkxSnippetWebSocket {
   private freshnessHandlers = new Set<(symbols: string[]) => void>()
   private freshnessTimer: ReturnType<typeof setInterval> | null = null
   private quoteSymbols = new Set<string>()
+  private depthSymbols = new Set<string>()
+  private contractValues = new Map<string, number>()
+  private depthHeads = new Map<string, number>()
+  private recentTrades = new Map<string, Map<string, TradeRecord>>()
   private chartKeys = new Set<string>()
   private fresh = new Map<string, { at: number; ts: number }>()
   private candleHeads = new Map<string, { time: number; closed: boolean; at: number }>()
@@ -178,8 +182,8 @@ export class OkxSnippetWebSocket {
   private businessChannel: PublicChannel
   constructor() {
     const budget = { next: 0 }
-    this.publicChannel = new PublicChannel(PUBLIC_URL, budget, frame => this.receiveQuote(frame), state => {
-      if (state !== "connected") { this.fresh.clear(); this.pendingQuotes.clear() }
+    this.publicChannel = new PublicChannel(PUBLIC_URL, budget, frame => this.receiveQuote(frame) || this.receiveDepth(frame), state => {
+      if (state !== "connected") { this.fresh.clear(); this.pendingQuotes.clear(); this.depthHeads.clear() }
       this.quoteStates.forEach(handler => handler(state))
       this.emitFreshness()
     })
@@ -209,7 +213,20 @@ export class OkxSnippetWebSocket {
   setQuoteSymbols(symbols: string[]): void {
     this.quoteSymbols = new Set(symbols.map(s => s.trim().toLowerCase()).filter(validSymbol).slice(0, 1024))
     for (const key of this.fresh.keys()) if (!this.quoteSymbols.has(key)) { this.fresh.delete(key); this.pendingQuotes.delete(key) }
-    this.publicChannel.setDesired([...this.quoteSymbols].sort().map(symbol => ({ channel: "tickers", instId: instrumentOf(symbol) })))
+    this.syncPublicSubscriptions()
+  }
+  setDepthSymbols(symbols: string[]): void {
+    this.depthSymbols = new Set(symbols.map(s => s.trim().toLowerCase()).filter(validSymbol).slice(0, 32))
+    for (const symbol of this.recentTrades.keys()) if (!this.depthSymbols.has(symbol)) this.recentTrades.delete(symbol)
+    this.syncPublicSubscriptions()
+  }
+  private syncPublicSubscriptions(): void {
+    const args: Arg[] = [...new Set([...this.quoteSymbols, ...this.depthSymbols])].sort().map(symbol => ({ channel: "tickers", instId: instrumentOf(symbol) }))
+    for (const symbol of this.depthSymbols) for (const channel of ["books5", "trades"]) args.push({channel, instId: instrumentOf(symbol)})
+    this.publicChannel.setDesired(args)
+  }
+  hasFreshDepth(symbol: string): boolean {
+    return this.publicChannel.state === 'connected' && Date.now() - (this.depthHeads.get(symbol) ?? 0) < 15000
   }
   setChartSubscription(keys: ChartSubscriptionKey[]): void {
     const args = new Map<string, Arg>()
@@ -237,7 +254,10 @@ export class OkxSnippetWebSocket {
     let valid = false
     for (const raw of frame.data) {
       const quote = decodeOkxTicker(raw)
-      if (!quote || arg.instId !== (raw as Record<string, unknown>).instId || !this.quoteSymbols.has(quote.symbol)) continue
+      if (!quote || arg.instId !== (raw as Record<string, unknown>).instId || (!this.quoteSymbols.has(quote.symbol) && !this.depthSymbols.has(quote.symbol))) continue
+      const native = raw as Record<string, unknown>
+      const value = Number(native.volCcy24h) / Number(native.vol24h)
+      if (Number.isFinite(value) && value > 0) this.contractValues.set(quote.symbol, value)
       const prev = this.fresh.get(quote.symbol)
       if (prev && quote.recv_ts! <= prev.ts) continue
       this.fresh.set(quote.symbol, { at: Date.now(), ts: quote.recv_ts! }); this.pendingQuotes.set(quote.symbol, quote); valid = true
@@ -248,6 +268,35 @@ export class OkxSnippetWebSocket {
       if (data.length) this.handlers.forEach(handler => handler({ type: "quote", data }))
       this.emitFreshness()
     }, 250)
+    return valid
+  }
+  private receiveDepth(frame: Record<string, unknown>): boolean {
+    const arg = frame.arg as Arg | undefined, symbol = symbolOf(arg?.instId)
+    if (!symbol || !this.depthSymbols.has(symbol) || !Array.isArray(frame.data)) return false
+    const value = this.contractValues.get(symbol)
+    if (!value) return false // Never present contract counts as base-coin quantities.
+    if (arg?.channel === 'books5') {
+      const row = frame.data[0] as {asks?: unknown[][]; bids?: unknown[][]; ts?: string} | undefined
+      if (!row || !Array.isArray(row.asks) || !Array.isArray(row.bids) || !Number.isFinite(Number(row.ts))) return false
+      const levels = (rows: unknown[][]) => rows.slice(0,5).map(r => ({price:Number(r[0]),volume:Number(r[1])*value}))
+      const asks=levels(row.asks),bids=levels(row.bids)
+      if (![...asks,...bids].every(l => Number.isFinite(l.price) && l.price>0 && Number.isFinite(l.volume) && l.volume>=0)) return false
+      this.depthHeads.set(symbol,Date.now())
+      this.handlers.forEach(h => h({type:'orderbook',data:[{symbol,asks,bids,source:'okx-snippet',asof:Number(row.ts),stale:false}]}))
+      return true
+    }
+    if (arg?.channel !== 'trades') return false
+    const recent = this.recentTrades.get(symbol) ?? new Map<string,TradeRecord>()
+    let valid=false
+    for (const raw of frame.data) {
+      const r=raw as Record<string,unknown>,price=Number(r.px),volume=Number(r.sz)*value,ts=Number(r.ts)
+      if (!Number.isFinite(price) || price<=0 || !Number.isFinite(volume) || volume<0 || !Number.isFinite(ts) || ts<=0 || ts>8640000000000000-28800000 || !['buy','sell'].includes(String(r.side)) || !r.tradeId) continue
+      recent.set(String(r.tradeId),{time:beijingTime(ts).slice(11),price,volume,direction:r.side as 'buy'|'sell',source:'realtime',ts:String(ts)})
+      valid=true
+    }
+    const sorted=[...recent.entries()].sort((a,b)=>Number(b[1].ts)-Number(a[1].ts)).slice(0,30)
+    this.recentTrades.set(symbol,new Map(sorted))
+    if (valid) this.handlers.forEach(h => h({type:'trades',data:{[symbol]:sorted.map(([,trade])=>trade)}}))
     return valid
   }
   private receiveCandle(frame: Record<string, unknown>): boolean {

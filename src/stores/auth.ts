@@ -3,6 +3,9 @@
 import { create } from "zustand"
 import { getMarketWebSocket } from "@/lib/websocket"
 import { getOkxSnippetWebSocket } from "@/lib/okx-snippet-ws"
+import { stopDesktopRouting } from "@/lib/desktop-routing"
+import { disconnectDesktopExchange } from "@/lib/desktop-exchange"
+import { stopSnippetPrivate } from "@/lib/snippet-private-ws"
 import { useNotificationsStore } from "@/stores/notifications"
 import type { User } from "@/types"
 
@@ -95,6 +98,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     writeCachedUser(null)
     try {
       getOkxSnippetWebSocket().disconnect()
+      stopSnippetPrivate()
+      disconnectDesktopExchange()
+      stopDesktopRouting()
       getMarketWebSocket().disconnect()
     } catch {
       // ignore

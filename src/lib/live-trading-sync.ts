@@ -1,4 +1,6 @@
 import type { MarketWebSocket } from '@/lib/websocket'
+import { subscribeSnippetPrivate } from './snippet-private-ws'
+import { isServerMode } from './desktop-routing'
 import { useAuthStore } from '@/stores/auth'
 import { usePaperTradingStore } from '@/stores/paper-trading'
 import { useAITradingStore } from '@/stores/ai-trading'
@@ -28,7 +30,7 @@ export function subscribeLiveTradingSync(ws: Pick<MarketWebSocket, 'onMessage' |
       }
     }, 250)
   }
-  const offMessage = ws.onMessage(message => {
+  const messageHandler: Parameters<MarketWebSocket['onMessage']>[0] = message => {
     if (!isCurrent() || message.type !== 'live_account_tick' || !message.data || typeof message.data !== 'object') return
     const data = message.data as Record<string, unknown>
     if (data.trading_mode !== 'live' || data.venue !== getStoredVenue()) return
@@ -40,7 +42,9 @@ export function subscribeLiveTradingSync(ws: Pick<MarketWebSocket, 'onMessage' |
       if (sections.length) queue(sections)
     }
     if (previous && !connected) queue()
-  })
+  }
+  const offMessage = ws.onMessage(message => { if (isServerMode()) messageHandler(message) })
+  const offSnippet = subscribeSnippetPrivate(messageHandler)
   const offOpen = ws.onOpen(() => {
     if (!isCurrent()) return
     usePaperTradingStore.setState({ liveSyncConnected: false, liveSyncAt: 0 })
@@ -49,5 +53,5 @@ export function subscribeLiveTradingSync(ws: Pick<MarketWebSocket, 'onMessage' |
   const offState = ws.onStateChange(state => {
     if (isCurrent() && state !== 'connected') usePaperTradingStore.setState({ liveSyncConnected: false, liveSyncAt: 0 })
   })
-  return () => { offMessage();offOpen();offState();if (timer !== undefined) clearTimeout(timer) }
+  return () => { offMessage();offSnippet();offOpen();offState();if (timer !== undefined) clearTimeout(timer) }
 }

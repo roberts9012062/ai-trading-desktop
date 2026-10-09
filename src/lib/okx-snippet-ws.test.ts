@@ -34,6 +34,17 @@ it("normalizes candle timezone, confirmation and base-coin volume", () => {
   expect(decodeOkxCandle([...row.slice(0, 8), "1"], "1d", 124)?.time).toBe("2026-10-09")
   expect(decodeOkxCandle([row[0], "1", ".1", "0.01", "1", "1", "1", "1", "0"], "15m", 1)).toBeNull()
 })
+it('shares public depth/trade subscriptions and converts contracts only after a known contract value', async()=>{
+  const messages=vi.fn();ws.onMessage(messages);ws.setDepthSymbols(['adausdt']);ws.connect()
+  await vi.advanceTimersByTimeAsync(2000);const pub=Socket.all[0];pub.open()
+  const depth={arg:{channel:'books5',instId:ticker.instId},data:[{asks:[['.24','2']],bids:[['.23','3']],ts:ticker.ts}]}
+  pub.frame(depth);expect(messages).not.toHaveBeenCalled()
+  pub.frame({arg:{channel:'tickers',instId:ticker.instId},data:[ticker]});pub.frame(depth)
+  expect(messages).toHaveBeenCalledWith({type:'orderbook',data:[expect.objectContaining({asks:[{price:.24,volume:200}],bids:[{price:.23,volume:300}]})]})
+  pub.frame({arg:{channel:'trades',instId:ticker.instId},data:[{tradeId:'1',px:'.24',sz:'4',ts:ticker.ts,side:'buy'}]})
+  expect(messages).toHaveBeenCalledWith({type:'trades',data:{adausdt:[expect.objectContaining({volume:400,source:'realtime'})]}})
+  expect(Socket.all).toHaveLength(1)
+})
 it("shares two credential-free sockets, deduplicates subscriptions and batches quotes", async () => {
   const messages = vi.fn(); ws.onMessage(messages)
   ws.setQuoteSymbols(["adausdt", "ADAUSDT"])

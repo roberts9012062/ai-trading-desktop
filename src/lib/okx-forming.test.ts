@@ -11,7 +11,8 @@ const mock = vi.hoisted(() => ({
 vi.mock("./api", () => ({ getKlineApi: mock.read }))
 vi.mock("@/stores/market", () => ({ useMarketStore: { getState: () => ({ updateKlineRealtime: mock.update, setConnectionState: mock.connection }) } }))
 vi.mock("@/components/market/kline/realtime/accumulator", () => ({ listActiveRtKeys: mock.active, offerRtBar: mock.offer }))
-vi.mock("./websocket", () => ({ getMarketWebSocket: () => ({ setChartSubscription: vi.fn() }) }))
+vi.mock("./websocket", () => ({ getMarketWebSocket: () => ({ setChartSubscription: vi.fn(), onMessage: () => () => {}, onStateChange: () => () => {} }) }))
+vi.mock('./desktop-routing', () => ({ isServerMode: () => false }))
 vi.mock("./okx-snippet-ws", () => ({ OKX_SNIPPET_CANDLE_STALE_MS: 15000, getOkxSnippetWebSocket: () => ({
   get state() { return mock.state }, setChartSubscription: mock.subscribe,
   observeVersion: mock.observe,

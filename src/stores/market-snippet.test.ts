@@ -4,8 +4,10 @@ const mock = vi.hoisted(() => ({ server: null as ((message: WsMessage) => void) 
   direct: null as ((message: WsMessage) => void) | null, freshness: null as ((symbols: string[]) => void) | null,
   fresh: new Set<string>(), exclusions: vi.fn(), snapshot: vi.fn(), connect: vi.fn(), charts: vi.fn() }))
 vi.mock("@/lib/websocket", () => ({ getMarketWebSocket: () => ({ connect: vi.fn(), setChartSubscription: mock.charts,
-  setQuoteExclusions: mock.exclusions, onMessage: (handler: (message: WsMessage) => void) => { mock.server = handler }, setKlineSubscription: vi.fn() }) }))
+  setMarketFallback: vi.fn(), setQuoteExclusions: mock.exclusions, onMessage: (handler: (message: WsMessage) => void) => { mock.server = handler }, setKlineSubscription: vi.fn() }) }))
+vi.mock('@/lib/desktop-routing', () => ({ ensureDesktopRouting: async () => {}, isServerMode: () => false, onDesktopRoutingChange: vi.fn() }))
 vi.mock("@/lib/okx-snippet-ws", () => ({ getOkxSnippetWebSocket: () => ({ connect: mock.connect, setQuoteSymbols: vi.fn(),
+  setDepthSymbols: vi.fn(), hasFreshDepth: () => false,
   hasFreshQuote: (symbol: string) => mock.fresh.has(symbol),
   onMessage: (handler: (message: WsMessage) => void) => { mock.direct = handler },
   onQuoteFreshnessChange: (handler: (symbols: string[]) => void) => { mock.freshness = handler } }) }))

@@ -13,6 +13,7 @@ import {
 } from "@/lib/websocket"
 import { getContractsByCodeApi, getQuotesSnapshotApi } from "@/lib/api"
 import { getOkxSnippetWebSocket } from "@/lib/okx-snippet-ws"
+import { ensureDesktopRouting, isServerMode, onDesktopRoutingChange } from "@/lib/desktop-routing"
 import { useNotificationsStore } from "@/stores/notifications"
 import { playNotificationSound } from "@/lib/sound"
 import { speakBigOrder } from "@/lib/speech"
@@ -27,6 +28,7 @@ import { speakTaskOrder } from "@/lib/speech"
 function syncSnippetQuoteSymbols(state: MarketState): void {
   const symbols = state.codeTree ? Object.values(state.codeTree).flatMap(group => group.contracts.map(contract => contract.symbol)) : Object.keys(state.quotes)
   getOkxSnippetWebSocket().setQuoteSymbols(symbols)
+  getOkxSnippetWebSocket().setDepthSymbols(Object.keys(state.klineWatchSymbols))
 }
 
 /**
@@ -404,7 +406,12 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     const ws = getMarketWebSocket()
     const snippet = getOkxSnippetWebSocket()
     syncSnippetQuoteSymbols(get())
-    snippet.connect()
+    const applyRouting = (server: boolean) => {
+      if (server) { snippet.disconnect();ws.setQuoteExclusions([]);ws.setMarketFallback(true) }
+      else { syncSnippetQuoteSymbols(get());snippet.connect() }
+    }
+    applyRouting(isServerMode())
+    void ensureDesktopRouting()
     ws.setChartSubscription([])
 
     // 已绑定过回调时只补 connect（登录后 token 就绪 / 页面二次进入）
@@ -415,7 +422,11 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       return
     }
     set({ wsInitialized: true })
-    snippet.onQuoteFreshnessChange(symbols => ws.setQuoteExclusions(symbols))
+    onDesktopRoutingChange(applyRouting)
+    snippet.onQuoteFreshnessChange(symbols => {
+      ws.setQuoteExclusions(isServerMode() ? [] : symbols)
+      ws.setMarketFallback(isServerMode() || symbols.length===0 || Object.keys(get().klineWatchSymbols).some(symbol => !snippet.hasFreshQuote(symbol) || !snippet.hasFreshDepth(symbol)))
+    })
     snippet.onMessage(message => {
       if (message.type === "quote" && Array.isArray(message.data)) {
         const quotes = (message.data as QuoteData[]).map(quote => {
@@ -424,6 +435,10 @@ export const useMarketStore = create<MarketState>((set, get) => ({
             decimal_places: Math.max(previous?.decimal_places ?? 0, quote.decimal_places), position: previous?.position ?? 0 }
         })
         get().updateQuotes(quotes)
+      } else if (message.type === 'orderbook' && Array.isArray(message.data)) {
+        get().updateOrderbooks(message.data as OrderBook[])
+      } else if (message.type === 'trades' && message.data && typeof message.data === 'object') {
+        get().updateTrades(message.data as Record<string,TradeRecord[]>)
       }
     })
 
@@ -433,12 +448,12 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     // 监听消息，按 type 分发
     ws.onMessage((message: WsMessage) => {
       if (message.type === "quote" && Array.isArray(message.data)) {
-        get().updateQuotes((message.data as QuoteData[]).filter(quote => !snippet.hasFreshQuote(quote.symbol)))
+        get().updateQuotes((message.data as QuoteData[]).filter(quote => isServerMode() || !snippet.hasFreshQuote(quote.symbol)))
         syncSnippetQuoteSymbols(get())
       } else if (message.type === "orderbook" && Array.isArray(message.data)) {
-        get().updateOrderbooks(message.data as OrderBook[])
+        get().updateOrderbooks((message.data as OrderBook[]).filter(book => isServerMode() || !snippet.hasFreshDepth(book.symbol)))
       } else if (message.type === "trades" && message.data && typeof message.data === "object") {
-        get().updateTrades(message.data as Record<string, TradeRecord[]>)
+        get().updateTrades(Object.fromEntries(Object.entries(message.data as Record<string,TradeRecord[]>).filter(([symbol]) => isServerMode() || !snippet.hasFreshDepth(symbol))))
       } else if (message.type === "kline" && Array.isArray(message.data)) {
         get().updateKlineRealtime(message.data as KlineRealtimeBar[])
       } else if (message.type === "notification" && message.data && typeof message.data === "object") {
@@ -486,6 +501,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
 
   setWsKlineSubscription: (symbols) => {
     getMarketWebSocket().setKlineSubscription(symbols)
+    getOkxSnippetWebSocket().setDepthSymbols(symbols)
   },
 
   watchKlineSymbol: (symbol) => {
@@ -495,6 +511,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     next[sym] = (next[sym] ?? 0) + 1
     set({ klineWatchSymbols: next })
     getMarketWebSocket().setKlineSubscription(Object.keys(next))
+    getOkxSnippetWebSocket().setDepthSymbols(Object.keys(next))
   },
 
   unwatchKlineSymbol: (symbol) => {
@@ -507,6 +524,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       delete next[sym]
       set({ klineWatchSymbols: next })
       getMarketWebSocket().setKlineSubscription(Object.keys(next))
+      getOkxSnippetWebSocket().setDepthSymbols(Object.keys(next))
       return
     }
     set({ klineWatchSymbols: { ...prev, [sym]: count - 1 } })

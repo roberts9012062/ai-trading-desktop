@@ -124,6 +124,16 @@ export class MarketWebSocket {
   private klineSubscriptionSet = false
   private chartSubscription: ChartSubscriptionKey[] | null = null
   private quoteExclusions: string[] | null = null
+  private marketFallback: boolean | null = null
+
+  setMarketFallback(enabled: boolean): void {
+    if (this.marketFallback === enabled) return
+    this.marketFallback = enabled
+    this.sendMarketFallback()
+  }
+  private sendMarketFallback(): void {
+    if (this.ws?.readyState === WebSocket.OPEN && this.marketFallback !== null) this.ws.send(JSON.stringify({ action: "market_fallback", enabled: this.marketFallback }))
+  }
 
   constructor(path: string = "/ws/market") {
     this.url = `${getWsBase()}${path}`
@@ -208,6 +218,7 @@ export class MarketWebSocket {
     this.setState("connected")
     this.startHeartbeat()
     this.sendQuoteExclusions()
+    this.sendMarketFallback()
     // 重连后服务端订阅状态归零，重发 K 线订阅
     this.sendKlineSubscription()
     this.sendChartSubscription()

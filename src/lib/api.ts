@@ -2,6 +2,7 @@ import type { AuthResponse, LoginRequest, RegisterRequest, User, NewsItem, Artic
 import type { IndicatorConfig } from "@/types/indicator"
 import type { ProfitLockTemplate } from "@/lib/profit-lock-templates"
 import type { ProfitLockConfig } from "@/lib/ai-trading-api"
+import { snippetQuotes, snippetKlines, withSnippetRead } from "./snippet-rest"
 
 export function listProfitLockTemplates(): Promise<ProfitLockTemplate[]> {
   return request("/api/profit-lock-templates")
@@ -315,7 +316,7 @@ export async function getContractsByCodeApi(): Promise<CodeTreeMap> {
 export async function getQuotesSnapshotApi(): Promise<
   Array<Record<string, unknown>>
 > {
-  return request<Array<Record<string, unknown>>>("/api/market/quotes")
+  return withSnippetRead("quotes", snippetQuotes, () => request<Array<Record<string, unknown>>>("/api/market/quotes"))
 }
 
 /** 添加自选 */
@@ -397,7 +398,17 @@ export async function getKlineBundleApi(
 ): Promise<KlineBundleResponse> {
   const params = new URLSearchParams({ symbol })
   if (limit) params.set("limit", String(limit))
-  return request<KlineBundleResponse>(`/api/market/kline/bundle?${params}`)
+  const fallback = () => request<KlineBundleResponse>(`/api/market/kline/bundle?${params}`)
+  if ((limit ?? 300) > 300) return fallback()
+  return withSnippetRead(`bundle:${params}`, async () => {
+    const periods: KlineBundlePeriod[] = []
+    // Bound concurrency at one: a rate error stops the remaining native queries.
+    for (const period of ["1m", "5m", "15m", "30m", "60m", "240m"]) {
+      const segment = await snippetKlines(symbol, period, { limit: limit ?? 300 })
+      periods.push({ period, bars: segment.bars, has_more: segment.has_more })
+    }
+    return { symbol, periods }
+  }, fallback)
 }
 
 /** 获取同源 K 线历史数据，支持懒加载切片。 */
@@ -412,7 +423,8 @@ export async function getKlineApi(
   })
   if (options?.limit) params.set("limit", String(options.limit))
   if (options?.endTime) params.set("end_time", options.endTime)
-  return request<KlineResponse>(`/api/market/kline?${params}`)
+  if ((options?.limit ?? 300) > 300) return request<KlineResponse>(`/api/market/kline?${params}`)
+  return withSnippetRead(`kline:${params}`, () => snippetKlines(symbol, period, options), () => request<KlineResponse>(`/api/market/kline?${params}`), options?.endTime ? 300000 : 2000)
 }
 
 /** Forecast prices and candles both use OKX, proxied through the task server. */

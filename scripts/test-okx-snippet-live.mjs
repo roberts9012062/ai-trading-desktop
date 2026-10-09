@@ -10,7 +10,7 @@ const root = resolve(import.meta.dirname, "..")
 const temp = await mkdtemp(join(tmpdir(), "cyclepilot-snippet-smoke-"))
 const option = key => { const at = process.argv.indexOf(key); return at >= 0 ? process.argv[at + 1] : undefined }
 const symbols = option("--symbols-file") ? JSON.parse(await readFile(option("--symbols-file"), "utf8")) : ["adausdt", "btcusdt", "ethusdt"]
-const report = { startedAt: new Date().toISOString(), requestedPrices: symbols.length, opened: 0, pongs: 0, subscriptions: 0, protocolErrors: [], priceUpdates: 0, candleUpdates: 0, priceSymbols: new Set(), candlePeriods: new Set(), states: [], snapshots: {} }
+const report = { startedAt: new Date().toISOString(), requestedPrices: symbols.length, opened: 0, pongs: 0, subscriptions: 0, protocolErrors: [], priceUpdates: 0, candleUpdates: 0, depthUpdates: 0, tradeUpdates: 0, priceSymbols: new Set(), candlePeriods: new Set(), states: [], snapshots: {} }
 const Native = globalThis.WebSocket
 globalThis.WebSocket = class extends Native {
   constructor(url) {
@@ -34,12 +34,16 @@ try {
   ws.onStateChange(state => report.states.push({ kind: "candles", state }))
   ws.onQuoteStateChange(state => report.states.push({ kind: "prices", state }))
   ws.onMessage(message => {
+    if (message.type === 'trades') { report.tradeUpdates++; return }
+    if (!Array.isArray(message.data)) return
     for (const item of message.data) {
       if (message.type === "quote") { report.priceUpdates++; report.priceSymbols.add(item.symbol) }
       else if (message.type === "chart_kline") { report.candleUpdates++; report.candlePeriods.add(item.period); report.snapshots[item.period] = item.bar }
+      else if (message.type === 'orderbook') report.depthUpdates++
     }
   })
   ws.setQuoteSymbols(symbols)
+  ws.setDepthSymbols(['adausdt'])
   ws.setChartSubscription(["1m", "5m", "15m", "30m", "60m", "240m", "1d"].map(period => ({ symbol: "adausdt", period })))
   ws.connect(); ws.connect()
   await new Promise(resolve => setTimeout(resolve, 40000))
@@ -50,7 +54,7 @@ try {
   report.priceSymbols = [...report.priceSymbols].sort(); report.candlePeriods = [...report.candlePeriods].sort()
   report.priceSymbolsUsingServerFallback = symbols.filter(symbol => !report.priceSymbols.includes(symbol))
   report.completePriceCoverage = report.priceSymbolsUsingServerFallback.length === 0
-  report.ok = report.opened === 2 && report.pongs >= 2 && report.priceSymbols.includes("adausdt") && report.candlePeriods.length === 7 && report.freshAda15m
+  report.ok = report.opened === 2 && report.pongs >= 2 && report.priceSymbols.includes("adausdt") && report.candlePeriods.length === 7 && report.freshAda15m && report.depthUpdates>0 && report.tradeUpdates>0 && report.protocolErrors.length===0
   const json = JSON.stringify(report, null, 2)
   if (option("--out")) await writeFile(option("--out"), json)
   console.log(json)

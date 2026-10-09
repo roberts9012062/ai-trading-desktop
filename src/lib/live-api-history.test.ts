@@ -45,3 +45,4 @@ it('does not retry a cancelled desktop read', async () => {
   await expect(getLiveOrdersApi('okx',true)).rejects.toThrow('Request cancelled')
   expect(fetch).toHaveBeenCalledTimes(1)
 })
+vi.mock('./desktop-exchange', () => ({ tryDesktopLiveRequest: async () => null }))
