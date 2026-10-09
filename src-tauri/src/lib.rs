@@ -3,6 +3,7 @@ mod native_engine;
 mod update_channels;
 mod desktop_tray;
 mod window_controls;
+mod okx_analytics;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -27,12 +28,15 @@ pub fn run() {
         })
         .manage(native_engine::NativeEngineState::default())
         .manage(update_channels::UpdateChannels::default())
+        .manage(okx_analytics::OkxAnalyticsState::default())
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             desktop_tray::desktop_hide_to_tray,
             window_controls::desktop_minimize_window,
             window_controls::desktop_toggle_maximize,
             window_controls::desktop_close_window,
+            okx_analytics::okx_analytics_read,
+            okx_analytics::okx_analytics_clear,
             native_engine::native_engine_spawn,
             native_engine::native_engine_status,
             native_engine::native_engine_kill,

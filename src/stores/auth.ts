@@ -6,6 +6,7 @@ import { getOkxSnippetWebSocket } from "@/lib/okx-snippet-ws"
 import { stopDesktopRouting } from "@/lib/desktop-routing"
 import { disconnectDesktopExchange } from "@/lib/desktop-exchange"
 import { stopSnippetPrivate } from "@/lib/snippet-private-ws"
+import { resetDesktopDailyPnl } from "@/lib/desktop-daily-pnl"
 import { useNotificationsStore } from "@/stores/notifications"
 import type { User } from "@/types"
 
@@ -84,6 +85,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   hydrating: false,
 
   login: (user, accessToken, refreshToken) => {
+    resetDesktopDailyPnl()
     localStorage.setItem(ACCESS_KEY, accessToken)
     localStorage.setItem(REFRESH_KEY, refreshToken)
     writeCachedUser(user)
@@ -93,6 +95,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: () => {
+    resetDesktopDailyPnl()
     localStorage.removeItem(ACCESS_KEY)
     localStorage.removeItem(REFRESH_KEY)
     writeCachedUser(null)

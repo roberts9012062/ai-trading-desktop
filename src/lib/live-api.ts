@@ -6,6 +6,7 @@
 
 import type { PaperAccountSummary, PaperOrderItem, PaperPositionItem } from "@/lib/paper-api"
 import { tryDesktopLiveRequest } from "./desktop-exchange"
+import { loadDesktopDailyPnl, resetDesktopDailyPnl, type DailyPnlResult } from "./desktop-daily-pnl"
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
 
@@ -21,7 +22,7 @@ class LiveRequestError extends Error {
 }
 
 /** 带鉴权的 JSON 请求（与 paper-api 同款） */
-async function liveRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function liveRequest<T>(path: string, options: RequestInit = {}, serverOnly = false): Promise<T> {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("access_token") : null
   const headers: Record<string, string> = {
@@ -32,7 +33,7 @@ async function liveRequest<T>(path: string, options: RequestInit = {}): Promise<
     headers["Authorization"] = `Bearer ${token}`
   }
   try {
-    const response = await tryDesktopLiveRequest(path, options) ?? await fetch(`${API_BASE}${path}`, { ...options, headers })
+    const response = (!serverOnly ? await tryDesktopLiveRequest(path, options) : null) ?? await fetch(`${API_BASE}${path}`, { ...options, headers })
     if (response.status === 401 && typeof window !== "undefined") {
       window.location.href = "/login"
       throw new LiveRequestError("认证过期")
@@ -109,14 +110,17 @@ export async function saveCredentialApi(payload: {
   demo?: boolean
   label?: string
 }): Promise<{ ok: boolean; error?: string }> {
-  return liveRequest("/api/live/credentials", {
+  const result = await liveRequest<{ ok: boolean; error?: string }>("/api/live/credentials", {
     method: "PUT",
     body: JSON.stringify(payload),
   })
+  if (result.ok !== false) resetDesktopDailyPnl()
+  return result
 }
 
 export async function deleteCredentialApi(venue: string): Promise<void> {
   await liveRequest(`/api/live/credentials/${venue}`, { method: "DELETE" })
+  resetDesktopDailyPnl()
 }
 
 export async function testCredentialApi(
@@ -412,7 +416,7 @@ export async function getLiveBillsApi(
   return res.bills
 }
 
-// ===== 账户日收益统计（工作台收益分析，服务器基于成交明细聚合） =====
+// ===== 账户日收益统计（Snippet 模式在桌面签名、查询和聚合） =====
 
 /** 账户日收益统计（OKX 成交明细口径）——工作台数据看板 */
 export interface DailyPnlRow {
@@ -443,12 +447,14 @@ export interface DailyPnlSummary {
   total_trades: number
 }
 
-/** 仅 OKX 支持；days 上限 90（服务器按 fills 覆盖范围钳制） */
+/** 仅 OKX 支持；桌面直连 Snippet，服务器作为容灾兜底。 */
 export async function getDailyPnlApi(
   venue = "okx",
   days = 90
-): Promise<{ days: DailyPnlRow[]; summary: DailyPnlSummary | null }> {
-  return liveRequest(`/api/live/daily-pnl?venue=${venue}&days=${days}`)
+): Promise<DailyPnlResult> {
+  const range = Math.max(1, Math.min(90, Math.trunc(days) || 90))
+  const fallback = () => liveRequest<DailyPnlResult>(`/api/live/daily-pnl?venue=${venue}&days=${range}`, {}, true)
+  return venue === "okx" ? loadDesktopDailyPnl(range, fallback) : fallback()
 }
 
 /** 今日按任务归属的盈亏/手续费明细 */

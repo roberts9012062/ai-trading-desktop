@@ -60,6 +60,9 @@ jobs:
           test -f resources/native-engine/VERSION
           test -f resources/native-engine/MANIFEST.sha256
 
+      - name: Verify native read-only OKX analytics
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib okx_analytics
+
       - name: Build signed bundle
         shell: bash
         env:

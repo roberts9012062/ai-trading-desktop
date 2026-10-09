@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import { onDailyPnlProgress, type DailyPnlResult } from "@/lib/desktop-daily-pnl"
 
 /** 工作台·收益分析 —— 盈亏比汇总 + 日历九宫格日收益 + 累计盈亏曲线
  *
@@ -489,11 +490,10 @@ function MonthlyChart({ rows }: { rows: DailyPnlRow[] }): React.JSX.Element {
 }
 
 export function DailyPnlPanel(): React.JSX.Element {
-  const [data, setData] = useState<{
-    days: DailyPnlRow[]
-    summary: DailyPnlSummary | null
-  } | null>(null)
-  const [error, setError] = useState(false)
+  const [data, setData] = useState<DailyPnlResult | null>(null)
+  const [error, setError] = useState("")
+  const [syncRecords, setSyncRecords] = useState<number | null>(null)
+  useEffect(() => onDailyPnlProgress(setSyncRecords), [])
   // 是否已配置 OKX 凭证：null=查询中；未配置时后端返回空结构，
   // 不查凭证无法区分"没配置"与"配置了没数据"
   const [hasOkxCred, setHasOkxCred] = useState<boolean | null>(null)
@@ -527,16 +527,16 @@ export function DailyPnlPanel(): React.JSX.Element {
         const res = await getDailyPnlApi("okx", 90)
         if (alive) {
           setData(res)
-          setError(false)
+          setError("")
         }
-      } catch {
-        if (alive) setError(true)
+      } catch (error) {
+        if (alive) setError(error instanceof Error ? error.message : "收益数据加载失败（未连接实盘或网络异常）")
       } finally {
         if (alive) setLoaded(true)
       }
     }
     load()
-    const timer = setInterval(load, 60_000) // 60s（后端同款缓存，平仓后准实时可见）
+    const timer = setInterval(load, 60_000) // 本地查询与共享缓存均为 60s
     return () => {
       alive = false
       clearInterval(timer)
@@ -568,6 +568,9 @@ export function DailyPnlPanel(): React.JSX.Element {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm">收益分析 · OKX 实账户口径</CardTitle>
+        {data?.source && <p className="text-[10px] text-[var(--text-muted)]">
+          {data.source === "desktop-snippet" ? "桌面直连 · 本地计算" : data.source === "server-fallback" ? "服务器兜底" : "服务器模式"}
+        </p>}
       </CardHeader>
       <CardContent className="space-y-4">
         {hasOkxCred === false ? (
@@ -584,11 +587,11 @@ export function DailyPnlPanel(): React.JSX.Element {
           </div>
         ) : error ? (
           <p className="text-xs text-[var(--text-muted)] py-4 text-center">
-            收益数据加载失败（未连接实盘或网络异常）
+            {error}
           </p>
         ) : !loaded || !summary ? (
           <p className="text-xs text-[var(--text-muted)] py-4 text-center">
-            {loaded ? "暂无成交数据" : "加载中…"}
+            {syncRecords !== null ? `正在同步历史记录，已读取 ${syncRecords.toLocaleString("zh-CN")} 条…` : loaded ? "暂无成交数据" : "加载中…"}
           </p>
         ) : (
           <>

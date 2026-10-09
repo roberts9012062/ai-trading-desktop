@@ -21,6 +21,9 @@ dependencies = [
 name = "ai-trading-desktop"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
+ "reqwest 0.12.28",
+ "ring",
  "serde",
  "serde_json",
  "tauri",
@@ -31,6 +34,9 @@ dependencies = [
  "tauri-plugin-shell",
  "tauri-plugin-single-instance",
  "tauri-plugin-updater",
+ "time",
+ "tokio",
+ "zeroize",
 ]
 
 [[package]]
