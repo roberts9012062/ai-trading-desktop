@@ -13,6 +13,12 @@ it("round-trips full task settings and tolerates a UTF-8 BOM",()=>{
   expect(parsed.items[0].config.leverage).toBe(7)
   expect(parsed.items[0].config.extra_timeframes).toEqual(["60m"])
 })
+it("preserves a factor task's startup candle count through file import",async()=>{
+  const factorFile:StrategyFile={...file,items:[{kind:"task",encoding:"server-v3",config:{name:"因子",symbol:"adausdt",strategy_type:"factor",strategy_params:{factor_tokens:[0],startup_bars:5}}}]}
+  const parsed=parseStrategyFile(JSON.stringify(factorFile))
+  await strategyTransfer.import(parsed,"tasks",false,{})
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body).file.items[0].config.strategy_params.startup_bars).toBe(5)
+})
 it("keeps shortline and ordinary factors in their own explicit dialects",()=>{
   const mixed={...file,items:[{kind:"factor",encoding:"server-v3",config:{tokens:[52,0,128]}},{kind:"shortline",encoding:"desktop-shortline-v1",config:{tokens:[52,0,128]}}]}
   expect(parseStrategyFile(JSON.stringify(mixed)).items.map(i=>i.kind)).toEqual(["factor","shortline"])

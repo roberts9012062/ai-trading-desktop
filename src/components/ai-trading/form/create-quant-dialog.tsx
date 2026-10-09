@@ -118,6 +118,7 @@ export function CreateQuantDialog({
 }: CreateQuantDialogProps): React.JSX.Element {
   const createTask = useAITradingStore((s) => s.createTask)
   const [quant, setQuant] = useState<QuantParamsState>(DEFAULT_QUANT_PARAMS)
+  const [startupBars, setStartupBars] = useState("2")
   // 决策模型（TypeSafe Jev System One）：多空平全由模型判断
   const [decisionEnabled, setDecisionEnabled] = useState(false)
   const [decisionModels, setDecisionModels] = useState<AIModel[]>([])
@@ -144,6 +145,10 @@ export function CreateQuantDialog({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (open && !prefillFrom) setStartupBars("2")
+  }, [open, prefillFrom])
+
   // 决策模型列表：只列 Jev（决策）模型 —— 别的模型被筛掉
   useEffect(() => {
     if (!open || !decisionEnabled) return
@@ -164,6 +169,7 @@ export function CreateQuantDialog({
     setIcon(t.icon ?? null)
     const isDecisionClone = String(t.strategy_type || "") === "decision"
     const sp = (t.strategy_params ?? {}) as Record<string, unknown>
+    setStartupBars(String(sp.startup_bars ?? 2))
     const ds = isDecisionClone
       ? ((sp.decision_strategy ?? {}) as { kind?: string; params?: Record<string, unknown> })
       : {}
@@ -237,6 +243,12 @@ export function CreateQuantDialog({
       setError(qErr)
       return
     }
+    const startupCount = Number(startupBars)
+    if (!decisionEnabled && (combo || quant.quantKind === "factor") &&
+        (!startupBars.trim() || !Number.isInteger(startupCount) || startupCount < 0 || startupCount > 100)) {
+      setError("启动K线须为 0–100 的整数")
+      return
+    }
     if (marginModel.marginPerTrade < 1) {
       setError("每笔保证金至少 1 USDT")
       return
@@ -296,9 +308,12 @@ export function CreateQuantDialog({
                   : buildStrategyParams(quant)),
               },
             }
-          : withServerFactorTokens(combo
-            ? { factor_tokens: combo.tokenGroups.length === 1 ? combo.tokenGroups[0] : combo.tokenGroups }
-            : buildStrategyParams(quant)),
+          : {
+              ...withServerFactorTokens(combo
+                ? { factor_tokens: combo.tokenGroups.length === 1 ? combo.tokenGroups[0] : combo.tokenGroups }
+                : buildStrategyParams(quant)),
+              ...((combo || quant.quantKind === "factor") ? { startup_bars: startupCount } : {}),
+            },
       decision_interval_sec: decisionEnabled ? decisionIntervalSec : undefined,
       // 量化分析间隔：等于周期（默认）发 null=按K线收盘；决策模型忽略
       eval_interval_sec:
@@ -636,6 +651,25 @@ export function CreateQuantDialog({
               </>
             )}
           </div>
+
+          {!decisionEnabled && (combo || quant.quantKind === "factor") && (
+            <div className="space-y-1.5">
+              <label htmlFor="factor-startup-bars" className="text-xs text-[var(--text-muted)]">启动K线（根）</label>
+              <input
+                id="factor-startup-bars"
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                value={startupBars}
+                onChange={(event) => setStartupBars(event.target.value)}
+                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm"
+              />
+              <p className="text-[10px] text-[var(--text-muted)]">
+                默认 2 根。启动后等待指定数量的完整新 K 线收盘，再允许首次开仓；启动时正在形成的 K 线不计入。0 表示不等待，已有持仓的止损和平仓照常执行。
+              </p>
+            </div>
+          )}
 
           <CreateTaskRules
             value={rules}

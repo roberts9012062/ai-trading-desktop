@@ -331,6 +331,7 @@ export function EditTaskDialog({
       strategy_params: prediction ? {mode:'forecast',forecast:{...forecast,timeframes:[timeframe,...extraTfs],bar_count:Number(barsLimit),direction_mode:sideMode==='long_only'?'long':sideMode==='short_only'?'short':'any'}} : quantMode
         ? factorMode
           ? {
+              startup_bars: (task.strategy_params as Record<string, unknown> | null)?.startup_bars ?? 2,
               ...(factorTokens && factorTokens.length
                 ? { factor_tokens: desktopTokensToServerV3(factorTokens) }
                 : {}),
