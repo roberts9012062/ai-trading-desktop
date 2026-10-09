@@ -85,7 +85,8 @@ export function MetricsPanel(): React.JSX.Element {
         const bj = new Date(Date.now() + 8 * 3600_000)
           .toISOString()
           .slice(0, 10)
-        const res = await getDailyPnlApi("okx", 7)
+        // Same window as the analysis panel: share its in-flight read/cache.
+        const res = await getDailyPnlApi("okx", 90)
         if (!alive) return
         const row = (res.days ?? []).find((d) => d.date === bj)
         setOkxToday(

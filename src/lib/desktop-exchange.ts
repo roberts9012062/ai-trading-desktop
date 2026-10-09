@@ -5,7 +5,8 @@ import { SNIPPET_REST } from "./snippet-rest"
 
 class UnavailableBeforeCall extends Error {}
 export class ExchangeOutcomeUnknown extends Error {}
-const allowed = /^\/api\/live\/(?:account|positions|positions\/close|positions\/tpsl|orders|orders\/amend|orders\/[^/?]+|leverage|account-mode|bills|fee-rates)$/
+const allowed = /^\/api\/live\/(?:account|positions|positions\/close|positions\/tpsl|orders|orders\/amend|orders\/[A-Za-z0-9:_-]+|leverage|account-mode|bills|fee-rates)$/
+const analyticsRead = /^\/api\/(?:live\/daily-pnl(?:\/tasks)?|ai-trading\/(?:tasks(?:\/[a-fA-F0-9-]{36}(?:\/(?:trades|trade-marks))?)?|profit-bars|funding-source))$/
 let socket: WebSocket | null = null
 let connecting: Promise<void> | null = null
 let cancelConnect: (() => void) | null = null
@@ -15,6 +16,7 @@ let lastReceive = 0
 let privateRetryAt = 0
 const pending = new Map<string, { resolve: (response: Response) => void; reject: (error: Error) => void; write: boolean; timer: ReturnType<typeof setTimeout> }>()
 const controllers = new Set<AbortController>()
+const readCalls = new Map<string, Promise<Response | null>>()
 
 export function disconnectDesktopExchange(): void {
   const cancel = cancelConnect; cancelConnect = null; connecting = null; cancel?.()
@@ -95,7 +97,21 @@ async function connect(): Promise<void> {
 }
 
 export async function tryDesktopLiveRequest(path: string, options: RequestInit = {}): Promise<Response | null> {
-  if (!allowed.test(path.split('?')[0])) return null
+  if (typeof localStorage === 'undefined') return null
+  if (options.method !== undefined && options.method !== 'GET') return sendDesktopRequest(path, options)
+  const key = (localStorage.getItem('access_token') || '') + '\0' + path
+  let shared = readCalls.get(key)
+  if (!shared) {
+    shared = sendDesktopRequest(path, options).finally(() => { if (readCalls.get(key) === shared) readCalls.delete(key) })
+    readCalls.set(key, shared)
+  }
+  return (await shared)?.clone() ?? null
+}
+
+async function sendDesktopRequest(path: string, options: RequestInit): Promise<Response | null> {
+  const route = path.split('?')[0]
+  const analytics = analyticsRead.test(route)
+  if ((!allowed.test(route) && !analytics) || (analytics && options.method !== undefined && options.method !== 'GET')) return null
   const payload = typeof options.body==='string' ? JSON.parse(options.body || '{}') : {}
   const venue = new URLSearchParams(path.split('?')[1] || '').get('venue') || payload.venue || 'okx'
   if (venue!=='okx') return null
@@ -110,7 +126,7 @@ export async function tryDesktopLiveRequest(path: string, options: RequestInit =
     const timer=setTimeout(() => {
       pending.delete(id)
       reject(write ? new ExchangeOutcomeUnknown('交易响应超时，请查询订单后再操作；不会自动重发') : new Error('查询超时'))
-    },60000)
+    },analytics ? 120000 : 60000)
     pending.set(id,{resolve,reject,write,timer})
     try { target.send(JSON.stringify({type:'call',id,path,method:options.method || 'GET',body:options.body || ''})) }
     catch { clearTimeout(timer);pending.delete(id);reject(write ? new ExchangeOutcomeUnknown('交易结果未知，请先查询订单') : new Error('连接中断')) }

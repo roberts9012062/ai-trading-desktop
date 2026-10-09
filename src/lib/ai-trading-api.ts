@@ -1,6 +1,7 @@
 /** AI 交易 API 客户端 */
 
 import { desktopTokensToServerV3, isResearchOnlyFactor, RESEARCH_FACTOR_MESSAGE } from "@/lib/factor-access"
+import { tryDesktopLiveRequest } from "./desktop-exchange"
 
 type FactorTokens = number[] | number[][]
 
@@ -368,7 +369,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
   if (token) headers["Authorization"] = `Bearer ${token}`
 
-  const response = await fetch(`${API_BASE}${path}`, { ...options, headers })
+  // Read-only exchange IO can run on the desktop; task writes stay on the server.
+  const response = await tryDesktopLiveRequest(path, options) ?? await fetch(`${API_BASE}${path}`, { ...options, headers })
   if (response.status === 401 && typeof window !== "undefined") {
     window.location.href = "/login"
     throw new Error("认证过期")

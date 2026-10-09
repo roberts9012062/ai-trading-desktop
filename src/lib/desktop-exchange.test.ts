@@ -46,3 +46,32 @@ it('returns to HTTP before dispatch if the global switch is enabled',async()=>{
   policy.server=true;expect(await tryDesktopLiveRequest('/api/live/account')).toBeNull()
   expect(Socket.all).toHaveLength(0)
 })
+
+it('shares overlapping dashboard statistics reads and gives each consumer its own response',async()=>{
+  const first=tryDesktopLiveRequest('/api/live/daily-pnl?venue=okx&days=90');await settle()
+  Socket.all[0].ready();await settle()
+  const second=tryDesktopLiveRequest('/api/live/daily-pnl?venue=okx&days=90');await settle()
+  const calls=Socket.all[0].send.mock.calls.map(([raw])=>JSON.parse(raw)).filter(f=>f.type==='call')
+  expect(calls).toHaveLength(1)
+  Socket.all[0].frame({type:'result',id:calls[0].id,status:200,data:{days:[{net_after_costs:8}],summary:{net:10}}})
+  expect(await (await first)!.json()).toEqual(await (await second)!.json())
+})
+
+it.each(['/api/live/daily-pnl/tasks','/api/ai-trading/tasks','/api/ai-trading/profit-bars?limit=500',
+  '/api/ai-trading/funding-source','/api/ai-trading/tasks/11111111-1111-1111-1111-111111111111/trades'])(
+  'relays analytics reads only: %s',async path=>{
+    expect(await tryDesktopLiveRequest(path,{method:'POST',body:'{}'})).toBeNull()
+    expect(Socket.all).toHaveLength(0)
+    const read=tryDesktopLiveRequest(path);await settle();const socket=Socket.all[0];socket.ready();await settle()
+    const call=socket.send.mock.calls.map(([raw])=>JSON.parse(raw)).find(f=>f.type==='call')
+    expect(call.path).toBe(path);expect(call.method).toBe('GET')
+    socket.frame({type:'result',id:call.id,status:200,data:{ok:true}})
+    expect(await (await read)!.json()).toEqual({ok:true})
+  })
+
+it('keeps analytics on HTTP in forced server mode',async()=>{
+  policy.server=true
+  expect(await tryDesktopLiveRequest('/api/live/daily-pnl?venue=okx&days=90')).toBeNull()
+  expect(await tryDesktopLiveRequest('/api/ai-trading/tasks')).toBeNull()
+  expect(Socket.all).toHaveLength(0)
+})
