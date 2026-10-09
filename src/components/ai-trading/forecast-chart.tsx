@@ -5,7 +5,7 @@ import {drawForecastLines} from '@/components/market/kline/lines/use-forecast-li
 import {Dialog,DialogContent,DialogTitle} from '@/components/ui/dialog'
 import {getAITradingTask,type AITradingTask} from '@/lib/ai-trading-api'
 import {getForecastKlineApi} from '@/lib/api'
-import {readDisplayCandles} from '@/lib/display-kline'
+import {readDisplayCandles,watchDisplayCandles} from '@/lib/display-kline'
 import {forecastConfig,forecastState,forecastLines,FORECAST_STAGES} from '@/lib/ai-forecast'
 import {dedupeBarsByChartTime,formatChartTime,makeChartOpts,sanitizeBars} from '@/components/market/kline/utils'
 import {useDisplayStore} from '@/stores/display'
@@ -44,8 +44,8 @@ export function ForecastKline({task}:{task:AITradingTask}):React.JSX.Element {
     setError('')
    }catch(e){if(alive)setError(e instanceof Error?e.message:'K线加载失败')}finally{busy=false}
   }
-  void refresh();const timer=setInterval(()=>void refresh(),3000)
-  return()=>{alive=false;clearInterval(timer);ro.disconnect();series.current=null;chart.remove()}
+  const stopUpdates=watchDisplayCandles(task.symbol,task.timeframe as KlinePeriod,refresh)
+  return()=>{alive=false;stopUpdates();ro.disconnect();series.current=null;chart.remove()}
  },[task.id,task.symbol,task.timeframe,count,up,down])
  const lines=JSON.stringify(forecastLines(task))
  useEffect(()=>{

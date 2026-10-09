@@ -29,21 +29,27 @@ export default function AiMarketPage(): React.JSX.Element {
   const tasks = useAiMarketStore((s) => s.tasks)
   const selectedTaskId = useAiMarketStore((s) => s.selectedTaskId)
   const forecastTask=tasks.find(t=>t.id===selectedTaskId&&isForecast(t))
+  const selectedSymbol = tasks.find(t => t.id === selectedTaskId)?.symbol
+  const initWebSocket = useMarketStore(s => s.initWebSocket)
+  const fetchCodeTree = useMarketStore(s => s.fetchCodeTree)
+  const codeTree = useMarketStore(s => s.codeTree)
+
+  // Direct navigation also loads the full quote subscription list.
+  useEffect(() => {
+    initWebSocket()
+    void fetchCodeTree()
+  }, [initWebSocket, fetchCodeTree])
 
   // 页面合约隔离：行情页切过合约后回到本页时，重新断言本页选中任务
   // 对应的合约（任务选择本身已持久化于 ai-market-selected-task）。
   // 任务 symbol 若为出厂默认/已下市（过期合约）→ 迁移到品种主力
   useEffect(() => {
-    if (!selectedTaskId) return
-    const task = tasks.find((t) => t.id === selectedTaskId)
-    if (task) {
-      const tree = useMarketStore.getState().codeTree
+    if (selectedSymbol) {
       useAppStore
         .getState()
-        .setActiveContract(migrateStaleContract(task.symbol, tree))
+        .setActiveContract(migrateStaleContract(selectedSymbol, codeTree))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [selectedSymbol, codeTree])
 
   return (
     <div className="flex h-full overflow-hidden">
