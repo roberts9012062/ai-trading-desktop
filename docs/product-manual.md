@@ -5,3 +5,5 @@
 
 内容源位于服务端项目 frontend/src/lib/manual-content.ts、frontend/src/components/product/manual-reader.tsx 及两份 CSS。更新手册后将这些文件同步到桌面端同路径，并完成版本递增、GitHub 提交与 tag 发布。
 发布 v0.2.151：增加图文手册、目录搜索、章节链接、截图放大与前后章节导航。
+
+发布 v0.2.152：普通用户每个多周期猎手最多同时运行 3 个交易子任务，待成交与待确认退出均占用名额；管理员策略上限保持不变。

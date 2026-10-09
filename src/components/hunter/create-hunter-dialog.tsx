@@ -14,6 +14,7 @@ import { useAuthStore } from "@/stores/auth"
 import { useHunterStore } from "@/stores/hunter"
 import { hunterApi, canStartHunter, hunterAccountLabel, type HunterCapabilities, type HunterConfig, type HunterSymbol } from "@/lib/hunter/api"
 import { HunterSymbolMultiSelect } from "./symbol-multi-select"
+import { hunterPositionLimit, validateHunterPositions } from "@/lib/hunter/limits"
 import { ProfitLockSettings } from "@/components/ai-trading/form/profit-lock-settings"
 import { DEFAULT_PROFIT_LOCK, buildProfitLockConfig } from "@/lib/profit-lock"
 import { CYCLES, validateLeverage, type Cycle } from "@/lib/hunter/rules"
@@ -29,7 +30,8 @@ const initial: HunterConfig = {
 }
 
 export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [config, setConfig] = useState<HunterConfig>(initial)
+  const isAdmin = useAuthStore(s => s.user?.role === "admin")
+  const [config, setConfig] = useState<HunterConfig>(() => ({ ...initial, max_positions: hunterPositionLimit(isAdmin, initial.strategy_version) }))
   const [bottomRules, setBottomRules] = useState(EMPTY_RULE_FORM)
   const isRebound = config.strategy_version === REBOUND_VERSION
   const isPivot = config.strategy_version === PIVOT_VERSION
@@ -47,12 +49,12 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
   const [ready, setReady] = useState(false)
   const [capabilities, setCapabilities] = useState<HunterCapabilities | null>(null)
   const mode = useAuthStore(s => s.user?.trading_mode)
-  const isAdmin = useAuthStore(s => s.user?.role === "admin")
+  const positionLimit = hunterPositionLimit(isAdmin, config.strategy_version)
   const create = useHunterStore(s => s.create)
   const existingHunter = useHunterStore(s => s.groups.find(g => g.status !== "stopped"))
   const patch = (values: Partial<HunterConfig>) => setConfig(s => ({ ...s, ...values }))
   useEffect(() => {
-    if (!isAdmin) setConfig(s => ({ ...s, scan_location: "desktop" }))
+    if (!isAdmin) setConfig(s => ({ ...s, scan_location: "desktop", max_positions: Math.min(s.max_positions, 3) }))
   }, [isAdmin, open])
   useEffect(() => {
     if (!open) return
@@ -86,6 +88,8 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
     if (isAdmin && config.scan_location === "server" && !capabilities?.can_server_host) { setError("服务器托管暂时仅限管理员"); return }
     if (!capabilities?.supported_versions?.includes(config.strategy_version!)) { setError("服务器尚未支持所选规则版本，请更新服务器"); return }
     if (!config.cycles.length) { setError("请选择至少一个周期"); return }
+    const positionsError = validateHunterPositions(config.max_positions, positionLimit)
+    if (positionsError) { setError(positionsError); return }
     try {
       if (isNewStrategy) {
         if (isPivot) { const message = validateQuantParams(pivotQuant); if (message) throw new Error(message) }
@@ -122,7 +126,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
           const fromNew = isNewStrategy
           if (toPivot) setProfitLock(s => ({ ...s, enabled: true, mode: "auto" }))
           patch({ strategy_version: version,
-            max_positions: toPivot ? 10 : 4,
+            max_positions: hunterPositionLimit(isAdmin, version),
             ...(toNew ? {
               cycles: toPivot ? ["60m"] : ["30m", "60m"], direction: "both", brain: "rules", model_id: null,
               leverage: 10, margin_mode: "cross", position_mode: "fixed_margin", margin_per_trade: 100,
@@ -232,7 +236,7 @@ export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: 
         <summary className="cursor-pointer text-sm">搜索参数</summary>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
           <div><Label htmlFor="hunter-pool">扫描币池数量（5～200）</Label><Input id="hunter-pool" type="number" min={5} max={200} value={config.pool_size} onChange={e => patch({ pool_size: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">按 24 小时成交额从大到小取前 N 个最活跃币种，默认 50；运行中也可在猎手面板随时调整。</p></div>
-          <div><Label htmlFor="hunter-slots">最多同时创建单数（1～{isPivot ? 10 : 4}）</Label><Input id="hunter-slots" type="number" min={1} max={isPivot ? 10 : 4} value={config.max_positions} onChange={e => patch({ max_positions: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">已挂载、待成交及持仓均占用名额；完成后自动释放。</p></div>
+          <div><Label htmlFor="hunter-slots">最多同时运行的交易子任务（1～{positionLimit}）</Label><Input id="hunter-slots" type="number" min={1} max={positionLimit} step={1} value={config.max_positions} onChange={e => patch({ max_positions: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">{!isAdmin && "普通用户每个猎手最多同时运行 3 个交易子任务。"}已挂载、待成交及持仓均占用名额；完成后自动释放。</p></div>
           <div><Label htmlFor="hunter-interval">扫描复查间隔（秒）</Label><Input id="hunter-interval" type="number" min={30} max={3600} value={config.scan_seconds} onChange={e => patch({ scan_seconds: Number(e.target.value) })} /><p className="text-xs text-[var(--text-muted)]">{isPivot ? "60分钟K线按此间隔复查，包括参数允许的盘中预确认；挂载及下单前均复核确认出现后的最近2根K线信号。" : isRebound ? "各周期按此间隔独立复查，使用已收盘K线，执行前再次复核信号和报价。" : "新版短线按此间隔复查；中线至少5分钟，长线至少30分钟。执行K线收盘后优先更新。"}</p></div>
           <HunterSymbolMultiSelect id="hunter-white" label="白名单" value={config.whitelist} options={symbols}
             onChange={whitelist => patch({ whitelist })} max={50} loading={symbolsLoading} error={symbolsError}
