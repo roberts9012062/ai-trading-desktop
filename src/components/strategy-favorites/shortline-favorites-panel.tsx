@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState } from "react"
+import { FavoriteTransferToolbar, StrategyExportButton } from "./transfer-controls"
 import {
   deleteShortlineFavorite,
   listShortlineFavorites,
@@ -33,6 +34,7 @@ export function ShortlineFavoritesPanel() {
   }
 
   useEffect(() => { void refresh() }, [])
+  useEffect(() => { const update = () => void refresh(); window.addEventListener("strategy-favorites-changed", update); return () => window.removeEventListener("strategy-favorites-changed", update) }, [])
 
   async function onDelete(id: string) {
     setBusyId(id)
@@ -54,6 +56,7 @@ export function ShortlineFavoritesPanel() {
 
   return (
     <div className="h-full overflow-auto p-3 space-y-2">
+      <FavoriteTransferToolbar kind="shortline" />
       <div className="flex items-center justify-between">
         <div className="text-[11px] text-[var(--text-muted)]">
           短线因子收藏（短线实验室冠军；创建服务器任务请到 AI 交易 → 量化 → 短线因子）
@@ -92,6 +95,7 @@ export function ShortlineFavoritesPanel() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <StrategyExportButton kind="shortline" favoriteId={f.id} />
                   <button
                     type="button"
                     onClick={() => onCopy(f)}

@@ -1,5 +1,5 @@
 import { forwardRef, type CSSProperties } from "react"
-import { Award, BrainCircuit, ChartNoAxesCombined, RefreshCw, ScanLine, ShieldCheck } from "lucide-react"
+import { Award, BrainCircuit, ChartNoAxesCombined, RefreshCw, ScanLine, ShieldCheck, Upload } from "lucide-react"
 import { Button, type ButtonProps } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -7,6 +7,7 @@ const ACTIONS = {
   lock: { label: "锁利设置", icon: ShieldCheck, color: "#f8d483" },
   refresh: { label: "刷新", icon: RefreshCw, color: "#a5b4c5" },
   favorite: { label: "创建优秀任务", icon: Award, color: "#f8d483" },
+  import: { label: "任务导入", icon: Upload, color: "#a5b4c5" },
   quant: { label: "创建量化交易", icon: ChartNoAxesCombined, color: "#8dbbff" },
   ai: { label: "创建 AI 交易", icon: BrainCircuit, color: "#66e4d3" },
   hunter: { label: "创建多周期猎手", icon: ScanLine, color: "#c0a2fb" },

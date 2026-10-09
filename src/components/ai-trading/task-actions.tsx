@@ -9,6 +9,7 @@ import { showAlert, showConfirm } from "@/stores/dialog"
 import { useSessionStatus } from "@/hooks/use-session-status"
 import { LiveProfitLockControl } from "./form/live-profit-lock-control"
 import { TaskCloseButton } from "./task-close-button"
+import { StrategyExportButton } from "@/components/strategy-favorites/transfer-controls"
 
 interface TaskActionsProps {
   task: AITradingTask
@@ -121,6 +122,7 @@ export function TaskActions({
       onKeyDown={(e) => e.stopPropagation()}
     >
       <TaskCloseButton task={task} busy={busy} closing={closing} marketClosed={marketClosed} onClose={() => void handleClose()} />
+      <StrategyExportButton taskId={task.id} disabled={task.strategy_type === "multi_cycle_hunter"} />
       {(task.status === "paused" ||
         (task.status === "stopped" && !task.has_open_position)) &&
         task.pause_reason !== "market_closed" && (

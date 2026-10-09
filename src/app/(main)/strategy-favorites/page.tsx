@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils"
 import { FactorFavoritesPanel } from "@/components/strategy-favorites/factor-favorites-panel"
 import { ShortlineFavoritesPanel } from "@/components/strategy-favorites/shortline-favorites-panel"
 import { TaskFavoritesPanel } from "@/components/strategy-favorites/task-favorites-panel"
+import { FavoriteTransferToolbar } from "@/components/strategy-favorites/transfer-controls"
 
 type TabKey = "factor" | "shortline" | "task"
 
@@ -26,6 +27,7 @@ export default function StrategyFavoritesPage(): React.JSX.Element {
 
   return (
     <div className="h-full flex flex-col bg-[var(--bg-primary)]">
+      <div className="px-3 py-2 border-b border-[var(--border)]"><FavoriteTransferToolbar kind="all" /></div>
       {/* 顶部标签切换（普通按钮实现，内容按状态渲染，避免 Radix Tabs 上下文） */}
       <div className="px-3 pt-2 border-b border-[var(--border)] bg-[var(--bg-secondary)] flex gap-1">
         {TABS.map((t) => (

@@ -26,6 +26,7 @@ import { useMarketStore } from "@/stores/market"
 import { useHunterStore } from "@/stores/hunter"
 import { useAuthStore } from "@/stores/auth"
 import { hunterNeedsTaskPoll } from "@/lib/hunter/task-visibility"
+import { StrategyImportDialog } from "@/components/strategy-favorites/transfer-controls"
 
 /** AI 交易主页面 */
 export default function AITradingPage(): React.JSX.Element {
@@ -61,6 +62,7 @@ export default function AITradingPage(): React.JSX.Element {
   }, [])
 
   const [createOpen, setCreateOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [hunterOpen, setHunterOpen] = useState(false)
   const hunterExists = useHunterStore(s => s.groups.some(g => g.status !== "stopped"))
   const [quantOpen, setQuantOpen] = useState(false)
@@ -144,6 +146,7 @@ export default function AITradingPage(): React.JSX.Element {
             disabled={loading}
           />
           <span className="mx-1 h-6 w-px bg-white/10 max-sm:hidden" aria-hidden="true" />
+          <TradingActionButton action="import" onClick={() => setImportOpen(true)} />
           <TradingActionButton
             action="favorite"
             onClick={() => setFromFavOpen(true)}
@@ -201,6 +204,7 @@ export default function AITradingPage(): React.JSX.Element {
         onClose={() => setCreateOpen(false)}
       />
       <CreateHunterDialog open={hunterOpen} onClose={() => setHunterOpen(false)} />
+      <StrategyImportDialog open={importOpen} mode="tasks" onClose={() => setImportOpen(false)} onImported={() => { void loadTasks(); void loadTaskFavs() }} />
 
       <CreateQuantDialog
         open={quantOpen}

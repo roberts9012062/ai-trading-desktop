@@ -42,6 +42,7 @@ import {
   type FolderFilter,
 } from "@/components/strategy-favorites/folder-column"
 import { SortableCard } from "@/components/strategy-favorites/sortable-card"
+import { FavoriteTransferToolbar, StrategyExportButton } from "./transfer-controls"
 
 /** 卡片内容（排序位与 DragOverlay 共用） */
 function FactorCardView({
@@ -67,6 +68,7 @@ function FactorCardView({
             {f.symbol || "—"} · {f.timeframe || "—"} · {folderName}
           </p>
         </div>
+        <StrategyExportButton kind="factor" favoriteId={f.id} />
         <button
           type="button"
           onClick={(e) => {
@@ -131,6 +133,7 @@ export function FactorFavoritesPanel(): React.JSX.Element {
   useEffect(() => {
     void reload()
   }, [reload])
+  useEffect(() => { const update = () => void reload(); window.addEventListener("strategy-favorites-changed", update); return () => window.removeEventListener("strategy-favorites-changed", update) }, [reload])
 
   useEffect(() => () => window.clearTimeout(flashTimer.current), [])
 
@@ -234,6 +237,7 @@ export function FactorFavoritesPanel(): React.JSX.Element {
         </div>
 
         <div className="flex-1 min-w-0 overflow-y-auto p-3">
+          <div className="mb-3"><FavoriteTransferToolbar kind="factor" /></div>
           {loading && items.length === 0 && (
             <p className="text-xs text-[var(--text-muted)] text-center py-10">
               加载中…

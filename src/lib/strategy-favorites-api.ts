@@ -90,6 +90,14 @@ export interface TaskFavoriteSnapshot {
   symbol?: string
   symbol_name?: string
   timeframe?: string
+  extra_timeframes?: string[]
+  ai_bars_limit?: number
+  decision_interval_sec?: number
+  eval_interval_sec?: number | null
+  margin_per_trade?: number | null
+  leverage?: number
+  margin_mode?: "cross" | "isolated"
+  funding_source?: "live" | "site"
   strategy_type?: string
   strategy_params?: Record<string, unknown>
   model_row_id?: string | null

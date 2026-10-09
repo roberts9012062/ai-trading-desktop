@@ -54,6 +54,7 @@ import { TaskDetailDrawer } from "@/components/ai-trading/detail/task-detail-dra
 import { EditTaskDialog } from "@/components/ai-trading/form/edit-task-dialog"
 import { CreateTaskDialog } from "@/components/ai-trading/form/create-task-dialog"
 import { CreateQuantDialog } from "@/components/ai-trading/form/create-quant-dialog"
+import { FavoriteTransferToolbar, StrategyExportButton } from "./transfer-controls"
 
 const QUANT_STRATEGY_SET = new Set<string>(
   QUANT_KIND_OPTIONS.map((o) => o.value),
@@ -110,7 +111,7 @@ function TaskCardView({
           <p className="text-[10px] text-[var(--text-muted)] font-num pt-0.5 truncate">
             {task?.symbol ?? fav.snapshot.symbol ?? "—"} ·{" "}
             {task?.timeframe ?? fav.snapshot.timeframe ?? "—"} · {folderName}
-            {!live && " · 任务已删除"}
+            {!live && " · 配置快照"}
           </p>
         </div>
         <span
@@ -128,6 +129,7 @@ function TaskCardView({
       </div>
 
       <div className="mt-auto flex items-center gap-1.5 pt-3 flex-wrap">
+        <StrategyExportButton kind="task" favoriteId={fav.id} />
         <button
           type="button"
           disabled={!live}
@@ -136,7 +138,7 @@ function TaskCardView({
             onDetail()
           }}
           className="text-[10px] px-2 py-1 rounded border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-          title={live ? undefined : "任务已删除，无法查看运行历史"}
+          title={live ? undefined : "配置快照没有关联任务，无法查看运行历史"}
         >
           详情
         </button>
@@ -231,6 +233,7 @@ export function TaskFavoritesPanel(): React.JSX.Element {
   useEffect(() => {
     void reload()
   }, [reload])
+  useEffect(() => { const update = () => void reload(); window.addEventListener("strategy-favorites-changed", update); return () => window.removeEventListener("strategy-favorites-changed", update) }, [reload])
 
   useEffect(() => () => window.clearTimeout(flashTimer.current), [])
 
@@ -358,6 +361,7 @@ export function TaskFavoritesPanel(): React.JSX.Element {
         </div>
 
         <div className="flex-1 min-w-0 overflow-y-auto p-3">
+          <div className="mb-3"><FavoriteTransferToolbar kind="task" /></div>
           {loading && items.length === 0 && (
             <p className="text-xs text-[var(--text-muted)] text-center py-10">
               加载中…
