@@ -123,6 +123,7 @@ export class MarketWebSocket {
   private klineSubscription: string[] | null = null
   private klineSubscriptionSet = false
   private chartSubscription: ChartSubscriptionKey[] | null = null
+  private quoteExclusions: string[] | null = null
 
   constructor(path: string = "/ws/market") {
     this.url = `${getWsBase()}${path}`
@@ -206,6 +207,7 @@ export class MarketWebSocket {
     this.lastMessageAt = Date.now()
     this.setState("connected")
     this.startHeartbeat()
+    this.sendQuoteExclusions()
     // 重连后服务端订阅状态归零，重发 K 线订阅
     this.sendKlineSubscription()
     this.sendChartSubscription()
@@ -262,6 +264,20 @@ export class MarketWebSocket {
   private sendChartSubscription(): void {
     if (this.ws?.readyState === WebSocket.OPEN && this.chartSubscription !== null) {
       this.ws.send(JSON.stringify({ action: "subscribe_chart", keys: this.chartSubscription }))
+    }
+  }
+
+  /** Only suppress symbols currently delivered by the public display stream. */
+  setQuoteExclusions(symbols: string[]): void {
+    const next = [...new Set(symbols.map(s => s.trim().toLowerCase()).filter(s => /^[a-z0-9]{1,16}usdt$/.test(s)))].sort().slice(0, 1024)
+    if (JSON.stringify(next) === JSON.stringify(this.quoteExclusions)) return
+    this.quoteExclusions = next
+    this.sendQuoteExclusions()
+  }
+
+  private sendQuoteExclusions(): void {
+    if (this.ws?.readyState === WebSocket.OPEN && this.quoteExclusions !== null) {
+      this.ws.send(JSON.stringify({ action: "set_quote_exclusions", symbols: this.quoteExclusions }))
     }
   }
 

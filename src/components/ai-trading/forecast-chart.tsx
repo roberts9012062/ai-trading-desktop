@@ -5,6 +5,7 @@ import {drawForecastLines} from '@/components/market/kline/lines/use-forecast-li
 import {Dialog,DialogContent,DialogTitle} from '@/components/ui/dialog'
 import {getAITradingTask,type AITradingTask} from '@/lib/ai-trading-api'
 import {getForecastKlineApi} from '@/lib/api'
+import {readDisplayCandles} from '@/lib/display-kline'
 import {forecastConfig,forecastState,forecastLines,FORECAST_STAGES} from '@/lib/ai-forecast'
 import {dedupeBarsByChartTime,formatChartTime,makeChartOpts,sanitizeBars} from '@/components/market/kline/utils'
 import {useDisplayStore} from '@/stores/display'
@@ -23,13 +24,18 @@ export function ForecastKline({task}:{task:AITradingTask}):React.JSX.Element {
   series.current=candles;setReady(v=>v+1)
   const ro=new ResizeObserver(([e])=>chart.applyOptions({width:e.contentRect.width,height:e.contentRect.height}));ro.observe(root.current)
   let alive=true,busy=false,first=true
+  let currentBars:KlineBar[]=[]
   const refresh=async():Promise<void>=>{
    if(busy)return;busy=true
    try {
-    const response=await getForecastKlineApi(task.id)
+    const displayBars=await readDisplayCandles(task.symbol,task.timeframe as KlinePeriod,currentBars,async()=>{
+     const response=await getForecastKlineApi(task.id)
+     return response.bars as unknown as KlineBar[]
+    })
     if(!alive)return
-    const bars=dedupeBarsByChartTime(sanitizeBars(response.bars as unknown as KlineBar[]),task.timeframe as KlinePeriod)
+    const bars=dedupeBarsByChartTime(sanitizeBars(displayBars),task.timeframe as KlinePeriod)
     if(!bars.length)throw new Error('暂无可用 K 线')
+    currentBars=bars
     const px=bars[bars.length-1].close
     const precision=px>=100?2:px>=1?4:px>=0.01?6:9
     candles.applyOptions({priceFormat:{type:'price',precision,minMove:10**-precision}})

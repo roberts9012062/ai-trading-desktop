@@ -2,6 +2,7 @@
 
 import { create } from "zustand"
 import { getMarketWebSocket } from "@/lib/websocket"
+import { getOkxSnippetWebSocket } from "@/lib/okx-snippet-ws"
 import { useNotificationsStore } from "@/stores/notifications"
 import type { User } from "@/types"
 
@@ -93,6 +94,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.removeItem(REFRESH_KEY)
     writeCachedUser(null)
     try {
+      getOkxSnippetWebSocket().disconnect()
       getMarketWebSocket().disconnect()
     } catch {
       // ignore

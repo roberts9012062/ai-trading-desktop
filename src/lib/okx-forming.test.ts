@@ -6,12 +6,15 @@ const mock = vi.hoisted(() => ({
   message: null as ((m: WsMessage) => void) | null,
   stateHandler: null as ((s: ConnectionState) => void) | null,
   state: "connected" as ConnectionState,
+  observe: vi.fn(), connection: vi.fn(),
 }))
 vi.mock("./api", () => ({ getKlineApi: mock.read }))
-vi.mock("@/stores/market", () => ({ useMarketStore: { getState: () => ({ updateKlineRealtime: mock.update }) } }))
+vi.mock("@/stores/market", () => ({ useMarketStore: { getState: () => ({ updateKlineRealtime: mock.update, setConnectionState: mock.connection }) } }))
 vi.mock("@/components/market/kline/realtime/accumulator", () => ({ listActiveRtKeys: mock.active, offerRtBar: mock.offer }))
-vi.mock("./websocket", () => ({ getMarketWebSocket: () => ({
+vi.mock("./websocket", () => ({ getMarketWebSocket: () => ({ setChartSubscription: vi.fn() }) }))
+vi.mock("./okx-snippet-ws", () => ({ OKX_SNIPPET_CANDLE_STALE_MS: 15000, getOkxSnippetWebSocket: () => ({
   get state() { return mock.state }, setChartSubscription: mock.subscribe,
+  observeVersion: mock.observe,
   onMessage: (h: (m: WsMessage) => void) => { mock.message = h; return () => { mock.message = null } },
   onStateChange: (h: (s: ConnectionState) => void) => { mock.stateHandler = h; return () => { mock.stateHandler = null } },
 }) }))
@@ -48,7 +51,7 @@ it("restores REST after stale delivery, disconnect or old-server messages", asyn
   await feed.pollOkxFormingOnce()
   mock.message!({ type: "chart_kline", data: [{ ...key, bar }] })
   mock.read.mockClear()
-  vi.setSystemTime(Date.now() + 6000)
+  vi.setSystemTime(Date.now() + 16000)
   await feed.pollOkxFormingOnce()
   expect(mock.read).toHaveBeenCalledTimes(1)
   mock.message!({ type: "chart_kline", data: [{ ...key, bar: { ...bar, version: 101 } }] })
@@ -73,7 +76,7 @@ it("rejects foreign, malformed, unsolicited and older-version candles without su
   await feed.pollOkxFormingOnce()
   expect(mock.read).toHaveBeenCalledTimes(1)
   mock.message!({ type: "chart_kline", data: [{ ...key, bar: { ...bar, version: 200 } }] })
-  vi.setSystemTime(Date.now() + 6000)
+  vi.setSystemTime(Date.now() + 16000)
   mock.offer.mockClear()
   mock.message!({ type: "chart_kline", data: [{ ...key, bar: { ...bar, version: 199 } }] })
   expect(mock.offer).not.toHaveBeenCalled()
@@ -117,4 +120,15 @@ it("one failing REST key does not apply backoff to another key", async () => {
   mock.read.mockClear()
   await feed.pollOkxFormingOnce()
   expect(mock.read).toHaveBeenCalledExactlyOnceWith(other.symbol, other.period, { limit: 3 })
+})
+
+it("does not overwrite newer direct candles with a late server recovery response", async () => {
+  let resolve!: (v: { bars: typeof bar[] }) => void
+  mock.read.mockReturnValue(new Promise(r => { resolve = r }))
+  const pending = feed.pollOkxFormingOnce()
+  mock.message!({ type: "chart_kline", data: [{ ...key, bar: { ...bar, close: 102, version: 200 } }] })
+  mock.offer.mockClear()
+  resolve({ bars: [bar] }); await pending
+  expect(mock.offer).not.toHaveBeenCalled()
+  expect(mock.observe).toHaveBeenCalledWith(bar.version)
 })

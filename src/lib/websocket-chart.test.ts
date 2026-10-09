@@ -50,3 +50,15 @@ it("actually clears the legacy subscription when the last consumer leaves", () =
   ws.setKlineSubscription([])
   expect(JSON.parse(Socket.all[0].send.mock.calls.at(-1)![0])).toEqual({ action: "unsubscribe_kline" })
 })
+
+it("restores per-symbol quote exclusions after reconnect without disabling business events", () => {
+  ws.setQuoteExclusions([" ADAUSDT ", "adausdt", "../invalid"])
+  ws.connect(); Socket.all[0].open()
+  expect(Socket.all[0].send).toHaveBeenCalledWith(JSON.stringify({ action: "set_quote_exclusions", symbols: ["adausdt"] }))
+  ws.setQuoteExclusions(["adausdt"])
+  expect(Socket.all[0].send).toHaveBeenCalledTimes(1)
+  ws.disconnect(); ws.connect(); Socket.all[1].open()
+  expect(Socket.all[1].send).toHaveBeenCalledWith(JSON.stringify({ action: "set_quote_exclusions", symbols: ["adausdt"] }))
+  ws.setQuoteExclusions([])
+  expect(Socket.all[1].send).toHaveBeenLastCalledWith(JSON.stringify({ action: "set_quote_exclusions", symbols: [] }))
+})

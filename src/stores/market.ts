@@ -12,6 +12,7 @@ import {
   getMarketWebSocket,
 } from "@/lib/websocket"
 import { getContractsByCodeApi, getQuotesSnapshotApi } from "@/lib/api"
+import { getOkxSnippetWebSocket } from "@/lib/okx-snippet-ws"
 import { useNotificationsStore } from "@/stores/notifications"
 import { playNotificationSound } from "@/lib/sound"
 import { speakBigOrder } from "@/lib/speech"
@@ -22,6 +23,11 @@ import { useTaskAlertToastStore } from "@/stores/task-alert-toast"
 import { useAiMarketStore } from "@/stores/ai-market"
 import { useAiAnchorStore } from "@/stores/ai-anchor"
 import { speakTaskOrder } from "@/lib/speech"
+
+function syncSnippetQuoteSymbols(state: MarketState): void {
+  const symbols = state.codeTree ? Object.values(state.codeTree).flatMap(group => group.contracts.map(contract => contract.symbol)) : Object.keys(state.quotes)
+  getOkxSnippetWebSocket().setQuoteSymbols(symbols)
+}
 
 /**
  * HTTP 拉取行情快照写入 store（侧栏/品种树首屏兜底）
@@ -38,6 +44,7 @@ async function bootstrapQuotesFromHttp(
       const symbol = String(item.symbol ?? "").trim().toLowerCase()
       const last = Number(item.last_price)
       if (!symbol || !Number.isFinite(last) || last <= 0) continue
+      if (getOkxSnippetWebSocket().hasFreshQuote(symbol)) continue
       quotes.push({
         symbol,
         name: String(item.name ?? symbol),
@@ -74,6 +81,7 @@ async function bootstrapQuotesFromHttp(
     }
     if (quotes.length > 0) {
       get().updateQuotes(quotes)
+      syncSnippetQuoteSymbols(get())
     }
   } catch {
     // 快照失败不阻断 WS
@@ -394,6 +402,10 @@ export const useMarketStore = create<MarketState>((set, get) => ({
 
   initWebSocket: () => {
     const ws = getMarketWebSocket()
+    const snippet = getOkxSnippetWebSocket()
+    syncSnippetQuoteSymbols(get())
+    snippet.connect()
+    ws.setChartSubscription([])
 
     // 已绑定过回调时只补 connect（登录后 token 就绪 / 页面二次进入）
     if (get().wsInitialized) {
@@ -403,16 +415,26 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       return
     }
     set({ wsInitialized: true })
-
-    // 监听连接状态
-    ws.onStateChange((state) => {
-      set({ connectionState: state })
+    snippet.onQuoteFreshnessChange(symbols => ws.setQuoteExclusions(symbols))
+    snippet.onMessage(message => {
+      if (message.type === "quote" && Array.isArray(message.data)) {
+        const quotes = (message.data as QuoteData[]).map(quote => {
+          const previous = get().quotes[quote.symbol]
+          return { ...quote, name: previous?.name || quote.name,
+            decimal_places: Math.max(previous?.decimal_places ?? 0, quote.decimal_places), position: previous?.position ?? 0 }
+        })
+        get().updateQuotes(quotes)
+      }
     })
+
+    // Chart connectionState is owned by the direct candle feed. The business
+    // socket's reconnects must not mask a candle disconnect or trigger duplicate history reads.
 
     // 监听消息，按 type 分发
     ws.onMessage((message: WsMessage) => {
       if (message.type === "quote" && Array.isArray(message.data)) {
-        get().updateQuotes(message.data as QuoteData[])
+        get().updateQuotes((message.data as QuoteData[]).filter(quote => !snippet.hasFreshQuote(quote.symbol)))
+        syncSnippetQuoteSymbols(get())
       } else if (message.type === "orderbook" && Array.isArray(message.data)) {
         get().updateOrderbooks(message.data as OrderBook[])
       } else if (message.type === "trades" && message.data && typeof message.data === "object") {
@@ -452,14 +474,6 @@ export const useMarketStore = create<MarketState>((set, get) => ({
         // AI 看盘主播播报（服务端按 user_id 定向）：ai-anchor store 负责盘模式
         // 过滤/去重/列表更新与语音朗读；主播本体在后端，跳页不影响。
         useAiAnchorStore.getState().receiveWsBroadcast(message.data as Record<string, unknown>)
-      }
-    })
-
-    // 重连成功：服务端会重推 Redis 缓存的 quote/orderbook/kline realtime；
-    // 历史 K 线缺口由 kline-chart 监听 connectionState 回补
-    ws.onOpen(({ isReconnect }) => {
-      if (isReconnect) {
-        set({ connectionState: "connected" })
       }
     })
 
@@ -595,7 +609,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
 
   setContractsLoading: (loading) => set({ contractsLoading: loading }),
 
-  setCodeTree: (data) => set({ codeTree: data }),
+  setCodeTree: (data) => { set({ codeTree: data }); syncSnippetQuoteSymbols(get()) },
 
   fetchCodeTree: async () => {
     if (get().codeTreeLoading) return
@@ -603,6 +617,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     try {
       const data = await getContractsByCodeApi()
       set({ codeTree: data })
+      syncSnippetQuoteSymbols(get())
     } catch (err) {
       console.error("合约树加载失败:", err)
     } finally {
