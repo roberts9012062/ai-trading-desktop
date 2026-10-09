@@ -8,7 +8,7 @@ import {
   Briefcase, FileText, Wallet, Crown,
   User, MessageSquare, ChevronLeft, ChevronRight,
   ChevronDown, Bot, Sparkles, FlaskConical,
-  Dna, Cpu, Radar, Bookmark, Filter,
+  Dna, Cpu, Radar, Bookmark, Filter, BookOpen,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/stores/app"
@@ -67,7 +67,8 @@ const MENU_ITEMS: MenuItem[] = [
   { icon: Cpu, label: "超级因子", path: "/history", demo: false },
   { icon: User, label: "个人", path: "/profile", demo: false },
   { icon: Bot, label: "AI 设置", path: "/ai-settings", demo: false },
-  { icon: MessageSquare, label: "消息", path: "/messages", demo: true },
+  { icon: MessageSquare, label: "消息", path: "/messages", demo: false },
+  { icon: BookOpen, label: "使用手册", path: "/manual", demo: false },
 ]
 
 /** 可折叠侧边栏（192px ↔ 48px），支持行情二级子菜单 */

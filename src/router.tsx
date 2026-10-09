@@ -30,6 +30,7 @@ import MessagesPage from "./app/(main)/messages/page"
 import OrdersPage from "./app/(main)/orders/page"
 import PositionsPage from "./app/(main)/positions/page"
 import ProfilePage from "./app/(main)/profile/page"
+import ManualPage from "./app/(main)/manual/page"
 import StrategyFavoritesPage from "./app/(main)/strategy-favorites/page"
 import TradingPage from "./app/(main)/trading/page"
 
@@ -78,6 +79,7 @@ export function AppRoutes() {
         <Route path="/orders" element={<OrdersPage />} />
         <Route path="/positions" element={<PositionsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/manual" element={<ManualPage />} />
         <Route path="/strategy-favorites" element={<StrategyFavoritesPage />} />
         <Route path="/trading" element={<TradingPage />} />
       </Route>
