@@ -30,12 +30,16 @@ import { StrategyImportDialog } from "@/components/strategy-favorites/transfer-c
 
 /** AI 交易主页面 */
 export default function AITradingPage(): React.JSX.Element {
+  const isAdmin = useAuthStore(s => s.user?.role === "admin")
   const accountKey = useAuthStore(s => s.user ? JSON.stringify([s.user.id, s.user.trading_mode]) : null)
-  const tasks = useAITradingStore((s) => s.tasks)
+  const allTasks = useAITradingStore((s) => s.tasks)
+  const tasks = useMemo(() => isAdmin ? allTasks : allTasks.filter(t => t.strategy_type !== "multi_cycle_hunter"), [allTasks, isAdmin])
   const equitySeries = useAITradingStore((s) => s.equitySeries)
   const equityTraces = useAITradingStore((s) => s.equityTraces)
-  const hunterGroups = useHunterStore(s => s.groups)
-  const profitBars = useAITradingStore((s) => s.profitBars)
+  const allHunterGroups = useHunterStore(s => s.groups)
+  const hunterGroups = useMemo(() => isAdmin ? allHunterGroups : [], [allHunterGroups, isAdmin])
+  const allProfitBars = useAITradingStore((s) => s.profitBars)
+  const profitBars = useMemo(() => isAdmin ? allProfitBars : allProfitBars.filter(b => b.strategy_type !== "multi_cycle_hunter"), [allProfitBars, isAdmin])
   const profitTotalRealized = useAITradingStore((s) => s.profitTotalRealized)
   const profitTotalUnrealized = useAITradingStore((s) => s.profitTotalUnrealized)
   const profitTotalPnl = useAITradingStore((s) => s.profitTotalPnl)
@@ -156,7 +160,7 @@ export default function AITradingPage(): React.JSX.Element {
             onClick={() => setQuantOpen(true)}
           />
           <TradingActionButton action="ai" onClick={() => setCreateOpen(true)} />
-          <TradingActionButton action="hunter" disabled={hunterExists} title={hunterExists ? "请先停止当前猎手后再创建" : undefined} onClick={() => setHunterOpen(true)} />
+          {isAdmin && <TradingActionButton action="hunter" disabled={hunterExists} title={hunterExists ? "请先停止当前猎手后再创建" : undefined} onClick={() => setHunterOpen(true)} />}
         </div>
       </div>
 
@@ -167,7 +171,7 @@ export default function AITradingPage(): React.JSX.Element {
       )}
 
       <EquityChart tasks={tasks} series={equitySeries} traces={equityTraces} profitBars={profitBars} hunters={hunterGroups} />
-      <HunterPanel onSelectTask={id => void selectTask(id)} />
+      {isAdmin && <HunterPanel onSelectTask={id => void selectTask(id)} />}
 
       <ProfitBarChart
         items={profitBars}
@@ -203,7 +207,7 @@ export default function AITradingPage(): React.JSX.Element {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
       />
-      <CreateHunterDialog open={hunterOpen} onClose={() => setHunterOpen(false)} />
+      {isAdmin && <CreateHunterDialog open={hunterOpen} onClose={() => setHunterOpen(false)} />}
       <StrategyImportDialog open={importOpen} mode="tasks" onClose={() => setImportOpen(false)} onImported={() => { void loadTasks(); void loadTaskFavs() }} />
 
       <CreateQuantDialog

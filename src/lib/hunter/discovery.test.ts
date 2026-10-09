@@ -7,7 +7,7 @@ import type { Bar } from "./rules"
 import * as rules from "./rules"
 
 vi.mock("@/stores/ai-trading", () => ({ useAITradingStore: { getState: () => ({ loadTasks: vi.fn() }) } }))
-vi.mock("@/stores/auth", () => ({ useAuthStore: { getState: () => ({ user: { id: "user", trading_mode: "virtual" } }) } }))
+vi.mock("@/stores/auth", () => ({ useAuthStore: { getState: () => ({ user: { id: "user", role: "admin", trading_mode: "virtual" } }) } }))
 vi.mock("./api", () => ({ hunterApi: { universe: vi.fn(), data: vi.fn(), snapshot: vi.fn(), mount: vi.fn(), report: vi.fn().mockResolvedValue(undefined) } }))
 const group = (): Hunter => ({ id: "hunter", status: "running", blocks: [], opportunities: [],
   config: { strategy_version: "hunter-v2", venue: "okx", cycles: ["short", "medium", "long"], direction: "long", max_positions: 4, scan_seconds: 60 } }) as unknown as Hunter

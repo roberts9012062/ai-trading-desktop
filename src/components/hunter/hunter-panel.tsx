@@ -45,12 +45,13 @@ export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => v
   const [manualBusy, setManualBusy] = useState<string | null>(null)
   const [poolDraft, setPoolDraft] = useState<Record<string, number>>({})
   useEffect(() => {
+    if (!isAdmin) return
     const abort = new AbortController()
     void useHunterStore.getState().refresh(abort.signal).catch(() => {})
     void hunterApi.capabilities().then(cap => { if (!abort.signal.aborted) setCapabilities(cap) }).catch(() => {})
     return () => abort.abort()
   }, [isAdmin])
-  if (!groups.length) return null
+  if (!isAdmin || !groups.length) return null
   const action = async (id: string, cmd: Parameters<typeof control>[1], poolSize?: number) => {
     setBusy(id); setError(null)
     try { await control(id, cmd, poolSize) } catch (e) { setError(e instanceof Error ? e.message : "操作失败") } finally { setBusy(null) }

@@ -12,8 +12,11 @@ import { useAuthStore } from "@/stores/auth"
 
 /** Page-level entry; all saves use the existing narrow profit-lock endpoints. */
 export function ProfitLockManager() {
-  const tasks = useAITradingStore(s => s.tasks)
-  const groups = useHunterStore(s => s.groups)
+  const isAdmin = useAuthStore(s => s.user?.role === "admin")
+  const allTasks = useAITradingStore(s => s.tasks)
+  const allGroups = useHunterStore(s => s.groups)
+  const tasks = useMemo(() => isAdmin ? allTasks : allTasks.filter(t => t.strategy_type !== "multi_cycle_hunter"), [allTasks, isAdmin])
+  const groups = useMemo(() => isAdmin ? allGroups : [], [allGroups, isAdmin])
   const targets = useMemo(() => profitLockTargets(tasks, groups), [tasks, groups])
   const owner = useAuthStore(s => `${s.user?.id ?? ""}:${s.user?.trading_mode ?? ""}`)
   const [open, setOpen] = useState(false)

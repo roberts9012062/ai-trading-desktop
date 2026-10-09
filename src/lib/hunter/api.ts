@@ -2,6 +2,7 @@ import type { Bar, Cycle, Direction, RuleVersion, EntryKind } from "./rules"
 import type { ProfitLockConfig, ProfitLockUpdateResult } from "../ai-trading-api"
 import type { MacdPeriod } from "./macd-ma20"
 import type { HunterPivotParams, PivotEvidence, PivotConfirmation } from "./pivot"
+import { useAuthStore } from "@/stores/auth"
 export type HunterCycle = Cycle | MacdPeriod
 
 export interface HunterConfig {
@@ -66,6 +67,7 @@ export function hunterAccountLabel(mode?: HunterCapabilities["execution_mode"]):
 }
 
 async function request<T>(path: string, init: RequestInit = {}, signal?: AbortSignal): Promise<T> {
+  if (useAuthStore.getState().user?.role !== "admin") throw new Error("多周期猎手暂时仅向管理员开放")
   const token = localStorage.getItem("access_token")
   if (!token) throw new Error("请先登录")
   const base = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")

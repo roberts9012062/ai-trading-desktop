@@ -94,6 +94,10 @@ export async function scanHunter(group: Hunter, abort: AbortSignal): Promise<voi
 /** One desktop owner across navigation/windows; logout/mode change aborts work. */
 export function startHunterRuntime(): () => void {
   stopRuntime?.()
+  if (useAuthStore.getState().user?.role !== "admin") {
+    useHunterStore.getState().reset()
+    return () => {}
+  }
   const rootAbort = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
   let scanAbort: AbortController | undefined
