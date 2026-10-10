@@ -53,6 +53,7 @@ jobs:
             --require-hashes -r requirements-native.lock
           .local-data/native-engine-venv/Scripts/python.exe scripts/test-quant-kernel.py
           .local-data/native-engine-venv/Scripts/python.exe scripts/test-factor-backtest.py
+          .local-data/native-engine-venv/Scripts/python.exe scripts/test-realtime-factor.py
           BASE_PREFIX="$(.local-data/native-engine-venv/Scripts/python.exe -c 'import sys; print(sys.base_prefix)')"
           .local-data/native-engine-venv/Scripts/python.exe scripts/assemble-native-engine.py \
             --python "$BASE_PREFIX" --venv .local-data/native-engine-venv

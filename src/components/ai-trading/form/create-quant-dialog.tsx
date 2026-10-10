@@ -36,6 +36,9 @@ import {
 } from "@/components/ai-trading/form/margin-leverage-fields"
 import { useMarketStore } from "@/stores/market"
 import { useAuthStore } from "@/stores/auth"
+import { RealtimeCreateOptions } from '../realtime-mode-control'
+import { startRealtime } from '@/lib/realtime-factor/runtime'
+import type { Cadence } from '@/lib/realtime-factor/model'
 
 /** 实盘模式创建任务：官方接口真实下单提示横幅 */
 function LiveExecBanner(): React.JSX.Element | null {
@@ -119,6 +122,8 @@ export function CreateQuantDialog({
   const createTask = useAITradingStore((s) => s.createTask)
   const [quant, setQuant] = useState<QuantParamsState>(DEFAULT_QUANT_PARAMS)
   const [startupBars, setStartupBars] = useState("2")
+  const [realtimeEnabled,setRealtimeEnabled]=useState(false)
+  const [realtimeInterval,setRealtimeInterval]=useState<Cadence>(3)
   // 决策模型（TypeSafe Jev System One）：多空平全由模型判断
   const [decisionEnabled, setDecisionEnabled] = useState(false)
   const [decisionModels, setDecisionModels] = useState<AIModel[]>([])
@@ -147,6 +152,7 @@ export function CreateQuantDialog({
 
   useEffect(() => {
     if (open && !prefillFrom) setStartupBars("2")
+    if (open) {setRealtimeEnabled(false);setRealtimeInterval(3)}
   }, [open, prefillFrom])
 
   // 决策模型列表：只列 Jev（决策）模型 —— 别的模型被筛掉
@@ -234,6 +240,10 @@ export function CreateQuantDialog({
 
   async function handleSubmit(): Promise<void> {
     setError(null)
+    if(realtimeEnabled && !decisionEnabled && (combo||quant.quantKind==='factor') && !rules.autoStart) {
+      setError('秒级模式需要勾选创建后启动任务，或关闭秒级模式后创建')
+      return
+    }
     if (!symbol.trim()) {
       setError("请选择合约品种")
       return
@@ -350,6 +360,9 @@ export function CreateQuantDialog({
     setSubmitting(true)
     try {
       const task = await createTask(payload)
+      if(realtimeEnabled && !decisionEnabled && (combo||quant.quantKind==='factor') && task.status==='running') {
+        void startRealtime(task,realtimeInterval).catch(()=>{})
+      }
       try {
         await onCreated?.(task)
       } catch {
@@ -671,6 +684,8 @@ export function CreateQuantDialog({
             </div>
           )}
 
+          {!decisionEnabled&&(combo||quant.quantKind==='factor')&&<RealtimeCreateOptions enabled={realtimeEnabled} interval={realtimeInterval}
+            onEnabled={v=>{setRealtimeEnabled(v);if(v)setRules(r=>({...r,autoStart:true}))}} onInterval={setRealtimeInterval}/>}
           <CreateTaskRules
             value={rules}
             onChange={setRules}

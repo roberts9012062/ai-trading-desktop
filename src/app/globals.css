@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+@keyframes realtime-factor-breathe {
+  0%,100% { box-shadow: 0 0 0 1px rgb(245 190 65 / .18), 0 0 7px rgb(245 190 65 / .08); }
+  50% { box-shadow: 0 0 0 1px rgb(245 190 65 / .55), 0 0 17px rgb(245 190 65 / .22); }
+}
+.realtime-factor-card {
+  border-color: rgb(245 190 65 / .85) !important;
+  animation: realtime-factor-breathe 2.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .realtime-factor-card { animation: none; box-shadow: 0 0 0 1px rgb(245 190 65 / .3); }
+}
+
 /* AI trading controls: compact metal surfaces, distinct glyphs and semantic accents. */
 .trading-header {
   padding: 18px;

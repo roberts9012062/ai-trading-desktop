@@ -12,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { DecisionList } from "@/components/ai-trading/detail/decision-list"
 import { ShortlineScoreStream } from "./shortline-score-stream"
+import { RealtimeAnalysis } from './realtime-analysis'
+import { RealtimeModeControl } from '../realtime-mode-control'
 import { TradeList } from "@/components/ai-trading/detail/trade-list"
 import {
   STATUS_LABEL,
@@ -230,6 +232,7 @@ export function TaskDetailDrawer({
               </span>
               <span>{task.model_display_name}</span>
               <span>状态 {STATUS_LABEL[statusKey(task)] ?? task.status}</span>
+              {!readOnly&&<RealtimeModeControl task={task}/>}
               {task.max_hold_days ? (
                 <span
                   title={isForecast(task) ? "从启动日起按北京自然日倒数，换轮不重置；到期平仓停止" : "周期按北京自然日倒数：开仓后每过 0 点剩余天数 -1，剩 0 天时强制平仓"}
@@ -320,6 +323,7 @@ export function TaskDetailDrawer({
                   交易记录 ({trades.length})
                 </TabsTrigger>
                 <TabsTrigger value="runlogs">运行日志</TabsTrigger>
+                {!readOnly&&task?.strategy_type==='factor'&&<TabsTrigger value="realtime">秒级分析</TabsTrigger>}
               </TabsList>
               {readOnly && (
                 <TabsContent value="profit" className="mt-3">
@@ -337,6 +341,9 @@ export function TaskDetailDrawer({
                   loading={loading}
                   resetKey={task.id}
                 />
+              </TabsContent>
+              <TabsContent value="realtime" className="mt-3">
+                {task&&<RealtimeAnalysis taskId={task.id}/>}
               </TabsContent>
               <TabsContent value="trades" className="mt-3">
                 <TradeList items={trades} loading={loading} />

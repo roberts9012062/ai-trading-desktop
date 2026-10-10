@@ -218,6 +218,18 @@ ctx.onmessage = async (ev: MessageEvent) => {
     sessionId?: string
   }
 
+  if (msg.type === 'realtime_factor') {
+    try {
+      await ensureFactorKernel()
+      const run = pyodideInstance!.runPython<(p: string, b: string) => string>('from realtime_factor import run; run')
+      const result = run(JSON.stringify(msg.payload),JSON.stringify(msg.bars))
+      ctx.postMessage({type:'result',reqId:msg.reqId,report:JSON.parse(result)})
+    } catch (err) {
+      ctx.postMessage({type:'error',reqId:msg.reqId,message:errText(err)})
+    }
+    return
+  }
+
   // 分代步进挖掘会话(M3):独立入口,不占用 run(mode) 的 bars 双参契约
   if (msg.type === "mine_start" || msg.type === "mine_step" || msg.type === "mine_dispose") {
     try {

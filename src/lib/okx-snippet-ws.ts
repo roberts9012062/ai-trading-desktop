@@ -1,4 +1,4 @@
-/** Public display market data only. Never attach product or exchange credentials. */
+/** Public market data transport. Never attach product or exchange credentials. */
 import type { KlineBar, TradeRecord } from "@/types"
 import type { ChartSubscriptionKey, ConnectionState, MessageHandler, QuoteData, StateHandler } from "./websocket"
 
@@ -24,7 +24,7 @@ export function decodeOkxCandle(raw: unknown, period: string, version: number): 
     Math.min(open, high, low, close) <= 0 || Math.min(contracts, volume, quoteVolume) < 0 ||
     high < Math.max(open, low, close) || low > Math.min(open, high, close) || !["0", "1"].includes(String(raw[8]))) return null
   return { time: beijingTime(ts, period === "1d"), open, high, low, close, volume,
-    market_source: "okx", is_closed: String(raw[8]) === "1", version, kind: "correction" }
+    quote_volume: quoteVolume, market_source: "okx", is_closed: String(raw[8]) === "1", version, kind: "correction" }
 }
 
 export function decodeOkxTicker(raw: unknown): QuoteData | null {

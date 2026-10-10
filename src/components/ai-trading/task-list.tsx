@@ -11,6 +11,8 @@ import { TaskActions } from "@/components/ai-trading/task-actions"
 import { TaskLossCooldownStatus } from "./loss-cooldown-status"
 import { TaskProfitLockStatus } from "@/components/ai-trading/profit-lock-status"
 import { useMarketStore } from "@/stores/market"
+import { useRealtimeFactorStore } from '@/stores/realtime-factor'
+import { RealtimeModeControl } from './realtime-mode-control'
 import {
   taskPnlFromQuotes,
   runtimeLabel,
@@ -50,6 +52,7 @@ export function TaskList({
   onFavorite,
 }: TaskListProps): React.JSX.Element {
   const quotes = useMarketStore((s) => s.quotes)
+  const realtime = useRealtimeFactorStore(s=>s.tasks)
   const [forecastId,setForecastId]=useState<string|null>(null)
 
   if (tasks.length === 0) {
@@ -92,6 +95,7 @@ export function TaskList({
             }}
             className={cn(
               "rounded-xl border p-3 transition-colors cursor-pointer h-full flex flex-col min-h-[172px]",
+              (realtime[task.id]?.state==='active' || (!realtime[task.id] && task.realtime_mode?.active)) && 'realtime-factor-card',
               selectedId === task.id
                 ? "border-[var(--primary)] bg-[var(--primary)]/10"
                 : "border-[var(--border)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)]",
@@ -184,6 +188,7 @@ export function TaskList({
               </div>
             </div>
 
+            <RealtimeModeControl task={task}/>
             {/* 统计条：累计盈亏 / 浮动盈亏 / 胜率 */}
             <div className="mt-2.5 grid grid-cols-3 gap-1 rounded-lg bg-[var(--bg-tertiary)]/50 px-2 py-1.5">
               <div

@@ -105,6 +105,7 @@ export interface LossCooldownState {
 }
 
 export interface AITradingTask {
+  realtime_mode?: { active: boolean; interval: number | null; expires_at: number | null }
   profit_lock_state?: ProfitLockState
   id: string
   user_id: string
@@ -360,7 +361,7 @@ export interface UpdateTaskPayload {
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("access_token") : null
   const headers: Record<string, string> = {

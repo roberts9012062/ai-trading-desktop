@@ -4,6 +4,7 @@ import { FontSizeProvider } from "@/components/common/font-size-provider"
 import { attachErrorReporting, silentCheckForUpdate } from "@/lib/updater"
 import { AppRoutes } from "./router"
 import { DesktopFrame } from "@/components/common/desktop-titlebar"
+import { RealtimeHost } from '@/components/common/realtime-host'
 
 /** 根组件:对应原 Next 根 layout(FontSizeProvider + 全局路由 + 更新/错误上报) */
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <FontSizeProvider />
+      <RealtimeHost />
       <DesktopFrame><AppRoutes /></DesktopFrame>
     </BrowserRouter>
   )
