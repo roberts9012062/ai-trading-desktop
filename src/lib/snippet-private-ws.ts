@@ -1,6 +1,7 @@
 /** Ephemeral WS login proofs; push data only invalidates normalized UI reads. */
 import { ensureDesktopRouting, isServerMode, onDesktopRoutingChange } from "./desktop-routing"
 import type { MessageHandler } from "./websocket"
+import { snippetOrigin, snippetFailed, snippetSucceeded } from "./snippet-pool"
 
 let nextDial = 0
 
@@ -13,6 +14,7 @@ class PrivateChannel {
   private attempt = 0
   private rx = 0
   private token = ""
+  private activeOrigin = ""
   connected = false
   constructor(private business: boolean, private event: (channels: string[]) => void) {}
   start(): void { if (this.active) return;this.active=true;this.schedule(this.business ? 1500 : 0) }
@@ -35,7 +37,9 @@ class PrivateChannel {
   }
   private retry(): void {
     this.release();this.connected=false;this.event([])
-    this.schedule(Math.min(30000,2000*2**Math.min(this.attempt++,4))+Math.floor(Math.random()*1000))
+    const delay=Math.min(30000,2000*2**Math.min(this.attempt++,4))+Math.floor(Math.random()*1000)
+    if (this.attempt>=2 && this.activeOrigin) void snippetFailed("private_ws",this.activeOrigin).finally(()=>this.schedule(delay))
+    else this.schedule(delay)
   }
   private async open(): Promise<void> {
     if (!this.active || isServerMode()) return
@@ -49,7 +53,8 @@ class PrivateChannel {
       if (!response.ok) throw new Error("login proof unavailable")
       const proof=await response.json()
       if (controller.signal.aborted || !this.active || isServerMode()) return
-      const target=new WebSocket(`wss://okx-private-ws.kins.eu.org${proof.demo ? '/demo' : ''}/ws/v5/${this.business ? 'business' : 'private'}`)
+      this.activeOrigin=snippetOrigin("private_ws")
+      const target=new WebSocket(`${this.activeOrigin}${proof.demo ? '/demo' : ''}/ws/v5/${this.business ? 'business' : 'private'}`)
       this.socket=target;this.rx=Date.now()
       const born = Date.now()
       const channels=this.business ? ['orders-algo','algo-advance'] : ['account','positions','orders']
@@ -73,13 +78,15 @@ class PrivateChannel {
         const channel=(frame.arg as {channel?:string}|undefined)?.channel
         if (frame.event==='subscribe' && channel) {
           waiting.delete(channel)
-          if (!waiting.size) {this.connected=true;this.attempt=0;this.event(channels)}
+          if (!waiting.size) {this.connected=true;this.attempt=0;this.event(channels);snippetSucceeded("private_ws",this.activeOrigin)}
         }
         if (Array.isArray(frame.data) && channel) this.event([channel])
       }
       target.onerror=target.onclose=() => {if (target===this.socket) this.retry()}
       this.heartbeat=setInterval(() => {
         if (target!==this.socket) return
+        try { if (snippetOrigin("private_ws")!==this.activeOrigin) {this.release();this.connected=false;this.schedule(500+Math.random()*3000);return} }
+        catch {this.release();this.connected=false;this.schedule(5000);return}
         if (localStorage.getItem('access_token')!==this.token || Date.now()-this.rx>35000 || (!this.connected && Date.now()-born>12000)) {this.retry();return}
         if (target.readyState===1) target.send('ping')
       },5000)

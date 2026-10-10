@@ -1,9 +1,8 @@
 /** Public market data transport. Never attach product or exchange credentials. */
 import type { KlineBar, TradeRecord } from "@/types"
 import type { ChartSubscriptionKey, ConnectionState, MessageHandler, QuoteData, StateHandler } from "./websocket"
+import { snippetOrigin, snippetFailed, snippetSucceeded } from "./snippet-pool"
 
-const PUBLIC_URL = "wss://okx-ws-test.kins.eu.org/ws/v5/public"
-const BUSINESS_URL = "wss://okx-ws-test.kins.eu.org/ws/v5/business"
 /** Native candle pushes can pause while no trades occur; unlike periodic VPS snapshots. */
 export const OKX_SNIPPET_CANDLE_STALE_MS = 15000
 const PERIODS: Record<string, string> = { "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "60m": "1H", "240m": "4H", "1d": "1D" }
@@ -62,7 +61,8 @@ class PublicChannel {
   private heartbeat: ReturnType<typeof setInterval> | null = null
   private operations: ReturnType<typeof setTimeout> | null = null
   private operationTimes: number[] = []
-  constructor(private url: string, private budget: { next: number },
+  private activeOrigin = ""
+  constructor(private path: string, private budget: { next: number },
     private frame: (frame: Record<string, unknown>) => boolean,
     private changed: (state: ConnectionState) => void) {}
 
@@ -88,12 +88,14 @@ class PublicChannel {
   private open(): void {
     if (!this.running || !this.desired.size) return
     let socket: WebSocket
-    try { socket = new WebSocket(this.url) } catch { this.retry(); return }
+    try { this.activeOrigin = snippetOrigin("public_ws"); socket = new WebSocket(this.activeOrigin + this.path) } catch { this.retry(); return }
     this.socket = socket
     this.lastReceive = this.lastMarket = this.lastPing = Date.now(); this.pingAt = 0
     this.heartbeat = setInterval(() => {
       const now = Date.now()
       if (socket !== this.socket) return
+      try { if (snippetOrigin("public_ws") !== this.activeOrigin) { this.stopSocket(); this.ensureConnection(500 + Math.random()*3000); return } }
+      catch { this.stopSocket(); this.ensureConnection(5000); return }
       if (socket.readyState === 0 && now - this.lastReceive > 12000) { this.retry(); return }
       if (socket.readyState !== 1) return
       if ((this.pingAt && now - this.pingAt >= 10000) || now - this.lastMarket > 45000) { this.retry(); return }
@@ -119,7 +121,7 @@ class PublicChannel {
           // Invalid/delisted subscriptions retain the server fallback for that symbol.
           return
         }
-        if (this.frame(frame)) { this.lastMarket = Date.now(); this.attempt = 0 }
+        if (this.frame(frame)) { this.lastMarket = Date.now(); this.attempt = 0; snippetSucceeded("public_ws",this.activeOrigin) }
       } catch { /* Invalid frames never count as fresh market data. */ }
     }
     socket.onclose = () => { if (socket === this.socket) this.retry() }
@@ -128,7 +130,8 @@ class PublicChannel {
   private retry(): void {
     this.stopSocket()
     const delay = Math.min(30000, 2000 * 2 ** Math.min(this.attempt++, 4)) + Math.floor(Math.random() * 1000)
-    this.ensureConnection(delay)
+    if (this.attempt >= 2 && this.activeOrigin) void snippetFailed("public_ws",this.activeOrigin).finally(() => this.ensureConnection(delay))
+    else this.ensureConnection(delay)
   }
   private queueOperations(delay = 0): void {
     if (this.operations !== null || this.socket?.readyState !== 1) return
@@ -182,12 +185,12 @@ export class OkxSnippetWebSocket {
   private businessChannel: PublicChannel
   constructor() {
     const budget = { next: 0 }
-    this.publicChannel = new PublicChannel(PUBLIC_URL, budget, frame => this.receiveQuote(frame) || this.receiveDepth(frame), state => {
+    this.publicChannel = new PublicChannel("/ws/v5/public", budget, frame => this.receiveQuote(frame) || this.receiveDepth(frame), state => {
       if (state !== "connected") { this.fresh.clear(); this.pendingQuotes.clear(); this.depthHeads.clear() }
       this.quoteStates.forEach(handler => handler(state))
       this.emitFreshness()
     })
-    this.businessChannel = new PublicChannel(BUSINESS_URL, budget, frame => this.receiveCandle(frame), state => {
+    this.businessChannel = new PublicChannel("/ws/v5/business", budget, frame => this.receiveCandle(frame), state => {
       this.chartStates.forEach(handler => handler(state))
     })
   }

@@ -1,8 +1,8 @@
 import { ensureDesktopRouting, isServerMode } from "./desktop-routing"
 import { decodeOkxCandle, decodeOkxTicker } from "./okx-snippet-ws"
 import type { KlineResponse } from "./api"
+import { snippetOrigin, snippetFailed, snippetSucceeded } from "./snippet-pool"
 
-export const SNIPPET_REST = "https://okx-rest-test.kins.eu.org"
 const periods: Record<string, string> = { "1m":"1m", "5m":"5m", "15m":"15m", "30m":"30m", "60m":"1H", "240m":"4H", "1d":"1D" }
 let retryAt = 0
 const flights = new Map<string, Promise<unknown>>()
@@ -11,12 +11,19 @@ export function resetSnippetRest(): void { retryAt = 0; cache.clear() }
 
 export async function snippetPublicGet(path: string, timeoutMs = 6000): Promise<unknown[]> {
   if (Date.now() < retryAt) throw new Error("Snippet 冷却中")
-  const response = await fetch(SNIPPET_REST + path, { signal: AbortSignal.timeout(timeoutMs), cache: "no-store" })
-  const payload = await response.json()
+  const origin = snippetOrigin("rest"), started = Date.now()
+  let response: Response
+  try { response = await fetch(origin + path, { signal: AbortSignal.timeout(timeoutMs), cache: "no-store", redirect: "error" }) }
+  catch (error) { await snippetFailed("rest", origin); throw error }
+  let payload
+  try { payload = await response.json() }
+  catch (error) { await snippetFailed("rest", origin); throw error }
   if (!response.ok || payload.code !== "0" || !Array.isArray(payload.data)) {
     retryAt = Date.now() + (response.status === 429 || payload.code === "50011" ? 60000 : 15000)
+    await snippetFailed("rest", origin, response.status === 429 || payload.code === "50011")
     throw new Error("Snippet 行情暂不可用")
   }
+  snippetSucceeded("rest", origin, Date.now() - started)
   return payload.data
 }
 

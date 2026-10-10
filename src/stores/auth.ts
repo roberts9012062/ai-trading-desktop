@@ -3,7 +3,7 @@
 import { create } from "zustand"
 import { getMarketWebSocket } from "@/lib/websocket"
 import { getOkxSnippetWebSocket } from "@/lib/okx-snippet-ws"
-import { stopDesktopRouting } from "@/lib/desktop-routing"
+import { stopDesktopRouting, ensureDesktopRouting } from "@/lib/desktop-routing"
 import { disconnectDesktopExchange } from "@/lib/desktop-exchange"
 import { stopSnippetPrivate } from "@/lib/snippet-private-ws"
 import { resetDesktopDailyPnl } from "@/lib/desktop-daily-pnl"
@@ -104,6 +104,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // 账号会话边界：不得带入上一账号的持仓/委托/账户内存态
     resetTradingState()
     set({ user, accessToken, loaded: true, hydrating: false })
+    void ensureDesktopRouting()
   },
 
   logout: () => {

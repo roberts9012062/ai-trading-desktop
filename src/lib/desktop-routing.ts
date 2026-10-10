@@ -1,4 +1,5 @@
 /** Global administrator policy; server mode is the safe cold-start default. */
+import { refreshSnippetPool, resetSnippetPool } from "./snippet-pool"
 let serverMode = true
 let known = false
 let timer: ReturnType<typeof setInterval> | null = null
@@ -21,7 +22,8 @@ export async function refreshDesktopRouting(): Promise<void> {
       if (started !== generation || typeof data.server_market_enabled !== "boolean") return
       const changed = !known || serverMode !== data.server_market_enabled
       known = true; serverMode = data.server_market_enabled
-      if (changed) listeners.forEach(listener => listener(serverMode))
+      if (!serverMode) await refreshSnippetPool()
+      if (started === generation && changed) listeners.forEach(listener => listener(serverMode))
     } catch { /* Keep the last known global policy; cold start stays on server. */ }
   })().finally(() => { if (started === generation) flight = null })
   return flight
@@ -29,10 +31,12 @@ export async function refreshDesktopRouting(): Promise<void> {
 export async function ensureDesktopRouting(): Promise<void> {
   if (timer === null && typeof window !== "undefined") timer = setInterval(() => { void refreshDesktopRouting() }, 15000)
   if (!known) await refreshDesktopRouting()
+  if (!serverMode) await refreshSnippetPool()
 }
 export function stopDesktopRouting(): void {
   if (timer !== null) clearInterval(timer)
   generation++; flight = null
   timer = null; known = false; serverMode = true
+  resetSnippetPool()
   listeners.forEach(listener => listener(true))
 }

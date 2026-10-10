@@ -1,7 +1,7 @@
 /** One authenticated RPC channel; exchange secrets never enter this module. */
 import { resolveWsBase } from "./websocket"
 import { ensureDesktopRouting, isServerMode, onDesktopRoutingChange } from "./desktop-routing"
-import { SNIPPET_REST } from "./snippet-rest"
+import { snippetOrigin, snippetFailed, snippetSucceeded } from "./snippet-pool"
 
 class UnavailableBeforeCall extends Error {}
 export class ExchangeOutcomeUnknown extends Error {}
@@ -40,14 +40,20 @@ async function forward(frame: Record<string, unknown>, target: WebSocket): Promi
   const controller = new AbortController(); controllers.add(controller)
   const timeout = setTimeout(() => controller.abort(),8000)
   let result: { status: number; data: unknown } = { status:0,data:null }
+  let origin = ""
+  const started = Date.now()
   try {
     if (method === 'GET' && Date.now() < privateRetryAt) throw new Error("cooldown")
     // No product JWT, Cookie or API Secret. Signed method/path/body are unchanged.
-    const response = await fetch(SNIPPET_REST+path, {method:String(method),headers:frame.headers as Record<string,string>,body:method==='POST' ? String(frame.body) : undefined,signal:controller.signal,redirect:'error',cache:'no-store'})
+    origin = snippetOrigin("rest")
+    const response = await fetch(origin+path, {method:String(method),headers:frame.headers as Record<string,string>,body:method==='POST' ? String(frame.body) : undefined,signal:controller.signal,redirect:'error',cache:'no-store'})
     const data = await response.json()
     result={status:response.status,data}
+    if (response.status===429 || data.code==='50011') void snippetFailed("rest",origin,true)
+    else if (response.status>=500) void snippetFailed("rest",origin)
+    else if (response.ok && data.code==='0') snippetSucceeded("rest",origin,Date.now()-started)
     if (method==='GET' && (response.status===429 || data.code==='50011' || response.status>=500)) privateRetryAt=Date.now()+60000
-  } catch { if (method==='GET') privateRetryAt=Math.max(privateRetryAt,Date.now()+15000) }
+  } catch { if (origin) void snippetFailed("rest",origin); if (method==='GET') privateRetryAt=Math.max(privateRetryAt,Date.now()+15000) }
   finally { clearTimeout(timeout);controllers.delete(controller) }
   if (target === socket && target.readyState===1) target.send(JSON.stringify({type:'exchange_result',id:frame.id,...result}))
 }

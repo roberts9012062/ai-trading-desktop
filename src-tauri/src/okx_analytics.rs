@@ -38,14 +38,22 @@ struct Lease {
     clock_offset: i64,
     until: Instant,
 }
+struct ProxyLease {
+    identity: Vec<u8>,
+    id: String,
+    origin: String,
+    until: Instant,
+}
 pub struct OkxAnalyticsState {
     lease: Arc<Mutex<Option<Lease>>>,
+    proxy: Mutex<Option<ProxyLease>>,
     client: reqwest::Client,
 }
 impl Default for OkxAnalyticsState {
     fn default() -> Self {
         Self {
             lease: Arc::new(Mutex::new(None)),
+            proxy: Mutex::new(None),
             client: reqwest::Client::builder()
                 .https_only(true)
                 .redirect(reqwest::redirect::Policy::none())
@@ -194,7 +202,79 @@ fn retryable(error: &str) -> bool {
 #[tauri::command]
 pub async fn okx_analytics_clear(state: tauri::State<'_, OkxAnalyticsState>) -> Result<(), String> {
     *state.lease.lock().await = None;
+    *state.proxy.lock().await = None;
     Ok(())
+}
+
+fn trusted_proxy_origin(raw: &str) -> Result<String, String> {
+    let url = reqwest::Url::parse(raw).map_err(|_| "服务器线路配置无效")?;
+    let host = url.host_str().ok_or("服务器线路配置无效")?;
+    if url.scheme() != "https"
+        || url.path() != "/"
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+        || url.port().is_some()
+        || !host.contains('.')
+        || host.parse::<std::net::IpAddr>().is_ok()
+        || host.ends_with(".local")
+        || host.ends_with(".localhost")
+        || host.ends_with(".internal")
+    {
+        return Err("服务器线路配置无效".into());
+    }
+    Ok(url.as_str().trim_end_matches('/').to_owned())
+}
+
+async fn assigned_proxy(
+    base: &str,
+    token: &str,
+    identity: &[u8],
+    state: &OkxAnalyticsState,
+    failed: bool,
+) -> Result<String, String> {
+    let mut guard = state.proxy.lock().await;
+    if !failed {
+        if let Some(proxy) = guard
+            .as_ref()
+            .filter(|p| p.identity == identity && Instant::now() < p.until)
+        {
+            return Ok(proxy.origin.clone());
+        }
+    }
+    let excluded: Vec<String> = if failed {
+        guard
+            .as_ref()
+            .filter(|p| p.identity == identity)
+            .map(|p| vec![p.id.clone()])
+            .unwrap_or_default()
+    } else {
+        vec![]
+    };
+    // Origins are fetched natively from the authenticated control plane, never IPC input.
+    let response = state
+        .client
+        .post(format!("{base}/api/market/snippet-pool/lease"))
+        .bearer_auth(token)
+        .json(&json!({"excluded": excluded}))
+        .send()
+        .await
+        .map_err(|_| "线路分配服务暂不可用")?;
+    let data = read_json(response).await?;
+    if data["server_market_enabled"].as_bool() == Some(true) {
+        return Err("已开启服务器模式".into());
+    }
+    let node = &data["nodes"]["rest"];
+    let origin = trusted_proxy_origin(node["url"].as_str().ok_or("暂无可用 REST 线路")?)?;
+    let id = node["id"].as_str().ok_or("服务器线路配置无效")?.to_owned();
+    *guard = Some(ProxyLease {
+        identity: identity.to_vec(),
+        id,
+        origin: origin.clone(),
+        until: Instant::now() + Duration::from_secs(30),
+    });
+    Ok(origin)
 }
 
 #[tauri::command]
@@ -222,6 +302,7 @@ async fn read_analytics(
             .as_ref()
             .to_vec();
     let client = &state.client;
+    let mut proxy = assigned_proxy(&base, &token, &identity, state, false).await?;
     let (credentials, offset) = {
         let mut guard = state.lease.lock().await;
         if !guard
@@ -249,7 +330,7 @@ async fn read_analytics(
             let credentials = decrypt_envelope(private, public.as_ref(), envelope)?;
             let sent = now_ms()?;
             let response = client
-                .get(format!("{PROXY}/api/v5/public/time"))
+                .get(format!("{proxy}/api/v5/public/time"))
                 .send()
                 .await
                 .map_err(|_| "OKX 时间同步失败")?;
@@ -261,7 +342,7 @@ async fn read_analytics(
                 .ok_or("OKX 时间响应错误")?;
             let until = Instant::now() + Duration::from_secs(300);
             *guard = Some(Lease {
-                identity,
+                identity: identity.clone(),
                 credentials,
                 clock_offset: remote - (sent + received) / 2,
                 until,
@@ -290,7 +371,7 @@ async fn read_analytics(
             .map_err(|_| "时间格式错误")?;
             let timestamp = clock.format(&format).map_err(|_| "时间格式错误")?;
             let mut request = client
-                .get(format!("{PROXY}{path}"))
+                .get(format!("{proxy}{path}"))
                 .header("OK-ACCESS-KEY", &credentials.api_key)
                 .header("OK-ACCESS-PASSPHRASE", &credentials.passphrase)
                 .header("OK-ACCESS-TIMESTAMP", &timestamp)
@@ -325,6 +406,12 @@ async fn read_analytics(
         .await;
         match result {
             Err(error) if attempt < 2 && retryable(&error) => {
+                // Only these GET queries may retry; account rate limits do not move endpoints.
+                if error != "OKX 请求限流" && error != "查询失败 HTTP 429" {
+                    if let Ok(next) = assigned_proxy(&base, &token, &identity, state, true).await {
+                        proxy = next;
+                    }
+                }
                 tokio::time::sleep(Duration::from_millis(500 * (attempt + 1))).await
             }
             other => return other,
@@ -336,6 +423,24 @@ async fn read_analytics(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn rejects_untrusted_proxy_shapes() {
+        for raw in [
+            "http://proxy.example",
+            "https://127.0.0.1",
+            "https://user@proxy.example",
+            "https://proxy.example/path",
+            "https://proxy.example?x=1",
+            "https://proxy.local",
+            "https://proxy.example:8443",
+        ] {
+            assert!(trusted_proxy_origin(raw).is_err(), "{raw}");
+        }
+        assert_eq!(
+            trusted_proxy_origin("https://okx-rest-test.kins.eu.org/").unwrap(),
+            PROXY
+        );
+    }
     #[test]
     fn blocks_other_hosts_writes_and_unrestricted_parameters() {
         for path in [
