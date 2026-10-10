@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button"
 import { getDonations, listedChains, type DonationKind, type PublicDonations } from "@/lib/donations"
 
-export function DonationButton(): React.JSX.Element | null {
+export function DonationButton({ collapsed = false }: { collapsed?: boolean } = {}): React.JSX.Element | null {
   // Unknown/loading is different from an explicit administrator shutdown.
   const [data, setData] = useState<PublicDonations | null>(null)
   const [retry, setRetry] = useState(0)
@@ -45,7 +45,7 @@ export function DonationButton(): React.JSX.Element | null {
   }
   if (!open && data?.enabled === false) return null
   return <>
-    {!open && data?.enabled !== false && <button type="button" onClick={() => { setSelected(null); setChainId(null); setCopied(false); setOpen(true) }} className="fixed bottom-6 right-24 z-[95] flex items-center gap-2 rounded-full border border-rose-400/30 bg-[var(--bg-secondary)] px-4 py-2 text-sm text-rose-300 shadow-lg hover:bg-rose-400/10 transition-colors" aria-label="打赏"><Heart className="h-4 w-4" />打赏</button>}
+    {data?.enabled !== false && <div className="shrink-0 px-2 py-2"><button type="button" onClick={() => { setSelected(null); setChainId(null); setCopied(false); setOpen(true) }} className="flex h-8 w-full items-center justify-center gap-2 rounded-md border border-rose-400/30 text-xs text-rose-300 hover:bg-rose-400/10 transition-colors" aria-label="打赏" title="打赏作者" aria-haspopup="dialog" aria-expanded={open}><Heart className="h-4 w-4 shrink-0" />{!collapsed && "打赏"}</button></div>}
     <Dialog open={open} onOpenChange={setOpen}><DialogContent overlayClassName="z-[110]" className="z-[111] max-w-md max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle className="flex items-center gap-2"><Heart className="w-5 h-5 text-rose-400" />{channel?.kind === "crypto" && payment ? payment.network : channel?.label ?? "支持 CyclePilot"}</DialogTitle><DialogDescription>{channel?.kind === "crypto" ? payment ? "请使用下方所示收款网络与币种。" : "选择打赏链，查看对应二维码和收款地址。" : "感谢你的支持，选择一种方式打赏。"}</DialogDescription></DialogHeader>
       {error ? <div className="space-y-3"><p role="alert" className="text-sm text-red-400">{error}</p><Button variant="outline" disabled={loading} onClick={() => setRetry(value => value + 1)}>{loading ? "正在重试…" : "重新加载"}</Button></div> : !data ? <p role="status" className="text-sm">加载打赏方式…</p> : !data.enabled ? <p className="text-sm text-[var(--text-muted)]">打赏暂未开放。</p> : payment ? <div className="space-y-4">
         <button className="flex items-center gap-1 text-xs text-[var(--text-muted)]" onClick={() => { if(channel?.kind === "crypto")setChainId(null);else setSelected(null);setCopied(false);setError("") }}><ArrowLeft className="w-3 h-3" />{channel?.kind === "crypto" ? "选择其他链" : "选择其他方式"}</button>

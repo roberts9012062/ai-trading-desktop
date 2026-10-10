@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useAppStore } from "@/stores/app"
 import { UpdateControl } from "@/components/layout/update-control"
+import { DonationButton } from "@/components/layout/donation-button"
 
 interface MenuItem {
   icon: typeof LayoutDashboard
@@ -208,6 +209,8 @@ export function Sidebar(): React.JSX.Element {
           )
         })}
       </nav>
+
+      <DonationButton collapsed={sidebarCollapsed} />
 
       {/* 检查更新(桌面端专属;网页端同步 sidebar 时勿删) */}
       <UpdateControl collapsed={sidebarCollapsed} />
