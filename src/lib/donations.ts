@@ -17,8 +17,8 @@ export function listedChains(channel?: ListedDonation): ListedChain[] {
   return channel.chains ?? [{ id: "legacy", network: channel.network || "虚拟币", currency: channel.currency, qr_image: channel.qr_image, address: channel.address }]
 }
 const base = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
-async function call<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem("access_token")
+async function call<T>(path: string, options: RequestInit = {}, authenticated = true): Promise<T> {
+  const token = authenticated ? localStorage.getItem("access_token") : null
   const response = await fetch(`${base}${path}`, { ...options, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, cache: "no-store" })
   const body = await response.json().catch(() => ({}))
   if (!response.ok) {
@@ -27,7 +27,13 @@ async function call<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
   return body as T
 }
-export const getDonations = () => call<PublicDonations>("/api/donations")
+export async function getDonations(): Promise<PublicDonations> {
+  const value = await call<PublicDonations>("/api/donations", { signal: AbortSignal.timeout(15000) }, false)
+  if (typeof value?.enabled !== "boolean" || !Array.isArray(value.channels)) {
+    throw new Error("打赏配置响应无效，请重试")
+  }
+  return value
+}
 export const getAdminDonations = async () => {
   const value = await call<DonationConfig>("/api/admin/donations")
   if (!value.crypto_chains) value.crypto_chains = value.crypto.address || value.crypto.qr_image ? [{ ...value.crypto, id: "legacy", network: value.crypto.network || "虚拟币" }] : []
