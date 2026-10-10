@@ -11,7 +11,10 @@ export function StrategyExportButton({ taskId, kind = "all", favoriteId, label =
   return <Button type="button" size="sm" variant="outline" disabled={busy || disabled} title={taskId ? "导出完整任务配置" : "导出收藏配置"}
     onClick={async event => {
       event.stopPropagation(); setBusy(true)
-      try { if (taskId) await strategyTransfer.exportTask(taskId); else await strategyTransfer.exportFavorites(kind, favoriteId) }
+      try {
+        const result = taskId ? await strategyTransfer.exportTask(taskId) : await strategyTransfer.exportFavorites(kind, favoriteId)
+        if (result.status === "saved") await showAlert({ title: "导出成功", description: `配置已保存至：${result.path}` })
+      }
       catch (e) { await showAlert({ title: "导出失败", description: e instanceof Error ? e.message : "请稍后重试" }) }
       finally { setBusy(false) }
     }}>{busy ? <Loader2 size={13} className="animate-spin"/> : <Download size={13}/>}<span>{label}</span></Button>

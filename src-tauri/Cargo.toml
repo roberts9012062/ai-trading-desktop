@@ -27,6 +27,7 @@ tokio = { version = "1", features = ["sync", "rt-multi-thread", "time"] }
 time = { version = "0.3", features = ["formatting"] }
 zeroize = "1"
 tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
 
 [profile.release]
 codegen-units = 1

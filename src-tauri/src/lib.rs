@@ -5,6 +5,7 @@ mod desktop_tray;
 mod window_controls;
 mod okx_analytics;
 mod realtime_http;
+mod export_file;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -32,7 +33,9 @@ pub fn run() {
         .manage(okx_analytics::OkxAnalyticsState::default())
         .manage(realtime_http::RealtimeHttpState::default())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            export_file::desktop_save_export,
             desktop_tray::desktop_hide_to_tray,
             window_controls::desktop_minimize_window,
             window_controls::desktop_toggle_maximize,

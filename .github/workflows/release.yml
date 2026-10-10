@@ -61,10 +61,11 @@ jobs:
           test -f resources/native-engine/VERSION
           test -f resources/native-engine/MANIFEST.sha256
 
-      - name: Verify native analytics and seconds HTTP transport
+      - name: Verify native analytics, seconds HTTP and export files
         run: |
           cargo test --manifest-path src-tauri/Cargo.toml --lib okx_analytics
           cargo test --manifest-path src-tauri/Cargo.toml --lib realtime_http
+          cargo test --manifest-path src-tauri/Cargo.toml --lib export_file
 
       - name: Build signed bundle
         shell: bash
