@@ -254,28 +254,4 @@ export function useRealtimeKline(props: {
     config,
   ])
 
-  // 切品种或切周期后分时序列会重建为空，旧数据点时间已不在序列上，一并清掉
-  useEffect(() => {
-    tickDataRef.current = []
-    if (tickSeriesRef.current) tickSeriesRef.current.setData([])
-  }, [activeContract, period, tickDataRef, tickSeriesRef])
-
-  useEffect(() => {
-    if (period !== "tick" || !tickSeriesRef.current) return
-    const quote =
-      quotes[activeContract] ??
-      quotes[activeContract.toLowerCase()] ??
-      quotes[activeContract.toUpperCase()]
-    if (!quote) return
-    const now = Math.floor(Date.now() / 1000)
-    tickDataRef.current.push({ time: now, value: quote.last_price })
-    try {
-      tickSeriesRef.current.update({
-        time: now as unknown as string,
-        value: quote.last_price,
-      })
-    } catch {
-      // 忽略
-    }
-  }, [quotes, activeContract, period, tickSeriesRef, tickDataRef])
 }

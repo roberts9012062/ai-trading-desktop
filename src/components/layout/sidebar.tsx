@@ -44,7 +44,6 @@ const MENU_ITEMS: MenuItem[] = [
     demo: false,
     children: [
       { label: "看盘任务", path: "/ai-market" },
-      { label: "成交量分布", path: "/ai-market/volume-profile" },
     ],
   },
   { icon: LineChart, label: "交易", path: "/trading", demo: false },

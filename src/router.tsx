@@ -14,7 +14,6 @@ import RegisterPage from "./app/(auth)/register/page"
 
 import MainLayout from "./app/(main)/layout"
 import AiMarketPage from "./app/(main)/ai-market/page"
-import VolumeProfilePage from "./app/(main)/ai-market/volume-profile/page"
 import AiSettingsPage from "./app/(main)/ai-settings/page"
 import AiTradingPage from "./app/(main)/ai-trading/page"
 import AssetsPage from "./app/(main)/assets/page"
@@ -65,7 +64,7 @@ export function AppRoutes() {
 
       <Route element={<MainLayout><Outlet /></MainLayout>}>
         <Route path="/ai-market" element={<AiMarketPage />} />
-        <Route path="/ai-market/volume-profile" element={<VolumeProfilePage />} />
+        <Route path="/ai-market/volume-profile" element={<Navigate to="/ai-market" replace />} />
         <Route path="/ai-settings" element={<AiSettingsPage />} />
         <Route path="/ai-trading" element={<AiTradingPage />} />
         <Route path="/assets" element={<AssetsPage />} />

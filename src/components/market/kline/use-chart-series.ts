@@ -148,6 +148,8 @@ export function useChartSeries(props: {
       tickSeriesRef.current = chart.addSeries(LineSeries, {
         color: "#3b82f6", lineWidth: 1, priceLineVisible: false, lastValueVisible: true,
       })
+      const notify = onSeriesReadyRef.current
+      if (notify) queueMicrotask(notify)
       return
     }
 
@@ -217,7 +219,7 @@ export function useChartSeries(props: {
   useEffect(() => {
     let raf = 0
     const apply = () => {
-      const series = seriesRef.current
+      const series = period === "tick" ? tickSeriesRef.current : seriesRef.current
       if (!series) {
         // series 可能尚未创建（chartReady 先于 series 赋值），下一帧重试
         raf = requestAnimationFrame(apply)
@@ -258,7 +260,7 @@ export function useChartSeries(props: {
     }
     raf = requestAnimationFrame(apply)
     return () => cancelAnimationFrame(raf)
-  }, [activeContract, chartReady, specsLoaded])
+  }, [activeContract, period, chartReady, specsLoaded])
 
   useEffect(() => {
     const series = seriesRef.current

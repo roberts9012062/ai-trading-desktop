@@ -1,10 +1,9 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { X, Send, SquarePen, History, Loader2, ImageIcon, Upload } from "lucide-react"
+import { X, Send, SquarePen, History, Loader2, ImageIcon, Lock } from "lucide-react"
 import { useAIChatStore } from "@/stores/ai-chat"
 import { useAISettingsStore } from "@/stores/ai-settings"
-import { uploadKnowledgeDocument } from "@/lib/api"
 import { ModelSelector } from "@/components/ai/model-selector"
 import { MessageBubble } from "@/components/ai/message-renderer"
 import { ChatHistory } from "@/components/ai/chat-history"
@@ -24,7 +23,6 @@ const SUGGESTIONS = [
 /** AI 聊天面板 —— 完整交互版 */
 export function AiChatPanel({ onClose }: AiChatPanelProps): React.JSX.Element {
   const [input, setInput] = useState("")
-  const [knowledgeUploading, setKnowledgeUploading] = useState(false)
 
   const messages = useAIChatStore((s) => s.messages)
   const isStreaming = useAIChatStore((s) => s.isStreaming)
@@ -50,7 +48,6 @@ export function AiChatPanel({ onClose }: AiChatPanelProps): React.JSX.Element {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const knowledgeInputRef = useRef<HTMLInputElement>(null)
   const isAtBottomRef = useRef(true)
 
   // 初始化：加载模型和对话列表
@@ -134,26 +131,6 @@ export function AiChatPanel({ onClose }: AiChatPanelProps): React.JSX.Element {
     e.target.value = ""
   }
 
-  // 知识库上传
-  async function handleKnowledgeUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ""
-    setKnowledgeUploading(true)
-    try {
-      const result = await uploadKnowledgeDocument(file)
-      const msg = result.ok
-        ? `文档 "${result.filename}" 已上传，分为 ${result.chunks} 块，已向量化 ${result.vectorized} 块`
-        : "上传失败"
-      await sendMessage(msg)
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : "上传失败"
-      await sendMessage(`知识库上传失败: ${errMsg}`)
-    } finally {
-      setKnowledgeUploading(false)
-    }
-  }
-
   // 模型库为空时显示引导
   const noModels = models.length === 0
 
@@ -178,20 +155,12 @@ export function AiChatPanel({ onClose }: AiChatPanelProps): React.JSX.Element {
         <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[var(--border)]">
           <ModelSelector />
           <div className="flex-1" />
-          <input
-            ref={knowledgeInputRef}
-            type="file"
-            accept=".pdf,.txt,.md,.csv"
-            className="hidden"
-            onChange={handleKnowledgeUpload}
-          />
           <button
-            onClick={() => knowledgeInputRef.current?.click()}
-            disabled={knowledgeUploading}
+            disabled
             className="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50"
-            title="上传知识库文档"
+            title="知识库 · 待开发" aria-label="知识库 · 待开发"
           >
-            {knowledgeUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+            <Lock size={14} />
           </button>
           <button
             onClick={() => newConversation()}

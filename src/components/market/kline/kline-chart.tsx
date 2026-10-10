@@ -29,6 +29,7 @@ import { useHoverPanel } from "./use-hover-panel"
 import { useKlineHistory, forceRefetchKline } from "./use-kline-history"
 import { useChartSeries } from "./use-chart-series"
 import { useRealtimeKline } from "./use-realtime-kline"
+import { useIntradayChart } from "./use-intraday-chart"
 import type {
   SubIndicatorHandle,
   SubIndicatorId,
@@ -315,6 +316,8 @@ export function KlineChart({
     onRtGap: handleRtGap,
   })
 
+  const intradayStatus = useIntradayChart({ symbol: activeContract, enabled: period === "tick", seriesReady, chart: mainApiRef, series: tickSeriesRef, points: tickDataRef })
+
   useTradeLines({
     seriesRef,
     activeContract,
@@ -501,6 +504,7 @@ export function KlineChart({
       </div>
 
       <div className="flex-1 min-h-0 relative">
+        {intradayStatus && <div role="status" className="absolute top-1 left-2 z-10 text-xs text-[var(--text-muted)]">{intradayStatus}</div>}
         {isLoading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#1a1a1e]/80">
             <span className="text-[var(--text-muted)] text-sm">加载中...</span>

@@ -6,26 +6,22 @@ import {
   FileText,
   Brain,
   Sparkles,
-  Store,
-  Package,
+  Lock,
   Wrench,
 } from "lucide-react"
-import Link from "next/link"
 import { useAISettingsStore } from "@/stores/ai-settings"
 import { ProviderPanel } from "@/components/ai-settings/provider-panel"
 import { ModelPanel } from "@/components/ai-settings/model-panel"
-import { KnowledgePanel } from "@/components/ai-settings/knowledge-panel"
-import { MemoryPanel } from "@/components/ai-settings/memory-panel"
 import { ToolsPanel } from "@/components/ai-settings/tools-panel"
 import { cn } from "@/lib/utils"
 
 type LeftTab = "provider" | "knowledge" | "memory" | "skills" | "tools"
 
-const TABS: Array<{ key: LeftTab; label: string; icon: React.ReactNode }> = [
+const TABS: Array<{ key: LeftTab; label: string; icon: React.ReactNode; locked?: boolean }> = [
   { key: "provider", label: "渠道", icon: <Settings size={12} /> },
-  { key: "knowledge", label: "知识库", icon: <FileText size={12} /> },
-  { key: "memory", label: "记忆", icon: <Brain size={12} /> },
-  { key: "skills", label: "Skills", icon: <Sparkles size={12} /> },
+  { key: "knowledge", locked: true, label: "知识库", icon: <FileText size={12} /> },
+  { key: "memory", locked: true, label: "记忆", icon: <Brain size={12} /> },
+  { key: "skills", locked: true, label: "Skills", icon: <Sparkles size={12} /> },
   { key: "tools", label: "工具", icon: <Wrench size={12} /> },
 ]
 
@@ -51,15 +47,18 @@ export default function AISettingsPage(): React.JSX.Element {
             <button
               key={tab.key}
               type="button"
-              onClick={() => setLeftTab(tab.key)}
+              disabled={tab.locked}
+              title={tab.locked ? `${tab.label} · 待开发` : tab.label}
+              onClick={() => !tab.locked && setLeftTab(tab.key)}
               className={cn(
-                "flex items-center justify-center gap-1 px-4 py-2.5 text-xs transition-colors",
+                "flex items-center justify-center gap-1 px-4 py-2.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-45",
                 leftTab === tab.key
                   ? "text-[var(--accent-info)] border-b-2 border-[var(--accent-info)]"
                   : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               )}
             >
-              {tab.icon} {tab.label}
+              {tab.locked ? <Lock size={12} /> : tab.icon}
+              <span>{tab.label}{tab.locked && <span className="block text-[9px]">待开发</span>}</span>
             </button>
           ))}
         </div>
@@ -78,15 +77,18 @@ export default function AISettingsPage(): React.JSX.Element {
             <button
               key={tab.key}
               type="button"
-              onClick={() => setLeftTab(tab.key)}
+              disabled={tab.locked}
+              title={tab.locked ? `${tab.label} · 待开发` : tab.label}
+              onClick={() => !tab.locked && setLeftTab(tab.key)}
               className={cn(
-                "flex-1 flex items-center justify-center gap-1 px-2 py-2.5 text-xs transition-colors",
+                "flex-1 flex items-center justify-center gap-1 px-2 py-2.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-45",
                 leftTab === tab.key
                   ? "text-[var(--accent-info)] border-b-2 border-[var(--accent-info)]"
                   : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               )}
             >
-              {tab.icon} {tab.label}
+              {tab.locked ? <Lock size={12} /> : tab.icon}
+              <span>{tab.label}{tab.locked && <span className="block text-[9px]">待开发</span>}</span>
             </button>
           ))}
         </div>
@@ -98,36 +100,7 @@ export default function AISettingsPage(): React.JSX.Element {
               selectedProviderId={selectedProviderId}
             />
           )}
-          {leftTab === "knowledge" && <KnowledgePanel />}
-          {leftTab === "memory" && <MemoryPanel />}
-          {leftTab === "skills" && (
-            <div className="p-4 space-y-3">
-              <Link
-                href="/ai/skills"
-                className="flex items-center gap-3 p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--bg-tertiary)] transition-colors"
-              >
-                <Store className="w-5 h-5 text-[var(--accent-info)] shrink-0" />
-                <div>
-                  <p className="text-sm font-medium">Skills 商城</p>
-                  <p className="text-xs text-[var(--text-muted)]">
-                    发现并安装社区 AI Skills
-                  </p>
-                </div>
-              </Link>
-              <Link
-                href="/ai/skills/installed"
-                className="flex items-center gap-3 p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--bg-tertiary)] transition-colors"
-              >
-                <Package className="w-5 h-5 text-[var(--accent-info)] shrink-0" />
-                <div>
-                  <p className="text-sm font-medium">我的 Skills</p>
-                  <p className="text-xs text-[var(--text-muted)]">
-                    管理已安装的 Skills
-                  </p>
-                </div>
-              </Link>
-            </div>
-          )}
+
         </div>
       </div>
 
