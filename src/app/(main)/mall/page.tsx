@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useState } from "react"
+import { TaskSlotSummary } from "@/components/ai-trading/task-slot-summary"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -53,7 +54,7 @@ function LimitsNote({ state }: { state: VipMembershipState }): React.JSX.Element
     <p className="text-xs text-[var(--text-muted)] mt-1">
       普通用户每日免费额度：历史回测 {f(state.daily_limits.backtest)} · 因子实验室{" "}
       {f(state.daily_limits.factor_lab)} · 超级因子 {f(state.daily_limits.factor_mining)}
-      ；AI 交易与交易为 VIP 专属
+      ；AI 交易有基础免费 1 槽，永久赠送槽与 VIP 槽额外叠加
     </p>
   )
 }
@@ -136,13 +137,11 @@ export default function MallPage(): React.JSX.Element {
         <p className="text-sm text-[var(--text-muted)]">
           会员功能已向所有用户免费开放，无需购买。
           {state?.is_vip && !state?.is_admin
-            ? " 您的会员权益在到期前继续生效（不受免费配额限制）。"
+            ? " 您的 VIP 额外任务槽在到期前继续生效。"
             : ""}
         </p>
         {state && (
-          <p className="text-xs text-[var(--text-muted)]">
-            普通用户可免费创建的 AI 任务数等配额见各功能页提示。
-          </p>
+          <TaskSlotSummary slots={state.task_slots} />
         )}
       </div>
     )
@@ -157,7 +156,7 @@ export default function MallPage(): React.JSX.Element {
             商城 · VIP 会员
           </h1>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            开通会员解锁 AI 交易、交易与不限次回测/因子研究
+            开通会员增加任务槽，解锁交易与不限次回测/因子研究
           </p>
         </div>
         {state && (
@@ -185,6 +184,7 @@ export default function MallPage(): React.JSX.Element {
                   {state.feature_labels.join(" / ")}
                 </p>
               )}
+              <TaskSlotSummary slots={state.task_slots} />
               <LimitsNote state={state} />
             </CardContent>
           </Card>
@@ -228,6 +228,8 @@ export default function MallPage(): React.JSX.Element {
                     / {plan.duration_days} 天
                   </span>
                 </div>
+                <p className="text-xs">额外任务槽 +{plan.features.includes("ai_trading") ? (plan.task_slots ?? 2) : 0} 个，与基础免费和永久赠送槽叠加。</p>
+                <p className="text-[11px] text-[var(--text-muted)]">到期后有持仓的 VIP 任务仅允许减仓和平仓，确认空仓后回收；永久赠送槽不受影响。续费延长有效期，不重复增加槽位。</p>
                 <ul className="space-y-1">
                   {plan.feature_labels.map((f) => (
                     <li key={f} className="flex items-center gap-1.5 text-xs">

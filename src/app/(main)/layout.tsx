@@ -5,6 +5,7 @@ import { TopNavbar } from "@/components/layout/top-navbar"
 import { Sidebar } from "@/components/layout/sidebar"
 import { ContractSearchDialog } from "@/components/market/contract-search-dialog"
 import { FloatingAssistant } from "@/components/ai/floating-assistant"
+import { AnnouncementPopup } from "@/components/notifications/announcement-popup"
 import { MessagePopup } from "@/components/notifications/message-popup"
 import { BigOrderToastPopup } from "@/components/notifications/big-order-toast"
 import { startVoiceBroadcastEngine } from "@/lib/voice-broadcast-engine"
@@ -133,6 +134,7 @@ export default function MainLayout({
       <FloatingAssistant />
       {/* 消息弹窗：右下角，WS 推送新消息时滑入 */}
       <MessagePopup />
+      <AnnouncementPopup />
       {/* 大单预警弹窗：右下角堆叠，命中阈值时显示 10 秒（不入库） */}
       <BigOrderToastPopup />
       {/* 任务预警弹窗：任务下单/平仓成交时滑入（不入库） */}

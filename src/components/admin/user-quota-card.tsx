@@ -3,6 +3,7 @@
 /** 用户配额覆盖卡片 —— 管理员后台单独设置某用户的任务数/因子/回测配额 */
 
 import { useEffect, useState } from "react"
+import { TaskSlotSummary } from "@/components/ai-trading/task-slot-summary"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -19,7 +20,7 @@ function fmtLimit(v: number | null | undefined): string {
 
 export function UserQuotaCard({ userId }: UserQuotaCardProps): React.JSX.Element {
   const [quota, setQuota] = useState<UserQuota | null>(null)
-  const [maxTasks, setMaxTasks] = useState("")
+  const [giftSlots, setGiftSlots] = useState("")
   const [factor, setFactor] = useState("")
   const [backtest, setBacktest] = useState("")
   const [saving, setSaving] = useState(false)
@@ -33,7 +34,7 @@ export function UserQuotaCard({ userId }: UserQuotaCardProps): React.JSX.Element
         const q = await getUserQuotaApi(userId)
         if (cancelled) return
         setQuota(q)
-        setMaxTasks(q.max_tasks_override?.toString() ?? "")
+        setGiftSlots(String(q.gift_task_slots ?? 0))
         setFactor(q.factor_lab_daily_override?.toString() ?? "")
         setBacktest(q.backtest_daily_override?.toString() ?? "")
       } catch (e) {
@@ -46,12 +47,16 @@ export function UserQuotaCard({ userId }: UserQuotaCardProps): React.JSX.Element
   }, [userId])
 
   async function handleSave(): Promise<void> {
+    if (!Number.isInteger(Number(giftSlots)) || Number(giftSlots) < 0 || Number(giftSlots) > 10000 || giftSlots === "") {
+      setError("赠送任务槽须为 0~10000 的整数")
+      return
+    }
     setSaving(true)
     setMsg("")
     setError("")
     try {
       await updateAdminUserApi(userId, {
-        max_tasks_override: maxTasks === "" ? null : Number(maxTasks),
+        gift_task_slots: Number(giftSlots),
         factor_lab_daily_override: factor === "" ? null : Number(factor),
         backtest_daily_override: backtest === "" ? null : Number(backtest),
       })
@@ -71,21 +76,24 @@ export function UserQuotaCard({ userId }: UserQuotaCardProps): React.JSX.Element
   return (
     <Card>
       <CardHeader>
-        <CardTitle>用量配额覆盖</CardTitle>
+        <CardTitle>永久免费任务槽与用量配额</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-[var(--text-muted)]">
-          空值=用全局默认；填数字=覆盖；0=不限。管理员不限。
+          赠送槽在基础免费 1 个之外永久叠加，填 0 收回全部赠送槽。有持仓的任务仅允许减仓和平仓，空仓后回收。每日次数空值=全局默认，0=不限。
         </p>
+        <TaskSlotSummary slots={quota?.task_slots} />
         <div className="grid grid-cols-3 gap-3">
           <div className="space-y-1">
-            <Label>最大任务数</Label>
+            <Label>永久赠送任务槽</Label>
             <Input
               type="number"
               min={0}
-              value={maxTasks}
-              placeholder={`全局 ${fmtLimit(eff?.max_tasks)}`}
-              onChange={(e) => setMaxTasks(e.target.value)}
+              value={giftSlots}
+              aria-label="永久赠送任务槽"
+              max={10000}
+              step={1}
+              onChange={(e) => setGiftSlots(e.target.value)}
             />
             {used && (
               <p className="text-[10px] text-[var(--text-muted)]">

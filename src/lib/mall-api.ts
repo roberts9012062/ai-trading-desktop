@@ -34,6 +34,7 @@ export const VIP_FEATURE_LABELS: Record<string, string> = {
 }
 
 export interface VipPlan {
+  task_slots?: number
   id: string
   name: string
   duration_days: number
@@ -46,6 +47,7 @@ export interface VipPlan {
 }
 
 export interface VipMembershipState {
+  task_slots?: import("./task-slots").TaskSlots
   is_vip: boolean
   is_admin?: boolean
   expires_at: string | null
@@ -60,6 +62,7 @@ export interface VipMembershipState {
 }
 
 export interface VipOrderItem {
+  task_slots?: number
   id: string
   plan_name: string
   price: number
@@ -137,6 +140,7 @@ export async function adminListPlansApi(): Promise<VipPlan[]> {
 }
 
 export async function adminUpsertPlanApi(payload: {
+  task_slots: number
   id?: string | null
   name: string
   duration_days: number

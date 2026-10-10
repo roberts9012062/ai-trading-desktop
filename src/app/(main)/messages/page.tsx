@@ -18,6 +18,7 @@ import {
   markAllNotificationsReadApi,
   deleteNotificationApi,
 } from "@/lib/api"
+import { AnnouncementList } from "@/components/notifications/announcement-list"
 import { useNotificationsStore } from "@/stores/notifications"
 
 /** 类别筛选选项 */
@@ -43,6 +44,7 @@ const CATEGORY_STYLE: Record<
 const POLL_MS = 30_000
 
 export default function MessagesPage(): React.JSX.Element {
+  const [tab, setTab] = useState<"messages" | "announcements">("messages")
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<MessageCategory | "all">("all")
@@ -118,6 +120,11 @@ export default function MessagesPage(): React.JSX.Element {
 
   return (
     <div className="flex flex-col h-full">
+      <div className="flex gap-2 px-4 py-3 border-b border-[var(--border)]" role="group" aria-label="消息栏目">
+        <Button size="sm" variant={tab === "messages" ? "default" : "outline"} onClick={() => setTab("messages")}>消息</Button>
+        <Button size="sm" variant={tab === "announcements" ? "default" : "outline"} onClick={() => setTab("announcements")}>公告</Button>
+      </div>
+      {tab === "announcements" ? <AnnouncementList /> : <>
       {/* 筛选栏 */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)] bg-[var(--bg-secondary)]">
         <div className="flex gap-1">
@@ -190,6 +197,7 @@ export default function MessagesPage(): React.JSX.Element {
         <span>共 {filtered.length} 条消息</span>
         <span>未读 {unreadCount} 条</span>
       </div>
+      </>}
     </div>
   )
 }

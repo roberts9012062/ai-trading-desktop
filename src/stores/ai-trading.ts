@@ -34,6 +34,7 @@ import {
 } from "@/lib/ai-trading-api"
 
 interface AITradingState {
+  taskSlots: import("@/lib/task-slots").TaskSlots | null
   tasks: AITradingTask[]
   equitySeries: Record<string, EquityPoint[]>
   equityTraces: EquityTraces
@@ -106,6 +107,7 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
     set(s => ({ tasks: s.tasks.map(task => task.id === id ? { ...task, close_rules: { ...task.close_rules, profit_lock: updated.profit_lock } } : task) }))
   },
   tasks: [],
+  taskSlots: null,
   equitySeries: {},
   equityTraces: {},
   waveOwner: null,
@@ -136,7 +138,7 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
       const now = Date.now()
       const previous = get().waveOwner === owner ? get().equityTraces : owner ? readWaveCache(owner) : {}
       const equityTraces = updateEquityTraces(previous, data.items, now)
-      set({ tasks: data.items, equityTraces, waveOwner: owner, loading: false, error: null })
+      set({ tasks: data.items, taskSlots: data.task_slots ?? null, equityTraces, waveOwner: owner, loading: false, error: null })
       if (owner) saveWaveCache(owner, equityTraces, now)
     } catch (err) {
       if (generation !== sessionGeneration || currentWaveOwner() !== owner || request < taskApplied) return
@@ -302,5 +304,5 @@ useAuthStore.subscribe((state, previous) => {
   if (state.user?.id === previous.user?.id && state.user?.trading_mode === previous.user?.trading_mode) return
   sessionGeneration++
   clearWaveCache()
-  useAITradingStore.setState({ tasks: [], equityTraces: {}, equitySeries: {}, waveOwner: null, profitBars: [], profitTotalRealized: 0, profitTotalUnrealized: 0, profitTotalPnl: 0, profitOpenCount: 0, profitLoading: false, loading: false })
+  useAITradingStore.setState({ tasks: [], taskSlots: null, equityTraces: {}, equitySeries: {}, waveOwner: null, profitBars: [], profitTotalRealized: 0, profitTotalUnrealized: 0, profitTotalPnl: 0, profitOpenCount: 0, profitLoading: false, loading: false })
 })

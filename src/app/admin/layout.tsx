@@ -31,6 +31,7 @@ const ADMIN_MENU = [
   { icon: Key, label: "API Keys", path: "/admin/api-keys" },
   { icon: Crown, label: "VIP 商城", path: "/admin/vip" },
   { icon: Heart, label: "打赏管理", path: "/admin/donations" },
+  { icon: Bell, label: "公告管理", path: "/admin/announcements" },
 ]
 
 /** 管理端 Layout Shell —— 强制 admin 角色 */

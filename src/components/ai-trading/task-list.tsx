@@ -1,6 +1,7 @@
 "use client"
 
 import { Star } from "lucide-react"
+import { slotSourceLabel } from "@/lib/task-slots"
 import { useState } from "react"
 import { ForecastChartDialog } from "./forecast-chart"
 import { isForecast, forecastState, FORECAST_STAGES } from "@/lib/ai-forecast"
@@ -240,6 +241,9 @@ export function TaskList({
               </div>
             </div>
 
+            {slotSourceLabel(task.slot_source) && <p className={cn("mt-2 text-[11px]", task.slot_close_only ? "text-amber-400" : "text-[var(--text-muted)]")}>
+              {slotSourceLabel(task.slot_source)}{task.slot_close_only ? " · 已失效，仅允许减仓和平仓" : ""}
+            </p>}
             <TaskLossCooldownStatus task={task} />
             <TaskProfitLockStatus task={task} />
             {isForecast(task)&&<div className="mt-2 flex items-center justify-between text-xs">

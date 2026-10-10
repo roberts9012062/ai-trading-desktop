@@ -20,6 +20,7 @@ import {
   type TaskFavoriteItem,
 } from "@/lib/strategy-favorites-api"
 import { TaskList } from "@/components/ai-trading/task-list"
+import { TaskSlotSummary } from "@/components/ai-trading/task-slot-summary"
 import type { AITradingTask } from "@/lib/ai-trading-api"
 import { useAITradingStore } from "@/stores/ai-trading"
 import { useMarketStore } from "@/stores/market"
@@ -45,6 +46,7 @@ export default function AITradingPage(): React.JSX.Element {
   const profitTotalPnl = useAITradingStore((s) => s.profitTotalPnl)
   const profitOpenCount = useAITradingStore((s) => s.profitOpenCount)
   const profitLoading = useAITradingStore((s) => s.profitLoading)
+  const taskSlots = useAITradingStore(s => s.taskSlots)
   const loading = useAITradingStore((s) => s.loading)
   const error = useAITradingStore((s) => s.error)
   const selectedTaskId = useAITradingStore((s) => s.selectedTaskId)
@@ -164,6 +166,7 @@ export default function AITradingPage(): React.JSX.Element {
         </div>
       </div>
 
+      <TaskSlotSummary slots={taskSlots} />
       {error && (
         <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">
           {error}

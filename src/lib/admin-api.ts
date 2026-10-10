@@ -121,6 +121,8 @@ export interface SystemSettings {
 
 /** 单用户配额（覆盖值 + 生效额度 + 当日已用） */
 export interface UserQuota {
+  gift_task_slots?: number
+  task_slots?: import("./task-slots").TaskSlots
   max_tasks_override: number | null
   factor_lab_daily_override: number | null
   backtest_daily_override: number | null
@@ -197,6 +199,7 @@ export interface AdminCreateUserBody {
 }
 
 export interface AdminUpdateUserBody {
+  gift_task_slots?: number
   phone?: string | null
   email?: string | null
   role?: "user" | "admin"

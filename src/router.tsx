@@ -46,6 +46,7 @@ import AdminSettingsPage from "./app/admin/settings/page"
 import AdminTradingConfigPage from "./app/admin/trading-config/page"
 import AdminUsersPage from "./app/admin/users/page"
 import AdminVipPage from "./app/admin/vip/page"
+import AdminAnnouncementsPage from "./app/admin/announcements/page"
 import AdminDonationsPage from "./app/admin/donations/page"
 import AdminUserDetailPage from "./app/admin/users/[id]/page"
 
@@ -99,6 +100,7 @@ export function AppRoutes() {
         <Route path="users" element={<AdminUsersPage />} />
         <Route path="vip" element={<AdminVipPage />} />
         <Route path="donations" element={<AdminDonationsPage />} />
+        <Route path="announcements" element={<AdminAnnouncementsPage />} />
         <Route path="users/:id" element={<AdminUserDetailPage />} />
       </Route>
 

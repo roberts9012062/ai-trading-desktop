@@ -29,7 +29,7 @@ import {
 } from "@/lib/mall-api"
 
 const ALL_FEATURES: { key: string; label: string }[] = [
-  { key: "ai_trading", label: "AI 交易（VIP 专属）" },
+  { key: "ai_trading", label: "AI 交易（额外任务槽）" },
   { key: "trading", label: "交易（VIP 专属）" },
   { key: "backtest", label: "历史回测（VIP 不限次）" },
   { key: "factor_lab", label: "因子实验室（VIP 不限次）" },
@@ -39,6 +39,7 @@ const ALL_FEATURES: { key: string; label: string }[] = [
 interface PlanDraft {
   id: string | null
   name: string
+  task_slots: string
   duration_days: string
   price: string
   features: string[]
@@ -51,6 +52,7 @@ const EMPTY_DRAFT: PlanDraft = {
   id: null,
   name: "",
   duration_days: "30",
+  task_slots: "2",
   price: "99",
   features: ["ai_trading", "trading", "backtest", "factor_lab", "factor_mining"],
   description: "",
@@ -97,6 +99,7 @@ export default function AdminVipPage(): React.JSX.Element {
       id: p.id,
       name: p.name,
       duration_days: String(p.duration_days),
+      task_slots: String(p.task_slots ?? 2),
       price: String(p.price),
       features: [...p.features],
       description: p.description,
@@ -115,6 +118,10 @@ export default function AdminVipPage(): React.JSX.Element {
       setErr("请填写有效名称/时长/价格")
       return
     }
+    if (draft.task_slots === "" || !Number.isInteger(Number(draft.task_slots)) || Number(draft.task_slots) < 0 || Number(draft.task_slots) > 10000) {
+      setErr("VIP 任务槽须为 0~10000 的整数")
+      return
+    }
     if (draft.features.length === 0) {
       setErr("至少勾选一项权益")
       return
@@ -126,6 +133,7 @@ export default function AdminVipPage(): React.JSX.Element {
         id: draft.id,
         name: draft.name.trim(),
         duration_days: days,
+        task_slots: Number(draft.task_slots),
         price,
         features: draft.features,
         description: draft.description,
@@ -226,13 +234,14 @@ export default function AdminVipPage(): React.JSX.Element {
         <Card>
           <CardContent className="p-3 space-y-2">
             <p className="text-xs font-medium">普通用户每日免费次数（VIP 不限）</p>
+            <p className="text-xs text-[var(--text-muted)]">基础免费任务槽固定 1 个；永久赠送槽在用户管理中设置，VIP 额外槽在礼包中设置。</p>
             <div className="flex flex-wrap gap-3 text-xs">
               {(
                 [
                   ["backtest_daily", "历史回测"],
                   ["factor_lab_daily", "因子实验室"],
                   ["factor_mining_daily", "超级因子"],
-                  ["max_tasks", "任务数上限"],
+
                 ] as const
               ).map(([key, label]) => (
                 <label key={key} className="flex items-center gap-1.5">
@@ -300,6 +309,9 @@ export default function AdminVipPage(): React.JSX.Element {
                   onChange={(e) => setDraft({ ...draft, price: e.target.value })}
                   className="w-20 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 font-num"
                 />
+                <label className="flex items-center gap-1">VIP 额外任务槽
+                  <NumericInput type="number" min="0" max="10000" step="1" aria-label="VIP 额外任务槽" value={draft.task_slots} onChange={e => setDraft({ ...draft, task_slots: e.target.value })} className="w-20 h-7 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2" />
+                </label>
                 <label className="flex items-center gap-1 cursor-pointer">
                   <input
                     type="checkbox"
@@ -361,6 +373,7 @@ export default function AdminVipPage(): React.JSX.Element {
                   {p.duration_days} 天
                 </Badge>
                 <span className="font-num text-amber-500">¥{p.price}</span>
+                <span>额外任务槽 {p.features.includes("ai_trading") ? (p.task_slots ?? 2) : 0} 个</span>
                 <span className="text-[var(--text-muted)] truncate max-w-64">
                   {p.feature_labels.join(" / ")}
                 </span>
@@ -401,6 +414,7 @@ export default function AdminVipPage(): React.JSX.Element {
       <Card>
         <CardContent className="p-3 space-y-2">
           <p className="text-xs font-medium">会员管理（直开 / 撤销）</p>
+          <p className="text-xs text-[var(--text-muted)]">续费延长有效期，保留有效期内较高的套餐任务额度，不重复累加。撤销会员不影响永久赠送槽。</p>
           <div className="flex flex-wrap gap-2 text-xs items-center">
             <input
               placeholder="用户名"

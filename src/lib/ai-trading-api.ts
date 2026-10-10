@@ -106,6 +106,9 @@ export interface LossCooldownState {
 }
 
 export interface AITradingTask {
+  slot_source?: string
+  slot_index?: number
+  slot_close_only?: boolean
   realtime_mode?: { active: boolean; interval: number | null; expires_at: number | null }
   profit_lock_state?: ProfitLockState
   id: string
@@ -390,6 +393,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   return response.json() as Promise<T>
 }
 export async function listAITradingTasks(): Promise<{
+  task_slots?: import("./task-slots").TaskSlots
   total: number
   items: AITradingTask[]
 }> {
