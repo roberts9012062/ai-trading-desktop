@@ -2,6 +2,7 @@
 
 import { desktopTokensToServerV3, isResearchOnlyFactor, RESEARCH_FACTOR_MESSAGE } from "@/lib/factor-access"
 import { tryDesktopLiveRequest } from "./desktop-exchange"
+import { tryRealtimeRequest } from "./realtime-factor/transport"
 
 type FactorTokens = number[] | number[][]
 
@@ -375,7 +376,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   if (token) headers["Authorization"] = `Bearer ${token}`
 
   // Read-only exchange IO can run on the desktop; task writes stay on the server.
-  const response = await tryDesktopLiveRequest(path, options) ?? await fetch(`${API_BASE}${path}`, { ...options, headers })
+  const response = await tryRealtimeRequest(API_BASE,path,{...options,headers}) ?? await tryDesktopLiveRequest(path, options) ?? await fetch(`${API_BASE}${path}`, { ...options, headers })
   if (response.status === 401 && typeof window !== "undefined") {
     window.location.href = "/login"
     throw new Error("认证过期")

@@ -30,10 +30,14 @@ export async function readMarketSnapshot(id:string,symbol:string,period:string):
   // Give the desktop direct route a head start. A bounded server hedge keeps
   // users whose network blocks the public proxy from losing healthy ownership.
   let timer:ReturnType<typeof setTimeout>|undefined
+  let recover:()=>void=()=>{}
   const recovery=new Promise<MarketSnapshot>((resolve,reject)=>{
-    timer=setTimeout(()=>{void server().then(resolve,reject)},500)
+    let started=false
+    recover=()=>{if(!started){started=true;clearTimeout(timer);void server().then(resolve,reject)}}
+    timer=setTimeout(recover,500)
   })
-  try {return await Promise.any([direct(),recovery])}
+  const primary=direct().catch(error=>{recover();throw error})
+  try {return await Promise.any([primary,recovery])}
   catch {throw new Error('直连和服务器最新OKX行情均不可用')}
   finally {clearTimeout(timer)}
 }

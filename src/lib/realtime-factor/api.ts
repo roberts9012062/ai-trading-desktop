@@ -6,7 +6,7 @@ export interface Seed {task: AITradingTask; bars: KlineBar[]; limit: number; ser
 export interface Lease {token: string; interval: Cadence; server_ms: number; server_received_ms?:number; expires_at: number}
 const path=(id: string, action: string)=>`/api/ai-trading/tasks/${encodeURIComponent(id)}/realtime/${action}`
 const post=<T>(id: string, action: string, body: unknown)=>request<T>(path(id,action),{
-  method:'POST',body:JSON.stringify(body),signal:AbortSignal.timeout(action==='decision'?20000:8000),
+  method:'POST',body:JSON.stringify(body),signal:AbortSignal.timeout(action==='decision'?20000:action==='heartbeat'?1800:8000),
 })
 export const seedTask=(id: string)=>request<Seed>(path(id,'seed'),{signal:AbortSignal.timeout(90000)})
 export const candleTask=(id: string)=>request<{bars:KlineBar[];observed_at:number;server_ms:number}>(path(id,'candle'),{signal:AbortSignal.timeout(1800),cache:'no-store'})

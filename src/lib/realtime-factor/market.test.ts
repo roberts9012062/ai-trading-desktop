@@ -30,6 +30,15 @@ it('recovers a blocked direct route while preserving the server cached snapshot 
   expect(result.marketAt).toBe(observed)
 })
 
+it('starts server recovery immediately when the direct route has already failed',async()=>{
+  vi.stubGlobal('fetch',vi.fn().mockRejectedValue(new Error('blocked')))
+  fake.candle.mockImplementation(async()=>({bars:[bar],observed_at:Date.now(),server_ms:Date.now()}))
+  const pending=readMarketSnapshot('task','avaxusdt','15m')
+  await vi.advanceTimersByTimeAsync(0)
+  expect(fake.candle).toHaveBeenCalledTimes(1)
+  expect((await pending).source).toBe('server')
+})
+
 it('does not refresh freshness using stale server snapshots',async()=>{
   vi.stubGlobal('fetch',vi.fn().mockRejectedValue(new Error('blocked')))
   fake.candle.mockImplementation(async()=>({bars:[bar],observed_at:Date.now()-5000,server_ms:Date.now()}))

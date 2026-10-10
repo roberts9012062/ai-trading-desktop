@@ -20,6 +20,7 @@ interface Session {
   latest: KlineBar|null
   cap: number
   offset: number
+  expiresAt: number
   marketAt: number
   computedAt: number
   busy: boolean
@@ -81,7 +82,7 @@ function scoringWindow(s:Session) {
 }
 
 async function refreshMarket(s:Session) {
-  if(!same(s)||s.refreshingMarket||Date.now()-s.marketAt<1500)return
+  if(!same(s)||s.refreshingMarket||Date.now()-s.marketAt<1000)return
   s.refreshingMarket=true
   try {
     const snapshot=await readMarketSnapshot(s.task.id,s.task.symbol,s.task.timeframe)
@@ -155,13 +156,35 @@ async function execute(s:Session,id:string,at:number,value:number) {
 
 async function beat(s:Session) {
   if (!same(s) || !s.token || !s.ready || s.renewing) return
+  if(Date.now()+s.offset>=s.expiresAt){await stopRealtime(s.task.id,'秒级执行权已过期，请重新开启');return}
   if (!healthy(Date.now(),s.computedAt,s.marketAt,s.interval)) {
     await stopRealtime(s.task.id,'行情或计算中断，已停止续期并恢复普通模式');return
   }
   s.renewing=true
   try {
-    await renewTask(s.task.id,s.token,Math.round(s.computedAt+s.offset),Math.round(s.marketAt+s.offset))
+    for(let attempt=0;attempt<2;attempt++) {
+      const computed=s.computedAt,market=s.marketAt
+      try {
+        const renewed=await renewTask(s.task.id,s.token,Math.round(computed+s.offset),Math.round(market+s.offset))
+        s.expiresAt=renewed.expires_at
+        break
+      } catch(error) {
+        const rejection=error as {status?:number;code?:string}
+        // A delayed request can describe an older sample than the one already
+        // computed locally. Replace only this explicit freshness rejection once;
+        // the server still validates the same existing token and 5-second lease.
+        const replaced=rejection.code==='computation_stale'?s.computedAt>computed:
+          rejection.code==='market_stale'?s.marketAt>market:false
+        if(attempt || rejection.status!==409 || !replaced || !same(s) ||
+          !healthy(Date.now(),s.computedAt,s.marketAt,s.interval))throw error
+      }
+    }
   } catch (error) {
+    // Heartbeats are idempotent. A bounded transport failure can be followed by
+    // the next tick only while the last acknowledged lease remains alive. Never
+    // retry authorization/ownership rejection or recreate an expired lease.
+    const status=(error as {status?:number}).status
+    if(same(s)&&status===undefined&&Date.now()+s.offset<s.expiresAt&&healthy(Date.now(),s.computedAt,s.marketAt,s.interval))return
     if (same(s)) await stopRealtime(s.task.id,error instanceof Error?error.message:'服务器连接中断，停止秒级模式')
   } finally {s.renewing=false}
 }
@@ -194,10 +217,10 @@ export async function startRealtime(task:AITradingTask,interval:Cadence) {
   if (sessions.size>=32) throw new Error('当前客户端最多同时运行32个秒级任务')
   const owner=account(), version=generation
   if (!owner) throw new Error('请先登录')
-  const s:Session={task,interval,token:null,bars:[],latest:null,cap:10000,offset:0,marketAt:0,computedAt:0,busy:false,submitting:false,renewing:false,stopped:false,enriching:false,enrichedAt:0}
+  const s:Session={task,interval,token:null,bars:[],latest:null,cap:10000,offset:0,expiresAt:0,marketAt:0,computedAt:0,busy:false,submitting:false,renewing:false,stopped:false,enriching:false,enrichedAt:0}
   sessions.set(task.id,s);view().update(task.id,{state:'preparing',interval,message:'准备历史行情与本地计算内核…'})
   syncSubscriptions()
-  s.marketTimer=setInterval(()=>void refreshMarket(s),1000)
+  s.marketTimer=setInterval(()=>void refreshMarket(s),500)
   void refreshMarket(s)
   try {
     const seed=await seedTask(task.id)
@@ -230,13 +253,14 @@ export async function startRealtime(task:AITradingTask,interval:Cadence) {
       }
     }
     s.token=lease.token
+    s.expiresAt=lease.expires_at
     s.offset=clockOffset(sent,Date.now(),lease.server_ms,lease.server_received_ms)
     if (!same(s) || version!==generation || owner!==account()) {await stopTask(task.id,lease.token);throw new Error('启动已取消')}
     // The handoff can take seconds. Re-score and confirm ownership using fresh
     // timestamps before displaying active or sending any trading decision.
     await score(s)
     if (!healthy(Date.now(),s.computedAt,s.marketAt,s.interval)) throw new Error('交接期间行情或计算已过期，请重新开启')
-    await renewTask(task.id,lease.token,Math.round(s.computedAt+s.offset),Math.round(s.marketAt+s.offset))
+    s.expiresAt=(await renewTask(task.id,lease.token,Math.round(s.computedAt+s.offset),Math.round(s.marketAt+s.offset))).expires_at
     if(!same(s))throw new Error('启动已取消')
     s.ready=true
     view().update(task.id,{state:'active',message:`秒级运行 · ${interval}秒`})

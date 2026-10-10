@@ -36,7 +36,7 @@ beforeEach(()=>{
   fake.score.mockResolvedValue(-0.7)
   fake.seed.mockImplementation(async()=>({task:{...task},bars:[{...candle(),time:'2026-10-10 09:45:00',is_closed:true},candle()],limit:600,server_ms:Date.now()}))
   fake.start.mockImplementation(async()=>({token:'lease',interval:1,server_ms:Date.now(),expires_at:Date.now()+5000}))
-  fake.stop.mockResolvedValue({released:true});fake.renew.mockResolvedValue({expires_at:0})
+  fake.stop.mockResolvedValue({released:true});fake.renew.mockImplementation(async()=>({expires_at:Date.now()+5000}))
   fake.get.mockResolvedValue({...task,realtime_mode:{active:true,interval:1}})
   fake.submit.mockResolvedValue({action:'close',order_id:'order'})
   detach=attachRealtimeRuntime()
@@ -60,13 +60,61 @@ it('keeps calculating and renewing while a server order is in flight',async()=>{
 
 it('loses execution permanently after heartbeat rejection; reconnect cannot reopen it',async()=>{
   await startRealtime(task,1)
-  fake.renew.mockRejectedValue(new Error('执行权已失效'))
+  fake.renew.mockRejectedValue(Object.assign(new Error('执行权已失效'),{status:409,code:'lease_expired'}))
   await vi.advanceTimersByTimeAsync(1000)
   expect(realtimeCount()).toBe(0)
   expect(useRealtimeFactorStore.getState().tasks.task.state).toBe('fallback')
   await vi.advanceTimersByTimeAsync(10000)
   expect(fake.start).toHaveBeenCalledTimes(1)
   expect(task.eval_interval_sec).toBeNull()
+})
+
+it('survives one bounded transport timeout by renewing the same still-valid lease on the next tick',async()=>{
+  await startRealtime(task,3)
+  fake.renew.mockImplementationOnce(async()=>{
+    await new Promise(resolve=>setTimeout(resolve,1800))
+    throw new Error('秒级服务器请求超时，停止续期')
+  })
+  await vi.advanceTimersByTimeAsync(3400)
+  expect(useRealtimeFactorStore.getState().tasks.task.state).toBe('active')
+  expect(fake.renew).toHaveBeenCalledTimes(3)
+  expect(fake.start).toHaveBeenCalledTimes(1)
+})
+
+it('stops after the last confirmed expiry when transport remains unavailable and never reacquires',async()=>{
+  await startRealtime(task,3)
+  fake.renew.mockRejectedValue(new Error('network unavailable'))
+  await vi.advanceTimersByTimeAsync(6000)
+  expect(useRealtimeFactorStore.getState().tasks.task.state).toBe('fallback')
+  expect(fake.start).toHaveBeenCalledTimes(1)
+})
+
+it('replaces an explicitly stale in-flight heartbeat with the newer healthy sample using the same lease',async()=>{
+  await startRealtime(task,3)
+  let delayed=true
+  fake.renew.mockImplementation(async(_id,_token,computed)=>{
+    if(delayed){
+      delayed=false
+      await new Promise(resolve=>setTimeout(resolve,2300))
+      throw Object.assign(new Error('旧的计算结果过期'),{status:409,code:'computation_stale'})
+    }
+    expect(Date.now()-computed).toBeLessThan(1500)
+    return {expires_at:Date.now()+5000}
+  })
+  await vi.advanceTimersByTimeAsync(3400)
+  expect(useRealtimeFactorStore.getState().tasks.task.state).toBe('active')
+  expect(fake.start).toHaveBeenCalledTimes(1)
+  expect(fake.renew.mock.calls.at(-1)?.[1]).toBe('lease')
+  expect(fake.renew.mock.calls.at(-1)?.[2]).toBeGreaterThan(fake.renew.mock.calls[1][2])
+})
+
+it('does not retry a stale heartbeat if the client has no newer calculation',async()=>{
+  await startRealtime(task,5)
+  fake.renew.mockRejectedValue(Object.assign(new Error('过期'),{status:409,code:'computation_stale'}))
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(useRealtimeFactorStore.getState().tasks.task.state).toBe('fallback')
+  expect(fake.renew).toHaveBeenCalledTimes(2)
+  expect(fake.start).toHaveBeenCalledTimes(1)
 })
 
 it('gracefully releases the exact token and preserves at most 50 analyses',async()=>{

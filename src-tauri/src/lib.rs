@@ -4,6 +4,7 @@ mod update_channels;
 mod desktop_tray;
 mod window_controls;
 mod okx_analytics;
+mod realtime_http;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -29,6 +30,7 @@ pub fn run() {
         .manage(native_engine::NativeEngineState::default())
         .manage(update_channels::UpdateChannels::default())
         .manage(okx_analytics::OkxAnalyticsState::default())
+        .manage(realtime_http::RealtimeHttpState::default())
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             desktop_tray::desktop_hide_to_tray,
@@ -37,6 +39,7 @@ pub fn run() {
             window_controls::desktop_close_window,
             okx_analytics::okx_analytics_read,
             okx_analytics::okx_analytics_clear,
+            realtime_http::realtime_http_request,
             native_engine::native_engine_spawn,
             native_engine::native_engine_status,
             native_engine::native_engine_kill,
