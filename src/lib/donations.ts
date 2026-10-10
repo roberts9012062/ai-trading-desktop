@@ -1,13 +1,20 @@
 export type DonationKind = "crypto" | "wechat" | "alipay"
 export interface DonationChannel { enabled: boolean; qr_image: string; address: string; network: string; currency: string }
-export interface DonationConfig { enabled: boolean; crypto: DonationChannel; wechat: DonationChannel; alipay: DonationChannel }
-export interface ListedDonation extends Omit<DonationChannel, "enabled"> { kind: DonationKind; label: string }
+export interface DonationChain extends DonationChannel { id: string }
+export interface DonationConfig { enabled: boolean; crypto: DonationChannel; crypto_chains: DonationChain[]; wechat: DonationChannel; alipay: DonationChannel }
+export interface ListedChain extends Omit<DonationChain, "enabled"> {}
+export interface ListedDonation extends Omit<DonationChannel, "enabled"> { kind: DonationKind; label: string; chains?: ListedChain[] }
 export interface PublicDonations { enabled: boolean; channels: ListedDonation[] }
 export const donationLabels: Record<DonationKind, string> = { crypto: "虚拟币打赏", wechat: "微信打赏", alipay: "支付宝打赏" }
 export const donationKinds: DonationKind[] = ["crypto", "wechat", "alipay"]
 export function emptyDonations(): DonationConfig {
   const channel = (): DonationChannel => ({ enabled: false, qr_image: "", address: "", network: "", currency: "" })
-  return { enabled: false, crypto: channel(), wechat: channel(), alipay: channel() }
+  return { enabled: false, crypto: channel(), crypto_chains: [], wechat: channel(), alipay: channel() }
+}
+export function newDonationChain(): DonationChain { return { ...emptyDonations().crypto, id: crypto.randomUUID() } }
+export function listedChains(channel?: ListedDonation): ListedChain[] {
+  if (!channel || channel.kind !== "crypto") return []
+  return channel.chains ?? [{ id: "legacy", network: channel.network || "虚拟币", currency: channel.currency, qr_image: channel.qr_image, address: channel.address }]
 }
 const base = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
 async function call<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -21,7 +28,11 @@ async function call<T>(path: string, options: RequestInit = {}): Promise<T> {
   return body as T
 }
 export const getDonations = () => call<PublicDonations>("/api/donations")
-export const getAdminDonations = () => call<DonationConfig>("/api/admin/donations")
+export const getAdminDonations = async () => {
+  const value = await call<DonationConfig>("/api/admin/donations")
+  if (!value.crypto_chains) value.crypto_chains = value.crypto.address || value.crypto.qr_image ? [{ ...value.crypto, id: "legacy", network: value.crypto.network || "虚拟币" }] : []
+  return value
+}
 export const saveDonations = (config: DonationConfig) => call<DonationConfig>("/api/admin/donations", { method: "PUT", body: JSON.stringify(config) })
 
 export async function readDonationImage(file: File): Promise<string> {

@@ -1,5 +1,6 @@
 import { afterEach,expect,it,vi } from "vitest"
 import { getMeApi,tryRefreshToken } from "./api"
+vi.mock("@/stores/auth",()=>({useAuthStore:{getState:()=>({setAccessToken:vi.fn()})}}))
 afterEach(()=>vi.unstubAllGlobals())
 it("never writes an old refresh response into a switched account",async()=>{
   const storage=new Map([["access_token","access-a"],["refresh_token","refresh-a"]])
