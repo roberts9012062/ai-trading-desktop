@@ -3,7 +3,7 @@ import type { KlineBar } from '@/types'
 import type { Cadence } from './model'
 
 export interface Seed {task: AITradingTask; bars: KlineBar[]; limit: number; server_ms: number; source: string}
-export interface Lease {token: string; interval: Cadence; server_ms: number; expires_at: number}
+export interface Lease {token: string; interval: Cadence; server_ms: number; server_received_ms?:number; expires_at: number}
 const path=(id: string, action: string)=>`/api/ai-trading/tasks/${encodeURIComponent(id)}/realtime/${action}`
 const post=<T>(id: string, action: string, body: unknown)=>request<T>(path(id,action),{
   method:'POST',body:JSON.stringify(body),signal:AbortSignal.timeout(action==='decision'?20000:8000),

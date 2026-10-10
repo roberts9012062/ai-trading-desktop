@@ -25,8 +25,8 @@ export function RealtimeModeControl({task}:{task:AITradingTask}) {
     setInterval(state?.interval??3);setOpen(true)
   }
   return <div onClick={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()} className="mt-2 text-xs">
-    <button type="button" role="switch" aria-checked={active} aria-label="秒级模式" disabled={task.status!=='running'||stopping||other} onClick={toggle}
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 disabled:opacity-50 ${active?'border-amber-400/60 bg-amber-500/10 text-amber-300':'border-[var(--border)] text-[var(--text-muted)]'}`}>
+    <button type="button" role="switch" aria-checked={active||preparing||other} aria-busy={preparing||stopping} aria-label="秒级模式" disabled={task.status!=='running'||stopping||other} onClick={toggle}
+      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 disabled:opacity-50 ${active||preparing?'border-amber-400/60 bg-amber-500/10 text-amber-300':'border-[var(--border)] text-[var(--text-muted)]'}`}>
       <Zap className="h-3.5 w-3.5"/>{active?`秒级运行 · ${state.interval}秒`:preparing?'准备中 · 点击取消':stopping?'正在恢复普通模式':other?`秒级运行 · 其他客户端`:'秒级模式'}
     </button>
     {state?.message && !active && <p role="status" className="mt-1 break-words text-[10px] text-[var(--text-muted)]">{state.message}</p>}

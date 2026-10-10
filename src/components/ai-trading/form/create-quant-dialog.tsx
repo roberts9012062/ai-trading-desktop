@@ -361,7 +361,9 @@ export function CreateQuantDialog({
     try {
       const task = await createTask(payload)
       if(realtimeEnabled && !decisionEnabled && (combo||quant.quantKind==='factor') && task.status==='running') {
-        void startRealtime(task,realtimeInterval).catch(()=>{})
+        void startRealtime(task,realtimeInterval).catch(error=>{
+          useAITradingStore.setState({error:`任务已创建，秒级模式未开启：${error instanceof Error?error.message:'启动失败'}。可在任务卡查看原因并重新开启。`})
+        })
       }
       try {
         await onCreated?.(task)

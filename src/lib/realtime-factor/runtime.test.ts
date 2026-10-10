@@ -120,3 +120,72 @@ it('still falls back when both websocket and fresh snapshots are unavailable',as
   expect(useRealtimeFactorStore.getState().tasks.task.state).toBe('fallback')
   expect(fake.start).toHaveBeenCalledTimes(1)
 })
+
+it('waits for a busy task handoff without resetting the enabled preparation state',async()=>{
+  let attempts=0
+  fake.start.mockImplementation(async()=>{
+    if(++attempts<3)throw Object.assign(new Error('任务正在处理订单或模式交接，请稍后重试'),{status:409,code:'execution_busy'})
+    return {token:'lease',interval:3,server_ms:Date.now(),expires_at:Date.now()+5000}
+  })
+  const starting=startRealtime(task,3)
+  const completed=starting.catch(e=>e)
+  await vi.advanceTimersByTimeAsync(500)
+  expect(useRealtimeFactorStore.getState().tasks.task.state).toBe('preparing')
+  expect(useRealtimeFactorStore.getState().tasks.task.message).toContain('等待')
+  await vi.advanceTimersByTimeAsync(4000)
+  expect(await completed).toBeUndefined()
+  expect(useRealtimeFactorStore.getState().tasks.task.state).toBe('active')
+  expect(fake.start).toHaveBeenCalledTimes(3)
+})
+
+it('calibrates heartbeat timestamps across a slow handoff instead of stopping healthy three-second analysis',async()=>{
+  const offset=4200
+  fake.seed.mockImplementation(async()=>({task:{...task},bars:[{...candle(),time:'2026-10-10 09:45:00',is_closed:true},candle()],limit:600,server_ms:Date.now()+offset}))
+  fake.start.mockImplementation(async()=>{
+    const received=Date.now()+offset+2000
+    await new Promise(r=>setTimeout(r,4000))
+    return {token:'lease',interval:3,server_received_ms:received,server_ms:received,expires_at:received+5000}
+  })
+  fake.renew.mockImplementation(async(_id,_token,computed,market)=>{
+    const now=Date.now()+offset
+    if(now-computed>4500||now-market>=5000||Math.max(computed,market)>now+1000)throw new Error('行情或计算已中断，停止秒级续期')
+    return {expires_at:now+5000}
+  })
+  const starting=startRealtime(task,3)
+  await vi.advanceTimersByTimeAsync(4000);await starting
+  await vi.advanceTimersByTimeAsync(16000)
+  expect(useRealtimeFactorStore.getState().tasks.task.state).toBe('active')
+  expect(useRealtimeFactorStore.getState().tasks.task.rows.length).toBeGreaterThan(4)
+  expect(fake.renew).toHaveBeenCalledTimes(17)
+})
+
+it('cancels a waiting handoff without acquiring ownership after the task becomes free',async()=>{
+  fake.start.mockRejectedValue(Object.assign(new Error('busy'),{status:409,code:'execution_busy'}))
+  const starting=startRealtime(task,3)
+  const rejected=expect(starting).rejects.toThrow('取消')
+  await vi.advanceTimersByTimeAsync(500)
+  await stopRealtime(task.id)
+  await vi.advanceTimersByTimeAsync(2000);await rejected
+  expect(fake.start).toHaveBeenCalledTimes(1)
+  expect(fake.renew).not.toHaveBeenCalled()
+  expect(realtimeCount()).toBe(0)
+})
+
+it('never retries an ambiguous start timeout or another owner conflict',async()=>{
+  fake.start.mockRejectedValue(new Error('Request cancelled'))
+  await expect(startRealtime(task,3)).rejects.toThrow('Request cancelled')
+  await vi.advanceTimersByTimeAsync(5000)
+  expect(fake.start).toHaveBeenCalledTimes(1)
+})
+
+it('does not resurrect the preparing UI when a pending busy reply arrives after cancellation',async()=>{
+  let reject:(reason:Error)=>void=()=>{}
+  fake.start.mockImplementation(()=>new Promise((_resolve,no)=>{reject=no}))
+  const starting=startRealtime(task,3)
+  const rejected=expect(starting).rejects.toThrow('取消')
+  await vi.advanceTimersByTimeAsync(0)
+  await stopRealtime(task.id)
+  reject(Object.assign(new Error('busy'),{status:409,code:'execution_busy'}))
+  await vi.advanceTimersByTimeAsync(1500);await rejected
+  expect(useRealtimeFactorStore.getState().tasks.task.state).toBe('fallback')
+})

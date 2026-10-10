@@ -7,6 +7,7 @@ import { useAITradingStore } from '@/stores/ai-trading'
 import { useAuthStore } from '@/stores/auth'
 import { FactorWorker } from './worker'
 import { readMarketSnapshot } from './market'
+import { clockOffset } from './clock'
 import { seedTask, startTask, stopTask, renewTask, submitScore } from './api'
 import { healthy, intentForScore, mergeCandle, refreshEnrichment, type Cadence } from './model'
 
@@ -25,6 +26,7 @@ interface Session {
   submitting: boolean
   renewing: boolean
   stopped: boolean
+  ready?: boolean
   timer?: ReturnType<typeof setInterval>
   poll?: ReturnType<typeof setInterval>
   enriching: boolean
@@ -105,7 +107,7 @@ async function score(s:Session,timeout?:number) {
 }
 
 async function step(s:Session) {
-  if (!same(s) || !s.token || s.busy) return
+  if (!same(s) || !s.token || !s.ready || s.busy) return
   s.busy=true
   try {
     const value=await score(s)
@@ -152,7 +154,7 @@ async function execute(s:Session,id:string,at:number,value:number) {
 }
 
 async function beat(s:Session) {
-  if (!same(s) || !s.token || s.renewing) return
+  if (!same(s) || !s.token || !s.ready || s.renewing) return
   if (!healthy(Date.now(),s.computedAt,s.marketAt,s.interval)) {
     await stopRealtime(s.task.id,'行情或计算中断，已停止续期并恢复普通模式');return
   }
@@ -210,13 +212,33 @@ export async function startRealtime(task:AITradingTask,interval:Cadence) {
     const window=scoringWindow(s)
     await worker.score(s.task.strategy_params,window.rows,window.scale,60000) // cold warmup before acquiring a lease
     if (!same(s) || version!==generation || owner!==account()) throw new Error('会话已切换或启动已取消')
-    // Recalculate against fresh input now that the worker is warm.
-    await score(s)
-    const lease=await startTask(task.id,interval)
+    // An ordinary evaluation may hold the execution lock. Remain visibly
+    // preparing and retry only an explicit no-lease busy response.
+    const handoffUntil=Date.now()+60000
+    let lease:Awaited<ReturnType<typeof startTask>>,sent:number
+    while(true) {
+      if(!same(s)||version!==generation||owner!==account())throw new Error('会话已切换或启动已取消')
+      await score(s)
+      sent=Date.now()
+      try {lease=await startTask(task.id,interval);break}
+      catch(error) {
+        if(!same(s)||version!==generation||owner!==account())throw new Error('会话已切换或启动已取消')
+        const busy=error as {status?:number;code?:string}
+        if(busy?.status!==409||busy.code!=='execution_busy'||Date.now()>=handoffUntil)throw error
+        view().update(task.id,{state:'preparing',message:'秒级模式已选择，等待当前任务处理完成后交接…'})
+        await new Promise(resolve=>setTimeout(resolve,1000))
+      }
+    }
     s.token=lease.token
-    s.offset=lease.server_ms-Date.now()
+    s.offset=clockOffset(sent,Date.now(),lease.server_ms,lease.server_received_ms)
     if (!same(s) || version!==generation || owner!==account()) {await stopTask(task.id,lease.token);throw new Error('启动已取消')}
+    // The handoff can take seconds. Re-score and confirm ownership using fresh
+    // timestamps before displaying active or sending any trading decision.
+    await score(s)
     if (!healthy(Date.now(),s.computedAt,s.marketAt,s.interval)) throw new Error('交接期间行情或计算已过期，请重新开启')
+    await renewTask(task.id,lease.token,Math.round(s.computedAt+s.offset),Math.round(s.marketAt+s.offset))
+    if(!same(s))throw new Error('启动已取消')
+    s.ready=true
     view().update(task.id,{state:'active',message:`秒级运行 · ${interval}秒`})
     s.timer=setInterval(()=>void step(s),interval*1000)
     s.poll=setInterval(()=>void refresh(s),5000)

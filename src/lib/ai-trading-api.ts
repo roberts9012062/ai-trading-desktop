@@ -361,6 +361,10 @@ export interface UpdateTaskPayload {
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
 
+export class AITradingRequestError extends Error {
+  constructor(message:string,readonly status:number,readonly code?:string) {super(message)}
+}
+
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("access_token") : null
@@ -380,7 +384,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     const error = await response.json().catch(() => ({ detail: "请求失败" }))
     let detailText = `请求失败: ${response.status}`
     if (typeof error?.detail === "string") detailText = error.detail
-    throw new Error(detailText)
+    throw new AITradingRequestError(detailText,response.status,typeof error?.code==='string'?error.code:undefined)
   }
   return response.json() as Promise<T>
 }

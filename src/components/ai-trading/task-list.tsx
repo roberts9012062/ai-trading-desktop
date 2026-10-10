@@ -99,6 +99,7 @@ export function TaskList({
               selectedId === task.id
                 ? "border-[var(--primary)] bg-[var(--primary)]/10"
                 : "border-[var(--border)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)]",
+              realtime[task.id]?.state==='preparing' && 'border-amber-400/60 ring-1 ring-amber-400/20',
             )}
           >
             {/* 头部：图标 + 名称 + 状态徽章 + 星标 */}
