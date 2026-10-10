@@ -9,9 +9,9 @@ const flights = new Map<string, Promise<unknown>>()
 const cache = new Map<string, { until: number; data: unknown }>()
 export function resetSnippetRest(): void { retryAt = 0; cache.clear() }
 
-async function publicGet(path: string): Promise<unknown[]> {
+export async function snippetPublicGet(path: string, timeoutMs = 6000): Promise<unknown[]> {
   if (Date.now() < retryAt) throw new Error("Snippet 冷却中")
-  const response = await fetch(SNIPPET_REST + path, { signal: AbortSignal.timeout(6000), cache: "no-store" })
+  const response = await fetch(SNIPPET_REST + path, { signal: AbortSignal.timeout(timeoutMs), cache: "no-store" })
   const payload = await response.json()
   if (!response.ok || payload.code !== "0" || !Array.isArray(payload.data)) {
     retryAt = Date.now() + (response.status === 429 || payload.code === "50011" ? 60000 : 15000)
@@ -43,7 +43,7 @@ export async function withSnippetRead<T>(key: string, load: () => Promise<T>, fa
 }
 
 export async function snippetQuotes(): Promise<Array<Record<string, unknown>>> {
-  const rows = await publicGet("/api/v5/market/tickers?instType=SWAP")
+  const rows = await snippetPublicGet("/api/v5/market/tickers?instType=SWAP")
   const decoded = rows.map(decodeOkxTicker).filter(item => item !== null)
   if (!decoded.length) throw new Error("Snippet 没有有效行情")
   return decoded as unknown as Array<Record<string, unknown>>
@@ -62,7 +62,7 @@ export async function snippetKlines(symbol: string, period: string, options?: {l
     if (!Number.isFinite(stamp)) throw new Error("无效的历史时间")
     params.set("after", String(stamp))
   }
-  const rows = await publicGet(`/api/v5/market/${options?.endTime ? "history-candles" : "candles"}?${params}`)
+  const rows = await snippetPublicGet(`/api/v5/market/${options?.endTime ? "history-candles" : "candles"}?${params}`)
   const bars = rows.map(raw => decodeOkxCandle(raw, period, Date.now())).filter(bar => bar !== null)
   if (bars.length !== rows.length) throw new Error("K线字段校验失败")
   bars.sort((a,b) => a.time.localeCompare(b.time))

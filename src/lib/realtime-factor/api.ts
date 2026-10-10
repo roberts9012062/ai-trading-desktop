@@ -9,6 +9,7 @@ const post=<T>(id: string, action: string, body: unknown)=>request<T>(path(id,ac
   method:'POST',body:JSON.stringify(body),signal:AbortSignal.timeout(action==='decision'?20000:8000),
 })
 export const seedTask=(id: string)=>request<Seed>(path(id,'seed'),{signal:AbortSignal.timeout(90000)})
+export const candleTask=(id: string)=>request<{bars:KlineBar[];observed_at:number;server_ms:number}>(path(id,'candle'),{signal:AbortSignal.timeout(1800),cache:'no-store'})
 export const startTask=(id: string, interval: Cadence)=>post<Lease>(id,'start',{interval})
 export const stopTask=(id: string, token: string)=>post<{released: boolean}>(id,'stop',{token})
 export const renewTask=(id: string, token: string, computed_at: number, market_at: number)=>post<{expires_at: number}>(id,'heartbeat',{token,computed_at,market_at})

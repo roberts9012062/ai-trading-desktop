@@ -1,7 +1,8 @@
 import { beforeEach, afterEach, it, expect, vi } from 'vitest'
 import type { AITradingTask } from '../ai-trading-api'
 
-const fake=vi.hoisted(()=>({score:vi.fn(),seed:vi.fn(),start:vi.fn(),stop:vi.fn(),renew:vi.fn(),submit:vi.fn(),get:vi.fn(),emit:()=>{}}))
+const fake=vi.hoisted(()=>({score:vi.fn(),seed:vi.fn(),start:vi.fn(),stop:vi.fn(),renew:vi.fn(),submit:vi.fn(),get:vi.fn(),snapshot:vi.fn(),feed:true,emit:()=>{}}))
+vi.mock('./market',()=>({readMarketSnapshot:fake.snapshot}))
 vi.mock('./worker',()=>({FactorWorker:class {score=fake.score;close=vi.fn()}}))
 vi.mock('./api',()=>({seedTask:fake.seed,startTask:fake.start,stopTask:fake.stop,renewTask:fake.renew,submitScore:fake.submit}))
 vi.mock('../ai-trading-api',()=>({getAITradingTask:fake.get}))
@@ -14,8 +15,8 @@ vi.mock('../okx-snippet-ws',()=>({OkxSnippetWebSocket:class {
   setChartSubscription(){}
   connect(){
     fake.emit=()=>this.handler({type:'chart_kline',data:[{symbol:'avaxusdt',period:'15m',bar:candle()}]})
-    fake.emit()
-    this.timer??=setInterval(()=>fake.emit(),500)
+    if(fake.feed)fake.emit()
+    this.timer??=setInterval(()=>{if(fake.feed)fake.emit()},500)
   }
   disconnect(){clearInterval(this.timer)}
 }}))
@@ -28,6 +29,8 @@ const task={id:'task',strategy_type:'factor',strategy_params:{factor_tokens:[0]}
 let detach:()=>void
 beforeEach(()=>{
   vi.useFakeTimers();vi.setSystemTime(new Date('2026-10-10T02:01:00Z'));vi.clearAllMocks()
+  fake.feed=true
+  fake.snapshot.mockImplementation(async()=>({bars:[{...candle(),time:'2026-10-10 09:45:00',is_closed:true},candle()],marketAt:Date.now(),source:'snapshot'}))
   useRealtimeFactorStore.getState().reset()
   useAuthStore.setState({user:{id:'user',trading_mode:'virtual'} as never})
   fake.score.mockResolvedValue(-0.7)
@@ -85,4 +88,35 @@ it('cancelling a startup prevents later seed completion from acquiring ownership
   finish(seed)
   await rejection
   expect(fake.start).not.toHaveBeenCalled()
+})
+
+it('starts and keeps computing from fresh snapshots when a symbol has no websocket pushes',async()=>{
+  fake.feed=false
+  const starting=startRealtime(task,1)
+  await vi.advanceTimersByTimeAsync(3000)
+  await starting
+  await vi.advanceTimersByTimeAsync(15000)
+  expect(fake.snapshot).toHaveBeenCalled()
+  expect(useRealtimeFactorStore.getState().tasks.task.state).toBe('active')
+  expect(fake.score.mock.calls.length).toBeGreaterThan(15)
+  expect(fake.renew).toHaveBeenCalled()
+  expect(fake.submit).not.toHaveBeenCalled()
+})
+
+it('does not mistake an eight-second websocket silence for a lost market connection',async()=>{
+  await startRealtime(task,1)
+  fake.feed=false
+  await vi.advanceTimersByTimeAsync(12000)
+  expect(fake.snapshot).toHaveBeenCalled()
+  expect(useRealtimeFactorStore.getState().tasks.task.state).toBe('active')
+})
+
+it('still falls back when both websocket and fresh snapshots are unavailable',async()=>{
+  await startRealtime(task,1)
+  fake.feed=false
+  fake.snapshot.mockRejectedValue(new Error('snapshot unreachable'))
+  await vi.advanceTimersByTimeAsync(6000)
+  expect(realtimeCount()).toBe(0)
+  expect(useRealtimeFactorStore.getState().tasks.task.state).toBe('fallback')
+  expect(fake.start).toHaveBeenCalledTimes(1)
 })

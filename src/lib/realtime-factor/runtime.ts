@@ -6,6 +6,7 @@ import { useRealtimeFactorStore } from '@/stores/realtime-factor'
 import { useAITradingStore } from '@/stores/ai-trading'
 import { useAuthStore } from '@/stores/auth'
 import { FactorWorker } from './worker'
+import { readMarketSnapshot } from './market'
 import { seedTask, startTask, stopTask, renewTask, submitScore } from './api'
 import { healthy, intentForScore, mergeCandle, refreshEnrichment, type Cadence } from './model'
 
@@ -28,6 +29,8 @@ interface Session {
   poll?: ReturnType<typeof setInterval>
   enriching: boolean
   enrichedAt: number
+  marketTimer?: ReturnType<typeof setInterval>
+  refreshingMarket?: boolean
 }
 const sessions=new Map<string,Session>()
 let stream:OkxSnippetWebSocket|null=null
@@ -73,6 +76,21 @@ function scoringWindow(s:Session) {
   if (prev && (start-barTimeToMs(prev.time)!==span || prev.is_closed===false)) throw new Error('K线存在缺口或尚未确认，已恢复普通模式')
   const elapsed=Math.max(1000,now-start)
   return {rows,scale:span/Math.min(span,elapsed)}
+}
+
+async function refreshMarket(s:Session) {
+  if(!same(s)||s.refreshingMarket||Date.now()-s.marketAt<1500)return
+  s.refreshingMarket=true
+  try {
+    const snapshot=await readMarketSnapshot(s.task.id,s.task.symbol,s.task.timeframe)
+    if(!same(s)||snapshot.marketAt<=s.marketAt||Date.now()-snapshot.marketAt>=5000)return
+    const latest=snapshot.bars.at(-1)
+    if(!latest||s.latest&&latest.time<s.latest.time)return
+    if(s.latest?.time===latest.time&&s.latest.is_closed&&!latest.is_closed)return
+    for(const bar of snapshot.bars)s.bars=mergeCandle(s.bars,bar,s.cap)
+    s.latest=latest;s.marketAt=snapshot.marketAt
+  } catch { /* A failed read cannot refresh freshness or renew ownership. */ }
+  finally {s.refreshingMarket=false}
 }
 
 async function score(s:Session,timeout?:number) {
@@ -177,13 +195,15 @@ export async function startRealtime(task:AITradingTask,interval:Cadence) {
   const s:Session={task,interval,token:null,bars:[],latest:null,cap:10000,offset:0,marketAt:0,computedAt:0,busy:false,submitting:false,renewing:false,stopped:false,enriching:false,enrichedAt:0}
   sessions.set(task.id,s);view().update(task.id,{state:'preparing',interval,message:'准备历史行情与本地计算内核…'})
   syncSubscriptions()
+  s.marketTimer=setInterval(()=>void refreshMarket(s),1000)
+  void refreshMarket(s)
   try {
     const seed=await seedTask(task.id)
     if (!same(s) || version!==generation || owner!==account()) throw new Error('会话已切换或启动已取消')
     s.task=seed.task;s.cap=seed.limit;s.offset=seed.server_ms-Date.now();s.enrichedAt=Date.now()
     s.bars=seed.bars
     if (s.latest) s.bars=mergeCandle(s.bars,s.latest,s.cap)
-    // Wait for an authoritative live candle, never promote a REST price to live.
+    // Wait for a fresh authoritative candle from WS or a bounded OHLCV snapshot.
     const until=Date.now()+15000
     while (same(s) && (!s.latest || Date.now()-s.marketAt>=5000) && Date.now()<until) await new Promise(resolve=>setTimeout(resolve,100))
     worker??=new FactorWorker()
@@ -211,7 +231,7 @@ export async function stopRealtime(id:string,message='秒级模式已关闭，�
   const s=sessions.get(id)
   if (!s) return
   s.stopped=true
-  clearInterval(s.timer);clearInterval(s.poll)
+  clearInterval(s.timer);clearInterval(s.poll);clearInterval(s.marketTimer)
   view().update(id,{state:'stopping',message:'正在交还执行权…'})
   const token=s.token;s.token=null
   sessions.delete(id);syncSubscriptions()
