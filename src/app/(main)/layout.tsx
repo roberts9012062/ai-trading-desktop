@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { TopNavbar } from "@/components/layout/top-navbar"
+import { DonationButton } from "@/components/layout/donation-button"
 import { Sidebar } from "@/components/layout/sidebar"
 import { ContractSearchDialog } from "@/components/market/contract-search-dialog"
 import { FloatingAssistant } from "@/components/ai/floating-assistant"
@@ -131,6 +132,7 @@ export default function MainLayout({
       <ContractSearchDialog />
       {/* 全局 AI 交易助手：浮空按钮 / 可缩放浮窗 */}
       <FloatingAssistant />
+      <DonationButton />
       {/* 消息弹窗：右下角，WS 推送新消息时滑入 */}
       <MessagePopup />
       {/* 大单预警弹窗：右下角堆叠，命中阈值时显示 10 秒（不入库） */}

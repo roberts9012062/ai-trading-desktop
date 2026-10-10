@@ -30,12 +30,19 @@ interface ApiRequestOptions extends RequestInit {
   skipAuthRedirect?: boolean
 }
 
+function activeIdentity(): string | null {
+  if (typeof window === "undefined") return null
+  try { const user = JSON.parse(localStorage.getItem("qihuo_auth_user") || "null"); return user ? `${user.id}:${user.trading_mode}` : null }
+  catch { return null }
+}
+
 /** 通用 API 请求封装 */
 async function request<T>(
   path: string,
   options: ApiRequestOptions = {}
 ): Promise<T> {
   const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+  const identity = activeIdentity()
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -51,6 +58,9 @@ async function request<T>(
     headers,
   })
 
+  // A request started by an old identity must not refresh or log out a new one.
+  if (identity !== activeIdentity()) throw new Error("会话已切换，请重试")
+
   if (response.status === 401) {
     // 登录 / 注册等「获取凭证」端点：401 是凭据错误，交给调用方在表单内提示，
     // 不自动刷新 token、不硬跳 /login（否则用户输错密码会被整页踢回登录页）
@@ -64,9 +74,11 @@ async function request<T>(
     }
     // Token 过期，尝试刷新
     const refreshed = await tryRefreshToken()
+    if (identity !== activeIdentity() || (!refreshed && token !== localStorage.getItem("access_token"))) throw new Error("会话已更新，请重试")
     if (refreshed) {
       headers["Authorization"] = `Bearer ${localStorage.getItem("access_token")}`
       const retryResponse = await fetch(`${API_BASE}${path}`, { ...options, headers })
+      if (identity !== activeIdentity()) throw new Error("会话已切换，请重试")
       if (!retryResponse.ok) throw new Error(`请求失败: ${retryResponse.status}`)
       return retryResponse.json()
     }
@@ -108,6 +120,7 @@ async function request<T>(
 /** 尝试刷新 access token（HTTP 401 / WS 4401 共用） */
 export async function tryRefreshToken(): Promise<boolean> {
   const refreshToken = localStorage.getItem("refresh_token")
+  const previousAccess = localStorage.getItem("access_token")
   if (!refreshToken) return false
 
   try {
@@ -125,6 +138,7 @@ export async function tryRefreshToken(): Promise<boolean> {
     if (!data.access_token) {
       return false
     }
+    if (localStorage.getItem("refresh_token") !== refreshToken || localStorage.getItem("access_token") !== previousAccess) return false
     // 同步写入 access/refresh，会话最长保持 7 天
     localStorage.setItem("access_token", data.access_token)
     if (data.refresh_token) {
@@ -133,6 +147,7 @@ export async function tryRefreshToken(): Promise<boolean> {
     // 同步 zustand，避免内存 token 与 localStorage 不一致
     try {
       const { useAuthStore } = await import("@/stores/auth")
+      if (localStorage.getItem("access_token") !== data.access_token || localStorage.getItem("refresh_token") !== (data.refresh_token || refreshToken)) return false
       useAuthStore.getState().setAccessToken(data.access_token)
     } catch {
       // store 未就绪时忽略
@@ -183,7 +198,7 @@ function normalizeRole(raw: unknown): "user" | "admin" {
 }
 
 /** 将后端用户信息规范为前端 User */
-function normalizeUser(raw: Record<string, unknown>): User {
+export function normalizeUser(raw: Record<string, unknown>): User {
   return {
     id: String(raw.id ?? ""),
     username: String(raw.username ?? ""),

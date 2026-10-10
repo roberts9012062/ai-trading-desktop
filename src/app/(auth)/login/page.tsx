@@ -4,7 +4,8 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuthStore } from "@/stores/auth"
-import { loginApi, getMeApi } from "@/lib/api"
+import { loginApi } from "@/lib/api"
+import { sessionForTokens } from "@/lib/account-sessions"
 import { resolveDesktopServerBase } from "@/desktop-boot"
 import { loadServers, saveServer, deleteServer, selectServer, normalizeServerBase, type ServerProfile } from "@/lib/server-profiles"
 import { BrandLogo } from "@/components/common/brand-logo"
@@ -232,19 +233,18 @@ export default function LoginPage(): React.JSX.Element {
         password,
         trading_mode: "live",
       })
-      // 先存 token，再获取用户信息（会话默认 7 天；盘模式绑定在 JWT）
-      localStorage.setItem("access_token", authRes.access_token)
-      localStorage.setItem("refresh_token", authRes.refresh_token)
-      useAuthStore.setState({ accessToken: authRes.access_token })
-
-      persistRemember(remember, username, password)
-
-      const user = await getMeApi()
+      // Validate independently before replacing any current session.
+      const { user } = await sessionForTokens(authRes.access_token, authRes.refresh_token)
+      if (useAuthStore.getState().user?.id && useAuthStore.getState().user?.id !== user.id) {
+        const { stopAllRealtime } = await import("@/lib/realtime-factor/runtime")
+        await stopAllRealtime("切换账号，恢复普通模式")
+      }
       login(
         { ...user, trading_mode: user.trading_mode ?? "live" },
         authRes.access_token,
         authRes.refresh_token,
       )
+      persistRemember(remember, username, password)
       // 整页跳转而非 SPA 路由：换账号会话必须清空内存中
       // 上一账号的持仓/委托/任务等全部状态
       window.location.assign("/dashboard")

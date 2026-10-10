@@ -14,6 +14,7 @@ import {
   Timer,
   Key,
   Crown,
+  Heart,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/stores/auth"
@@ -29,6 +30,7 @@ const ADMIN_MENU = [
   { icon: Timer, label: "刷新节奏", path: "/admin/refresh-interval" },
   { icon: Key, label: "API Keys", path: "/admin/api-keys" },
   { icon: Crown, label: "VIP 商城", path: "/admin/vip" },
+  { icon: Heart, label: "打赏管理", path: "/admin/donations" },
 ]
 
 /** 管理端 Layout Shell —— 强制 admin 角色 */

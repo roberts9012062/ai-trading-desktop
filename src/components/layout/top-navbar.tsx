@@ -2,14 +2,14 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
-import { Bell, Search, ChevronDown, Circle, LogOut, User, Shield } from "lucide-react"
+import { Bell, Search, Circle } from "lucide-react"
 import { useAppStore } from "@/stores/app"
 import { useAuthStore } from "@/stores/auth"
 import { useNotificationsStore } from "@/stores/notifications"
 import { useSessionStatus } from "@/hooks/use-session-status"
 import { BrandLogo } from "@/components/common/brand-logo"
 import { cn } from "@/lib/utils"
+import { UserMenu } from "./user-menu"
 
 /** 市场状态配置 */
 const MARKET_STATUS_MAP = {
@@ -22,7 +22,7 @@ const MARKET_STATUS_MAP = {
 export function TopNavbar(): React.JSX.Element {
   const router = useRouter()
   const { marketStatus, setMarketStatus, setSearchOpen, activeContract } = useAppStore()
-  const { user, logout } = useAuthStore()
+  const { user } = useAuthStore()
   const { status: session, isOpen, hasVirtualQuote } = useSessionStatus(activeContract)
   const isVirtual =
     user?.trading_mode === "virtual" || session?.trading_mode === "virtual"
@@ -61,19 +61,8 @@ export function TopNavbar(): React.JSX.Element {
         : `休市 · ${session.product_code}`
       : status.label
 
-  // user 未恢复前不显示「用户」，避免被误认为角色变成普通用户
-  const displayName: string = user?.username ?? "加载中…"
-  const displayInitial: string = user?.username
-    ? user.username.charAt(0).toUpperCase()
-    : "?"
   const modeLabel =
     user?.trading_mode === "virtual" ? "虚拟盘" : "实盘"
-
-  /** 退出登录 */
-  const handleLogout = (): void => {
-    logout()
-    router.replace("/login")
-  }
 
   return (
     <header className="h-[56px] flex items-center justify-between px-4 border-b border-[var(--border)] bg-[var(--bg-secondary)] shrink-0 z-30">
@@ -136,52 +125,7 @@ export function TopNavbar(): React.JSX.Element {
         </button>
 
         {/* 用户下拉菜单 */}
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger asChild>
-            <button className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-[var(--bg-tertiary)] transition-colors cursor-pointer outline-none">
-              <div className="w-7 h-7 rounded-full bg-[var(--primary)] flex items-center justify-center text-white text-xs font-medium">
-                {displayInitial}
-              </div>
-              <span className="text-sm text-[var(--text-secondary)] hidden sm:inline">{displayName}</span>
-              <ChevronDown className="w-3 h-3 text-[var(--text-muted)]" />
-            </button>
-          </DropdownMenu.Trigger>
-
-          <DropdownMenu.Portal>
-            <DropdownMenu.Content
-              align="end"
-              sideOffset={8}
-              className="min-w-[160px] rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-1.5 shadow-xl z-50 animate-in fade-in-0 zoom-in-95"
-            >
-              {/* 用户信息 */}
-              <DropdownMenu.Label className="px-3 py-2 text-xs text-[var(--text-muted)]">
-                <User className="w-3 h-3 inline mr-1.5 -mt-0.5" />
-                {displayName}
-                {user?.role === "admin" ? " · 管理员" : ""}
-              </DropdownMenu.Label>
-              <DropdownMenu.Separator className="h-px bg-[var(--border)] my-1" />
-
-              {user?.role === "admin" && (
-                <DropdownMenu.Item
-                  onSelect={() => router.push("/admin/dashboard")}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-primary)] rounded-md cursor-pointer outline-none hover:bg-[var(--bg-tertiary)] transition-colors"
-                >
-                  <Shield className="w-4 h-4" />
-                  管理后台
-                </DropdownMenu.Item>
-              )}
-
-              {/* 退出登录 */}
-              <DropdownMenu.Item
-                onSelect={handleLogout}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--accent-danger)] rounded-md cursor-pointer outline-none hover:bg-[var(--bg-tertiary)] transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                退出登录
-              </DropdownMenu.Item>
-            </DropdownMenu.Content>
-          </DropdownMenu.Portal>
-        </DropdownMenu.Root>
+        <UserMenu />
       </div>
     </header>
   )

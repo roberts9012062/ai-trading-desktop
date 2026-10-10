@@ -46,6 +46,7 @@ import AdminSettingsPage from "./app/admin/settings/page"
 import AdminTradingConfigPage from "./app/admin/trading-config/page"
 import AdminUsersPage from "./app/admin/users/page"
 import AdminVipPage from "./app/admin/vip/page"
+import AdminDonationsPage from "./app/admin/donations/page"
 import AdminUserDetailPage from "./app/admin/users/[id]/page"
 
 /** 已登录访问 / 直接进工作台,未登录去登录页 */
@@ -97,6 +98,7 @@ export function AppRoutes() {
         <Route path="trading-config" element={<AdminTradingConfigPage />} />
         <Route path="users" element={<AdminUsersPage />} />
         <Route path="vip" element={<AdminVipPage />} />
+        <Route path="donations" element={<AdminDonationsPage />} />
         <Route path="users/:id" element={<AdminUserDetailPage />} />
       </Route>
 

@@ -9,6 +9,7 @@ import { stopSnippetPrivate } from "@/lib/snippet-private-ws"
 import { resetDesktopDailyPnl } from "@/lib/desktop-daily-pnl"
 import { useNotificationsStore } from "@/stores/notifications"
 import type { User } from "@/types"
+import { rememberAccount, forgetAccount } from "@/lib/account-profiles"
 
 const ACCESS_KEY = "access_token"
 const REFRESH_KEY = "refresh_token"
@@ -85,6 +86,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   hydrating: false,
 
   login: (user, accessToken, refreshToken) => {
+    rememberAccount({ user, accessToken, refreshToken })
+    if (get().user && get().user?.id !== user.id) {
+      try {
+      getOkxSnippetWebSocket().disconnect()
+      stopSnippetPrivate()
+      disconnectDesktopExchange()
+      stopDesktopRouting()
+      getMarketWebSocket().disconnect()
+      useNotificationsStore.getState().reset()
+      } catch { /* Full reload also tears down the old native connections. */ }
+    }
     resetDesktopDailyPnl()
     localStorage.setItem(ACCESS_KEY, accessToken)
     localStorage.setItem(REFRESH_KEY, refreshToken)
@@ -95,6 +107,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: () => {
+    if (get().user) forgetAccount(get().user!.id)
     resetDesktopDailyPnl()
     localStorage.removeItem(ACCESS_KEY)
     localStorage.removeItem(REFRESH_KEY)
@@ -128,6 +141,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setAccessToken: (token) => {
     localStorage.setItem(ACCESS_KEY, token)
+    const user = get().user
+    if (user) rememberAccount({ user, accessToken: token, refreshToken: localStorage.getItem(REFRESH_KEY) ?? "" })
     set({ accessToken: token })
   },
 
