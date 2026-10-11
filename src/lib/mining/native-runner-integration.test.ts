@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ComputeBackend, EvalRequest, GenerationStep } from "./backends/types"
-import type { Champion } from "@/lib/factor-lab-api"
+import type { Champion, PortfolioResult } from "@/lib/factor-lab-api"
 import { NativeRecoveryPaused } from "@/lib/native-engine/recovery"
 
 const state = vi.hoisted(() => ({ records: new Map<string, unknown>(), requests: [] as EvalRequest[] }))
@@ -23,6 +23,27 @@ async function until(check: () => boolean | Promise<boolean>) {
 }
 beforeEach(() => { state.records.clear(); state.requests.length = 0 })
 describe("super-factor native persistence", () => {
+  it.each([false, true])("restores a passed rescued combination with zero single champions after restart (details=%s)", async detailed => {
+    const { LocalMiningRunner } = await import("./local-runner")
+    const portfolio: PortfolioResult = { n_factors: 2, avg_abs_corr: .366,
+      equal: { ann_ret: .543, sortino: 1.89, calmar: 1 },
+      best_single: { ann_ret: .1, sortino: 1.35, calmar: 1 },
+      combo_super: true, combo_source: "rescued", super_passed: true, members: [[0], [1]],
+      ...(detailed ? { member_details: [
+        { tokens: [0], text: "RET_1", qualification_status: "rejected" as const, rejection_reasons: ["wf_oos_fold_failed"] },
+        { tokens: [1], text: "RET_5", qualification_status: "rejected" as const, rejection_reasons: ["holdout_stress_failed_or_missing"] },
+      ] } : {}),
+    }
+    const factory = (): ComputeBackend => ({ device: "gpu", probe: async () => ({ available: true }), dispose: async () => {},
+      async *run() { yield { ...progress, generation: 2, nativePortfolio: portfolio }; return [] } })
+    const runner = new LocalMiningRunner({ backendFactory: factory })
+    const task = await runner.create({ ...cfg, combo_super: true }, { device: "native-gpu" })
+    await until(async () => (await runner.get(task.id))?.status === "completed")
+    const restored = new LocalMiningRunner({ backendFactory: factory })
+    expect(await restored.get(task.id)).toMatchObject({ status: "completed", champions_count: 0, portfolio })
+    expect(await restored.champions(task.id)).toEqual([])
+  })
+
   it("keeps a training archive with zero champions and resumes D-1 with its origin and budget", async () => {
     const { LocalMiningRunner } = await import("./local-runner")
     let proceed!: () => void

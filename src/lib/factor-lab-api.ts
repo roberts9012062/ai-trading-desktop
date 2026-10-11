@@ -145,6 +145,14 @@ export interface PortfolioMetrics {
   calmar: number
 }
 
+/** 展示组合的实际成员；单因子资格与组合资格分别保留。 */
+export interface PortfolioMember {
+  tokens: number[]
+  text: string
+  qualification_status: "qualified" | "pending" | "rejected"
+  rejection_reasons: string[]
+}
+
 /** 冠军组合评估（相关性去重后的 top-N 因子组合，≥2 个可组合才返回） */
 export interface PortfolioResult {
   n_factors: number
@@ -162,6 +170,8 @@ export interface PortfolioResult {
   best_single_2x?: PortfolioMetrics
   /** 成员 token 列表与是否研究级(仅未过执行级门槛的组合救活来源) */
   members?: number[][]
+  /** 桌面端捕获的成员公式及单因子资格；旧任务仅有 members 也能展示。 */
+  member_details?: PortfolioMember[]
   member_research?: boolean[]
   any_member_research?: boolean
   /** 组合因子(勾选「组合因子」的任务):末代自动组合测试超级因子 */

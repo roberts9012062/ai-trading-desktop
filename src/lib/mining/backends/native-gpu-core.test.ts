@@ -89,6 +89,29 @@ describe("native GPU generation core", () => {
     expect(client.disposeSession).toHaveBeenCalledTimes(1)
   })
 
+  it("carries rescued portfolio formulas and qualification separately from the empty single-champion list", async () => {
+    const { client, result } = fixture(false)
+    const second = { ...result.rejected_candidates[0], tokens: [1], text: "f1" }
+    result.research_candidates.push(second)
+    result.rejected_candidates.push(second)
+    result.portfolio = { n_factors: 2, avg_abs_corr: .366,
+      equal: { ann_ret: .543, sortino: 1.89, calmar: 1 },
+      best_single: { ann_ret: .1, sortino: 1.35, calmar: 1 },
+      members: [[1], [0]], combo_super: true, combo_source: "rescued", super_passed: true }
+    client.precise.mockImplementation(async (_session, payload) => ({
+      ...structuredClone(result), portfolio: payload.final_generation ? structuredClone(result.portfolio) : null,
+    }))
+    const steps = []
+    for await (const step of runNativeGpuSession(client, hello, bars, request, new AbortController().signal)) steps.push(step)
+    expect(steps[0].nativePortfolio).toBeNull()
+    expect(steps.at(-1)?.champions).toEqual([])
+    expect(steps.at(-1)?.qualificationCounts).toMatchObject({ qualified: 0, rejected: 2 })
+    expect(steps.at(-1)?.nativePortfolio).toMatchObject({ super_passed: true, member_details: [
+      { tokens: [1], text: "f1", qualification_status: "rejected", rejection_reasons: ["wf_oos_evidence_missing"] },
+      { tokens: [0], text: "f0", qualification_status: "rejected", rejection_reasons: ["wf_oos_evidence_missing"] },
+    ] })
+  })
+
   it("releases the frozen session when numerical execution fails", async () => {
     const { client } = fixture()
     client.strictEval.mockRejectedValueOnce(new Error("CUDA lost"))

@@ -12,7 +12,57 @@
  * 通过 → 「★ 超级因子」徽标;不通过 → 红字「全部不合格」结论。
  */
 
+import { useState } from "react"
 import type { PortfolioMetrics, PortfolioResult } from "@/lib/factor-lab-api"
+import { qualificationReasonLabel } from "@/lib/native-engine/progress"
+
+function PortfolioMembers({ portfolio }: { portfolio: PortfolioResult }): React.JSX.Element | null {
+  const [copyMessage, setCopyMessage] = useState("")
+  const members = portfolio.members ?? []
+  if (!members.length) return null
+  const details = new Map((portfolio.member_details ?? []).map(row => [row.tokens.join(","), row]))
+  async function copyMembers() {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(members))
+      setCopyMessage("已复制")
+    } catch {
+      setCopyMessage("复制失败，可手动选择下方 tokens")
+    }
+  }
+  return (
+    <div className="w-full min-w-0 border-t border-amber-500/20 pt-2 space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium text-amber-500">超级因子成员（{members.length}）</span>
+        <span className="text-[var(--text-muted)]">组合已通过，单因子资格独立判断</span>
+        <button type="button" className="ml-auto text-[var(--accent)] hover:underline" onClick={() => void copyMembers()}>
+          复制成员 tokens
+        </button>
+        <span role="status">{copyMessage}</span>
+      </div>
+      <ol className="space-y-2">
+        {members.map((tokens, index) => {
+          const member = details.get(tokens.join(","))
+          const status = member?.qualification_status
+          return (
+            <li key={`${index}:${tokens.join(",")}`} className="rounded border border-[var(--border)] p-2 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span>成员 {index + 1}</span>
+                {status && <span className="text-[var(--text-muted)]">
+                  {status === "qualified" ? "单因子合格" : status === "pending" ? "单因子待验收" : "单因子未通过"}
+                </span>}
+              </div>
+              {member?.text && <div className="font-mono break-all">{member.text}</div>}
+              <div className="font-mono break-all select-text text-[var(--text-muted)]">tokens: {JSON.stringify(tokens)}</div>
+              {!!member?.rejection_reasons.length && <div className="text-[var(--text-muted)]">
+                {member.rejection_reasons.map(qualificationReasonLabel).join("；")}
+              </div>}
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
+}
 
 function MetricSpan(props: { label: string; m: PortfolioMetrics }): React.JSX.Element {
   const { label, m } = props
@@ -119,6 +169,7 @@ export function PortfolioCard(props: { portfolio: PortfolioResult }): React.JSX.
           组合测试未通过——本次挖掘产出全部不合格
         </span>
       )}
+      {superOk && <PortfolioMembers portfolio={portfolio} />}
     </div>
   )
 }

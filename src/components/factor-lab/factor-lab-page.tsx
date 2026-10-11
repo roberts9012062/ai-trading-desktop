@@ -382,6 +382,7 @@ export function FactorLabPage(): React.JSX.Element {
           )}
           <ChampionTable
             champions={s.result?.champions ?? []}
+            emptyMessage={s.result?.portfolio?.super_passed ? "暂无单独通过验收的冠军因子；已通过的超级因子及成员见下方组合结果" : undefined}
             selectedTokens={s.selected?.tokens ?? null}
             onSelect={(c) => void s.selectFactor(c)}
             onFavorite={(c) => setFavPending(championToFavoriteInput(c))}

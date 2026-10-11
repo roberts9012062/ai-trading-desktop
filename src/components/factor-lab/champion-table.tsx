@@ -24,6 +24,7 @@ interface ChampionTableProps {
   comboTimeframe?: string
   /** 超级因子成员 tokens key 集合（组合因子测试通过的成员行加「超级」标） */
   superMembers?: Set<string>
+  emptyMessage?: string
 }
 
 function tokenKey(tokens: number[]): string {
@@ -75,6 +76,7 @@ export function ChampionTable({
   comboSymbol,
   comboTimeframe,
   superMembers,
+  emptyMessage,
 }: ChampionTableProps): React.JSX.Element {
   // 本地 pending：点击收藏后立即置灰，避免重复点击；网络失败由调用方负责回退
   const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set())
@@ -85,7 +87,7 @@ export function ChampionTable({
   if (champions.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-[var(--border)] p-6 text-center text-xs text-[var(--text-muted)]">
-        暂无结果，先配置参数并执行搜索
+        {emptyMessage ?? "暂无结果，先配置参数并执行搜索"}
       </div>
     )
   }

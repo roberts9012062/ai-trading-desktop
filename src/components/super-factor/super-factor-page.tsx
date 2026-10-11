@@ -1294,6 +1294,7 @@ function TaskDetailPanel(props: DetailProps): React.JSX.Element {
           {task.portfolio && <PortfolioCard portfolio={task.portfolio} />}
           <ChampionTable
             champions={champions}
+            emptyMessage={task.portfolio?.super_passed ? "暂无单独通过验收的冠军因子；已通过的超级因子及成员见上方组合结果" : undefined}
             selectedTokens={null}
             onSelect={() => {}}
             onFavorite={handleFavorite}

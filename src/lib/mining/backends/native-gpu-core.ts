@@ -155,6 +155,19 @@ export async function* runNativeGpuSession(
       champions = publicChampions(result, hello.engine_version)
       bestSeen = result.best_seen
       const researchChampions = researchGradeChampions(result.rejected_candidates)
+      // Rescue members can all fail single-factor qualification. Capture their
+      // formulas before the runner persists only qualified/research champions.
+      const candidatesByTokens = new Map([
+        ...result.champions, ...result.pending_candidates, ...result.rejected_candidates,
+      ].map(row => [row.tokens.join(","), row]))
+      const portfolio = result.portfolio ? { ...result.portfolio,
+        member_details: (result.portfolio.members ?? []).flatMap(tokens => {
+          const row = candidatesByTokens.get(tokens.join(","))
+          return row ? [{ tokens: [...tokens], text: row.text,
+            qualification_status: row.qualification.status,
+            rejection_reasons: [...row.qualification.reasons] }] : []
+        }),
+      } : null
       const preciseMs = performance.now() - preciseStart
       yield {
         seedWarning,
@@ -165,7 +178,7 @@ export async function* runNativeGpuSession(
           qualified: champions.length, pending: result.pending_candidates.length, rejected: result.rejected_candidates.length },
         qualificationReasons: [...new Set([...result.pending_candidates, ...result.rejected_candidates].flatMap(row => row.qualification.reasons))],
         bestSeen, researchCandidates: result.research_candidates,
-        nativePortfolio: result.portfolio ?? null,
+        nativePortfolio: portfolio,
         pendingCandidates: result.pending_candidates, rejectedCandidates: result.rejected_candidates,
         researchChampions,
         gpuStats: { rankMs, preciseMs, evaluated: entries.length, cacheHits: entries.length - pending.size,
