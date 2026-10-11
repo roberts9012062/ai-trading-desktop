@@ -66,6 +66,16 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/__okx_static__/, ""),
       },
+      "/__okx_api__": {
+        target: "https://www.okx.com",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/__okx_api__/, ""),
+      },
+      "/__okx_app_api__": {
+        target: "https://app.okx.com",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/__okx_app_api__/, ""),
+      },
     },
   },
   build: {

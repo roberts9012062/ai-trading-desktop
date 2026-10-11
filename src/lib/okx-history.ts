@@ -2,7 +2,7 @@
  * The CloudFront host is static.okx.com's verified DNS CNAME, not a relay.
  * Only historical research uses this module; live execution is unchanged.
  */
-import { unzipSync } from "fflate"
+import { unzipSync, zipSync } from "fflate"
 import type { KlineBar } from "@/types"
 import { barTimeToMs, msToBarTime } from "./binance-kline"
 import { cryptoPair } from "./crypto-direct"
@@ -69,12 +69,21 @@ class MissingContractVolume extends Error {
   constructor(readonly time: number) { super("OKX 旧归档缺基础币成交量，需要校验同期合约面值") }
 }
 class ArchiveContentsError extends Error {}
+class ContractVolumeMismatch extends Error {
+  constructor() { super("OKX 合约数量换算不一致") }
+}
 // Earliest legacy packages omit vol_ccy. Validate units against an official
 // contemporaneous complete archive, rather than hardcoding BTC/ETH multipliers.
 const LEGACY_UNIT_DAY = "2023-08-25"
 const legacyUnits = new Map<string, number>()
 
 export function parseOkxCandles(text: string, symbol: string, contractValue?: number): MinuteBar[] {
+  return readCandleRows(text,symbol,contractValue,true)
+}
+
+// The unchecked volume mode is private to cross-source repair. These rows
+// never leave the repair routine or reach a cache/research snapshot directly.
+function readCandleRows(text: string, symbol: string, contractValue: number | undefined, verifyUnits: boolean): MinuteBar[] {
   const instrument = okxInstrument(symbol), bars: MinuteBar[] = []
   const byTime = new Map<number, MinuteBar>()
   let unit = contractValue
@@ -88,9 +97,9 @@ export function parseOkxCandles(text: string, symbol: string, contractValue?: nu
     // Historical official files also tag fully elapsed candles with confirm=0.
     // Completion follows elapsed minute time in this archive-only reader.
     if (t+60000 > Date.now()) return
-    if (base != null && contracts > 0) {
+    if (verifyUnits && base != null && contracts > 0) {
       const ratio = base/contracts
-      if (!(ratio > 0) || (unit != null && Math.abs(ratio/unit-1) > 1e-7)) throw new Error("OKX 合约数量换算不一致")
+      if (!(ratio > 0) || (unit != null && Math.abs(ratio/unit-1) > 1e-7)) throw new ContractVolumeMismatch()
       unit = ratio
     }
     const bar: MinuteBar = {time:msToBarTime(t,false), open:o,high:h,low:l,close:cl,volume:base ?? (contracts === 0 ? 0 : NaN),quote_volume:quote,
@@ -159,12 +168,102 @@ export function archiveCsv(zip: Uint8Array): string {
 }
 
 function archiveKey(kind: OkxArchiveKind, symbol: string, key: string): string { return `okx-v1:${kind}:${okxInstrument(symbol)}:${key}` }
-async function validateArchive(kind: OkxArchiveKind, symbol: string, key: string, bytes: Uint8Array, signal?: AbortSignal): Promise<void> {
+const CANDLE_HEADER = "instrument_name,open,high,low,close,vol,vol_ccy,vol_quote,open_time,confirm\n"
+const API_HOSTS = ["https://www.okx.com","https://app.okx.com"]
+function checkStopped(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new DOMException("已停止","AbortError")
+}
+function pauseApi(signal?: AbortSignal): Promise<void> {
+  checkStopped(signal)
+  return new Promise((resolve,reject) => {
+    const abort = () => { clearTimeout(timer); reject(new DOMException("已停止","AbortError")) }
+    const timer = setTimeout(() => { signal?.removeEventListener("abort",abort); resolve() },200)
+    signal?.addEventListener("abort",abort,{once:true})
+  })
+}
+async function officialCandlePage(symbol: string, after: number, signal?: AbortSignal): Promise<unknown> {
+  let error: unknown
+  for (const host of API_HOSTS) {
+    checkStopped(signal)
+    const controller = new AbortController(), relay = () => controller.abort()
+    signal?.addEventListener("abort",relay,{once:true})
+    const timer = setTimeout(relay,30000)
+    try {
+      const base = import.meta.env.DEV && typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window)
+        ? (host === API_HOSTS[0] ? "/__okx_api__" : "/__okx_app_api__") : host
+      const response = await fetch(`${base}/api/v5/market/history-candles?instId=${okxInstrument(symbol)}&bar=1m&after=${after}&limit=300`,
+        {signal:controller.signal,credentials:"omit",headers:{"User-Agent":"Mozilla/5.0"}})
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const payload: unknown = await response.json()
+      checkStopped(signal)
+      return payload
+    } catch (e) { checkStopped(signal); error = e }
+    finally { clearTimeout(timer); signal?.removeEventListener("abort",relay) }
+  }
+  throw new Error(`OKX 官方 API 直连校验失败：${error instanceof Error ? error.message : String(error)}`)
+}
+
+/** Some official SOL ZIPs (including 2024-04 daily AND monthly) have corrupt
+ * vol_ccy. Replace only that field after independent official API OHLC,
+ * contract volume and turnover agree for EVERY archive minute. No synthetic
+ * bars, hardcoded face value, server relay or tolerance relaxation. */
+async function repairArchiveVolume(symbol: string, key: string, bytes: Uint8Array, signal?: AbortSignal, progress?: (msg:string)=>void): Promise<Uint8Array> {
+  const original = readCandleRows(archiveCsv(bytes),symbol,undefined,false)
+  if (!original.length || original.some(b=>!okxArchiveDate(b.open_time!).startsWith(key))) throw new Error("OKX K线文件日期与请求不匹配或文件为空")
+  const pending = new Map(original.map(b=>[b.open_time!,b]))
+  const verified = new Map<number,string>()
+  const first = original[0]!.open_time!
+  let cursor = original.at(-1)!.open_time!+60000, pages = 0
+  progress?.(`OKX ${key} 归档成交量异常，本机直连官方 API 交叉校验…`)
+  while (cursor > first) {
+    checkStopped(signal)
+    if (pages++) await pauseApi(signal)
+    // One calendar month is the largest package; also bound malformed pagination.
+    if (pages > 45000) throw new Error("OKX API 分页超出归档范围")
+    const payload = await officialCandlePage(symbol,cursor,signal) as {code?:unknown;data?:unknown}
+    if (!payload || payload.code !== "0" || !Array.isArray(payload.data) || payload.data.length > 300) throw new Error("OKX API 校验响应非法")
+    if (!payload.data.length) throw new Error("OKX API 缺少归档分钟，无法修复成交量")
+    const apiRows: string[] = []
+    let previous = cursor
+    for (const row of payload.data) {
+      if (!Array.isArray(row) || row.length !== 9 || row.some(v=>typeof v !== "string" || /[,\r\n]/.test(v))) throw new Error("OKX API K线行非法")
+      const r = row as string[], t = numeric(r[0])
+      if (t >= previous) throw new Error("OKX API 分页时间回退或重复")
+      previous = t
+      if (r[8] !== "1") throw new Error("OKX API 返回未收盘K线，无法校验归档")
+      apiRows.push(`${okxInstrument(symbol)},${r.slice(1,8).join(",")},${r[0]},1`)
+    }
+    // The same strict parser verifies official API units, OHLC, time and values.
+    for (const b of parseOkxCandles(CANDLE_HEADER+apiRows.toReversed().join("\n"),symbol)) {
+      const old = pending.get(b.open_time!)
+      if (!old) continue // Preserve gaps in the ZIP; never add API-only minutes.
+      if (["open","high","low","close","contract_volume","quote_volume"].some(k=>old[k as keyof MinuteBar] !== b[k as keyof MinuteBar])) {
+        throw new Error(`OKX API 与归档交叉校验不一致（${b.open_time}），停止成交量修复`)
+      }
+      verified.set(b.open_time!,`${okxInstrument(symbol)},${b.open},${b.high},${b.low},${b.close},${b.contract_volume},${b.volume},${b.quote_volume ?? "None"},${b.open_time},1`)
+      pending.delete(b.open_time!)
+    }
+    cursor = previous
+    progress?.(`OKX ${key} 官方 API 交叉校验 ${verified.size}/${original.length} 根…`)
+  }
+  if (pending.size) throw new Error(`OKX API 缺少 ${pending.size} 根归档分钟，无法修复成交量`)
+  const repaired = CANDLE_HEADER+original.map(b=>verified.get(b.open_time!)!).join("\n")
+  parseOkxCandles(repaired,symbol) // Also verify a single contract unit across pages.
+  checkStopped(signal)
+  return zipSync({
+    "candles.csv":new TextEncoder().encode(repaired),
+    "repair.json":new TextEncoder().encode(JSON.stringify({source:"okx-history-candles",hosts:API_HOSTS,instrument:okxInstrument(symbol),key,
+      rows:original.length,originalSha256:sha256Hex(bytes),repairedAt:new Date().toISOString()})),
+  })
+}
+
+async function validateArchive(kind: OkxArchiveKind, symbol: string, key: string, bytes: Uint8Array, signal?: AbortSignal, progress?: (msg:string)=>void): Promise<Uint8Array> {
   if (kind === "candles") {
     const csv = archiveCsv(bytes)
     let bars: MinuteBar[]
     try { bars = parseOkxCandles(csv,symbol) }
     catch (e) {
+      if (e instanceof ContractVolumeMismatch) return repairArchiveVolume(symbol,key,bytes,signal,progress)
       if (!(e instanceof MissingContractVolume)) throw e
       if (e.time >= okxArchiveDayStart(LEGACY_UNIT_DAY) || key === LEGACY_UNIT_DAY) throw e
       const reference = await fetchOkxArchive("candles",symbol,LEGACY_UNIT_DAY,signal)
@@ -179,6 +278,7 @@ async function validateArchive(kind: OkxArchiveKind, symbol: string, key: string
     const events = parseOkxFunding(archiveCsv(bytes),symbol)
     if (!events.length || events.some(e => !okxArchiveDate(e.t).startsWith(key))) throw new Error("OKX 资金费文件日期与请求不匹配或文件为空")
   }
+  return bytes
 }
 async function cachedArchive(kind: OkxArchiveKind, symbol: string, key: string): Promise<Uint8Array | null> {
   const db = await openDb()
@@ -213,13 +313,22 @@ async function saveArchive(kind: OkxArchiveKind, symbol: string, key: string, by
   await idbPut(db,OKX_ARCHIVE_STORE,{key:archiveKey(kind,symbol,key),bytes,sha256:sha256Hex(bytes),savedAt:Date.now(),byteLength:bytes.byteLength})
 }
 
-/** All network requests go to official public files, without credentials. No API_BASE fallback. */
-export async function fetchOkxArchive(kind: OkxArchiveKind, symbol: string, key: string, signal?: AbortSignal): Promise<Uint8Array | null> {
+/** Official public files/API only, without credentials. No API_BASE fallback. */
+export async function fetchOkxArchive(kind: OkxArchiveKind, symbol: string, key: string, signal?: AbortSignal, progress?: (msg:string)=>void): Promise<Uint8Array | null> {
   if (signal?.aborted) throw new DOMException("已停止", "AbortError")
   // Validate before cache/network lookup.
   okxArchiveUrl(kind,symbol,key)
   const saved = await cachedArchive(kind,symbol,key)
-  if (saved) { await validateArchive(kind,symbol,key,saved,signal); return saved }
+  if (saved) {
+    try {
+      const checked = await validateArchive(kind,symbol,key,saved,signal,progress)
+      if (checked !== saved) await saveArchive(kind,symbol,key,checked)
+      return checked
+    } catch (e) {
+      checkStopped(signal)
+      throw new Error(`OKX 官方历史文件校验失败（${key}）：${e instanceof Error ? e.message : String(e)}；不会转发服务器`)
+    }
+  }
   let error: unknown
   for (const origin of [CDN,OFFICIAL]) {
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -231,10 +340,11 @@ export async function fetchOkxArchive(kind: OkxArchiveKind, symbol: string, key:
         const response = await fetch(okxArchiveUrl(kind,symbol,key,origin),{signal:controller.signal,credentials:"omit"})
         if (response.status === 404) return null
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
-        const bytes = new Uint8Array(await response.arrayBuffer())
+        let bytes: Uint8Array = new Uint8Array(await response.arrayBuffer())
+        clearTimeout(timer) // API repair has a separate cancellable per-page timeout.
         if (signal?.aborted) throw new DOMException("已停止", "AbortError")
         // Validate contents before persisting (trades are parsed in a Worker).
-        try { await validateArchive(kind,symbol,key,bytes,signal) }
+        try { bytes = await validateArchive(kind,symbol,key,bytes,signal,progress) }
         catch (e) {
           if (signal?.aborted) throw new DOMException("已停止", "AbortError")
           throw new ArchiveContentsError(e instanceof Error ? e.message : String(e))
@@ -342,12 +452,12 @@ export async function fetchOkxHistoryRange(symbol: string, period: string, from:
     const now = new Date(Date.now()+BJ)
     const useMonth = monthEnd <= Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),1)-BJ
     let zip: Uint8Array | null = null
-    if (useMonth) { progress?.(`本机下载 OKX K线月包 ${month}…`); zip = await fetchOkxArchive("candles",symbol,month) }
+    if (useMonth) { progress?.(`本机下载 OKX K线月包 ${month}…`); zip = await fetchOkxArchive("candles",symbol,month,undefined,progress) }
     if (zip) {
       append(parseOkxCandles(archiveCsv(zip),symbol)); cursor=monthEnd
     } else {
       const day = d.toISOString().slice(0,10); progress?.(`本机下载 OKX K线日包 ${day}…`)
-      zip = await fetchOkxArchive("candles",symbol,day)
+      zip = await fetchOkxArchive("candles",symbol,day,undefined,progress)
       if (!zip) throw new Error(`OKX ${day} K线归档未发布或该合约无数据，请调整研究区间；不会转发服务器`)
       append(parseOkxCandles(archiveCsv(zip),symbol)); cursor += DAY
     }

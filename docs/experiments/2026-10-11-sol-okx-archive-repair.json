@@ -1,0 +1,50 @@
+{
+  "instrument": "SOL-USDT-SWAP",
+  "key": "2024-04",
+  "minutes": 43200,
+  "incorrectBaseVolumeMinutes": 17725,
+  "originalZipSha256": "00d48a1128ddcf217277425711c2448a01cc9bf248f977beb2cf74cfcc6c3fa5",
+  "examples": [
+    {
+      "timestamp": 1712816640000,
+      "archiveBaseVolume": 2252.0,
+      "apiBaseVolume": 2253.3,
+      "contractVolume": 2253.3,
+      "quoteVolume": 391728.408
+    },
+    {
+      "timestamp": 1712816700000,
+      "archiveBaseVolume": 905.0,
+      "apiBaseVolume": 911.6,
+      "contractVolume": 911.6,
+      "quoteVolume": 158453.052
+    },
+    {
+      "timestamp": 1712816760000,
+      "archiveBaseVolume": 1589.0,
+      "apiBaseVolume": 1585.7,
+      "contractVolume": 1585.7,
+      "quoteVolume": 275704.569
+    }
+  ],
+  "verification": {
+    "archiveMinutes": 43200,
+    "dailyBars": 30,
+    "apiPages": 144,
+    "contractUnit": 1,
+    "allPricesContractsTurnoverMatch": true,
+    "allRepairedBaseVolumesMatchApi": true,
+    "provenance": {
+      "source": "okx-history-candles",
+      "hosts": [
+        "https://www.okx.com",
+        "https://app.okx.com"
+      ],
+      "instrument": "SOL-USDT-SWAP",
+      "key": "2024-04",
+      "rows": 43200,
+      "originalSha256": "00d48a1128ddcf217277425711c2448a01cc9bf248f977beb2cf74cfcc6c3fa5",
+      "repairedAt": "2026-10-11T13:46:55.020Z"
+    }
+  }
+}
