@@ -9,15 +9,19 @@ const flights = new Map<string, Promise<unknown>>()
 const cache = new Map<string, { until: number; data: unknown }>()
 export function resetSnippetRest(): void { retryAt = 0; cache.clear() }
 
-export async function snippetPublicGet(path: string, timeoutMs = 6000): Promise<unknown[]> {
+export async function snippetPublicGet(path: string, timeoutMs = 6000, signal?: AbortSignal): Promise<unknown[]> {
+  const checkStopped = () => { if (signal?.aborted) throw new DOMException("已停止","AbortError") }
+  checkStopped()
   if (Date.now() < retryAt) throw new Error("Snippet 冷却中")
   const origin = snippetOrigin("rest"), started = Date.now()
   let response: Response
-  try { response = await fetch(origin + path, { signal: AbortSignal.timeout(timeoutMs), cache: "no-store", redirect: "error" }) }
-  catch (error) { await snippetFailed("rest", origin); throw error }
+  const timeout = AbortSignal.timeout(timeoutMs)
+  try { response = await fetch(origin + path, { signal: signal ? AbortSignal.any([signal,timeout]) : timeout, cache: "no-store", redirect: "error", credentials:"omit" }) }
+  catch (error) { checkStopped(); await snippetFailed("rest", origin); throw error }
   let payload
   try { payload = await response.json() }
-  catch (error) { await snippetFailed("rest", origin); throw error }
+  catch (error) { checkStopped(); await snippetFailed("rest", origin); throw error }
+  checkStopped()
   if (!response.ok || payload.code !== "0" || !Array.isArray(payload.data)) {
     retryAt = Date.now() + (response.status === 429 || payload.code === "50011" ? 60000 : 15000)
     await snippetFailed("rest", origin, response.status === 429 || payload.code === "50011")

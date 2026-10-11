@@ -21,13 +21,16 @@ afterEach(()=>vi.unstubAllGlobals())
 
 function network(api:(url:URL)=>Response|Promise<Response>,archive=zip) {
   const fn=vi.fn(async(url:string,init?:RequestInit)=>{
+    if(url.endsWith("/api/market/snippet-pool/lease"))return Response.json({nodes:{rest:{id:"assigned",name:"assigned",kind:"rest",url:"https://assigned.example"}}})
     expect(init?.credentials).toBe("omit")
     if(url.includes("/cdn/"))return new Response(archive as BodyInit)
     const parsed=new URL(url)
-    expect(["www.okx.com","app.okx.com"]).toContain(parsed.hostname)
+    expect(["okx-rest-test.kins.eu.org","assigned.example"]).toContain(parsed.hostname)
+    expect(init?.headers).toBeUndefined()
     expect(parsed.pathname).toBe("/api/v5/market/history-candles")
     expect(parsed.searchParams.get("instId")).toBe("SOL-USDT-SWAP")
     expect(parsed.searchParams.get("bar")).toBe("1m")
+    expect(parsed.searchParams.get("limit")).toBe("100") // Snippets history whitelist.
     return api(parsed)
   })
   vi.stubGlobal("fetch",fn);return fn
@@ -43,7 +46,7 @@ describe("verified official API repair of corrupt archive base volume",()=>{
     expect(bars.map(b=>b.volume)).toEqual([2253.3,911.6,1585.7])
     expect(h.contractValueFromCandles(bars)).toBe(1)
     const manifest=JSON.parse(new TextDecoder().decode(unzipSync(result!)["repair.json"]))
-    expect(manifest).toMatchObject({source:"okx-history-candles",instrument:"SOL-USDT-SWAP",key:"2024-04",rows:3})
+    expect(manifest).toMatchObject({source:"okx-history-candles",transport:"snippets",proxyOrigins:["https://okx-rest-test.kins.eu.org"],instrument:"SOL-USDT-SWAP",key:"2024-04",rows:3})
     expect(manifest.originalSha256).toMatch(/^[a-f0-9]{64}$/)
     expect(await h.fetchOkxArchive("candles","SOLUSDT","2024-04")).toEqual(result)
     expect(fn).toHaveBeenCalledTimes(2)
@@ -56,12 +59,23 @@ describe("verified official API repair of corrupt archive base volume",()=>{
     expect(h.parseOkxCandles(h.archiveCsv(result!),"SOLUSDT")).toHaveLength(3)
     expect(fn).toHaveBeenCalledTimes(3)
   })
-  it("tries the second official API host after a transport failure",async()=>{
-    const fn=network(url=>url.hostname==="www.okx.com" ?new Response(null,{status:503}):payload())
+  it("uses the authenticated pool assignment without sending the product token to the proxy",async()=>{
+    vi.stubGlobal("localStorage",{getItem:(key:string)=>key==="access_token"?"test-product-token":null})
+    const fn=network(()=>payload())
     const h=await import("./okx-history")
     const result=await h.fetchOkxArchive("candles","SOLUSDT","2024-04")
     expect(h.parseOkxCandles(h.archiveCsv(result!),"SOLUSDT")[0]!.volume).toBe(2253.3)
-    expect(fn).toHaveBeenCalledTimes(3)
+    const requests=fn.mock.calls.filter(([url])=>url.includes("/history-candles"))
+    expect(requests).toHaveLength(1)
+    expect(requests[0]![0]).toContain("https://assigned.example/")
+    expect(requests[0]![1]?.headers).toBeUndefined()
+    expect(fn.mock.calls.every(([url])=>!url.includes("www.okx.com")&&!url.includes("app.okx.com"))).toBe(true)
+  })
+  it("reports a proxy failure without trying unreachable official domains",async()=>{
+    const fn=network(()=>{throw new Error("proxy network unavailable")})
+    const h=await import("./okx-history")
+    await expect(h.fetchOkxArchive("candles","SOLUSDT","2024-04")).rejects.toThrow(/Snippets.*校验失败/)
+    expect(fn).toHaveBeenCalledTimes(2)
   })
   it("repairs and replaces a hash-valid old cache entry without redownloading the ZIP",async()=>{
     const {openDb,idbPut,OKX_ARCHIVE_STORE}=await import("./idb")
@@ -114,11 +128,39 @@ describe("verified official API repair of corrupt archive base volume",()=>{
     await expect(h.fetchOkxArchive("candles","SOLUSDT","2024-04",controller.signal)).rejects.toMatchObject({name:"AbortError"})
     expect(fn).toHaveBeenCalledTimes(2)
   })
+  it.skipIf(process.env.RUN_OKX_SNIPPET_LIVE!=="1")("repairs real corrupt SOL rows through the deployed Snippets endpoint",async()=>{
+    const {execFile}=await import("node:child_process")
+    const {promisify}=await import("node:util")
+    const {writeFileSync}=await import("node:fs")
+    const curl=promisify(execFile)
+    const requested:string[]=[]
+    vi.stubGlobal("fetch",async(url:string,init?:RequestInit)=>{
+      if(url.includes("/cdn/"))return new Response(zip as BodyInit)
+      expect(url.startsWith("https://okx-rest-test.kins.eu.org/api/v5/market/history-candles?")).toBe(true)
+      expect(new URL(url).searchParams.get("limit")).toBe("100")
+      expect(init?.headers).toBeUndefined();expect(init?.credentials).toBe("omit")
+      requested.push(url)
+      // Use this session's configured transport proxy without placing its value
+      // in command arguments/logs. The application URL remains the Snippets URL.
+      const {stdout}=await curl("curl.exe",["-sS","--fail-with-body","--max-time","25",url],{
+        env:{...process.env,...(process.env.HTTP_PROXY?{HTTPS_PROXY:process.env.HTTP_PROXY}:{})},
+        signal:init?.signal??undefined,maxBuffer:1024*1024,
+      })
+      return new Response(stdout,{headers:{"Content-Type":"application/json"}})
+    })
+    const h=await import("./okx-history")
+    const result=await h.fetchOkxArchive("candles","SOLUSDT","2024-04")
+    expect(h.parseOkxCandles(h.archiveCsv(result!),"SOLUSDT").map(b=>b.volume)).toEqual([2253.3,911.6,1585.7])
+    expect(requested).toHaveLength(1)
+    writeFileSync(".local-data/okx-sol-snippet-live-verification.json",JSON.stringify({at:new Date().toISOString(),ok:true,
+      transport:"snippets",requests:requested,repairedMinutes:3,baseVolumes:[2253.3,911.6,1585.7],
+      provenance:JSON.parse(new TextDecoder().decode(unzipSync(result!)["repair.json"]))},null,2))
+  },60000)
   it.skipIf(process.env.RUN_OKX_SOL_REPAIR_REAL!=="1")("cross-checks every minute in the actual SOL April 2024 monthly archive",async()=>{
     const {readFileSync,writeFileSync}=await import("node:fs")
     const archive=new Uint8Array(readFileSync(".local-data/SOL-USDT-SWAP-candlesticks-2024-04.zip"))
     const data=JSON.parse(readFileSync(".local-data/SOL-USDT-SWAP-api-2024-04.json","utf8")).rows as string[][]
-    const fn=network(url=>payload(data.filter(r=>Number(r[0])<Number(url.searchParams.get("after"))).slice(-300).reverse()),archive)
+    const fn=network(url=>payload(data.filter(r=>Number(r[0])<Number(url.searchParams.get("after"))).slice(-100).reverse()),archive)
     const h=await import("./okx-history")
     expect(()=>h.parseOkxCandles(h.archiveCsv(archive),"SOLUSDT")).toThrow(/换算不一致/)
     const result=await h.fetchOkxArchive("candles","SOLUSDT","2024-04")
@@ -131,5 +173,5 @@ describe("verified official API repair of corrupt archive base volume",()=>{
     writeFileSync(".local-data/okx-sol-repair-verification.json",JSON.stringify({archiveMinutes:bars.length,dailyBars:30,apiPages:fn.mock.calls.length-1,
       contractUnit:1,allPricesContractsTurnoverMatch:true,allRepairedBaseVolumesMatchApi:true,
       provenance:JSON.parse(new TextDecoder().decode(unzipSync(result!)["repair.json"]))},null,2))
-  },90000)
+  },180000)
 })

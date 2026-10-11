@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 const policy=vi.hoisted(()=>({server:false}))
 vi.mock('./desktop-routing',()=>({ensureDesktopRouting:async()=>{},isServerMode:()=>policy.server}))
-import { resetSnippetRest, snippetKlines, withSnippetRead } from './snippet-rest'
+import { resetSnippetRest, snippetKlines, withSnippetRead, snippetPublicGet } from './snippet-rest'
 beforeEach(()=>{resetSnippetRest();policy.server=false;vi.useFakeTimers()})
 afterEach(()=>{vi.useRealTimers();vi.unstubAllGlobals()})
 it('falls back and cools down for 60 seconds after native 50011',async()=>{
@@ -39,4 +39,13 @@ it('converts daily Beijing pagination cursor and never sends credentials',async(
   const [url,init]=fetch.mock.calls[0]
   expect(new URL(url).searchParams.get('after')).toBe(String(Date.parse('2026-10-01T00:00:00+08:00')))
   expect(new URL(url).searchParams.get('limit')).toBe('100');expect(init.headers).toBeUndefined()
+})
+it('cancels archive reads before requesting a proxy and after receiving a response',async()=>{
+  const before=new AbortController();before.abort()
+  const fetch=vi.fn().mockResolvedValue(Response.json({code:'0',data:[]}));vi.stubGlobal('fetch',fetch)
+  await expect(snippetPublicGet('/api/v5/public/time',30000,before.signal)).rejects.toMatchObject({name:'AbortError'})
+  expect(fetch).not.toHaveBeenCalled()
+  const during=new AbortController()
+  fetch.mockImplementation(async()=>{during.abort();return Response.json({code:'0',data:[]})})
+  await expect(snippetPublicGet('/api/v5/public/time',30000,during.signal)).rejects.toMatchObject({name:'AbortError'})
 })

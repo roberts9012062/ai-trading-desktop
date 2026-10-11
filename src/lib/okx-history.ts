@@ -9,6 +9,8 @@ import { cryptoPair } from "./crypto-direct"
 import { openDb, idbGet, idbPut, idbDelete, OKX_ARCHIVE_STORE } from "./idb"
 import { sha256Hex, type TickBucket } from "./shortline/digest"
 import { BucketAccumulator } from "./shortline/bucket-stream"
+import { snippetPublicGet } from "./snippet-rest"
+import { refreshSnippetPool, snippetOrigin } from "./snippet-pool"
 
 export type OkxArchiveKind = "candles" | "trades" | "funding"
 export type ShortlineHistorySource = "okx" | "binance_usdt"
@@ -169,7 +171,6 @@ export function archiveCsv(zip: Uint8Array): string {
 
 function archiveKey(kind: OkxArchiveKind, symbol: string, key: string): string { return `okx-v1:${kind}:${okxInstrument(symbol)}:${key}` }
 const CANDLE_HEADER = "instrument_name,open,high,low,close,vol,vol_ccy,vol_quote,open_time,confirm\n"
-const API_HOSTS = ["https://www.okx.com","https://app.okx.com"]
 function checkStopped(signal?: AbortSignal): void {
   if (signal?.aborted) throw new DOMException("已停止","AbortError")
 }
@@ -181,47 +182,43 @@ function pauseApi(signal?: AbortSignal): Promise<void> {
     signal?.addEventListener("abort",abort,{once:true})
   })
 }
-async function officialCandlePage(symbol: string, after: number, signal?: AbortSignal): Promise<unknown> {
-  let error: unknown
-  for (const host of API_HOSTS) {
+async function snippetCandlePage(symbol: string, after: number, signal?: AbortSignal): Promise<{data:unknown[];origin:string}> {
+  checkStopped(signal)
+  try {
+    await refreshSnippetPool()
     checkStopped(signal)
-    const controller = new AbortController(), relay = () => controller.abort()
-    signal?.addEventListener("abort",relay,{once:true})
-    const timer = setTimeout(relay,30000)
-    try {
-      const base = import.meta.env.DEV && typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window)
-        ? (host === API_HOSTS[0] ? "/__okx_api__" : "/__okx_app_api__") : host
-      const response = await fetch(`${base}/api/v5/market/history-candles?instId=${okxInstrument(symbol)}&bar=1m&after=${after}&limit=300`,
-        {signal:controller.signal,credentials:"omit",headers:{"User-Agent":"Mozilla/5.0"}})
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      const payload: unknown = await response.json()
-      checkStopped(signal)
-      return payload
-    } catch (e) { checkStopped(signal); error = e }
-    finally { clearTimeout(timer); signal?.removeEventListener("abort",relay) }
+    const origin = snippetOrigin("rest")
+    // The deployed Snippets whitelist caps history-candles at 100, not 300.
+    const data = await snippetPublicGet(`/api/v5/market/history-candles?instId=${okxInstrument(symbol)}&bar=1m&after=${after}&limit=100`,30000,signal)
+    checkStopped(signal)
+    return {data,origin}
+  } catch (e) {
+    checkStopped(signal)
+    throw new Error(`OKX Snippets 代理校验失败：${e instanceof Error ? e.message : String(e)}`)
   }
-  throw new Error(`OKX 官方 API 直连校验失败：${error instanceof Error ? error.message : String(error)}`)
 }
 
 /** Some official SOL ZIPs (including 2024-04 daily AND monthly) have corrupt
- * vol_ccy. Replace only that field after independent official API OHLC,
- * contract volume and turnover agree for EVERY archive minute. No synthetic
+ * vol_ccy. Replace only that field after official API data via Snippets matches
+ * OHLC, contract volume and turnover for EVERY archive minute. No synthetic
  * bars, hardcoded face value, server relay or tolerance relaxation. */
 async function repairArchiveVolume(symbol: string, key: string, bytes: Uint8Array, signal?: AbortSignal, progress?: (msg:string)=>void): Promise<Uint8Array> {
   const original = readCandleRows(archiveCsv(bytes),symbol,undefined,false)
   if (!original.length || original.some(b=>!okxArchiveDate(b.open_time!).startsWith(key))) throw new Error("OKX K线文件日期与请求不匹配或文件为空")
   const pending = new Map(original.map(b=>[b.open_time!,b]))
   const verified = new Map<number,string>()
+  const proxyOrigins = new Set<string>()
   const first = original[0]!.open_time!
   let cursor = original.at(-1)!.open_time!+60000, pages = 0
-  progress?.(`OKX ${key} 归档成交量异常，本机直连官方 API 交叉校验…`)
+  progress?.(`OKX ${key} 归档成交量异常，经 Snippets 代理交叉校验官方数据…`)
   while (cursor > first) {
     checkStopped(signal)
     if (pages++) await pauseApi(signal)
     // One calendar month is the largest package; also bound malformed pagination.
     if (pages > 45000) throw new Error("OKX API 分页超出归档范围")
-    const payload = await officialCandlePage(symbol,cursor,signal) as {code?:unknown;data?:unknown}
-    if (!payload || payload.code !== "0" || !Array.isArray(payload.data) || payload.data.length > 300) throw new Error("OKX API 校验响应非法")
+    const payload = await snippetCandlePage(symbol,cursor,signal)
+    proxyOrigins.add(payload.origin)
+    if (payload.data.length > 100) throw new Error("OKX Snippets API 校验响应超出分页上限")
     if (!payload.data.length) throw new Error("OKX API 缺少归档分钟，无法修复成交量")
     const apiRows: string[] = []
     let previous = cursor
@@ -244,7 +241,7 @@ async function repairArchiveVolume(symbol: string, key: string, bytes: Uint8Arra
       pending.delete(b.open_time!)
     }
     cursor = previous
-    progress?.(`OKX ${key} 官方 API 交叉校验 ${verified.size}/${original.length} 根…`)
+    progress?.(`OKX ${key} Snippets 交叉校验 ${verified.size}/${original.length} 根…`)
   }
   if (pending.size) throw new Error(`OKX API 缺少 ${pending.size} 根归档分钟，无法修复成交量`)
   const repaired = CANDLE_HEADER+original.map(b=>verified.get(b.open_time!)!).join("\n")
@@ -252,7 +249,7 @@ async function repairArchiveVolume(symbol: string, key: string, bytes: Uint8Arra
   checkStopped(signal)
   return zipSync({
     "candles.csv":new TextEncoder().encode(repaired),
-    "repair.json":new TextEncoder().encode(JSON.stringify({source:"okx-history-candles",hosts:API_HOSTS,instrument:okxInstrument(symbol),key,
+    "repair.json":new TextEncoder().encode(JSON.stringify({source:"okx-history-candles",transport:"snippets",proxyOrigins:[...proxyOrigins],instrument:okxInstrument(symbol),key,
       rows:original.length,originalSha256:sha256Hex(bytes),repairedAt:new Date().toISOString()})),
   })
 }
@@ -313,7 +310,7 @@ async function saveArchive(kind: OkxArchiveKind, symbol: string, key: string, by
   await idbPut(db,OKX_ARCHIVE_STORE,{key:archiveKey(kind,symbol,key),bytes,sha256:sha256Hex(bytes),savedAt:Date.now(),byteLength:bytes.byteLength})
 }
 
-/** Official public files/API only, without credentials. No API_BASE fallback. */
+/** Official files + public API via the assigned Snippets node; no server kline fallback. */
 export async function fetchOkxArchive(kind: OkxArchiveKind, symbol: string, key: string, signal?: AbortSignal, progress?: (msg:string)=>void): Promise<Uint8Array | null> {
   if (signal?.aborted) throw new DOMException("已停止", "AbortError")
   // Validate before cache/network lookup.

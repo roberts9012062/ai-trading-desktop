@@ -1,0 +1,64 @@
+{
+  "version": "0.2.177",
+  "regression": {
+    "filesPassed": 10,
+    "testsPassed": 56,
+    "optionalTestsSkipped": 2
+  },
+  "typecheck": "passed",
+  "frontendBuild": "passed",
+  "liveProxyPage": {
+    "origin": "https://okx-rest-test.kins.eu.org",
+    "after": 1714492800000,
+    "requestedLimit": 100,
+    "responseCode": "0",
+    "returnedRows": 100
+  },
+  "liveCorruptRowRepair": {
+    "at": "2026-10-11T14:46:28.754Z",
+    "ok": true,
+    "transport": "snippets",
+    "requests": [
+      "https://okx-rest-test.kins.eu.org/api/v5/market/history-candles?instId=SOL-USDT-SWAP&bar=1m&after=1712816820000&limit=100"
+    ],
+    "repairedMinutes": 3,
+    "baseVolumes": [
+      2253.3,
+      911.6,
+      1585.7
+    ],
+    "provenance": {
+      "source": "okx-history-candles",
+      "transport": "snippets",
+      "proxyOrigins": [
+        "https://okx-rest-test.kins.eu.org"
+      ],
+      "instrument": "SOL-USDT-SWAP",
+      "key": "2024-04",
+      "rows": 3,
+      "originalSha256": "7871c7b9f0d5b84747236512672933abdee2b3d24df161872394d5ef6f0a839a",
+      "repairedAt": "2026-10-11T14:46:28.750Z"
+    }
+  },
+  "fullMonthReplay": {
+    "networkMode": "replayed previously downloaded official API responses through mocked Snippets URLs",
+    "archiveMinutes": 43200,
+    "dailyBars": 30,
+    "apiPages": 432,
+    "contractUnit": 1,
+    "allPricesContractsTurnoverMatch": true,
+    "allRepairedBaseVolumesMatchApi": true,
+    "provenance": {
+      "source": "okx-history-candles",
+      "transport": "snippets",
+      "proxyOrigins": [
+        "https://okx-rest-test.kins.eu.org"
+      ],
+      "instrument": "SOL-USDT-SWAP",
+      "key": "2024-04",
+      "rows": 43200,
+      "originalSha256": "00d48a1128ddcf217277425711c2448a01cc9bf248f977beb2cf74cfcc6c3fa5",
+      "repairedAt": "2026-10-11T14:48:38.502Z"
+    }
+  }
+}

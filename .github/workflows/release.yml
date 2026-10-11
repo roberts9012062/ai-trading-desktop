@@ -38,7 +38,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Verify official OKX archive validation and repair
-        run: pnpm exec vitest run src/lib/okx-history.test.ts src/lib/okx-archive-repair.test.ts src/lib/okx-local-history.integration.test.ts
+        run: pnpm exec vitest run src/lib/okx-history.test.ts src/lib/okx-archive-repair.test.ts src/lib/okx-local-history.integration.test.ts src/lib/snippet-rest.test.ts src/lib/snippet-pool.test.ts
 
       # 原生 GPU 引擎运行时组装(设计 §6):python-build-standalone CPython 3.11
       # + 按 requirements-native.lock 哈希校验安装的冻结依赖 + engine 包。
