@@ -7,7 +7,7 @@ from factor_lab.market import is_crypto, is_v2
 from factor_lab.features import bars_signature
 from factor_lab.research_context import norm_window_for_bars
 from factor_lab.scoring.periods import bars_per_year
-from factor_lab.scoring.split_plan import plan_validation_folds
+from factor_lab.scoring.split_plan import MIN_FOLD_BARS, plan_validation_folds
 from .features_ti import compute_features
 from .metrics_ti import NumericalReports
 from .reductions_ti import block_tree_sum, compensated_add
@@ -228,7 +228,7 @@ def walk_forward_eval(context, tokens, n_folds, train_len=None, *, plan=None, no
                 oos_sortinos.append(test["sortino"])
                 oos_anns.append(test["ann_ret"])
         else:
-            if b-a < MIN_TEST_BARS:
+            if b-a < MIN_FOLD_BARS:
                 return None
             start = max(0, a-plan.warmup)
             data = context.factor_context(tokens, start, b, norm_window, recompute=True)

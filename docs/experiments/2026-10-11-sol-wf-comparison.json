@@ -1,0 +1,383 @@
+{
+  "dataset": {
+    "symbol": "SOLUSDT",
+    "source": "OKX dedicated API",
+    "timeframe": "1d",
+    "bars": 1651,
+    "start": "2022-04-03",
+    "end": "2026-10-09",
+    "sha256": "ac119e1d339ebba93701967f7ac844ffd0a79036af1223ead28a53b23b4fe0b3"
+  },
+  "release": "v0.2.174",
+  "runs": {
+    "before": {
+      "config": {
+        "symbol": "SOLUSDT",
+        "timeframe": "1d",
+        "crypto_profile": true,
+        "population": 600,
+        "generations": 30,
+        "max_depth": 6,
+        "train_ratio": 0.7,
+        "walk_forward_folds": 3,
+        "top_n": 10,
+        "seed": 42,
+        "cost": null,
+        "selection_v2": true,
+        "evolve_v2": true,
+        "research_profile": "crypto_local_v2",
+        "execution_model": "signal_research",
+        "combo_super": true,
+        "data_channel": "okx"
+      },
+      "actual_engine": "native-gpu",
+      "status": "completed",
+      "qualification_counts": {
+        "research": 10,
+        "qualified": 0,
+        "pending": 0,
+        "rejected": 10
+      },
+      "qualification_reasons": [
+        "strict_screen_failed_or_unproven",
+        "research_only_candidate",
+        "oos_validation_failed_or_missing",
+        "wf_failed_or_missing",
+        "wf_oos_evidence_missing",
+        "holdout_failed_or_missing",
+        "holdout_stress_failed_or_missing"
+      ],
+      "portfolio": {
+        "n_factors": 2,
+        "avg_abs_corr": 0.465,
+        "equal": {
+          "ann_ret": -0.05149612054961773,
+          "sortino": -0.1595638235638152,
+          "calmar": -0.164857408355461
+        },
+        "ic_weighted": {
+          "ann_ret": -0.03745683311606289,
+          "sortino": -0.1149030700784213,
+          "calmar": -0.1201232830807965
+        },
+        "best_single": {
+          "ann_ret": 0.22778337652025715,
+          "sortino": 0.5700759484996698,
+          "calmar": 0.7076370256590883
+        },
+        "equal_2x": {
+          "ann_ret": -0.0907905792350997,
+          "sortino": -0.28260708504231574,
+          "calmar": -0.27371777366017797
+        },
+        "ic_weighted_2x": {
+          "ann_ret": -0.0771526503272013,
+          "sortino": -0.23846563922057706,
+          "calmar": -0.23292864426870571
+        },
+        "best_single_2x": {
+          "ann_ret": 0.17520672339148893,
+          "sortino": 0.4395594024756104,
+          "calmar": 0.5216558288421053
+        },
+        "members": [
+          [
+            1,
+            105,
+            104,
+            45,
+            81,
+            5,
+            68,
+            77,
+            64,
+            45,
+            43,
+            71,
+            99,
+            87,
+            68
+          ],
+          [
+            1,
+            105,
+            104,
+            45,
+            81,
+            5,
+            68,
+            77,
+            64,
+            45,
+            7,
+            89,
+            74,
+            71,
+            99,
+            87,
+            68
+          ]
+        ],
+        "member_research": [
+          false,
+          false
+        ],
+        "any_member_research": false,
+        "segment": "holdout",
+        "eval_bars": 330,
+        "combo_super": true,
+        "combo_source": "rescued",
+        "super_passed": false,
+        "wf_fold_sortinos": [
+          0.7417995349778409,
+          -0.3936583847886791,
+          2.5493816102021074
+        ],
+        "wf_fold_sortinos_ic": [
+          0.8072596223242875,
+          -0.3924356364171299,
+          2.4960252964116054
+        ],
+        "wf_stable": false
+      },
+      "qualified_factors": []
+    },
+    "after": {
+      "config": {
+        "symbol": "SOLUSDT",
+        "timeframe": "1d",
+        "crypto_profile": true,
+        "population": 600,
+        "generations": 30,
+        "max_depth": 6,
+        "train_ratio": 0.7,
+        "walk_forward_folds": 3,
+        "top_n": 10,
+        "seed": 42,
+        "cost": null,
+        "selection_v2": true,
+        "evolve_v2": true,
+        "research_profile": "crypto_local_v2",
+        "execution_model": "signal_research",
+        "combo_super": true,
+        "data_channel": "okx"
+      },
+      "actual_engine": "native-gpu",
+      "status": "completed",
+      "qualification_counts": {
+        "research": 7,
+        "qualified": 2,
+        "pending": 0,
+        "rejected": 5
+      },
+      "qualification_reasons": [
+        "holdout_failed_or_missing",
+        "holdout_stress_failed_or_missing"
+      ],
+      "portfolio": {
+        "n_factors": 2,
+        "avg_abs_corr": 0.035,
+        "equal": {
+          "ann_ret": 0.09132416283294086,
+          "sortino": 0.4742106509999646,
+          "calmar": 0.37470561703550137
+        },
+        "ic_weighted": {
+          "ann_ret": 0.09142631762014608,
+          "sortino": 0.46008788461232697,
+          "calmar": 0.3457576634637376
+        },
+        "best_single": {
+          "ann_ret": 0.08741858163467371,
+          "sortino": 0.24901597072497123,
+          "calmar": 0.20808559666891824
+        },
+        "equal_2x": {
+          "ann_ret": 0.04946047742368674,
+          "sortino": 0.25851693714188984,
+          "calmar": 0.18975698617471964
+        },
+        "ic_weighted_2x": {
+          "ann_ret": 0.045299459662294636,
+          "sortino": 0.22748589423038776,
+          "calmar": 0.1600233238899627
+        },
+        "best_single_2x": {
+          "ann_ret": 0.05635741069700582,
+          "sortino": 0.14002561003994837,
+          "calmar": 0.1887249142876109
+        },
+        "members": [
+          [
+            1,
+            104,
+            87,
+            104,
+            5,
+            64,
+            7,
+            87,
+            68
+          ],
+          [
+            10,
+            37,
+            67,
+            12,
+            103,
+            93,
+            76,
+            110
+          ]
+        ],
+        "member_research": [
+          false,
+          false
+        ],
+        "any_member_research": false,
+        "segment": "holdout",
+        "eval_bars": 330,
+        "combo_super": true,
+        "combo_source": "quality",
+        "super_passed": true,
+        "pass_mode": "equal",
+        "wf_fold_sortinos": [
+          2.610395469954694,
+          1.7478881871849177,
+          3.7019883432840848
+        ],
+        "wf_fold_sortinos_ic": [
+          2.71933434738938,
+          1.4819869549275206,
+          2.953387647727676
+        ],
+        "wf_stable": true
+      },
+      "qualified_factors": [
+        {
+          "tokens": [
+            1,
+            104,
+            87,
+            104,
+            5,
+            64,
+            7,
+            87,
+            68
+          ],
+          "qualification": {
+            "status": "qualified",
+            "reasons": []
+          },
+          "walk_forward": {
+            "folds": [
+              {
+                "ann_ret": 1.8056,
+                "sortino": 3.3076,
+                "avg_turnover": 0.4387,
+                "bars": 110,
+                "score_start": 991,
+                "score_end": 1101,
+                "context_start": 741
+              },
+              {
+                "ann_ret": 0.0322,
+                "sortino": 0.0746,
+                "avg_turnover": 0.2943,
+                "bars": 110,
+                "score_start": 1101,
+                "score_end": 1211,
+                "context_start": 851
+              },
+              {
+                "ann_ret": 0.2201,
+                "sortino": 0.6496,
+                "avg_turnover": 0.3992,
+                "bars": 110,
+                "score_start": 1211,
+                "score_end": 1321,
+                "context_start": 961
+              }
+            ],
+            "wf_stable": true,
+            "wf_mean_test_sortino": 1.3439,
+            "wf_mean_test_ann": 0.6859,
+            "wf_consistency": -0.1596,
+            "n_folds": 3,
+            "n_oos_folds": 3
+          },
+          "holdout": {
+            "ann_ret": 0.08626159988841672,
+            "sortino": 0.24954832391904339,
+            "avg_turnover": 0.3704473592797944,
+            "bars": 330,
+            "sortino_2x": 0.028344336256777868
+          },
+          "cost": 0.0006
+        },
+        {
+          "tokens": [
+            10,
+            37,
+            67,
+            12,
+            103,
+            93,
+            76,
+            110
+          ],
+          "qualification": {
+            "status": "qualified",
+            "reasons": []
+          },
+          "walk_forward": {
+            "folds": [
+              {
+                "ann_ret": 0.6764,
+                "sortino": 1.0108,
+                "avg_turnover": 0.1054,
+                "bars": 110,
+                "score_start": 991,
+                "score_end": 1101,
+                "context_start": 741
+              },
+              {
+                "ann_ret": 0.5611,
+                "sortino": 1.3639,
+                "avg_turnover": 0.0926,
+                "bars": 110,
+                "score_start": 1101,
+                "score_end": 1211,
+                "context_start": 851
+              },
+              {
+                "ann_ret": 0.8877,
+                "sortino": 3.7302,
+                "avg_turnover": 0.0874,
+                "bars": 110,
+                "score_start": 1211,
+                "score_end": 1321,
+                "context_start": 961
+              }
+            ],
+            "wf_stable": true,
+            "wf_mean_test_sortino": 2.0349,
+            "wf_mean_test_ann": 0.7084,
+            "wf_consistency": 0.8091,
+            "n_folds": 3,
+            "n_oos_folds": 3
+          },
+          "holdout": {
+            "ann_ret": 0.12226889901399045,
+            "sortino": 0.3012121805345639,
+            "avg_turnover": 0.11802014279416294,
+            "bars": 330,
+            "sortino_2x": 0.24087806386758354
+          },
+          "cost": 0.0006
+        }
+      ]
+    }
+  }
+}

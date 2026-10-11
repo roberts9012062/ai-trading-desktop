@@ -15,7 +15,56 @@ from factor_lab.scoring.split_plan import build_split_plan
 from test_features import feature_bars
 
 
+def daily_bars(count):
+    from datetime import datetime, timedelta, timezone
+    start = datetime(2022, 4, 3, tzinfo=timezone.utc)
+    rows = feature_bars(count)
+    for i, row in enumerate(rows):
+        row['time'] = (start + timedelta(days=i)).isoformat()
+    return prepare_bars({'symbol': 'SOLUSDT', 'crypto_profile': True,
+                         'research_profile': 'crypto_local_v2'}, rows)
+
+
+class FoldSizeTests(unittest.TestCase):
+    def test_v2_scores_each_fold_allowed_by_the_frozen_plan(self):
+        from factor_lab.scoring.split_plan import plan_validation_folds
+        for count in (900, 1197, 1651):
+            with self.subTest(count=count):
+                bars = daily_bars(count)
+                plan = build_split_plan(count, bars=bars)
+                self.assertTrue(plan.sufficient)
+                expected = plan_validation_folds(plan, 3)
+                self.assertIsNotNone(expected)
+                report = cpu_wf_v2([0], bars, '1d', .0003, plan, 3)
+                self.assertIsNotNone(report)
+                self.assertEqual(report['n_oos_folds'], 3)
+                self.assertEqual([(f['score_start'], f['score_end']) for f in report['folds']], expected)
+                self.assertEqual(report['wf_stable'], all(f['sortino'] > 0 for f in report['folds']))
+
+    def test_v2_still_rejects_folds_below_sixty_bars(self):
+        bars = daily_bars(885)
+        plan = build_split_plan(len(bars), bars=bars)
+        self.assertTrue(plan.sufficient)
+        self.assertIsNone(cpu_wf_v2([0], bars, '1d', .0003, plan, 3))
+
+
 class WalkForwardTests(unittest.TestCase):
+    def test_gpu_scores_110_bar_daily_folds_with_cpu_parity(self):
+        from engine.wf_ti import GpuResearchContext, walk_forward_eval
+        bars = daily_bars(1651)
+        plan = build_split_plan(len(bars), bars=bars)
+        context = GpuResearchContext(bars, '1d', .0003)
+        try:
+            actual = walk_forward_eval(context, [0], 3, plan=plan)
+            self.assertIsNotNone(actual)
+            expected = cpu_wf_v2([0], bars, '1d', .0003, plan, 3)
+            self.assertEqual(actual['n_oos_folds'], 3)
+            self.assertEqual(actual['wf_stable'], expected['wf_stable'])
+            for a, b in zip(actual['folds'], expected['folds']):
+                self.assert_metrics(a, b)
+        finally:
+            context.dispose()
+
     def test_crypto_recompute_prefix_reuses_frozen_resident_features(self):
         from unittest.mock import patch
         from engine.features_ti import compute_features

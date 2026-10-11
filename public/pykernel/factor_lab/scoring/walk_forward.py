@@ -410,7 +410,7 @@ def walk_forward_eval_v2(
 
     折不足 MIN_FOLD_BARS 或因子无法执行时返回 None。
     """
-    from .split_plan import plan_validation_folds
+    from .split_plan import MIN_FOLD_BARS, plan_validation_folds
 
     folds_idx = plan_validation_folds(plan, n_folds)
     if not folds_idx:
@@ -421,7 +421,7 @@ def walk_forward_eval_v2(
     for a, b in folds_idx:
         context_start = max(0, a - plan.warmup)
         n_score = b - a
-        if n_score < MIN_TEST_BARS:
+        if n_score < MIN_FOLD_BARS:
             # 单折短于统计下限:整份验证判不足,不降格计分
             return None
         ctx = bars[context_start:b]

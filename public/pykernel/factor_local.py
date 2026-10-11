@@ -625,7 +625,8 @@ def kernel_version() -> str:
     # 与空 profile)路径行为不变;v2 结果按本戳区分。
     # 更早:批次三口径变更(P0-2 因果归一化;P1-7 warmup 切片与
     # MIN_TEST_BARS=120);同因子在新旧内核下指标不同,历史/收藏按此戳区分
-    return "pykernel-factor-2026-09-26.1"
+    # 2026-10-11: v2 验证折复用 SplitPlan 的 60 根底线，修复日线误拦。
+    return "pykernel-factor-2026-10-11.1"
 
 
 # ── 分代步进挖掘会话(本地长程任务 M3) ─────────────────────────
