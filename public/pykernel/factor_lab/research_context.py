@@ -29,7 +29,7 @@ PROFILE_CRYPTO_LOCAL_V2 = "crypto_local_v2"
 # (scoring/evaluate.py)与桌面 TS 侧重放合格门。见
 # docs/plans/2026-09-30-shortline-lab-implementation.md §2/§4/§5。
 PROFILE_SHORTLINE_V1 = "shortline_v1"
-# 短线固定归一化窗口(对齐 src/lib/shortline/spec.ts SHORTLINE_ZSCORE_WINDOW)
+# 短线订单流特征窗口/最低预热(基础特征与输出仍复用 v2 动态窗口)
 SHORTLINE_NORM_WINDOW = 300
 CONTEXT_SCHEMA_VERSION = 1
 
@@ -148,9 +148,10 @@ def resolve_context(
             raise ValueError(f"未知执行模型: {execution}")
         timeframe = str(payload.get("timeframe") or "1d")
         label_span = int(payload.get("label_span") or 1)
-        # 短线固定归一化窗口 300;crypto_local_v2 动态推导
+        # 基础特征/输出与 CPU、CUDA、实盘 TS 求值器共用动态窗口。
+        # 300 是订单流特征的窗口，不能用它覆盖公式输出契约。
         if profile == PROFILE_SHORTLINE_V1:
-            norm_window = SHORTLINE_NORM_WINDOW
+            norm_window = norm_window_for_bars(bars)
             warmup = SHORTLINE_NORM_WINDOW
         else:
             norm_window = norm_window_for_bars(bars)

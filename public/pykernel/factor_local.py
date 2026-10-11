@@ -176,7 +176,8 @@ def _reveal_v2_holdout(champions: list[dict], payload: dict, bars: list, cost: f
     n_score = hi - lo
     if n_score <= 0:
         return
-    context_start = max(0, lo - plan.warmup)
+    from factor_lab.market import SHORTLINE_PROFILE
+    context_start = 0 if bars and bars[0].get('_factor_market') == SHORTLINE_PROFILE else max(0, lo - plan.warmup)
     ctx_bars = bars[context_start:hi]
     mat = feature_matrix(ctx_bars)
     timeframe = ctx.timeframe
@@ -626,7 +627,7 @@ def kernel_version() -> str:
     # 更早:批次三口径变更(P0-2 因果归一化;P1-7 warmup 切片与
     # MIN_TEST_BARS=120);同因子在新旧内核下指标不同,历史/收藏按此戳区分
     # 2026-10-11: v2 验证折复用 SplitPlan 的 60 根底线，修复日线误拦。
-    return "pykernel-factor-2026-10-11.1"
+    return "pykernel-factor-2026-10-11.2"
 
 
 # ── 分代步进挖掘会话(本地长程任务 M3) ─────────────────────────

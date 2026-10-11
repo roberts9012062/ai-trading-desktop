@@ -42,12 +42,12 @@ def test_window_resolution():
         for i in range(1500)
     ]
 
-    # 测试 shortline_v1 固定窗口
+    # 测试 shortline_v1 与实盘求值器一致的动态窗口
     ctx = resolve_context(
         {'research_profile': 'shortline_v1', 'timeframe': '1m', 'symbol': 'BTCUSDT'},
         bars, 0.0003
     )
-    assert ctx.norm_window == 300, f"shortline_v1 窗口应为 300，实际 {ctx.norm_window}"
+    assert ctx.norm_window == 1440, f"shortline_v1 1m 输出窗口应为 1440，实际 {ctx.norm_window}"
     print(f"✓ shortline_v1 归一化窗口 = {ctx.norm_window}")
 
     # 测试 crypto_local_v2 动态窗口

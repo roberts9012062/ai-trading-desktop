@@ -200,9 +200,13 @@ def _moments(values):
     return list(map(float, result.to_numpy()))
 
 
-def walk_forward_eval(context, tokens, n_folds, train_len=None, *, plan=None, norm_window=250):
+def walk_forward_eval(context, tokens, n_folds, train_len=None, *, plan=None, norm_window=None):
     if n_folds <= 0:
         return None
+    from factor_lab.market import SHORTLINE_PROFILE
+    shortline = bool(context.bars and context.bars[0].get('_factor_market') == SHORTLINE_PROFILE)
+    if norm_window is None:
+        norm_window = norm_window_for_bars(context.bars) if shortline else 250
     folds, sortinos, anns, oos_sortinos, oos_anns = [], [], [], [], []
     if plan is None:
         n = len(context.bars)
@@ -230,7 +234,7 @@ def walk_forward_eval(context, tokens, n_folds, train_len=None, *, plan=None, no
         else:
             if b-a < MIN_FOLD_BARS:
                 return None
-            start = max(0, a-plan.warmup)
+            start = 0 if shortline else max(0, a-plan.warmup)
             data = context.factor_context(tokens, start, b, norm_window, recompute=True)
             if data is None:
                 return None

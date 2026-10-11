@@ -396,7 +396,7 @@ def walk_forward_eval_v2(
     cost: float,
     plan: Any,
     n_folds: int,
-    norm_window: int = 250,
+    norm_window: int | None = None,
 ) -> dict[str, Any] | None:
     """crypto_local_v2 验证折:只在 [train_end, validation_end) 内切分计分。
 
@@ -415,11 +415,18 @@ def walk_forward_eval_v2(
     folds_idx = plan_validation_folds(plan, n_folds)
     if not folds_idx:
         return None
+    from ..market import SHORTLINE_PROFILE
+    from ..research_context import norm_window_for_bars
+    shortline = bool(bars and bars[0].get('_factor_market') == SHORTLINE_PROFILE)
+    if norm_window is None:
+        norm_window = norm_window_for_bars(bars) if shortline else 250
     folds: list[dict[str, Any]] = []
     sortinos: list[float] = []
     anns: list[float] = []
     for a, b in folds_idx:
-        context_start = max(0, a - plan.warmup)
+        # Shortline's causal rolling features/output must see the same past as
+        # training and live evaluation; warmup alone can reset nested windows.
+        context_start = 0 if shortline else max(0, a - plan.warmup)
         n_score = b - a
         if n_score < MIN_FOLD_BARS:
             # 单折短于统计下限:整份验证判不足,不降格计分

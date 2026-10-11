@@ -138,15 +138,13 @@ class ShortlineProfileTests(unittest.TestCase):
         ctx = resolve_context(payload, bars, cost)
         self.assertIsNotNone(ctx)
         self.assertEqual(ctx.profile_id, PROFILE_SHORTLINE_V1)
-        # 与 v2 切分边界同构(60/20/20);warmup/norm_window 按冻结决策不同
-        # (shortline 固定 300——见 a543419"归一化窗口不匹配"修复;
-        # v2 默认 250/按 bar 间距动态推导)
+        # 与 v2 切分边界及实际输出窗口同源；订单流最低预热仍为 300。
         ctx_v2 = resolve_context({**payload, "research_profile": "crypto_local_v2"}, bars, cost)
         sl, v2 = ctx.split.to_summary(), ctx_v2.split.to_summary()
         for key in ("n", "train", "validation", "holdout"):
             self.assertEqual(sl[key], v2[key], key)
         self.assertEqual(ctx.split.warmup, 300)
-        self.assertEqual(ctx.norm_window, 300)
+        self.assertEqual(ctx.norm_window, ctx_v2.norm_window)
 
     def test_unknown_profile_rejected(self):
         from factor_lab.market import prepare_bars

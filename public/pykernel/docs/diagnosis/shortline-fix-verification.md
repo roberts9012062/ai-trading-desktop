@@ -1,3 +1,7 @@
+# 历史记录说明（2026-10-11）
+
+本文的固定 300 输出窗口验证只检查了声明，没有覆盖真实求值器。当前基础特征/输出与实盘均按周期取窗；CPU/CUDA 验证折使用相同窗口和可见历史前缀。当前验收见仓库 `docs/shortline-mining-investigation-2026-10-11.md` 与 `tests/native_engine/test_shortline_contract.py`。下文保留为历史记录。
+
 # 短线因子归一化窗口修复验证
 
 日期：2026-10-01  

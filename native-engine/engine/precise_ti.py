@@ -4,7 +4,7 @@ from collections import OrderedDict
 from factor_local import _decode_seed_best, _decode_prefetched_strict, _round_metrics, _mark_local_only
 from factor_lab.archive import BoundedArchive
 from factor_lab.express import to_text
-from factor_lab.market import is_crypto, CRYPTO_PROFILE, V2_PROFILE
+from factor_lab.market import is_crypto, CRYPTO_PROFILE, V2_PROFILE, SHORTLINE_PROFILE
 from factor_lab.scoring.periods import bars_per_year
 from factor_lab.search import _metric_fingerprint, _robust_key
 
@@ -121,7 +121,7 @@ class GpuDedup:
         if is_crypto(self.train or self.bars):
             first = (self.train or self.bars)[0]
             marker = first.get('_factor_market')
-            enriched.update(crypto_profile=True, research_profile=marker if marker in (CRYPTO_PROFILE, V2_PROFILE) else CRYPTO_PROFILE,
+            enriched.update(crypto_profile=True, research_profile=marker if marker in (CRYPTO_PROFILE, V2_PROFILE, SHORTLINE_PROFILE) else CRYPTO_PROFILE,
                             periods=bars_per_year(self.train or self.bars, self.timeframe), cost=self.cost,
                             cost_model='static_fee_plus_tick_no_funding')
             source = first.get('market_source')
