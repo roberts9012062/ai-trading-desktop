@@ -9,6 +9,7 @@ import { FactorWorker } from './worker'
 import { readMarketSnapshot } from './market'
 import { clockOffset } from './clock'
 import { seedTask, startTask, stopTask, renewTask, submitScore } from './api'
+import { entryObservationKey, needsEntryObservation } from '../factor-entry'
 import { healthy, intentForScore, mergeCandle, refreshEnrichment, type Cadence } from './model'
 
 const PERIOD_MS:Record<string,number>={'1m':60000,'5m':300000,'15m':900000,'30m':1800000,'60m':3600000,'240m':14400000,'1d':86400000}
@@ -34,6 +35,8 @@ interface Session {
   enrichedAt: number
   marketTimer?: ReturnType<typeof setInterval>
   refreshingMarket?: boolean
+  observedScore?: number
+  observedKey?: string
 }
 const sessions=new Map<string,Session>()
 let stream:OkxSnippetWebSocket|null=null
@@ -113,11 +116,14 @@ async function step(s:Session) {
   try {
     const value=await score(s)
     if (!same(s)) return
-    const action=intentForScore(s.task,value), id=crypto.randomUUID()
+    const key=entryObservationKey(s.task)
+    const previous=s.observedKey===key?s.observedScore:undefined
+    const action=intentForScore(s.task,value,previous), id=crypto.randomUUID()
+    const observe=needsEntryObservation(s.task,value,previous)
     const at=s.computedAt, price=s.latest!.close
     view().record(s.task.id,{id,at,marketAt:s.marketAt,price,score:value,action,
       reason:value>0.3?'因子偏多':value< -0.3?'因子偏空':'因子观望或中性',status:action==='hold'?'观望':'提交中'})
-    if (action!=='hold' && !s.submitting) void execute(s,id,at,value)
+    if ((action!=='hold'||observe) && !s.submitting) void execute(s,id,at,value,key)
     else if(s.submitting)view().amend(s.task.id,id,{status:'委托处理中，继续计算，等待持仓同步'})
   } catch (error) {
     if(error instanceof WaitingForCandle) {
@@ -132,12 +138,13 @@ async function step(s:Session) {
   } finally {s.busy=false}
 }
 
-async function execute(s:Session,id:string,at:number,value:number) {
+async function execute(s:Session,id:string,at:number,value:number,key:string) {
   if(!s.token || !same(s))return
   s.submitting=true
   try {
     const result=await submitScore(s.task.id,s.token,id,Math.round(at+s.offset),value)
     if(!same(s))return
+    if(!result.skipped) {s.observedScore=value;s.observedKey=key}
     view().amend(s.task.id,id,{action:(result.action??'hold') as 'hold'|'close'|'open_long'|'open_short',orderId:result.order_id,
       status:result.order_id?'已提交委托，成交待确认':result.action==='hold'?'未执行':'未下单',
       reason:result.reason??result.model?.reason??(result.skipped?'本次已跳过':'服务器已处理')})

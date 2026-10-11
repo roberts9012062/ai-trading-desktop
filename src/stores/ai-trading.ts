@@ -23,6 +23,8 @@ import {
   updateAITradingTask,
   updateAITradingTaskRules,
   updateTaskProfitLock,
+  updateTaskFactorEntryMode,
+  type FactorEntryMode,
   type ProfitLockConfig,
   type AITradingDecision,
   type AITradingTask,
@@ -63,6 +65,7 @@ interface AITradingState {
     id: string,
     payload: UpdateTaskRulesPayload,
   ) => Promise<AITradingTask>
+  setFactorEntryMode: (id:string,mode:FactorEntryMode)=>Promise<void>
   setProfitLock: (id: string, config: ProfitLockConfig) => Promise<void>
   closePosition: (id: string) => Promise<void>
   startTask: (id: string) => Promise<void>
@@ -99,6 +102,14 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
       ...(result.status === "closed" ? { has_open_position: false, position_qty: 0, position_unrealized: 0 } : {}) } : task) }))
     await Promise.all([get().loadTasks({ silent: true }), get().loadEquity(), get().loadProfitBars({ silent: true })])
     if (generation === sessionGeneration && currentWaveOwner() === owner && get().selectedTaskId === id) await get().refreshDetail({ silent: true })
+  },
+  setFactorEntryMode: async (id,mode) => {
+    const owner=currentWaveOwner(), generation=sessionGeneration
+    const result=await updateTaskFactorEntryMode(id,mode)
+    if(generation!==sessionGeneration || owner!==currentWaveOwner())throw new Error("会话已切换，请重新查看当前账户任务")
+    taskApplied=++taskRequest
+    set(s=>({tasks:s.tasks.map(task=>task.id===id?{...task,factor_entry:result.factor_entry,
+      strategy_params:{...task.strategy_params,entry_mode:result.factor_entry.mode}}:task)}))
   },
   setProfitLock: async (id, config) => {
     const owner = useAuthStore.getState().user?.id

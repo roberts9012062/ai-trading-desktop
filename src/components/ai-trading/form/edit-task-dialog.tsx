@@ -1,6 +1,9 @@
 "use client"
 
 import { desktopTokensToServerV3 } from "@/lib/factor-access"
+import { FactorEntryModeSelect } from "../factor-entry-mode-control"
+import { entryModeOf } from "@/lib/factor-entry"
+import type { FactorEntryMode } from "@/lib/ai-trading-api"
 import { useEffect, useState } from "react"
 import {
   FundingSourceBadge,
@@ -142,6 +145,7 @@ export function EditTaskDialog({
   const [capitalUsageMax, setCapitalUsageMax] = useState(100)
   const [name, setName] = useState("")
   const [icon, setIcon] = useState<string | null>(null)
+  const [factorEntryMode,setFactorEntryMode]=useState<FactorEntryMode>("steady")
   const [factorTokens, setFactorTokens] = useState<number[] | null>(null)
   const [refStrategies, setRefStrategies] = useState<QuantRefStrategy[]>([])
   const [fundStyle, setFundStyle] =
@@ -171,6 +175,7 @@ export function EditTaskDialog({
     if (!open || !task) return
     setName(task.name || "")
     setIcon(task.icon ?? null)
+    setFactorEntryMode(entryModeOf(task))
     const ftParam = (task.strategy_params ?? {}) as Record<string, unknown>
     setFactorTokens(
       Array.isArray(ftParam.factor_tokens)
@@ -331,6 +336,7 @@ export function EditTaskDialog({
       strategy_params: prediction ? {mode:'forecast',forecast:{...forecast,timeframes:[timeframe,...extraTfs],bar_count:Number(barsLimit),direction_mode:sideMode==='long_only'?'long':sideMode==='short_only'?'short':'any'}} : quantMode
         ? factorMode
           ? {
+              entry_mode:factorEntryMode,
               startup_bars: (task.strategy_params as Record<string, unknown> | null)?.startup_bars ?? 2,
               ...(factorTokens && factorTokens.length
                 ? { factor_tokens: desktopTokensToServerV3(factorTokens) }
@@ -457,6 +463,7 @@ export function EditTaskDialog({
               <div>点头像更换</div>
             </div>
           </div>
+          {factorMode&&<FactorEntryModeSelect value={factorEntryMode} onChange={setFactorEntryMode}/>}
           {prediction&&<ForecastOptions value={forecast} onChange={setForecast}/>}
           {(!quantMode || factorMode) && !decisionMode && !prediction && (
             <AiFactorMount

@@ -13,6 +13,7 @@ import { TaskLossCooldownStatus } from "./loss-cooldown-status"
 import { TaskProfitLockStatus } from "@/components/ai-trading/profit-lock-status"
 import { useMarketStore } from "@/stores/market"
 import { useRealtimeFactorStore } from '@/stores/realtime-factor'
+import { FactorEntryModeControl } from "./factor-entry-mode-control"
 import { RealtimeModeControl } from './realtime-mode-control'
 import {
   taskPnlFromQuotes,
@@ -244,6 +245,7 @@ export function TaskList({
             {slotSourceLabel(task.slot_source) && <p className={cn("mt-2 text-[11px]", task.slot_close_only ? "text-amber-400" : "text-[var(--text-muted)]")}>
               {slotSourceLabel(task.slot_source)}{task.slot_close_only ? " · 已失效，仅允许减仓和平仓" : ""}
             </p>}
+            <FactorEntryModeControl task={task} />
             <TaskLossCooldownStatus task={task} />
             <TaskProfitLockStatus task={task} />
             {isForecast(task)&&<div className="mt-2 flex items-center justify-between text-xs">

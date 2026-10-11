@@ -105,7 +105,14 @@ export interface LossCooldownState {
   error?: string | null
 }
 
+export type FactorEntryMode = "aggressive" | "steady"
+export interface FactorEntryState {mode:FactorEntryMode;pending_mode:FactorEntryMode|null}
+export function updateTaskFactorEntryMode(id:string,mode:FactorEntryMode):Promise<{id:string;factor_entry:FactorEntryState}> {
+  return request(`/api/ai-trading/tasks/${encodeURIComponent(id)}/factor-entry-mode`,{method:"PATCH",body:JSON.stringify({mode})})
+}
+
 export interface AITradingTask {
+  factor_entry?: FactorEntryState | null
   slot_source?: string
   slot_index?: number
   slot_close_only?: boolean

@@ -36,6 +36,9 @@ import {
 } from "@/components/ai-trading/form/margin-leverage-fields"
 import { useMarketStore } from "@/stores/market"
 import { useAuthStore } from "@/stores/auth"
+import { FactorEntryModeSelect } from "../factor-entry-mode-control"
+import type { FactorEntryMode } from "@/lib/ai-trading-api"
+import { entryModeOf } from "@/lib/factor-entry"
 import { RealtimeCreateOptions } from '../realtime-mode-control'
 import { startRealtime } from '@/lib/realtime-factor/runtime'
 import type { Cadence } from '@/lib/realtime-factor/model'
@@ -122,6 +125,8 @@ export function CreateQuantDialog({
   const createTask = useAITradingStore((s) => s.createTask)
   const [quant, setQuant] = useState<QuantParamsState>(DEFAULT_QUANT_PARAMS)
   const [startupBars, setStartupBars] = useState("2")
+  const [factorEntryMode,setFactorEntryMode]=useState<FactorEntryMode>("steady")
+  useEffect(()=>{if(open&&!prefillFrom)setFactorEntryMode("steady")},[open,prefillFrom])
   const [realtimeEnabled,setRealtimeEnabled]=useState(false)
   const [realtimeInterval,setRealtimeInterval]=useState<Cadence>(3)
   // 决策模型（TypeSafe Jev System One）：多空平全由模型判断
@@ -176,6 +181,7 @@ export function CreateQuantDialog({
     const isDecisionClone = String(t.strategy_type || "") === "decision"
     const sp = (t.strategy_params ?? {}) as Record<string, unknown>
     setStartupBars(String(sp.startup_bars ?? 2))
+    setFactorEntryMode(entryModeOf(t))
     const ds = isDecisionClone
       ? ((sp.decision_strategy ?? {}) as { kind?: string; params?: Record<string, unknown> })
       : {}
@@ -322,7 +328,7 @@ export function CreateQuantDialog({
               ...withServerFactorTokens(combo
                 ? { factor_tokens: combo.tokenGroups.length === 1 ? combo.tokenGroups[0] : combo.tokenGroups }
                 : buildStrategyParams(quant)),
-              ...((combo || quant.quantKind === "factor") ? { startup_bars: startupCount } : {}),
+              ...((combo || quant.quantKind === "factor") ? { startup_bars: startupCount, entry_mode:factorEntryMode } : {}),
             },
       decision_interval_sec: decisionEnabled ? decisionIntervalSec : undefined,
       // 量化分析间隔：等于周期（默认）发 null=按K线收盘；决策模型忽略
@@ -686,6 +692,7 @@ export function CreateQuantDialog({
             </div>
           )}
 
+          {!decisionEnabled&&(combo||quant.quantKind==='factor')&&<FactorEntryModeSelect value={factorEntryMode} onChange={setFactorEntryMode}/>}
           {!decisionEnabled&&(combo||quant.quantKind==='factor')&&<RealtimeCreateOptions enabled={realtimeEnabled} interval={realtimeInterval}
             onEnabled={v=>{setRealtimeEnabled(v);if(v)setRules(r=>({...r,autoStart:true}))}} onInterval={setRealtimeInterval}/>}
           <CreateTaskRules

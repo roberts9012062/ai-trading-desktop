@@ -43,6 +43,30 @@ beforeEach(()=>{
 })
 afterEach(async()=>{await stopAllRealtime();detach();vi.useRealTimers()})
 
+it('reports steady reset events, avoids chasing 0.9 and does not send unchanged scores every second',async()=>{
+  const steady={...task,position_qty:0,position_direction:null,strategy_params:{entry_mode:'steady'},factor_entry:{mode:'steady' as const,pending_mode:null}}
+  fake.seed.mockImplementation(async()=>({task:steady,bars:[{...candle(),time:'2026-10-10 09:45:00',is_closed:true},candle()],limit:600,server_ms:Date.now()}))
+  fake.get.mockResolvedValue({...steady,realtime_mode:{active:true,interval:1}})
+  fake.submit.mockResolvedValue({action:'hold'})
+  fake.score.mockResolvedValue(.9)
+  await startRealtime(steady,1)
+  await vi.advanceTimersByTimeAsync(4000)
+  expect(fake.submit).toHaveBeenCalledTimes(1)
+  expect(useRealtimeFactorStore.getState().tasks.task.rows[0].action).toBe('hold')
+  fake.score.mockResolvedValue(.5)
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(fake.submit).toHaveBeenCalledTimes(2)
+  expect(useRealtimeFactorStore.getState().tasks.task.rows[0].action).toBe('hold')
+  fake.score.mockResolvedValue(.2)
+  await vi.advanceTimersByTimeAsync(3000)
+  expect(fake.submit).toHaveBeenCalledTimes(3)
+  fake.score.mockResolvedValue(.5)
+  fake.submit.mockImplementation(()=>new Promise(()=>{})) // inspect the local fresh crossing
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(fake.submit).toHaveBeenCalledTimes(4)
+  expect(useRealtimeFactorStore.getState().tasks.task.rows[0].action).toBe('open_long')
+})
+
 it('keeps calculating and renewing while a server order is in flight',async()=>{
   await startRealtime(task,1)
   expect(fake.submit).not.toHaveBeenCalled()

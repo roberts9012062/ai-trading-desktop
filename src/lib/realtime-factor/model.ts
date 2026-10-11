@@ -1,3 +1,4 @@
+import { entryModeOf, type FactorEntryTask } from '../factor-entry'
 import type { KlineBar } from '@/types'
 
 export type Cadence = 1 | 2 | 3 | 4 | 5
@@ -48,13 +49,13 @@ export function healthy(now: number, computedAt: number, marketAt: number, inter
   return computedAt>0 && marketAt>0 && now-computedAt<=interval*1000+1500 && now-marketAt<5000
 }
 
-interface IntentTask {
+interface IntentTask extends FactorEntryTask {
   side_mode: string
   close_rules: { factor_exit?: {mode?: string; long_threshold?: number; short_threshold?: number} | null }
   position_qty?: number | null
   position_direction?: string | null
 }
-export function intentForScore(task: IntentTask, score: number): Action {
+export function intentForScore(task: IntentTask, score: number, previous?:number): Action {
   const has=(task.position_qty??0)>0, dir=task.position_direction
   const cfg=task.close_rules.factor_exit
   if (has && cfg) {
@@ -64,11 +65,13 @@ export function intentForScore(task: IntentTask, score: number): Action {
   if (score>0.3 && task.side_mode!=='short_only') {
     if (has) return dir==='short'?'close':'hold'
     if (cfg?.mode==='reach' && score>=(cfg.long_threshold??0.8)) return 'hold'
+    if(entryModeOf(task)==='steady' && !(previous!==undefined && previous<=.3 && score<=.7))return 'hold'
     return 'open_long'
   }
   if (score< -0.3 && task.side_mode!=='long_only') {
     if (has) return dir==='long'?'close':'hold'
     if (cfg?.mode==='reach' && score<=-(cfg.short_threshold??0.8)) return 'hold'
+    if(entryModeOf(task)==='steady' && !(previous!==undefined && previous>=-.3 && score>=-.7))return 'hold'
     return 'open_short'
   }
   return has && Math.abs(score)<0.05?'close':'hold'
