@@ -1,0 +1,2322 @@
+{
+  "date": "2026-10-11",
+  "symbol": "SOLUSDT",
+  "venue": "okx",
+  "market_type": "perp",
+  "source": "Official SOL-USDT-SWAP monthly/daily candlestick archives",
+  "scope": "Default enhanced shortline OHLCV search; not tick backfill or v4/execution acceptance",
+  "shortline_patch": "v0.2.175",
+  "daily_patch": "v0.2.174",
+  "trials": {
+    "240m": {
+      "before": {
+        "summary": {
+          "timeframe": "240m",
+          "seconds": 234.6,
+          "status": "completed",
+          "error": null,
+          "bars": 1079,
+          "counts": {
+            "research": 9,
+            "qualified": 2,
+            "pending": 0,
+            "rejected": 7
+          },
+          "reasons": [
+            "holdout_failed_or_missing",
+            "holdout_stress_failed_or_missing"
+          ],
+          "portfolio": {
+            "n_factors": 2,
+            "avg_abs_corr": 0.636,
+            "equal": {
+              "ann_ret": 0.17697084386716216,
+              "sortino": 0.7318001501938979,
+              "calmar": 2.5462993604136064
+            },
+            "ic_weighted": {
+              "ann_ret": 0.19165014557181242,
+              "sortino": 0.7539231065322421,
+              "calmar": 2.3992354185709073
+            },
+            "best_single": {
+              "ann_ret": 0.260434146895986,
+              "sortino": 0.7575015627107855,
+              "calmar": 1.9101116663361555
+            },
+            "equal_2x": {
+              "ann_ret": 0.13416055971892085,
+              "sortino": 0.553181235322935,
+              "calmar": 1.857401100555736
+            },
+            "ic_weighted_2x": {
+              "ann_ret": 0.14720963333341638,
+              "sortino": 0.5771619141760153,
+              "calmar": 1.7777586180158835
+            },
+            "best_single_2x": {
+              "ann_ret": 0.20723008590607994,
+              "sortino": 0.5997717697772184,
+              "calmar": 1.484783534109786
+            },
+            "members": [
+              [
+                8,
+                91,
+                37,
+                75,
+                110,
+                51,
+                32,
+                13,
+                65,
+                67,
+                65,
+                68,
+                83
+              ],
+              [
+                4,
+                103,
+                114,
+                37,
+                68,
+                83
+              ]
+            ],
+            "member_research": [
+              false,
+              false
+            ],
+            "any_member_research": false,
+            "segment": "holdout",
+            "eval_bars": 216,
+            "combo_super": true,
+            "combo_source": "quality",
+            "super_passed": true,
+            "pass_mode": "equal",
+            "wf_fold_sortinos": [
+              1.0490034698661148,
+              15.337232215164184,
+              2.5472634000184833
+            ],
+            "wf_fold_sortinos_ic": [
+              1.211137551319572,
+              16.441861481184485,
+              2.3061280613787347
+            ],
+            "wf_stable": true
+          }
+        },
+        "config": {
+          "symbol": "SOLUSDT",
+          "timeframe": "240m",
+          "crypto_profile": true,
+          "population": 150,
+          "generations": 10,
+          "max_depth": 5,
+          "train_ratio": 0.7,
+          "walk_forward_folds": 3,
+          "top_n": 10,
+          "cost": 0.0005,
+          "selection_v2": true,
+          "evolve_v2": true,
+          "research_profile": "shortline_v1",
+          "execution_model": "signal_research",
+          "data_channel": "okx",
+          "seed": 42,
+          "combo_super": true,
+          "live_entry_gate": 0.25,
+          "search_feature_ids": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            31,
+            32,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51
+          ],
+          "seed_tokens": [
+            [
+              1,
+              103
+            ],
+            [
+              4,
+              102
+            ],
+            [
+              45,
+              111
+            ],
+            [
+              49,
+              4,
+              66
+            ],
+            [
+              8,
+              71
+            ],
+            [
+              39,
+              104
+            ],
+            [
+              20,
+              11,
+              66
+            ],
+            [
+              12,
+              23,
+              66
+            ],
+            [
+              3,
+              8,
+              71,
+              64
+            ],
+            [
+              2,
+              26,
+              67
+            ]
+          ]
+        },
+        "engine_version": "native-gpu-v1-m3.5-wf-folds",
+        "champions": [
+          {
+            "tokens": [
+              8,
+              91,
+              37,
+              75,
+              110,
+              51,
+              32,
+              13,
+              65,
+              67,
+              65,
+              68,
+              83
+            ],
+            "research_profile": "crypto_ohlcv_v1",
+            "walk_forward": {
+              "folds": [
+                {
+                  "ann_ret": 0.595,
+                  "sortino": 4.2575,
+                  "avg_turnover": 0.04,
+                  "bars": 72,
+                  "score_start": 647,
+                  "score_end": 719,
+                  "context_start": 397
+                },
+                {
+                  "ann_ret": 6.2988,
+                  "sortino": 20,
+                  "avg_turnover": 0.0644,
+                  "bars": 72,
+                  "score_start": 719,
+                  "score_end": 791,
+                  "context_start": 469
+                },
+                {
+                  "ann_ret": 0.2883,
+                  "sortino": 0.6102,
+                  "avg_turnover": 0.0635,
+                  "bars": 72,
+                  "score_start": 791,
+                  "score_end": 863,
+                  "context_start": 541
+                }
+              ],
+              "wf_stable": true,
+              "wf_mean_test_sortino": 8.2892,
+              "wf_mean_test_ann": 2.3941,
+              "wf_consistency": -0.1545,
+              "n_folds": 3,
+              "n_oos_folds": 3
+            },
+            "holdout_metrics": {
+              "ann_ret": 0.23516944302807355,
+              "sortino": 0.6773957152537633,
+              "avg_turnover": 0.05213064281783724,
+              "bars": 216,
+              "sortino_2x": 0.5104834689479214
+            }
+          },
+          {
+            "tokens": [
+              4,
+              103,
+              114,
+              37,
+              68,
+              83
+            ],
+            "research_profile": "crypto_ohlcv_v1",
+            "walk_forward": {
+              "folds": [
+                {
+                  "ann_ret": 0.2388,
+                  "sortino": 1.61,
+                  "avg_turnover": 0.0441,
+                  "bars": 72,
+                  "score_start": 647,
+                  "score_end": 719,
+                  "context_start": 397
+                },
+                {
+                  "ann_ret": 3.4744,
+                  "sortino": 9.8215,
+                  "avg_turnover": 0.0676,
+                  "bars": 72,
+                  "score_start": 719,
+                  "score_end": 791,
+                  "context_start": 469
+                },
+                {
+                  "ann_ret": 1.9911,
+                  "sortino": 4.4895,
+                  "avg_turnover": 0.0468,
+                  "bars": 72,
+                  "score_start": 791,
+                  "score_end": 863,
+                  "context_start": 541
+                }
+              ],
+              "wf_stable": true,
+              "wf_mean_test_sortino": 5.307,
+              "wf_mean_test_ann": 1.9014,
+              "wf_consistency": 0.3045,
+              "n_folds": 3,
+              "n_oos_folds": 3
+            },
+            "holdout_metrics": {
+              "ann_ret": 0.05026615681971243,
+              "sortino": 0.23126242500671693,
+              "avg_turnover": 0.03526773956361974,
+              "bars": 216,
+              "sortino_2x": 0.05350797278171333
+            }
+          }
+        ]
+      },
+      "after": {
+        "summary": {
+          "timeframe": "240m",
+          "seconds": 233.5,
+          "status": "completed",
+          "error": null,
+          "bars": 1079,
+          "counts": {
+            "research": 10,
+            "qualified": 3,
+            "pending": 0,
+            "rejected": 7
+          },
+          "reasons": [
+            "holdout_failed_or_missing",
+            "holdout_stress_failed_or_missing"
+          ],
+          "portfolio": {
+            "n_factors": 3,
+            "avg_abs_corr": 0.384,
+            "equal": {
+              "ann_ret": 0.14668351097333085,
+              "sortino": 0.694197303571381,
+              "calmar": 2.557990893516061
+            },
+            "ic_weighted": {
+              "ann_ret": 0.14593182746191177,
+              "sortino": 0.6688412492684513,
+              "calmar": 2.430999849261691
+            },
+            "best_single": {
+              "ann_ret": 0.260434146895986,
+              "sortino": 0.7575015627107855,
+              "calmar": 1.9101116663361555
+            },
+            "equal_2x": {
+              "ann_ret": 0.11046206003443007,
+              "sortino": 0.5231977052392462,
+              "calmar": 1.8602559974136643
+            },
+            "ic_weighted_2x": {
+              "ann_ret": 0.1099604519661549,
+              "sortino": 0.5042874672660407,
+              "calmar": 1.7731703033753168
+            },
+            "best_single_2x": {
+              "ann_ret": 0.20723008590607994,
+              "sortino": 0.5997717697772184,
+              "calmar": 1.484783534109786
+            },
+            "members": [
+              [
+                4,
+                48,
+                64,
+                110,
+                94,
+                2,
+                112,
+                73,
+                109,
+                71,
+                68,
+                87,
+                32,
+                103,
+                90,
+                25,
+                66,
+                69,
+                79,
+                95
+              ],
+              [
+                8,
+                91,
+                37,
+                75,
+                110,
+                51,
+                32,
+                13,
+                65,
+                67,
+                65,
+                68,
+                83
+              ],
+              [
+                4,
+                103,
+                114,
+                37,
+                68,
+                83
+              ]
+            ],
+            "member_research": [
+              false,
+              false,
+              false
+            ],
+            "any_member_research": false,
+            "segment": "holdout",
+            "eval_bars": 216,
+            "combo_super": true,
+            "combo_source": "quality",
+            "super_passed": true,
+            "pass_mode": "equal",
+            "wf_fold_sortinos": [
+              1.4520241202126445,
+              15.156073797717227,
+              3.444995492604742
+            ],
+            "wf_fold_sortinos_ic": [
+              1.5532034089661795,
+              15.176578745663896,
+              3.3272102270987824
+            ],
+            "wf_stable": true
+          }
+        },
+        "config": {
+          "symbol": "SOLUSDT",
+          "timeframe": "240m",
+          "crypto_profile": true,
+          "population": 150,
+          "generations": 10,
+          "max_depth": 5,
+          "train_ratio": 0.7,
+          "walk_forward_folds": 3,
+          "top_n": 10,
+          "cost": 0.0005,
+          "selection_v2": true,
+          "evolve_v2": true,
+          "research_profile": "shortline_v1",
+          "execution_model": "signal_research",
+          "data_channel": "okx",
+          "seed": 42,
+          "combo_super": true,
+          "live_entry_gate": 0.25,
+          "search_feature_ids": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            31,
+            32,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51
+          ],
+          "seed_tokens": [
+            [
+              1,
+              103
+            ],
+            [
+              4,
+              102
+            ],
+            [
+              45,
+              111
+            ],
+            [
+              49,
+              4,
+              66
+            ],
+            [
+              8,
+              71
+            ],
+            [
+              39,
+              104
+            ],
+            [
+              20,
+              11,
+              66
+            ],
+            [
+              12,
+              23,
+              66
+            ],
+            [
+              3,
+              8,
+              71,
+              64
+            ],
+            [
+              2,
+              26,
+              67
+            ]
+          ]
+        },
+        "engine_version": "native-gpu-v1-m3.6-shortline-wf",
+        "champions": [
+          {
+            "tokens": [
+              4,
+              48,
+              64,
+              110,
+              94,
+              2,
+              112,
+              73,
+              109,
+              71,
+              68,
+              87,
+              32,
+              103,
+              90,
+              25,
+              66,
+              69,
+              79,
+              95
+            ],
+            "research_profile": "shortline_v1",
+            "walk_forward": {
+              "folds": [
+                {
+                  "ann_ret": 0.5468,
+                  "sortino": 2.202,
+                  "avg_turnover": 0.0354,
+                  "bars": 72,
+                  "score_start": 647,
+                  "score_end": 719,
+                  "context_start": 0
+                },
+                {
+                  "ann_ret": 2.4345,
+                  "sortino": 11.3234,
+                  "avg_turnover": 0.0428,
+                  "bars": 72,
+                  "score_start": 719,
+                  "score_end": 791,
+                  "context_start": 0
+                },
+                {
+                  "ann_ret": 1.6616,
+                  "sortino": 3.2792,
+                  "avg_turnover": 0.0354,
+                  "bars": 72,
+                  "score_start": 791,
+                  "score_end": 863,
+                  "context_start": 0
+                }
+              ],
+              "wf_stable": true,
+              "wf_mean_test_sortino": 5.6015,
+              "wf_mean_test_ann": 1.5476,
+              "wf_consistency": 0.4993,
+              "n_folds": 3,
+              "n_oos_folds": 3
+            },
+            "holdout_metrics": {
+              "ann_ret": 0.35482894126501263,
+              "sortino": 1.2410183189660406,
+              "avg_turnover": 0.04323440443907006,
+              "bars": 216,
+              "sortino_2x": 1.0830508864806652
+            }
+          },
+          {
+            "tokens": [
+              8,
+              91,
+              37,
+              75,
+              110,
+              51,
+              32,
+              13,
+              65,
+              67,
+              65,
+              68,
+              83
+            ],
+            "research_profile": "shortline_v1",
+            "walk_forward": {
+              "folds": [
+                {
+                  "ann_ret": 0.7453,
+                  "sortino": 4.3628,
+                  "avg_turnover": 0.0443,
+                  "bars": 72,
+                  "score_start": 647,
+                  "score_end": 719,
+                  "context_start": 0
+                },
+                {
+                  "ann_ret": 6.1661,
+                  "sortino": 20,
+                  "avg_turnover": 0.0658,
+                  "bars": 72,
+                  "score_start": 719,
+                  "score_end": 791,
+                  "context_start": 0
+                },
+                {
+                  "ann_ret": 0.2755,
+                  "sortino": 0.5981,
+                  "avg_turnover": 0.0616,
+                  "bars": 72,
+                  "score_start": 791,
+                  "score_end": 863,
+                  "context_start": 0
+                }
+              ],
+              "wf_stable": true,
+              "wf_mean_test_sortino": 8.3203,
+              "wf_mean_test_ann": 2.3956,
+              "wf_consistency": -0.1158,
+              "n_folds": 3,
+              "n_oos_folds": 3
+            },
+            "holdout_metrics": {
+              "ann_ret": 0.23516944302807355,
+              "sortino": 0.6773957152537633,
+              "avg_turnover": 0.05213064281783724,
+              "bars": 216,
+              "sortino_2x": 0.5104834689479214
+            }
+          },
+          {
+            "tokens": [
+              4,
+              103,
+              114,
+              37,
+              68,
+              83
+            ],
+            "research_profile": "shortline_v1",
+            "walk_forward": {
+              "folds": [
+                {
+                  "ann_ret": 0.4971,
+                  "sortino": 2.957,
+                  "avg_turnover": 0.0453,
+                  "bars": 72,
+                  "score_start": 647,
+                  "score_end": 719,
+                  "context_start": 0
+                },
+                {
+                  "ann_ret": 3.1064,
+                  "sortino": 8.5746,
+                  "avg_turnover": 0.0682,
+                  "bars": 72,
+                  "score_start": 719,
+                  "score_end": 791,
+                  "context_start": 0
+                },
+                {
+                  "ann_ret": 1.8654,
+                  "sortino": 4.1643,
+                  "avg_turnover": 0.0457,
+                  "bars": 72,
+                  "score_start": 791,
+                  "score_end": 863,
+                  "context_start": 0
+                }
+              ],
+              "wf_stable": true,
+              "wf_mean_test_sortino": 5.232,
+              "wf_mean_test_ann": 1.823,
+              "wf_consistency": 0.4154,
+              "n_folds": 3,
+              "n_oos_folds": 3
+            },
+            "holdout_metrics": {
+              "ann_ret": 0.05026615681971243,
+              "sortino": 0.23126242500671693,
+              "avg_turnover": 0.03526773956361974,
+              "bars": 216,
+              "sortino_2x": 0.05350797278171333
+            }
+          }
+        ]
+      },
+      "data": {
+        "bars": 1079,
+        "from": "2026-04-13 00:00:00",
+        "to": "2026-10-09 20:00:00",
+        "sha256": "0b024f185bcc32f2f47ec386376c67e49eebed76040fe836293e113a635f4b21",
+        "missing_minutes": [
+          "2026-09-01T18:33:00+08:00"
+        ],
+        "dropped_buckets": 1
+      }
+    },
+    "15m": {
+      "before": {
+        "summary": {
+          "timeframe": "15m",
+          "seconds": 107.0,
+          "status": "completed",
+          "error": null,
+          "bars": 17279,
+          "counts": {
+            "research": 10,
+            "qualified": 0,
+            "pending": 0,
+            "rejected": 10
+          },
+          "reasons": [
+            "strict_screen_failed_or_unproven",
+            "research_only_candidate",
+            "oos_validation_failed_or_missing",
+            "wf_failed_or_missing",
+            "wf_oos_fold_failed",
+            "holdout_failed_or_missing",
+            "holdout_stress_failed_or_missing"
+          ],
+          "portfolio": {
+            "n_factors": 5,
+            "avg_abs_corr": 0.372,
+            "equal": {
+              "ann_ret": 0.9322648197732168,
+              "sortino": 3.5326349171328078,
+              "calmar": 10
+            },
+            "ic_weighted": {
+              "ann_ret": 0.8709860241380671,
+              "sortino": 3.481437981735546,
+              "calmar": 10
+            },
+            "best_single": {
+              "ann_ret": 2.395298536108129,
+              "sortino": 6.050651163212689,
+              "calmar": 10
+            },
+            "equal_2x": {
+              "ann_ret": 0.7457299411065826,
+              "sortino": 2.82215089802788,
+              "calmar": 8.451317709952827
+            },
+            "ic_weighted_2x": {
+              "ann_ret": 0.6630791708913808,
+              "sortino": 2.6465395492620676,
+              "calmar": 7.760678081842158
+            },
+            "best_single_2x": {
+              "ann_ret": 2.2685977001959947,
+              "sortino": 5.72447541856798,
+              "calmar": 10
+            },
+            "members": [
+              [
+                43,
+                109,
+                111,
+                91
+              ],
+              [
+                43,
+                103,
+                75,
+                103,
+                104,
+                112,
+                102
+              ],
+              [
+                43,
+                109,
+                103,
+                92,
+                103,
+                104,
+                92,
+                92,
+                94,
+                102
+              ],
+              [
+                43
+              ],
+              [
+                46,
+                92,
+                103,
+                104,
+                92,
+                94,
+                102,
+                102
+              ]
+            ],
+            "member_research": [
+              false,
+              false,
+              false,
+              false,
+              false
+            ],
+            "any_member_research": false,
+            "segment": "holdout",
+            "eval_bars": 3456,
+            "combo_super": true,
+            "combo_source": "rescued",
+            "super_passed": false,
+            "wf_fold_sortinos": [
+              2.5694685052195534,
+              -6.991144768611315,
+              1.3736018077831549
+            ],
+            "wf_fold_sortinos_ic": [
+              2.2264991361094317,
+              -7.444166438945326,
+              1.9376468225643628
+            ],
+            "wf_stable": false
+          }
+        },
+        "config": {
+          "symbol": "SOLUSDT",
+          "timeframe": "15m",
+          "crypto_profile": true,
+          "population": 150,
+          "generations": 10,
+          "max_depth": 5,
+          "train_ratio": 0.7,
+          "walk_forward_folds": 3,
+          "top_n": 10,
+          "cost": 0.0005,
+          "selection_v2": true,
+          "evolve_v2": true,
+          "research_profile": "shortline_v1",
+          "execution_model": "signal_research",
+          "data_channel": "okx",
+          "seed": 42,
+          "combo_super": true,
+          "live_entry_gate": 0.25,
+          "search_feature_ids": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            31,
+            32,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51
+          ],
+          "seed_tokens": [
+            [
+              1,
+              103
+            ],
+            [
+              4,
+              102
+            ],
+            [
+              45,
+              111
+            ],
+            [
+              49,
+              4,
+              66
+            ],
+            [
+              8,
+              71
+            ],
+            [
+              39,
+              104
+            ],
+            [
+              20,
+              11,
+              66
+            ],
+            [
+              12,
+              23,
+              66
+            ],
+            [
+              3,
+              8,
+              71,
+              64
+            ],
+            [
+              2,
+              26,
+              67
+            ]
+          ]
+        },
+        "engine_version": "native-gpu-v1-m3.5-wf-folds",
+        "champions": []
+      },
+      "after": {
+        "summary": {
+          "timeframe": "15m",
+          "seconds": 61.6,
+          "status": "completed",
+          "error": null,
+          "bars": 17279,
+          "counts": {
+            "research": 10,
+            "qualified": 0,
+            "pending": 0,
+            "rejected": 10
+          },
+          "reasons": [
+            "strict_screen_failed_or_unproven",
+            "research_only_candidate",
+            "oos_validation_failed_or_missing",
+            "wf_failed_or_missing",
+            "wf_oos_fold_failed",
+            "holdout_failed_or_missing",
+            "holdout_stress_failed_or_missing"
+          ],
+          "portfolio": {
+            "n_factors": 5,
+            "avg_abs_corr": 0.372,
+            "equal": {
+              "ann_ret": 0.9322648197732168,
+              "sortino": 3.5326349171328078,
+              "calmar": 10
+            },
+            "ic_weighted": {
+              "ann_ret": 0.8709860241380671,
+              "sortino": 3.481437981735546,
+              "calmar": 10
+            },
+            "best_single": {
+              "ann_ret": 2.395298536108129,
+              "sortino": 6.050651163212689,
+              "calmar": 10
+            },
+            "equal_2x": {
+              "ann_ret": 0.7457299411065826,
+              "sortino": 2.82215089802788,
+              "calmar": 8.451317709952827
+            },
+            "ic_weighted_2x": {
+              "ann_ret": 0.6630791708913808,
+              "sortino": 2.6465395492620676,
+              "calmar": 7.760678081842158
+            },
+            "best_single_2x": {
+              "ann_ret": 2.2685977001959947,
+              "sortino": 5.72447541856798,
+              "calmar": 10
+            },
+            "members": [
+              [
+                43,
+                109,
+                111,
+                91
+              ],
+              [
+                43,
+                103,
+                75,
+                103,
+                104,
+                112,
+                102
+              ],
+              [
+                43,
+                109,
+                103,
+                92,
+                103,
+                104,
+                92,
+                92,
+                94,
+                102
+              ],
+              [
+                43
+              ],
+              [
+                46,
+                92,
+                103,
+                104,
+                92,
+                94,
+                102,
+                102
+              ]
+            ],
+            "member_research": [
+              false,
+              false,
+              false,
+              false,
+              false
+            ],
+            "any_member_research": false,
+            "segment": "holdout",
+            "eval_bars": 3456,
+            "combo_super": true,
+            "combo_source": "rescued",
+            "super_passed": false,
+            "wf_fold_sortinos": [
+              2.5694685052195534,
+              -6.991144768611315,
+              1.3736018077831549
+            ],
+            "wf_fold_sortinos_ic": [
+              2.2264991361094317,
+              -7.444166438945326,
+              1.9376468225643628
+            ],
+            "wf_stable": false
+          }
+        },
+        "config": {
+          "symbol": "SOLUSDT",
+          "timeframe": "15m",
+          "crypto_profile": true,
+          "population": 150,
+          "generations": 10,
+          "max_depth": 5,
+          "train_ratio": 0.7,
+          "walk_forward_folds": 3,
+          "top_n": 10,
+          "cost": 0.0005,
+          "selection_v2": true,
+          "evolve_v2": true,
+          "research_profile": "shortline_v1",
+          "execution_model": "signal_research",
+          "data_channel": "okx",
+          "seed": 42,
+          "combo_super": true,
+          "live_entry_gate": 0.25,
+          "search_feature_ids": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            31,
+            32,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51
+          ],
+          "seed_tokens": [
+            [
+              1,
+              103
+            ],
+            [
+              4,
+              102
+            ],
+            [
+              45,
+              111
+            ],
+            [
+              49,
+              4,
+              66
+            ],
+            [
+              8,
+              71
+            ],
+            [
+              39,
+              104
+            ],
+            [
+              20,
+              11,
+              66
+            ],
+            [
+              12,
+              23,
+              66
+            ],
+            [
+              3,
+              8,
+              71,
+              64
+            ],
+            [
+              2,
+              26,
+              67
+            ]
+          ]
+        },
+        "engine_version": "native-gpu-v1-m3.6-shortline-wf",
+        "champions": []
+      },
+      "data": {
+        "bars": 17279,
+        "from": "2026-04-13 00:00:00",
+        "to": "2026-10-09 23:45:00",
+        "sha256": "f666901b0afd71ba7d6736b100bb2ba58f2a29261148404b07cc48d2fb5a1f3a",
+        "missing_minutes": [
+          "2026-09-01T18:33:00+08:00"
+        ],
+        "dropped_buckets": 1
+      }
+    },
+    "5m": {
+      "before": {
+        "summary": {
+          "timeframe": "5m",
+          "seconds": 115.1,
+          "status": "completed",
+          "error": null,
+          "bars": 51839,
+          "counts": {
+            "research": 10,
+            "qualified": 0,
+            "pending": 0,
+            "rejected": 10
+          },
+          "reasons": [
+            "strict_screen_failed_or_unproven",
+            "research_only_candidate",
+            "oos_validation_failed_or_missing",
+            "wf_failed_or_missing",
+            "wf_oos_fold_failed",
+            "holdout_failed_or_missing",
+            "holdout_stress_failed_or_missing"
+          ],
+          "portfolio": {
+            "n_factors": 5,
+            "avg_abs_corr": 0.506,
+            "equal": {
+              "ann_ret": -0.4254425824196415,
+              "sortino": -1.4221654469643372,
+              "calmar": -3.8719812277805357
+            },
+            "ic_weighted": {
+              "ann_ret": -0.10859272633952428,
+              "sortino": -0.3100527549974056,
+              "calmar": -1.002967313711555
+            },
+            "best_single": {
+              "ann_ret": 0.14308203913991147,
+              "sortino": 0.36525008552030924,
+              "calmar": 1.1452331486976215
+            },
+            "equal_2x": {
+              "ann_ret": -1.5410203945537047,
+              "sortino": -5.179442703523871,
+              "calmar": -7.700527671659937
+            },
+            "ic_weighted_2x": {
+              "ann_ret": -1.4370093051997306,
+              "sortino": -4.122325301177174,
+              "calmar": -7.229535998685029
+            },
+            "best_single_2x": {
+              "ann_ret": -1.439797709095939,
+              "sortino": -3.6908306534155644,
+              "calmar": -7.081956049415938
+            },
+            "members": [
+              [
+                0,
+                102,
+                111,
+                22,
+                102,
+                91,
+                65,
+                102,
+                91,
+                95
+              ],
+              [
+                0,
+                111,
+                22,
+                102,
+                91,
+                65,
+                102,
+                91,
+                95
+              ],
+              [
+                0,
+                102,
+                111,
+                22,
+                70,
+                91,
+                65,
+                102,
+                91,
+                91,
+                95
+              ],
+              [
+                0,
+                102,
+                111,
+                0,
+                102,
+                111,
+                22,
+                70,
+                91,
+                65,
+                70,
+                91,
+                65,
+                102,
+                91,
+                95
+              ],
+              [
+                42
+              ]
+            ],
+            "member_research": [
+              false,
+              false,
+              false,
+              false,
+              false
+            ],
+            "any_member_research": false,
+            "segment": "holdout",
+            "eval_bars": 10368,
+            "combo_super": true,
+            "combo_source": "rescued",
+            "super_passed": false,
+            "wf_fold_sortinos": [
+              -8.957537676068984,
+              -7.158551708952562,
+              -2.182353701498765
+            ],
+            "wf_fold_sortinos_ic": [
+              -10.035362328334125,
+              -6.3215408711566745,
+              -1.5208271222931369
+            ],
+            "wf_stable": false
+          }
+        },
+        "config": {
+          "symbol": "SOLUSDT",
+          "timeframe": "5m",
+          "crypto_profile": true,
+          "population": 150,
+          "generations": 10,
+          "max_depth": 5,
+          "train_ratio": 0.7,
+          "walk_forward_folds": 3,
+          "top_n": 10,
+          "cost": 0.0005,
+          "selection_v2": true,
+          "evolve_v2": true,
+          "research_profile": "shortline_v1",
+          "execution_model": "signal_research",
+          "data_channel": "okx",
+          "seed": 42,
+          "combo_super": true,
+          "live_entry_gate": 0.25,
+          "search_feature_ids": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            31,
+            32,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51
+          ],
+          "seed_tokens": [
+            [
+              1,
+              103
+            ],
+            [
+              4,
+              102
+            ],
+            [
+              45,
+              111
+            ],
+            [
+              49,
+              4,
+              66
+            ],
+            [
+              8,
+              71
+            ],
+            [
+              39,
+              104
+            ],
+            [
+              20,
+              11,
+              66
+            ],
+            [
+              12,
+              23,
+              66
+            ],
+            [
+              3,
+              8,
+              71,
+              64
+            ],
+            [
+              2,
+              26,
+              67
+            ]
+          ]
+        },
+        "engine_version": "native-gpu-v1-m3.5-wf-folds",
+        "champions": []
+      },
+      "after": {
+        "summary": {
+          "timeframe": "5m",
+          "seconds": 79.5,
+          "status": "completed",
+          "error": null,
+          "bars": 51839,
+          "counts": {
+            "research": 10,
+            "qualified": 0,
+            "pending": 0,
+            "rejected": 10
+          },
+          "reasons": [
+            "strict_screen_failed_or_unproven",
+            "research_only_candidate",
+            "oos_validation_failed_or_missing",
+            "wf_failed_or_missing",
+            "wf_oos_fold_failed",
+            "holdout_failed_or_missing",
+            "holdout_stress_failed_or_missing"
+          ],
+          "portfolio": {
+            "n_factors": 5,
+            "avg_abs_corr": 0.506,
+            "equal": {
+              "ann_ret": -0.4254425824196415,
+              "sortino": -1.4221654469643372,
+              "calmar": -3.8719812277805357
+            },
+            "ic_weighted": {
+              "ann_ret": -0.10859272633952428,
+              "sortino": -0.3100527549974056,
+              "calmar": -1.002967313711555
+            },
+            "best_single": {
+              "ann_ret": 0.14308203913991147,
+              "sortino": 0.36525008552030924,
+              "calmar": 1.1452331486976215
+            },
+            "equal_2x": {
+              "ann_ret": -1.5410203945537047,
+              "sortino": -5.179442703523871,
+              "calmar": -7.700527671659937
+            },
+            "ic_weighted_2x": {
+              "ann_ret": -1.4370093051997306,
+              "sortino": -4.122325301177174,
+              "calmar": -7.229535998685029
+            },
+            "best_single_2x": {
+              "ann_ret": -1.439797709095939,
+              "sortino": -3.6908306534155644,
+              "calmar": -7.081956049415938
+            },
+            "members": [
+              [
+                0,
+                102,
+                111,
+                22,
+                102,
+                91,
+                65,
+                102,
+                91,
+                95
+              ],
+              [
+                0,
+                111,
+                22,
+                102,
+                91,
+                65,
+                102,
+                91,
+                95
+              ],
+              [
+                0,
+                102,
+                111,
+                22,
+                70,
+                91,
+                65,
+                102,
+                91,
+                91,
+                95
+              ],
+              [
+                0,
+                102,
+                111,
+                0,
+                102,
+                111,
+                22,
+                70,
+                91,
+                65,
+                70,
+                91,
+                65,
+                102,
+                91,
+                95
+              ],
+              [
+                42
+              ]
+            ],
+            "member_research": [
+              false,
+              false,
+              false,
+              false,
+              false
+            ],
+            "any_member_research": false,
+            "segment": "holdout",
+            "eval_bars": 10368,
+            "combo_super": true,
+            "combo_source": "rescued",
+            "super_passed": false,
+            "wf_fold_sortinos": [
+              -8.957537676068984,
+              -7.158551708952562,
+              -2.182353701498765
+            ],
+            "wf_fold_sortinos_ic": [
+              -10.035362328334125,
+              -6.3215408711566745,
+              -1.5208271222931369
+            ],
+            "wf_stable": false
+          }
+        },
+        "config": {
+          "symbol": "SOLUSDT",
+          "timeframe": "5m",
+          "crypto_profile": true,
+          "population": 150,
+          "generations": 10,
+          "max_depth": 5,
+          "train_ratio": 0.7,
+          "walk_forward_folds": 3,
+          "top_n": 10,
+          "cost": 0.0005,
+          "selection_v2": true,
+          "evolve_v2": true,
+          "research_profile": "shortline_v1",
+          "execution_model": "signal_research",
+          "data_channel": "okx",
+          "seed": 42,
+          "combo_super": true,
+          "live_entry_gate": 0.25,
+          "search_feature_ids": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            31,
+            32,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51
+          ],
+          "seed_tokens": [
+            [
+              1,
+              103
+            ],
+            [
+              4,
+              102
+            ],
+            [
+              45,
+              111
+            ],
+            [
+              49,
+              4,
+              66
+            ],
+            [
+              8,
+              71
+            ],
+            [
+              39,
+              104
+            ],
+            [
+              20,
+              11,
+              66
+            ],
+            [
+              12,
+              23,
+              66
+            ],
+            [
+              3,
+              8,
+              71,
+              64
+            ],
+            [
+              2,
+              26,
+              67
+            ]
+          ]
+        },
+        "engine_version": "native-gpu-v1-m3.6-shortline-wf",
+        "champions": []
+      },
+      "data": {
+        "bars": 51839,
+        "from": "2026-04-13 00:00:00",
+        "to": "2026-10-09 23:55:00",
+        "sha256": "31f09efe409fbe310d7a36758dc196417412091f5e927872b47f2df9bb0de0f9",
+        "missing_minutes": [
+          "2026-09-01T18:33:00+08:00"
+        ],
+        "dropped_buckets": 1
+      }
+    },
+    "1m": {
+      "before": {
+        "summary": {
+          "timeframe": "1m",
+          "seconds": 295.6,
+          "status": "completed",
+          "error": null,
+          "bars": 259199,
+          "counts": {
+            "research": 10,
+            "qualified": 0,
+            "pending": 0,
+            "rejected": 10
+          },
+          "reasons": [
+            "strict_screen_failed_or_unproven",
+            "research_only_candidate",
+            "oos_validation_failed_or_missing",
+            "wf_failed_or_missing",
+            "wf_oos_fold_failed",
+            "holdout_failed_or_missing",
+            "holdout_stress_failed_or_missing"
+          ],
+          "portfolio": {
+            "n_factors": 5,
+            "avg_abs_corr": 0.228,
+            "equal": {
+              "ann_ret": 0.9368085706265877,
+              "sortino": 3.770417473719669,
+              "calmar": 10
+            },
+            "ic_weighted": {
+              "ann_ret": 1.7553078475524195,
+              "sortino": 5.310047211977044,
+              "calmar": 10
+            },
+            "best_single": {
+              "ann_ret": 3.262847791302385,
+              "sortino": 6.48973000075026,
+              "calmar": 10
+            },
+            "equal_2x": {
+              "ann_ret": 0.5234354937157403,
+              "sortino": 2.1034036685499067,
+              "calmar": 5.4200610415349715
+            },
+            "ic_weighted_2x": {
+              "ann_ret": 1.3933200773005916,
+              "sortino": 4.208650015763669,
+              "calmar": 10
+            },
+            "best_single_2x": {
+              "ann_ret": 2.95608513220002,
+              "sortino": 5.870363581536308,
+              "calmar": 10
+            },
+            "members": [
+              [
+                43,
+                109
+              ],
+              [
+                43,
+                43,
+                110,
+                103,
+                69
+              ],
+              [
+                43,
+                110,
+                109
+              ],
+              [
+                46,
+                26,
+                69,
+                96,
+                44,
+                48,
+                93,
+                93,
+                92
+              ],
+              [
+                40,
+                111,
+                108,
+                76,
+                82
+              ]
+            ],
+            "member_research": [
+              false,
+              false,
+              false,
+              false,
+              false
+            ],
+            "any_member_research": false,
+            "segment": "holdout",
+            "eval_bars": 51840,
+            "combo_super": true,
+            "combo_source": "rescued",
+            "super_passed": false,
+            "wf_fold_sortinos": [
+              0.7775384477354734,
+              -2.1039261235710236,
+              -5.26641973348569
+            ],
+            "wf_fold_sortinos_ic": [
+              3.2176211705393176,
+              -3.1316158389030564,
+              -3.824945620675287
+            ],
+            "wf_stable": false
+          }
+        },
+        "config": {
+          "symbol": "SOLUSDT",
+          "timeframe": "1m",
+          "crypto_profile": true,
+          "population": 150,
+          "generations": 10,
+          "max_depth": 5,
+          "train_ratio": 0.7,
+          "walk_forward_folds": 3,
+          "top_n": 10,
+          "cost": 0.0005,
+          "selection_v2": true,
+          "evolve_v2": true,
+          "research_profile": "shortline_v1",
+          "execution_model": "signal_research",
+          "data_channel": "okx",
+          "seed": 42,
+          "combo_super": true,
+          "live_entry_gate": 0.25,
+          "search_feature_ids": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            31,
+            32,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51
+          ],
+          "seed_tokens": [
+            [
+              1,
+              103
+            ],
+            [
+              4,
+              102
+            ],
+            [
+              45,
+              111
+            ],
+            [
+              49,
+              4,
+              66
+            ],
+            [
+              8,
+              71
+            ],
+            [
+              39,
+              104
+            ],
+            [
+              20,
+              11,
+              66
+            ],
+            [
+              12,
+              23,
+              66
+            ],
+            [
+              3,
+              8,
+              71,
+              64
+            ],
+            [
+              2,
+              26,
+              67
+            ]
+          ]
+        },
+        "engine_version": "native-gpu-v1-m3.5-wf-folds",
+        "champions": []
+      },
+      "after": {
+        "summary": {
+          "timeframe": "1m",
+          "seconds": 248.8,
+          "status": "completed",
+          "error": null,
+          "bars": 259199,
+          "counts": {
+            "research": 10,
+            "qualified": 0,
+            "pending": 0,
+            "rejected": 10
+          },
+          "reasons": [
+            "strict_screen_failed_or_unproven",
+            "research_only_candidate",
+            "oos_validation_failed_or_missing",
+            "wf_failed_or_missing",
+            "wf_oos_fold_failed",
+            "holdout_failed_or_missing",
+            "holdout_stress_failed_or_missing"
+          ],
+          "portfolio": {
+            "n_factors": 5,
+            "avg_abs_corr": 0.228,
+            "equal": {
+              "ann_ret": 0.9368085706265877,
+              "sortino": 3.770417473719669,
+              "calmar": 10
+            },
+            "ic_weighted": {
+              "ann_ret": 1.7553078475524195,
+              "sortino": 5.310047211977044,
+              "calmar": 10
+            },
+            "best_single": {
+              "ann_ret": 3.262847791302385,
+              "sortino": 6.48973000075026,
+              "calmar": 10
+            },
+            "equal_2x": {
+              "ann_ret": 0.5234354937157403,
+              "sortino": 2.1034036685499067,
+              "calmar": 5.4200610415349715
+            },
+            "ic_weighted_2x": {
+              "ann_ret": 1.3933200773005916,
+              "sortino": 4.208650015763669,
+              "calmar": 10
+            },
+            "best_single_2x": {
+              "ann_ret": 2.95608513220002,
+              "sortino": 5.870363581536308,
+              "calmar": 10
+            },
+            "members": [
+              [
+                43,
+                109
+              ],
+              [
+                43,
+                43,
+                110,
+                103,
+                69
+              ],
+              [
+                43,
+                110,
+                109
+              ],
+              [
+                46,
+                26,
+                69,
+                96,
+                44,
+                48,
+                93,
+                93,
+                92
+              ],
+              [
+                40,
+                111,
+                108,
+                76,
+                82
+              ]
+            ],
+            "member_research": [
+              false,
+              false,
+              false,
+              false,
+              false
+            ],
+            "any_member_research": false,
+            "segment": "holdout",
+            "eval_bars": 51840,
+            "combo_super": true,
+            "combo_source": "rescued",
+            "super_passed": false,
+            "wf_fold_sortinos": [
+              0.7775384477354734,
+              -2.1039261235710236,
+              -5.26641973348569
+            ],
+            "wf_fold_sortinos_ic": [
+              3.2176211705393176,
+              -3.1316158389030564,
+              -3.824945620675287
+            ],
+            "wf_stable": false
+          }
+        },
+        "config": {
+          "symbol": "SOLUSDT",
+          "timeframe": "1m",
+          "crypto_profile": true,
+          "population": 150,
+          "generations": 10,
+          "max_depth": 5,
+          "train_ratio": 0.7,
+          "walk_forward_folds": 3,
+          "top_n": 10,
+          "cost": 0.0005,
+          "selection_v2": true,
+          "evolve_v2": true,
+          "research_profile": "shortline_v1",
+          "execution_model": "signal_research",
+          "data_channel": "okx",
+          "seed": 42,
+          "combo_super": true,
+          "live_entry_gate": 0.25,
+          "search_feature_ids": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            31,
+            32,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51
+          ],
+          "seed_tokens": [
+            [
+              1,
+              103
+            ],
+            [
+              4,
+              102
+            ],
+            [
+              45,
+              111
+            ],
+            [
+              49,
+              4,
+              66
+            ],
+            [
+              8,
+              71
+            ],
+            [
+              39,
+              104
+            ],
+            [
+              20,
+              11,
+              66
+            ],
+            [
+              12,
+              23,
+              66
+            ],
+            [
+              3,
+              8,
+              71,
+              64
+            ],
+            [
+              2,
+              26,
+              67
+            ]
+          ]
+        },
+        "engine_version": "native-gpu-v1-m3.6-shortline-wf",
+        "champions": []
+      },
+      "data": {
+        "bars": 259199,
+        "from": "2026-04-13 00:00:00",
+        "to": "2026-10-09 23:59:00",
+        "sha256": "5c9c242e4245781b6226e6629eb87bc49035816c0c665f570f3cedf3e19e7449",
+        "missing_minutes": [
+          "2026-09-01T18:33:00+08:00"
+        ],
+        "dropped_buckets": 1
+      }
+    }
+  },
+  "offline_wf_sign_examples": {
+    "15m": [
+      {
+        "token": 2,
+        "before": [
+          -16.981751384267714,
+          -9.53432782469195,
+          -0.1311357313799893
+        ],
+        "prefix_actual_window": [
+          -17.759070440818967,
+          -7.483675729183771,
+          1.4753928460946104
+        ]
+      },
+      {
+        "token": 40,
+        "before": [
+          -0.2875200311956866,
+          -3.636201334649091,
+          -8.029020842845348
+        ],
+        "prefix_actual_window": [
+          0.3527816485674069,
+          -3.7735884751533204,
+          -8.100400262202022
+        ]
+      }
+    ],
+    "5m": [
+      {
+        "token": 34,
+        "before": [
+          -1.2099552043025468,
+          7.99769619118039,
+          0.5562791387608037
+        ],
+        "prefix_actual_window": [
+          0.1473637395682699,
+          9.108612596956805,
+          2.4858911412275617
+        ]
+      },
+      {
+        "token": 42,
+        "before": [
+          1.7372649547637407,
+          -0.4239570036192089,
+          -3.002777753388672
+        ],
+        "prefix_actual_window": [
+          1.9148722040092032,
+          0.1769858560221376,
+          -3.0948778508274972
+        ]
+      }
+    ]
+  },
+  "offline_wf_scope": "Single base formulas; token 34 is outside the default enhanced pool. WF evidence alone is not full qualification.",
+  "cost_example": {
+    "timeframe": "15m",
+    "tokens": [
+      46
+    ],
+    "validation_fold": 3,
+    "window": 200,
+    "cost": 0.0005,
+    "ann_net": -0.9306363511359835,
+    "ann_gross": 1.8354887767193468,
+    "sortino_net": -2.166105954549025,
+    "cost_drag_ann": 2.766125127855331
+  }
+}
