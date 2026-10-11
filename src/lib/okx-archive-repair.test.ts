@@ -17,7 +17,7 @@ const payload=(data:unknown=rows.toReversed())=>Response.json({code:"0",data})
 beforeEach(()=>{
   vi.resetModules();vi.stubGlobal("indexedDB",new IDBFactory());vi.stubGlobal("IDBKeyRange",IDBKeyRange)
 })
-afterEach(()=>vi.unstubAllGlobals())
+afterEach(()=>{vi.useRealTimers();vi.unstubAllGlobals()})
 
 function network(api:(url:URL)=>Response|Promise<Response>,archive=zip) {
   const fn=vi.fn(async(url:string,init?:RequestInit)=>{
@@ -37,6 +37,87 @@ function network(api:(url:URL)=>Response|Promise<Response>,archive=zip) {
 }
 
 describe("verified official API repair of corrupt archive base volume",()=>{
+  it("continues the same page through a healthy assigned route after HTTP 429 without a cooldown blocking that route",async()=>{
+    vi.stubGlobal("localStorage",{getItem:()=>"test-token"})
+    const requests:string[]=[]
+    vi.stubGlobal("fetch",vi.fn(async(url:string,init?:RequestInit)=>{
+      if(url.endsWith("/api/market/snippet-pool/lease")) {
+        const excluded=JSON.parse(String(init?.body)).excluded
+        return Response.json({nodes:{rest:{id:excluded.includes("one")?"two":"one",name:"route",kind:"rest",url:excluded.includes("one")?"https://two.example":"https://one.example"}}})
+      }
+      if(url.includes("/cdn/"))return new Response(zip as BodyInit)
+      requests.push(url)
+      return url.startsWith("https://one.example")?Response.json({code:"50011",msg:"Too Many Requests"},{status:429}):payload()
+    }))
+    const h=await import("./okx-history")
+    const result=await h.fetchOkxArchive("candles","SOLUSDT","2024-04")
+    expect(h.parseOkxCandles(h.archiveCsv(result!),"SOLUSDT")).toHaveLength(3)
+    expect(requests).toHaveLength(2)
+    expect(new URL(requests[0]!).search).toBe(new URL(requests[1]!).search)
+    const manifest=JSON.parse(new TextDecoder().decode(unzipSync(result!)["repair.json"]))
+    expect(manifest.proxyOrigins).toEqual(["https://two.example"])
+  })
+  it("waits for Retry-After then retries a rate limited page and preserves actionable terminal errors",async()=>{
+    const h=await import("./okx-history")
+    vi.useFakeTimers()
+    let n=0
+    network(()=>++n===1?Response.json({code:"50011"},{status:429,headers:{"Retry-After":"90"}}):payload())
+    const progress=vi.fn()
+    const work=h.fetchOkxArchive("candles","SOLUSDT","2024-04",undefined,progress)
+    const checked=expect(work).resolves.not.toBeNull()
+    void checked.catch(()=>{})
+    // IDB uses real task dispatch even when timer waits are mocked.
+    for(let i=0;i<100 && n===0;i++)await vi.advanceTimersByTimeAsync(1)
+    expect(n).toBe(1)
+    await vi.advanceTimersByTimeAsync(89000)
+    expect(n).toBe(1)
+    await vi.advanceTimersByTimeAsync(1100)
+    await checked
+    expect(n).toBe(2)
+    expect(progress.mock.calls.flat().join(" ")).toContain("限流")
+  })
+  it("bounds persistent 50011 retries and distinguishes upstream unavailability from invalid archive data",async()=>{
+    const h=await import("./okx-history")
+    vi.useFakeTimers()
+    let n=0
+    network(()=>{n++;return Response.json({code:"50011",msg:"Too Many Requests"},{status:429})})
+    const outcome=h.fetchOkxArchive("candles","SOLUSDT","2024-04").then(()=>null,e=>e as Error)
+    await vi.advanceTimersByTimeAsync(190000)
+    const error=await outcome
+    expect(n).toBe(4)
+    expect(error?.message).toContain("校验暂不可用")
+    expect(error?.message).toContain("HTTP 429 / OKX 50011")
+    expect(error?.message).not.toContain("文件校验失败")
+  })
+  it("cancels a rate-limit wait immediately without another request",async()=>{
+    const h=await import("./okx-history")
+    vi.useFakeTimers()
+    const controller=new AbortController()
+    let n=0
+    network(()=>{n++;return Response.json({code:"50011"},{status:429})})
+    const outcome=h.fetchOkxArchive("candles","SOLUSDT","2024-04",controller.signal).then(()=>null,e=>e as Error)
+    for(let i=0;i<100 && n===0;i++)await vi.advanceTimersByTimeAsync(1)
+    await vi.advanceTimersByTimeAsync(100)
+    controller.abort()
+    expect(await outcome).toMatchObject({name:"AbortError"})
+    expect(n).toBe(1)
+  })
+  it("reuses previously verified pages after cancellation without redownloading or accepting partial data",async()=>{
+    const controller=new AbortController()
+    let n=0
+    network(()=>{n++;if(n===1)return payload([rows[2]]);controller.abort();return payload(rows.slice(0,2).toReversed())})
+    const h=await import("./okx-history")
+    await expect(h.fetchOkxArchive("candles","SOLUSDT","2024-04",controller.signal)).rejects.toMatchObject({name:"AbortError"})
+    vi.resetModules()
+    const calls=network(url=>{
+      expect(Number(url.searchParams.get("after"))).toBe(Number(rows[2]![0]))
+      return payload(rows.slice(0,2).toReversed())
+    })
+    const reloaded=await import("./okx-history")
+    const result=await reloaded.fetchOkxArchive("candles","SOLUSDT","2024-04")
+    expect(reloaded.parseOkxCandles(reloaded.archiveCsv(result!),"SOLUSDT")).toHaveLength(3)
+    expect(calls).toHaveBeenCalledTimes(2) // ZIP + only the unfinished page.
+  })
   it("repairs the real SOL rows only after cross-checking, records provenance and reuses cache",async()=>{
     const fn=network(()=>payload())
     const h=await import("./okx-history")
@@ -74,7 +155,7 @@ describe("verified official API repair of corrupt archive base volume",()=>{
   it("reports a proxy failure without trying unreachable official domains",async()=>{
     const fn=network(()=>{throw new Error("proxy network unavailable")})
     const h=await import("./okx-history")
-    await expect(h.fetchOkxArchive("candles","SOLUSDT","2024-04")).rejects.toThrow(/Snippets.*校验失败/)
+    await expect(h.fetchOkxArchive("candles","SOLUSDT","2024-04")).rejects.toThrow(/校验暂不可用.*Snippets.*连接失败/)
     expect(fn).toHaveBeenCalledTimes(2)
   })
   it("repairs and replaces a hash-valid old cache entry without redownloading the ZIP",async()=>{

@@ -9,8 +9,8 @@ import { cryptoPair } from "./crypto-direct"
 import { openDb, idbGet, idbPut, idbDelete, OKX_ARCHIVE_STORE } from "./idb"
 import { sha256Hex, type TickBucket } from "./shortline/digest"
 import { BucketAccumulator } from "./shortline/bucket-stream"
-import { snippetPublicGet } from "./snippet-rest"
-import { refreshSnippetPool, snippetOrigin } from "./snippet-pool"
+import { snippetPublicGet, SnippetReadError } from "./snippet-rest"
+import { refreshSnippetPool, snippetOrigin, rotateSnippetRest } from "./snippet-pool"
 
 export type OkxArchiveKind = "candles" | "trades" | "funding"
 export type ShortlineHistorySource = "okx" | "binance_usdt"
@@ -71,6 +71,7 @@ class MissingContractVolume extends Error {
   constructor(readonly time: number) { super("OKX 旧归档缺基础币成交量，需要校验同期合约面值") }
 }
 class ArchiveContentsError extends Error {}
+class ArchiveVerificationUnavailable extends Error {}
 class ContractVolumeMismatch extends Error {
   constructor() { super("OKX 合约数量换算不一致") }
 }
@@ -174,27 +175,50 @@ const CANDLE_HEADER = "instrument_name,open,high,low,close,vol,vol_ccy,vol_quote
 function checkStopped(signal?: AbortSignal): void {
   if (signal?.aborted) throw new DOMException("已停止","AbortError")
 }
-function pauseApi(signal?: AbortSignal): Promise<void> {
+function pauseApi(signal?: AbortSignal, ms = 200): Promise<void> {
   checkStopped(signal)
   return new Promise((resolve,reject) => {
     const abort = () => { clearTimeout(timer); reject(new DOMException("已停止","AbortError")) }
-    const timer = setTimeout(() => { signal?.removeEventListener("abort",abort); resolve() },200)
+    const timer = setTimeout(() => { signal?.removeEventListener("abort",abort); resolve() },ms)
     signal?.addEventListener("abort",abort,{once:true})
   })
 }
-async function snippetCandlePage(symbol: string, after: number, signal?: AbortSignal): Promise<{data:unknown[];origin:string}> {
+type RepairPage = {data:unknown[];origin:string}
+function repairPageKey(symbol: string, after: number): string { return `okx-api-page-v1:${okxInstrument(symbol)}:1m:${after}:100` }
+async function snippetCandlePage(symbol: string, after: number, signal?: AbortSignal, progress?: (msg:string)=>void): Promise<RepairPage> {
   checkStopped(signal)
+  const cached = await cachedBytes(repairPageKey(symbol,after))
+  if (cached) {
+    try { return JSON.parse(new TextDecoder().decode(cached)) as RepairPage }
+    catch { /* Re-download a malformed cached page. */ }
+  }
   try {
-    await refreshSnippetPool()
-    checkStopped(signal)
-    const origin = snippetOrigin("rest")
-    // The deployed Snippets whitelist caps history-candles at 100, not 300.
-    const data = await snippetPublicGet(`/api/v5/market/history-candles?instId=${okxInstrument(symbol)}&bar=1m&after=${after}&limit=100`,30000,signal)
-    checkStopped(signal)
-    return {data,origin}
+    for (let attempt = 0; ; attempt++) {
+      await refreshSnippetPool()
+      checkStopped(signal)
+      const origin = snippetOrigin("rest")
+      try {
+        const data = await snippetPublicGet(`/api/v5/market/history-candles?instId=${okxInstrument(symbol)}&bar=1m&after=${after}&limit=100`,30000,signal)
+        checkStopped(signal)
+        return {data,origin}
+      } catch (e) {
+        checkStopped(signal)
+        if (!(e instanceof SnippetReadError)) throw e
+        if (!e.retryable || attempt >= 3) throw new ArchiveVerificationUnavailable(e.message)
+        if (await rotateSnippetRest(origin)) {
+          progress?.(`OKX Snippets ${e.code === "50011" || e.status === 429 ? "限流" : "线路暂不可用"}，切换可用线路重试当前页…`)
+          continue
+        }
+        const delay = Math.max(e.retryAfterMs,1000*2**attempt)
+        if (delay > 300000) throw new ArchiveVerificationUnavailable(e.message)
+        progress?.(`OKX Snippets ${e.code === "50011" || e.status === 429 ? "限流" : "线路暂不可用"}，等待 ${Math.ceil(delay/1000)} 秒后重试当前页（${attempt+1}/3）…`)
+        await pauseApi(signal,delay)
+      }
+    }
   } catch (e) {
     checkStopped(signal)
-    throw new Error(`OKX Snippets 代理校验失败：${e instanceof Error ? e.message : String(e)}`)
+    if (e instanceof ArchiveVerificationUnavailable) throw e
+    throw new ArchiveVerificationUnavailable(`OKX Snippets 历史校验连接失败：${e instanceof Error ? e.message : String(e)}`)
   }
 }
 
@@ -216,7 +240,7 @@ async function repairArchiveVolume(symbol: string, key: string, bytes: Uint8Arra
     if (pages++) await pauseApi(signal)
     // One calendar month is the largest package; also bound malformed pagination.
     if (pages > 45000) throw new Error("OKX API 分页超出归档范围")
-    const payload = await snippetCandlePage(symbol,cursor,signal)
+    const payload = await snippetCandlePage(symbol,cursor,signal,progress)
     proxyOrigins.add(payload.origin)
     if (payload.data.length > 100) throw new Error("OKX Snippets API 校验响应超出分页上限")
     if (!payload.data.length) throw new Error("OKX API 缺少归档分钟，无法修复成交量")
@@ -240,6 +264,9 @@ async function repairArchiveVolume(symbol: string, key: string, bytes: Uint8Arra
       verified.set(b.open_time!,`${okxInstrument(symbol)},${b.open},${b.high},${b.low},${b.close},${b.contract_volume},${b.volume},${b.quote_volume ?? "None"},${b.open_time},1`)
       pending.delete(b.open_time!)
     }
+    // Persist only pages whose every archive match passed strict verification.
+    // Resume rechecks each page before producing any research archive.
+    await saveArchiveBytes(repairPageKey(symbol,cursor),new TextEncoder().encode(JSON.stringify(payload)))
     cursor = previous
     progress?.(`OKX ${key} Snippets 交叉校验 ${verified.size}/${original.length} 根…`)
   }
@@ -278,9 +305,12 @@ async function validateArchive(kind: OkxArchiveKind, symbol: string, key: string
   return bytes
 }
 async function cachedArchive(kind: OkxArchiveKind, symbol: string, key: string): Promise<Uint8Array | null> {
+  return cachedBytes(archiveKey(kind,symbol,key))
+}
+async function cachedBytes(key: string): Promise<Uint8Array | null> {
   const db = await openDb()
   if (!db) return null
-  const entry = await idbGet<ArchiveEntry>(db,OKX_ARCHIVE_STORE,archiveKey(kind,symbol,key))
+  const entry = await idbGet<ArchiveEntry>(db,OKX_ARCHIVE_STORE,key)
   if (!entry) return null
   const bytes = new Uint8Array(entry.bytes)
   if (sha256Hex(bytes) !== entry.sha256) {
@@ -290,8 +320,12 @@ async function cachedArchive(kind: OkxArchiveKind, symbol: string, key: string):
   return bytes
 }
 async function saveArchive(kind: OkxArchiveKind, symbol: string, key: string, bytes: Uint8Array): Promise<void> {
+  if (kind === "trades") return
+  await saveArchiveBytes(archiveKey(kind,symbol,key),bytes)
+}
+async function saveArchiveBytes(key: string, bytes: Uint8Array): Promise<void> {
   const db = await openDb()
-  if (!db || kind === "trades") return // Trades are persisted as compact daily digests, not raw ZIPs.
+  if (!db) return
   const entries = await new Promise<Array<{key:string,byteLength:number,savedAt:number}>>((resolve,reject) => {
     const out: Array<{key:string,byteLength:number,savedAt:number}> = []
     const req = db.transaction(OKX_ARCHIVE_STORE).objectStore(OKX_ARCHIVE_STORE).openCursor()
@@ -307,7 +341,7 @@ async function saveArchive(kind: OkxArchiveKind, symbol: string, key: string, by
     if (usage+bytes.byteLength <= CACHE_BUDGET) break
     await idbDelete(db,OKX_ARCHIVE_STORE,e.key); usage -= e.byteLength
   }
-  await idbPut(db,OKX_ARCHIVE_STORE,{key:archiveKey(kind,symbol,key),bytes,sha256:sha256Hex(bytes),savedAt:Date.now(),byteLength:bytes.byteLength})
+  await idbPut(db,OKX_ARCHIVE_STORE,{key,bytes,sha256:sha256Hex(bytes),savedAt:Date.now(),byteLength:bytes.byteLength})
 }
 
 /** Official files + public API via the assigned Snippets node; no server kline fallback. */
@@ -323,6 +357,7 @@ export async function fetchOkxArchive(kind: OkxArchiveKind, symbol: string, key:
       return checked
     } catch (e) {
       checkStopped(signal)
+      if (e instanceof ArchiveVerificationUnavailable) throw new Error(`OKX 历史数据校验暂不可用（${key}）：${e.message}；已完成的校验分页已保存，可稍后重试`)
       throw new Error(`OKX 官方历史文件校验失败（${key}）：${e instanceof Error ? e.message : String(e)}；不会转发服务器`)
     }
   }
@@ -344,12 +379,14 @@ export async function fetchOkxArchive(kind: OkxArchiveKind, symbol: string, key:
         try { bytes = await validateArchive(kind,symbol,key,bytes,signal,progress) }
         catch (e) {
           if (signal?.aborted) throw new DOMException("已停止", "AbortError")
+          if (e instanceof ArchiveVerificationUnavailable) throw e
           throw new ArchiveContentsError(e instanceof Error ? e.message : String(e))
         }
         await saveArchive(kind,symbol,key,bytes)
         return bytes
       } catch (e) {
         if (signal?.aborted) throw new DOMException("已停止", "AbortError")
+        if (e instanceof ArchiveVerificationUnavailable) throw new Error(`OKX 历史数据校验暂不可用（${key}）：${e.message}；已完成的校验分页已保存，可稍后重试`)
         // A validated HTTP response with invalid contents is a data error,
         // not a connection problem; don't download the same ZIP four times.
         if (e instanceof ArchiveContentsError) {

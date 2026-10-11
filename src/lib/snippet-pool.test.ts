@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
-import { refreshSnippetPool, resetSnippetPool, snippetFailed, snippetOrigin } from "./snippet-pool"
+import { refreshSnippetPool, resetSnippetPool, snippetFailed, snippetOrigin, rotateSnippetRest } from "./snippet-pool"
 import { snippetPublicGet, resetSnippetRest } from "./snippet-rest"
 import { OkxSnippetWebSocket } from "./okx-snippet-ws"
 
@@ -34,6 +34,42 @@ it("fails over only this user and records rate limits without excluding a health
   expect(JSON.parse(fetch.mock.calls[1][1].body)).toMatchObject({ excluded: [], event: { outcome: "limited" } })
   await snippetFailed("rest", "https://two.example")
   expect(JSON.parse(fetch.mock.calls[2][1].body).excluded).toEqual(["two"])
+})
+it("temporarily rotates a limited public REST route using trusted assignments without reporting it dead", async () => {
+  const fetch = vi.fn().mockImplementation(async (_url, init) => {
+    const excluded = JSON.parse(init.body).excluded
+    return Response.json(lease(excluded.includes("one") ? "two" : "one"))
+  })
+  vi.stubGlobal("fetch", fetch)
+  await refreshSnippetPool()
+  expect(await rotateSnippetRest("https://one.example")).toBe(true)
+  expect(snippetOrigin("rest")).toBe("https://two.example")
+  expect(JSON.parse(fetch.mock.calls[1][1].body)).toMatchObject({ excluded: ["one"] })
+  expect(JSON.parse(fetch.mock.calls[1][1].body).event).toBeUndefined()
+})
+it("retains a trusted REST assignment when all alternate routes are unavailable", async () => {
+  const fetch = vi.fn().mockImplementation(async (_url, init) =>
+    Response.json(JSON.parse(init.body).excluded.length ? { nodes: {} } : lease()))
+  vi.stubGlobal("fetch", fetch)
+  await refreshSnippetPool()
+  expect(await rotateSnippetRest("https://one.example")).toBe(false)
+  expect(snippetOrigin("rest")).toBe("https://one.example")
+})
+it("retains separate Retry-After cooldowns when rotating among public REST routes", async () => {
+  let selected = "one"
+  let reads = 0
+  vi.stubGlobal("fetch", vi.fn(async (url:string) => {
+    if (url.endsWith("/lease")) return Response.json(lease(selected))
+    reads++
+    return Response.json({code:"50011"},{status:429,headers:{"Retry-After":"90"}})
+  }))
+  await refreshSnippetPool()
+  await expect(snippetPublicGet("/api/v5/market/history-candles")).rejects.toMatchObject({retryAfterMs:90000})
+  selected = "two"; await refreshSnippetPool(true)
+  await expect(snippetPublicGet("/api/v5/market/history-candles")).rejects.toMatchObject({status:429})
+  selected = "one"; await refreshSnippetPool(true)
+  await expect(snippetPublicGet("/api/v5/market/history-candles")).rejects.toMatchObject({retryAfterMs:expect.any(Number)})
+  expect(reads).toBe(2)
 })
 it("ignores an old account response after logout and rejects unsafe server configuration", async () => {
   let resolve!: (response: Response) => void

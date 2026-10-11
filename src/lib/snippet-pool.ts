@@ -77,6 +77,24 @@ export async function snippetFailed(kind: SnippetKind, origin: string, limited =
   await refreshSnippetPool(true, { node_id: node.id, outcome: limited ? "limited" : "error", latency_ms: 0 })
 }
 
+/** Public history reads may use another trusted route after an IP limit.
+ * A temporary per-user choice, never a report that the node is dead. */
+export async function rotateSnippetRest(origin: string): Promise<boolean> {
+  if (!token()) return false
+  let node: SnippetNode
+  try { node = snippetNode("rest") } catch { return false }
+  if (node.url !== origin) return true
+  excluded.set(node.id, Date.now() + 60000)
+  await refreshSnippetPool(true)
+  if (!nodes.rest) {
+    excluded.delete(node.id)
+    await refreshSnippetPool(true)
+  }
+  if (nodes.rest && nodes.rest.url !== origin) return true
+  excluded.delete(node.id)
+  return false
+}
+
 export function snippetSucceeded(kind: SnippetKind, origin: string, latencyMs = 0): void {
   let node: SnippetNode
   try { node = snippetNode(kind) } catch { return }

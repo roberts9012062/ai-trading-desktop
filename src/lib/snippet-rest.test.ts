@@ -49,3 +49,24 @@ it('cancels archive reads before requesting a proxy and after receiving a respon
   fetch.mockImplementation(async()=>{during.abort();return Response.json({code:'0',data:[]})})
   await expect(snippetPublicGet('/api/v5/public/time',30000,during.signal)).rejects.toMatchObject({name:'AbortError'})
 })
+it('exposes rate limit status, code and retry delay instead of a generic data failure',async()=>{
+  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({code:'50011',msg:'Too Many Requests'},{status:429,headers:{'Retry-After':'90'}})))
+  await expect(snippetPublicGet('/api/v5/market/history-candles')).rejects.toMatchObject({
+    status:429,code:'50011',retryable:true,retryAfterMs:90000,
+  })
+})
+it('still falls back when a trusted lease has no REST nodes',async()=>{
+  const pool=await import('./snippet-pool')
+  vi.stubGlobal('localStorage',{getItem:()=> 'account'})
+  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({nodes:{}})))
+  await pool.refreshSnippetPool(true)
+  const fallback=vi.fn(async()=> ['server'])
+  expect(await withSnippetRead('no-route',()=>snippetPublicGet('/api/v5/public/time'),fallback)).toEqual(['server'])
+  pool.resetSnippetPool(false)
+})
+it('keeps HTTP 429 retry semantics for Cloudflare plain-text rate-limit responses',async()=>{
+  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('error code: 1015',{status:429})))
+  await expect(snippetPublicGet('/api/v5/market/history-candles')).rejects.toMatchObject({
+    status:429,retryable:true,retryAfterMs:60000,
+  })
+})
