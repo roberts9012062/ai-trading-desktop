@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useState } from "react"
+import { isSingleFactorFavorite } from "@/lib/portfolio-favorite"
 import { Label } from "@/components/ui/label"
 import { desktopTokensToServerV3, serverFactorBlockReason } from "@/lib/factor-access"
 import {
@@ -27,7 +28,7 @@ export function AiFactorMount({
   symbol,
 }: AiFactorMountProps): React.JSX.Element {
   const enabled = Array.isArray(value)
-  const [favs, setFavs] = useState<FactorFavoriteItem[]>([])
+  const [favs, setFavs] = useState<(FactorFavoriteItem & { tokens: number[] })[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -36,7 +37,7 @@ export function AiFactorMount({
       setLoading(true)
       try {
         const items = await listFactorFavorites(symbol || undefined)
-        if (!cancelled) setFavs(items)
+        if (!cancelled) setFavs(items.filter(isSingleFactorFavorite))
       } catch {
         if (!cancelled) setFavs([])
       } finally {

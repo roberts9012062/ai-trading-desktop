@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { ChampionTable } from "@/components/factor-lab/champion-table"
-import { PortfolioCard } from "@/components/factor-lab/portfolio-card"
+import { favoriteTokensKey } from "@/lib/portfolio-favorite"
 import { addFactorFavorite, listFactorFavorites } from "@/lib/factor-lab-api"
 import type { Champion } from "@/lib/factor-lab-api"
 import type { AITradingTask } from "@/lib/ai-trading-api"
@@ -1102,7 +1102,7 @@ function TaskDetailPanel(props: DetailProps): React.JSX.Element {
         if (cancelled) return
         const set = new Set<string>()
         for (const f of favs) {
-          if (f.tokens?.length) set.add(f.tokens.join(","))
+          if (f.tokens?.length) set.add(favoriteTokensKey(f.tokens))
         }
         setFavoritedKeys(set)
       } catch {
@@ -1291,10 +1291,9 @@ function TaskDetailPanel(props: DetailProps): React.JSX.Element {
             冠军因子（含训练/测试双指标）
           </div>
           {/* 组合推荐:等权/IC 加权 vs 最优单因子(完成时自动评估;M4) */}
-          {task.portfolio && <PortfolioCard portfolio={task.portfolio} />}
           <ChampionTable
             champions={champions}
-            emptyMessage={task.portfolio?.super_passed ? "暂无单独通过验收的冠军因子；已通过的超级因子及成员见上方组合结果" : undefined}
+            portfolio={task.portfolio}
             selectedTokens={null}
             onSelect={() => {}}
             onFavorite={handleFavorite}

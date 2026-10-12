@@ -5,6 +5,8 @@
  */
 
 import { useState } from "react"
+import { isSingleFactorFavorite } from "@/lib/portfolio-favorite"
+import { PortfolioFavoriteDialog } from "./portfolio-favorite-dialog"
 import { groupNativeOrigins, nativeOrigin } from "@/lib/native-engine/origin"
 import {
   patchFactorFavorite,
@@ -14,7 +16,7 @@ import {
 interface FavoritesPanelProps {
   items: FactorFavoriteItem[]
   loading: boolean
-  onSelect: (item: FactorFavoriteItem) => void
+  onSelect: (item: FactorFavoriteItem & { tokens: number[] }) => void
   onDelete: (id: string) => void
   onRefresh: () => void
 }
@@ -27,6 +29,7 @@ export function FavoritesPanel(
   const [editId, setEditId] = useState<string | null>(null)
   const [editName, setEditName] = useState("")
   const [saving, setSaving] = useState(false)
+  const [portfolioItem, setPortfolioItem] = useState<FactorFavoriteItem | null>(null)
 
   async function saveName(id: string): Promise<void> {
     const name = editName.trim()
@@ -114,10 +117,10 @@ export function FavoritesPanel(
                   <button
                     type="button"
                     className="w-full text-left"
-                    onClick={() => onSelect(it)}
+                    onClick={() => isSingleFactorFavorite(it) ? onSelect(it) : setPortfolioItem(it)}
                   >
                     <div className="text-[var(--text-primary)] font-medium truncate">
-                      {it.name}
+                      {!isSingleFactorFavorite(it) && <span className="text-amber-500 mr-1">组合 ·</span>}{it.name}
                     </div>
                     <div className="font-num text-[10px] text-[var(--text-muted)] break-all mt-0.5">
                       {it.text}
@@ -150,6 +153,7 @@ export function FavoritesPanel(
           ))])}
         </ul>
       )}
+      <PortfolioFavoriteDialog item={portfolioItem} onClose={() => setPortfolioItem(null)} />
     </div>
   )
 }

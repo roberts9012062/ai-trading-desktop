@@ -1,6 +1,7 @@
 /** 因子实验室纯辅助函数 —— 不含 React 状态 */
 
 import { isResearchOnlyFactor, desktopTokensToServerV3 } from "@/lib/factor-access"
+import { isSingleFactorFavorite } from "@/lib/portfolio-favorite"
 
 import type {
   Champion,
@@ -173,6 +174,7 @@ export function championFromHistory(item: FactorHistoryItem): Champion {
 
 /** 收藏 → Champion(同样按版本戳判定旧口径) */
 export function championFromFavorite(item: FactorFavoriteItem): Champion {
+  if (!isSingleFactorFavorite(item)) throw new Error("组合收藏应查看组合数据，不能作为单因子回测")
   return {
     tokens: item.tokens,
     text: item.text,

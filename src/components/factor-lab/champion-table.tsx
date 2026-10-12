@@ -5,10 +5,11 @@
  */
 
 import { useState } from "react"
-import type { Champion } from "@/lib/factor-lab-api"
+import type { Champion, PortfolioResult } from "@/lib/factor-lab-api"
 import { cn } from "@/lib/utils"
 import { FACTOR_HELP, HelpTip } from "./help-tip"
 import { ComboSimilarityPanel } from "./combo/combo-similarity-panel"
+import { PortfolioChampionRow } from "./portfolio-champion-row"
 
 interface ChampionTableProps {
   champions: Champion[]
@@ -25,6 +26,8 @@ interface ChampionTableProps {
   /** 超级因子成员 tokens key 集合（组合因子测试通过的成员行加「超级」标） */
   superMembers?: Set<string>
   emptyMessage?: string
+  portfolio?: PortfolioResult | null
+  onPortfolioFavorited?: () => void
 }
 
 function tokenKey(tokens: number[]): string {
@@ -77,6 +80,8 @@ export function ChampionTable({
   comboTimeframe,
   superMembers,
   emptyMessage,
+  portfolio,
+  onPortfolioFavorited,
 }: ChampionTableProps): React.JSX.Element {
   // 本地 pending：点击收藏后立即置灰，避免重复点击；网络失败由调用方负责回退
   const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set())
@@ -84,7 +89,7 @@ export function ChampionTable({
   // 组合勾选：2-5 个成员
   const [comboKeys, setComboKeys] = useState<Set<string>>(new Set())
 
-  if (champions.length === 0) {
+  if (champions.length === 0 && !portfolio) {
     return (
       <div className="rounded-xl border border-dashed border-[var(--border)] p-6 text-center text-xs text-[var(--text-muted)]">
         {emptyMessage ?? "暂无结果，先配置参数并执行搜索"}
@@ -174,6 +179,18 @@ export function ChampionTable({
           </tr>
         </thead>
         <tbody>
+          {portfolio && <PortfolioChampionRow
+            key={JSON.stringify([portfolio.members, portfolio.pass_mode, portfolio.equal, portfolio.ic_weighted])}
+            portfolio={portfolio}
+            showCombo={showCombo}
+            showTest={showTest}
+            showHoldout={showHoldout}
+            showDsr={showDsr}
+            symbol={comboSymbol ?? ""}
+            timeframe={comboTimeframe ?? ""}
+            favoritedKeys={favoritedKeys}
+            onFavorited={onPortfolioFavorited}
+          />}
           {champions.map((c, i) => {
             const key = tokenKey(c.tokens)
             const on = activeKey === key

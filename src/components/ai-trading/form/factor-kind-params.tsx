@@ -3,6 +3,7 @@
 /** 量化任务：因子公式参数（收藏下拉 + 手动 tokens） */
 
 import { useEffect, useState } from "react"
+import { isSingleFactorFavorite } from "@/lib/portfolio-favorite"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { QuantParamsState } from "@/lib/quant-strategy"
@@ -26,7 +27,7 @@ export function FactorKindParams({
   symbol,
   onApplyMeta,
 }: FactorKindParamsProps): React.JSX.Element {
-  const [favorites, setFavorites] = useState<FactorFavoriteItem[]>([])
+  const [favorites, setFavorites] = useState<(FactorFavoriteItem & { tokens: number[] })[]>([])
   const [loading, setLoading] = useState(false)
   const [favId, setFavId] = useState("")
 
@@ -36,7 +37,7 @@ export function FactorKindParams({
       setLoading(true)
       try {
         const items = await listFactorFavorites(symbol || undefined)
-        if (!cancelled) setFavorites(items)
+        if (!cancelled) setFavorites(items.filter(isSingleFactorFavorite))
       } catch {
         if (!cancelled) setFavorites([])
       } finally {

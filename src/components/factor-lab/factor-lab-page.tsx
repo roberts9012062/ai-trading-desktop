@@ -18,7 +18,7 @@ import type { FavoriteInput } from "./hooks/use-factor-lab-page"
 import { EvolveBar } from "./llm/evolve-bar"
 import { GeneratePanel } from "./llm/generate-panel"
 import { SelectedFactorPanel } from "./panels/selected-factor-panel"
-import { PortfolioCard } from "./portfolio-card"
+import { favoriteTokensKey } from "@/lib/portfolio-favorite"
 import { useFactorLabPage } from "./hooks/use-factor-lab-page"
 import { useEffect, useMemo, useState } from "react"
 import {
@@ -34,11 +34,11 @@ import { qualificationReasonLabel } from "@/lib/native-engine/progress"
 
 /** 已收藏 tokens_key 集合（用于 Champion 表/详情/历史置灰） */
 function buildFavoritedKeys(
-  favorites: { tokens: number[] }[],
+  favorites: { tokens: number[] | number[][] }[],
 ): Set<string> {
   const set = new Set<string>()
   for (const f of favorites) {
-    if (f.tokens?.length) set.add(f.tokens.join(","))
+    if (f.tokens?.length) set.add(favoriteTokensKey(f.tokens))
   }
   return set
 }
@@ -382,7 +382,8 @@ export function FactorLabPage(): React.JSX.Element {
           )}
           <ChampionTable
             champions={s.result?.champions ?? []}
-            emptyMessage={s.result?.portfolio?.super_passed ? "暂无单独通过验收的冠军因子；已通过的超级因子及成员见下方组合结果" : undefined}
+            portfolio={s.result?.portfolio}
+            onPortfolioFavorited={() => void s.refreshFavorites(s.symbol)}
             selectedTokens={s.selected?.tokens ?? null}
             onSelect={(c) => void s.selectFactor(c)}
             onFavorite={(c) => setFavPending(championToFavoriteInput(c))}
@@ -478,7 +479,6 @@ export function FactorLabPage(): React.JSX.Element {
         </div>
       </div>
 
-      {s.result?.portfolio && <PortfolioCard portfolio={s.result.portfolio} />}
       {s.result && (
         <div className="text-[11px] text-[var(--text-muted)]">
           基于 {s.result.bars} 根 {s.result.timeframe} K 线 · 区间{" "}

@@ -262,10 +262,10 @@ export interface FactorFavoriteItem {
   symbol: string | null
   timeframe: string | null
   name: string
-  tokens: number[]
+  tokens: number[] | number[][]
   text: string
   composite: number | null
-  metrics: Partial<FactorMetrics> | null
+  metrics: (Partial<FactorMetrics> & { portfolio_snapshot?: PortfolioResult }) | null
   note: string | null
   /** 所属收藏文件夹（空=未分类） */
   folder_id?: string | null
@@ -474,13 +474,13 @@ export async function listFactorFavorites(
 }
 
 export async function addFactorFavorite(payload: {
-  tokens: number[]
+  tokens: number[] | number[][]
   text: string
   name?: string
   symbol?: string
   timeframe?: string
   composite?: number
-  metrics?: Partial<FactorMetrics>
+  metrics?: Partial<FactorMetrics> & { portfolio_snapshot?: PortfolioResult }
   note?: string
   folder_id?: string | null
 }): Promise<FactorFavoriteItem> {

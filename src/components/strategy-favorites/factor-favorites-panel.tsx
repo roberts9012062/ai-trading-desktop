@@ -24,6 +24,8 @@ import {
   rectSortingStrategy,
 } from "@dnd-kit/sortable"
 import { Trash2 } from "lucide-react"
+import { isSingleFactorFavorite } from "@/lib/portfolio-favorite"
+import { PortfolioFavoriteDialog } from "@/components/factor-lab/favorites/portfolio-favorite-dialog"
 import { cn } from "@/lib/utils"
 import {
   listFactorFavorites,
@@ -57,6 +59,7 @@ function FactorCardView({
   const annRet = Number(f.metrics?.ann_ret ?? 0)
   const annPct = Number.isFinite(annRet) ? (annRet * 100).toFixed(1) : "0.0"
   const sortino = f.metrics?.sortino
+  const [showData, setShowData] = useState(false)
   return (
     <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-3 h-full flex flex-col">
       <div className="flex items-start justify-between gap-2">
@@ -97,6 +100,8 @@ function FactorCardView({
           </span>
         )}
       </div>
+      {!isSingleFactorFavorite(f) && <button type="button" className="text-xs text-amber-500 mt-2 text-left hover:underline" onClick={() => setShowData(true)}>组合 · 查看数据（{f.tokens.length} 成员）</button>}
+      <PortfolioFavoriteDialog item={showData ? f : null} onClose={() => setShowData(false)} />
     </div>
   )
 }

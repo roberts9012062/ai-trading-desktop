@@ -34,7 +34,7 @@ function PortfolioMembers({ portfolio }: { portfolio: PortfolioResult }): React.
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium text-amber-500">超级因子成员（{members.length}）</span>
         <span className="text-[var(--text-muted)]">组合已通过，单因子资格独立判断</span>
-        <button type="button" className="ml-auto text-[var(--accent)] hover:underline" onClick={() => void copyMembers()}>
+        <button type="button" className="ml-auto text-[var(--primary)] hover:underline" onClick={() => void copyMembers()}>
           复制成员 tokens
         </button>
         <span role="status">{copyMessage}</span>
@@ -72,7 +72,7 @@ function MetricSpan(props: { label: string; m: PortfolioMetrics }): React.JSX.El
       <span className={m.ann_ret >= 0 ? "text-up" : "text-down"}>
         {(m.ann_ret * 100).toFixed(1)}%
       </span>{" "}
-      · Sortino {m.sortino.toFixed(2)}
+      · Sortino {m.sortino.toFixed(2)} · Calmar {m.calmar.toFixed(2)}
     </span>
   )
 }
@@ -145,21 +145,16 @@ export function PortfolioCard(props: { portfolio: PortfolioResult }): React.JSX.
       {portfolio.ic_weighted && <MetricSpan label="IC 加权" m={portfolio.ic_weighted} />}
       {portfolio.equal_2x && (
         <span title="2× 成本压力口径(封存段)">
-          等权 2× Sortino{" "}
-          <span className={portfolio.equal_2x.sortino > 0 ? "text-up" : "text-down"}>
-            {portfolio.equal_2x.sortino.toFixed(2)}
-          </span>
+          <MetricSpan label="等权 2×" m={portfolio.equal_2x} />
         </span>
       )}
       {portfolio.ic_weighted_2x && (
         <span title="2× 成本压力口径(封存段)">
-          IC 加权 2× Sortino{" "}
-          <span className={portfolio.ic_weighted_2x.sortino > 0 ? "text-up" : "text-down"}>
-            {portfolio.ic_weighted_2x.sortino.toFixed(2)}
-          </span>
+          <MetricSpan label="IC 加权 2×" m={portfolio.ic_weighted_2x} />
         </span>
       )}
-      <FoldChips sortinos={portfolio.wf_fold_sortinos} />
+      {portfolio.wf_fold_sortinos?.length ? <><span className="text-[var(--text-muted)]">等权</span><FoldChips sortinos={portfolio.wf_fold_sortinos} /></> : null}
+      {portfolio.wf_fold_sortinos_ic?.length ? <><span className="text-[var(--text-muted)]">IC 加权</span><FoldChips sortinos={portfolio.wf_fold_sortinos_ic} /></> : null}
       <span className="text-[var(--text-muted)]">
         （最优单因子 Sortino {portfolio.best_single.sortino.toFixed(2)}
         {portfolio.best_single_2x ? ` · 2× ${portfolio.best_single_2x.sortino.toFixed(2)}` : ""}）
