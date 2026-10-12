@@ -19,7 +19,7 @@ it.skipIf(!existsSync(python))("new shortline evaluator agrees with desktop caus
         quoteVolume:0,takerBuyVolume:0,takerBuyQuoteVolume:0,tradeCount:0,sl:[],forming:false}
     })
     const profile = enhancedShortlineSearch(1)
-    const formulas = [...profile.seed_tokens, ...profile.search_feature_ids.map(id=>[id,71,71])]
+    const formulas = [...profile.seed_tokens, ...profile.search_feature_ids.map(id=>[id,71,71]), [62, 78], [63, 78]]
     const expected = scoreAtWindow(bars, formulas.map(tokens=>({tokens}))).scores
     expect(expected.every(v=>v!==null)).toBe(true)
     const serverBars = bars.map(b=>({time:new Date(b.timeMs+8*3600000).toISOString().slice(0,19).replace("T"," "),

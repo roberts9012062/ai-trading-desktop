@@ -43,7 +43,7 @@ def session_buffer_mb(session):
     return resident_buffer_bytes(roots)/(1024*1024)
 
 
-def reserved_static_bytes(full_length, features=62):
+def reserved_static_bytes(full_length, features=64):
     # Full feature matrix, bounded context/report/peer caches, training series
     # archive, and room for WebView/driver allocations. Batch VM/metrics are
     # budgeted separately by plan_tile. The 128 cap leaves 70k performance intact.

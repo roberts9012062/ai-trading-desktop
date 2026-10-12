@@ -4,7 +4,7 @@ import type { FactorMetrics } from "./factor-lab-api"
  * 桌面端因子 → 服务器挂载的编码出口（唯一职责：token id 映射）。
  *
  * 服务器已按 v3 双编码空间补齐桌面端谱系（算子 40-50 对齐、特征
- * 36-61 append 到 v3 id 57-82）：桌面特征 <36 不变、36-61 → +21，
+ * 36-63 append 到 v3 id 57-84）：桌面特征 <36 不变、36-63 → +21，
  * 桌面算子（>=64）→ +64（服务器 v3 算子基址 128，op id 与桌面同序）。
  * 纯函数、幂等（已含 >=128 的输入原样返回）；不触碰任何本地计算
  * ——挖掘/评分/回测/收藏始终用桌面编码，仅在提交服务器任务时转换。
@@ -14,11 +14,14 @@ export function desktopTokensToServerV3(tokens: readonly number[]): number[] {
   // >=128 的算子 token，v3 特征 57-61 与桌面特征 id 数值重叠，必须先判
   // 整条再映射，否则已转换的公式会被二次平移
   if (tokens.some((t) => t >= 128)) return [...tokens]
-  return tokens.map((t) => {
+  const mapped = tokens.map((t) => {
     if (t >= 64) return t + 64
-    if (t >= 36 && t < 62) return t + 21
+    if (t >= 36 && t < 64) return t + 21
     return t
   })
+  // A single 36+ leaf needs an operator to declare v3; double NEG is identity.
+  if (tokens.length === 1 && tokens[0] >= 36 && tokens[0] < 64) mapped.push(135, 135)
+  return mapped
 }
 
 /** 服务器仍无数据源的桌面直连特征（本地谱系 id）：
@@ -32,7 +35,7 @@ function hasServerMissingFeature(tokens: readonly number[]): boolean {
   // STREAK/VWAP_DEV，不能按桌面 57/58 误读为强平/逐笔输入。
   const v3 = tokens.some(t => t >= 128)
   return tokens.some(t => v3
-    ? t >= 57 && t < 83 && SERVER_MISSING_FEATS.has(t - 21)
+    ? t >= 57 && t < 85 && SERVER_MISSING_FEATS.has(t - 21)
     : SERVER_MISSING_FEATS.has(t))
 }
 

@@ -419,6 +419,8 @@ def compute_features(bars: list[dict[str, Any]]) -> dict[str, np.ndarray]:
     out["DOM"] = dom
     # New IDs have fixed causal windows; legacy rows retain their semantics.
     out.update(_crypto_features(bars, close, high, low, volume))
+    from .technical_features import technical_features
+    out.update(technical_features(bars))
     return out
 
 
@@ -675,6 +677,8 @@ FEATURE_NAMES: tuple[str, ...] = (
     "ACCOUNT_LS_RATIO", "LIQUIDATION_IMBALANCE", "AVG_TRADE_QUOTE",
     # Perp structure, IDs 59-61 (append-only; need gate_usdt funding/OI/taker).
     "FUNDING_MEAN24", "OI_TREND24", "TAKER_IMB24",
+    # Last two frozen v2 slots; chart-compatible, fixed causal normalization.
+    "MACD_HIST", "KDJ_J",
 )
 
 

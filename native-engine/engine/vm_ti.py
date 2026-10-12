@@ -4,6 +4,9 @@ Operator order is frozen. Every rolling read walks lo..t in ascending order;
 rolling writes use scratch and a block barrier before copying back. No random,
 shuffle, or floating-point atomic is used. Statistics accumulate in f64.
 """
+from factor_lab.features import FEATURE_NAMES
+BASE_FEATURE_COUNT = len(FEATURE_NAMES)
+
 import numpy as np
 import taichi as ti
 
@@ -21,8 +24,8 @@ def validate_tokens(tokens, F):
         if not isinstance(token, (int, np.integer)) or token < 0:
             raise ValueError("Tokens must be non-negative integers")
         if token >= 115:
-            # 短线 v4 特征:矩阵行 62 + (token-115);行不存在(无 sl 列)即拒绝
-            if 62 + (token - 115) >= F:
+            # 短线 v4 特征:矩阵行 BASE_FEATURE_COUNT + (token-115)。
+            if token >= 123 or BASE_FEATURE_COUNT + (token - 115) >= F:
                 raise ValueError("Shortline feature out of range")
             sp += 1
             if sp > 8:
@@ -54,7 +57,7 @@ class StackVM:
         resident = isinstance(matrix, ti.Ndarray)
         if not resident:
             matrix = np.asarray(matrix)
-        if len(matrix.shape) != 2 or not 1 <= matrix.shape[0] <= 70 or matrix.shape[1] < 2:
+        if len(matrix.shape) != 2 or not 1 <= matrix.shape[0] <= BASE_FEATURE_COUNT + 8 or matrix.shape[1] < 2:
             raise ValueError("Invalid feature matrix")
         if resident and matrix.dtype != ti.f64:
             raise ValueError("Authoritative resident features must be f64")
@@ -886,10 +889,13 @@ class _StackProgram:
                     if 40 <= tok < 64 or tok >= 104:
                         causal = True
                     if tok < 64 or tok >= 115:
-                        feat_row = tok if tok < 64 else 62 + (tok - 115)
+                        feat_row = tok if tok < 64 else BASE_FEATURE_COUNT + (tok - 115)
                         for offset in range((T + 255 - lane) // 256):
                             t = lane + offset * 256
-                            stack[p, sp, t] = features[feat_row, t]
+                            value = features[feat_row, t]
+                            if (tok == 62 or tok == 63) and self.is_nan(value):
+                                value = 0.0
+                            stack[p, sp, t] = value
                         ti.simt.block.sync()
                         sp = sp + 1
                     else:

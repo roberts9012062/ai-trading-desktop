@@ -1,4 +1,4 @@
-"""All 62 CPU-contract feature rows computed on resident CUDA f64 arrays.
+"""All 64 CPU-contract feature rows computed on resident CUDA f64 arrays.
 
 The host parses input records and timestamp metadata. Numerical feature
 operations, normalization, missing masks and matrix assembly run on CUDA.
@@ -295,8 +295,13 @@ def compute_features(bars):
         else:
             good = row.isfinite()
             out[name] = good.where(good.where(row, 0.0).zscore(200), float("nan"))
+    dif = close.chart_ema(12) - close.chart_ema(26)
+    dea_input = dif.isfinite().where(dif, 0.0)
+    dea = dea_input.chart_ema(9)
+    out["MACD_HIST"] = (2.0 * (dif - dea) / close.abs().maximum(1e-9)).zscore(200, masked=True)
+    out["KDJ_J"] = close.chart_kdj_j(high, low).zscore(200, masked=True)
     rows = [out[name] for name in FEATURE_NAMES]
-    # 短线 v4 行(62-69):bars 携带 sl_of 列时追加。原始列在宿主做 masked
+    # 短线 v4 行(基础特征数 + k):bars 携带 sl_of 列时追加。原始列在宿主做 masked
     # zscore(窗 300)——直接复用 pykernel shortline_feature_rows,与 CPU
     # 内核逐位同源,不再在 GPU 上重写一套口径。
     shortline = shortline_feature_rows(bars)
@@ -330,6 +335,9 @@ def prepare_features(bars, config):
     v2 = is_v2_family(str(cfg.research_profile or ""))
     availability = resident.availability(len(train), crypto=cfg.crypto_profile or v2,
                                          max_head_gap=250 if v2 else 0)
+    from factor_lab.feature_policy import search_feature_pool
+    availability["active_feature_ids"] = search_feature_pool(availability["active_feature_ids"], cfg.search_feature_ids, cfg.seed_tokens)
+    availability["head_trim"] = max((availability["feature_heads"][i] for i in availability["active_feature_ids"] if i >= 52 and not availability["finite_features"][i]), default=0)
     return {"matrix": train_features.matrix,
             "resident_full": resident, "bars": prepared_bars, "cfg": cfg,
             "availability": availability,

@@ -39,6 +39,8 @@ from .ops import (
     ts_resid,
     ts_std,
     ts_zscore,
+    vol_scale,
+    ts_snr,
 )
 from .registry import (
     FEATURE_BY_NAME,
@@ -70,6 +72,8 @@ _OP_IMPL = {
     "ts_corr": lambda a, b, w: ts_corr(a, b, w),
     "ts_beta": lambda a, b, w: ts_beta(a, b, w),
     "resid": lambda a, b, w: ts_resid(a, b, w),
+    "vol_scale": lambda x, w: vol_scale(x, w),
+    "snr": lambda x, w: ts_snr(x, w),
 }
 
 # 初等算子复用 v2 OPS_CONFIG 的实现(名字大写映射)
@@ -188,6 +192,11 @@ def _execute_node(
         if row >= feat_matrix.shape[0]:
             raise RegistryError(f"特征 {feat['name']} 不在当前特征矩阵(id {row} 越界)")
         series = feat_matrix[row]
+        if row in (62, 63):
+            finite = np.isfinite(series)
+            if not finite.any() or int(np.argmax(finite)) > norm_window or not finite[int(np.argmax(finite)):].all():
+                raise RegistryError("Technical feature has insufficient or discontinuous observations")
+            series = np.where(finite, series, 0.0)
         lag = int((node.get("params") or {}).get("lagBars") or 0)
         if lag > 1:
             series = _lag(series, lag)

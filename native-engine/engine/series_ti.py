@@ -189,11 +189,58 @@ class GpuSeries:
         ti.sync()
         return int(count.to_numpy()[0]) > 0
 
+    def chart_ema(self, period):
+        out = ti.ndarray(ti.f64, shape=self.T)
+        program()._chart_ema(self.data, out, period)
+        return GpuSeries(out, (self,))
+
+    def chart_kdj_j(self, high, low):
+        out = ti.ndarray(ti.f64, shape=self.T)
+        hh, ll = high.maximum_window(9), low.minimum_window(9)
+        program()._chart_kdj_j(self.data, hh.data, ll.data, out)
+        return GpuSeries(out, (self, hh, ll))
+
 
 @ti.data_oriented
 class _SeriesProgram:
     def __init__(self):
         self.math = _StackProgram("f64")
+
+    @ti.kernel
+    def _chart_ema(self, source: ti.types.ndarray(dtype=ti.f64, ndim=1), out: ti.types.ndarray(dtype=ti.f64, ndim=1), period: ti.i32):
+        total = ti.cast(0.0, ti.f64)
+        previous = ti.cast(0.0, ti.f64)
+        alpha = ti.cast(2.0, ti.f64) / (period + 1)
+        ti.loop_config(serialize=True)
+        for t in range(source.shape[0]):
+            out[t] = float("nan")
+            if t < period:
+                total += source[t]
+            if t == period - 1:
+                previous = total / period
+                out[t] = previous
+            elif t >= period:
+                previous = source[t] * alpha + previous * (1.0 - alpha)
+                out[t] = previous
+
+    @ti.kernel
+    def _chart_kdj_j(self, close: ti.types.ndarray(dtype=ti.f64, ndim=1), high: ti.types.ndarray(dtype=ti.f64, ndim=1), low: ti.types.ndarray(dtype=ti.f64, ndim=1), out: ti.types.ndarray(dtype=ti.f64, ndim=1)):
+        previous_k = ti.cast(50.0, ti.f64)
+        previous_d = ti.cast(50.0, ti.f64)
+        weight = ti.cast(1.0, ti.f64) / 3.0
+        ti.loop_config(serialize=True)
+        for t in range(close.shape[0]):
+            out[t] = float("nan")
+            if t >= 8:
+                rsv = ti.cast(50.0, ti.f64)
+                if high[t] != low[t]:
+                    rsv = (close[t] - low[t]) / (high[t] - low[t]) * 100.0
+                k, d = rsv, rsv
+                if t > 8:
+                    k = (1.0 - weight) * previous_k + rsv / 3.0
+                    d = (1.0 - weight) * previous_d + k / 3.0
+                out[t] = (3.0 * k - 2.0 * d - 50.0) / 50.0
+                previous_k, previous_d = k, d
 
     @ti.kernel
     def _fill(self, out: ti.types.ndarray(dtype=ti.f64, ndim=1), value: ti.f64):

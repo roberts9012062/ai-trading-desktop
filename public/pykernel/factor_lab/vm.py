@@ -156,7 +156,7 @@ def execute(
         if token >= SHORTLINE_TOKEN_OFFSET:
             # v4 短线特征（矩阵行 FEAT_COUNT+k；仅 bars 带 sl 列时存在）
             row_idx = FEAT_COUNT + (token - SHORTLINE_TOKEN_OFFSET)
-            if row_idx >= feat_matrix.shape[0]:
+            if token >= SHORTLINE_TOKEN_OFFSET + len(SHORTLINE_FEATURE_NAMES) or row_idx >= feat_matrix.shape[0]:
                 return None
             row = feat_matrix[row_idx]
             if not np.isfinite(row).all():
@@ -185,7 +185,13 @@ def execute(
                 first = int(np.argmax(finite))
                 if not finite[first:].all():
                     return None
-            stack.append(feat_matrix[token])
+            # New TA warmup is structurally missing, not an interior data gap.
+            # Sanitizing only these new rows prevents cumsum NaN infection;
+            # admission/head trim still use the original masked matrix.
+            row = feat_matrix[token]
+            if token in (62, 63):
+                row = np.where(np.isfinite(row), row, 0.0)
+            stack.append(row)
         else:
             idx = token - FEAT_OFFSET
             if idx < 0 or idx >= len(OPS_CONFIG):

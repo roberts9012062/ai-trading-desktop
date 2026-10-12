@@ -3,6 +3,9 @@ import copy
 import json
 from datetime import datetime, timezone
 
+from factor_lab.features import FEATURE_NAMES
+BASE_FEATURE_COUNT = len(FEATURE_NAMES)
+
 import numpy as np
 
 from . import ENGINE_TAG
@@ -100,7 +103,7 @@ class NativeSession:
         from .memory import reserved_static_bytes
         # Preflight before constructing a feature graph; low-memory cards get
         # an actionable error rather than partial resident allocations.
-        shortline_rows = 70 if str(config.get("research_profile") or "") == "shortline_v1" else 62
+        shortline_rows = BASE_FEATURE_COUNT + (8 if str(config.get("research_profile") or "") == "shortline_v1" else 0)
         plan_tile(len(self.bars), shortline_rows,
                   max(1, int(config.get('population') or 3000)),
                   self.precision, self.runtime['vram_mb'],
@@ -179,8 +182,8 @@ class NativeSession:
                 # Interior gaps and fully missing rows still reject execution.
                 if any(
                     (t < 64 and not self.finite_features[t])
-                    or (t >= 115 and t - 115 < len(self.finite_features) - 62
-                        and not self.finite_features[62 + (t - 115)])
+                    or (t >= 115 and t - 115 < len(self.finite_features) - BASE_FEATURE_COUNT
+                        and not self.finite_features[BASE_FEATURE_COUNT + (t - 115)])
                     for t in candidate
                 ):
                     continue

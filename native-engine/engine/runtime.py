@@ -120,8 +120,8 @@ def initialize_runtime(precision="mixed", *, require_cuda=False):
 
 
 def plan_tile(T, F, population, precision, vram_mb, *, static_bytes=0):
-    # F<=64 为冻结口径;70 = 62 基础 + 8 短线 v4 行(shortline_v1)
-    if T < 2 or not 1 <= F <= 70 or population < 1 or precision not in ("mixed", "f64"):
+    # 72 = 64 基础 + 8 短线 v4 行(shortline_v1)，token 编码仍冻结。
+    if T < 2 or not 1 <= F <= 72 or population < 1 or precision not in ("mixed", "f64"):
         raise ValueError("Invalid evaluation dimensions")
     # Authoritative f64: stack 9, factor 1, prefix 4. Mixed additionally
     # reserves a separate f32 stack 9 + f64 factor and feature matrix.

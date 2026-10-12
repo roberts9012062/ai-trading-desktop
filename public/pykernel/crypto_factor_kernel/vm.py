@@ -171,6 +171,8 @@ def execute(tokens: list[int], feat_matrix: np.ndarray, *, norm_window: int | No
                 first = int(np.argmax(finite))
                 if not finite[first:].all():
                     return None
+            if v3 and token in (83, 84):
+                row = np.where(np.isfinite(row), row, 0.0)
             stack.append(row)
         else:
             idx = token - feat_offset

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .features import FEATURE_NAMES
 from .ops import OP_INDEX
 from .token_encoding import FEAT_OFFSET
 
@@ -30,16 +31,8 @@ from .token_encoding import FEAT_OFFSET
 OP = {name: idx + FEAT_OFFSET for name, idx in OP_INDEX.items()}
 
 # 特征 id(append-only 冻结,见 features.py FEATURE_NAMES)
-F = {
-    "RET": 0, "RET5": 1, "RET20": 2, "VOL_RATIO": 11, "VOL_Z": 12,
-    "OI_CHG": 15, "OI_PV": 16, "SKEW20": 32,
-    "CRYPTO_MOM6": 45, "CRYPTO_MOM24": 46, "CRYPTO_VOL20": 47,
-    "CRYPTO_ILLIQ20": 48, "CRYPTO_FLOW20": 49, "CRYPTO_TAIL20": 50,
-    "CRYPTO_RANGE_POS20": 51,
-    "FUNDING_RATE": 52, "FUNDING_DELTA": 53, "TAKER_IMBALANCE": 54,
-    "QUOTE_ILLIQ20": 55, "ACCOUNT_LS_RATIO": 56,
-    "LIQUIDATION_IMBALANCE": 57, "AVG_TRADE_QUOTE": 58,
-}
+F = {name: i for i, name in enumerate(FEATURE_NAMES)}
+
 def _tpl(family: str, tokens: list[int]) -> dict[str, Any]:
     return {"family": family, "tokens": tokens}
 

@@ -99,6 +99,7 @@ export const LIVE_BASE_FEATURES: readonly number[] = [
   36, 37, 38, 39, // STREAK, VWAP_DEV, UPDOWN_VOL_RATIO, CHAN_POS
   40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, // clock + crypto
   54, 55, 58, 61, // TAKER_IMBALANCE, QUOTE_ILLIQ20, AVG_TRADE_QUOTE, TAKER_IMB24
+  62, 63, // chart-compatible MACD histogram and KDJ-J
 ]
 
 export function isShortlineToken(token: number): boolean {

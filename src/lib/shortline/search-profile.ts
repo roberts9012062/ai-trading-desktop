@@ -2,8 +2,10 @@ import { SERVER_BLOCKED_FEATS } from "./mount"
 import { LIVE_BASE_FEATURES } from "./spec"
 
 /** Additive search restriction; existing tasks retain their frozen feature pools. */
-export function filterSearchFeatures(active: readonly number[], allowed?: readonly number[]): number[] {
-  const pool = allowed ? active.filter((id) => allowed.includes(id)) : [...active]
+export function filterSearchFeatures(active: readonly number[], allowed?: readonly number[], seeds: readonly (readonly number[])[] = []): number[] {
+  const explicit = new Set(seeds.flatMap(tokens => tokens.filter(id => id === 62 || id === 63)))
+  const pool = allowed ? active.filter((id) => allowed.includes(id))
+    : active.filter(id => (id !== 62 && id !== 63) || explicit.has(id))
   if (!pool.length) throw new Error("当前训练数据没有所选搜索范围内的可用特征")
   return pool
 }

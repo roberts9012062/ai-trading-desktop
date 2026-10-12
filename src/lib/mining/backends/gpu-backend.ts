@@ -272,9 +272,9 @@ export class GpuBackend implements ComputeBackend {
 
       // 4) GP 初始化(仅 GPU 支持的算子;种子注入种群,与 stepwise 同构)
       const islands = resolveIslands(cfg.population, cfg.islands)
-      const active = filterSearchFeatures(features.active_feature_ids ?? Array.from({ length: F }, (_, i) => i), cfg.search_feature_ids)
+      const active = filterSearchFeatures(features.active_feature_ids ?? Array.from({ length: F }, (_, i) => i), cfg.search_feature_ids, cfg.seed_tokens)
       if (!active.length) throw new Error("训练段没有可用特征")
-      const sampling = cfg.crypto_profile ? [...active, ...active.filter((i) => i >= 45)] : active
+      const sampling = cfg.crypto_profile ? [...active, ...active.filter((i) => i >= 45 && i < 62)] : active
       const rng = new Rng((cfg.seed ?? 42) + req.startGeneration, sampling)
       const gpuOps = gpuOpSets(cfg.crypto_profile ?? false)
       const { opOne, opTwo } = slowBiasedOpSets(gpuOps.opOne, gpuOps.opTwo, cfg.timeframe)

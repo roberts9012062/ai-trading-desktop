@@ -4,7 +4,9 @@ import { checkMountable } from "./mount"
 
 describe("enhanced shortline search", () => {
   it("preserves default pools and filters only explicit restricted searches", () => {
-    expect(filterSearchFeatures([1, 55, 62], undefined)).toEqual([1, 55, 62])
+    expect(filterSearchFeatures([1, 55, 62], undefined)).toEqual([1, 55])
+    expect(filterSearchFeatures([1, 62, 63], [1, 62, 63])).toEqual([1, 62, 63])
+    expect(filterSearchFeatures([1, 62, 63], undefined, [[62, 78]])).toEqual([1, 62])
     expect(filterSearchFeatures([1, 55, 62], [1, 2])).toEqual([1])
     expect(() => filterSearchFeatures([55], [1, 2])).toThrow()
   })

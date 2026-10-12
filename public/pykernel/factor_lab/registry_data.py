@@ -7,7 +7,7 @@ registryHash = canonical(schema 核心字段) 的 SHA-256,与 src/lib/mining/reg
 """
 
 REGISTRY_VERSION = "factor-registry-v3-2026-09-26.1"
-REGISTRY_HASH = "c290514fd8dce9db42869f8b1b4b600604e0fd6501a2d308b81611357f2fb888"
+REGISTRY_HASH = "1980bb4d895c37c30810c77c1fc78db81f1e7405d4748719a075841fd67e1e05"
 
 LIMITS = {
     "maxDepth": 6,
@@ -893,6 +893,65 @@ FEATURES = [
         "params": [],
         "description": "v2 canonical feature id 58",
     },
+    {
+        "name": "funding_mean24",
+        "canonicalId": 59,
+        "outputType": "signed_signal",
+        "requiredFields": [
+            "funding_rate",
+        ],
+        "lookbackBars": 23,
+        "params": [],
+        "description": "24-bar funding mean, observed data required",
+    },
+    {
+        "name": "oi_trend24",
+        "canonicalId": 60,
+        "outputType": "signed_signal",
+        "requiredFields": [
+            "open_interest",
+            "close",
+        ],
+        "lookbackBars": 24,
+        "params": [],
+        "description": "OI change with price direction, observed data required",
+    },
+    {
+        "name": "taker_imb24",
+        "canonicalId": 61,
+        "outputType": "signed_signal",
+        "requiredFields": [
+            "taker_buy_volume",
+            "volume",
+        ],
+        "lookbackBars": 23,
+        "params": [],
+        "description": "24-bar taker imbalance, observed data required",
+    },
+    {
+        "name": "macd_hist",
+        "canonicalId": 62,
+        "outputType": "signed_signal",
+        "requiredFields": [
+            "close",
+        ],
+        "lookbackBars": 224,
+        "params": [],
+        "description": "Chart SMA-seeded MACD(12,26,9) histogram / close; 200-bar causal zscore",
+    },
+    {
+        "name": "kdj_j",
+        "canonicalId": 63,
+        "outputType": "signed_signal",
+        "requiredFields": [
+            "high",
+            "low",
+            "close",
+        ],
+        "lookbackBars": 207,
+        "params": [],
+        "description": "Chart KDJ(9,3,3) J; 200-bar causal zscore",
+    },
 ]
 
 OPERATORS = [
@@ -1418,5 +1477,61 @@ OPERATORS = [
         "cpu": True,
         "gpu": True,
         "description": "因果滚动回归残差",
+    },
+    {
+        "name": "vol_scale",
+        "arity": 1,
+        "outputType": "signed_signal",
+        "params": [
+            {
+                "name": "windowBars",
+                "type": "int",
+                "enum": [
+                    2,
+                    4,
+                    5,
+                    10,
+                    12,
+                    20,
+                    24,
+                    60,
+                    72,
+                    168,
+                ],
+                "required": True,
+            },
+        ],
+        "lookbackExpr": "windowBars-1",
+        "cpu": True,
+        "gpu": True,
+        "description": "Volatility scaling with causal rolling standard deviation",
+    },
+    {
+        "name": "snr",
+        "arity": 1,
+        "outputType": "signed_signal",
+        "params": [
+            {
+                "name": "windowBars",
+                "type": "int",
+                "enum": [
+                    2,
+                    4,
+                    5,
+                    10,
+                    12,
+                    20,
+                    24,
+                    60,
+                    72,
+                    168,
+                ],
+                "required": True,
+            },
+        ],
+        "lookbackExpr": "windowBars-1",
+        "cpu": True,
+        "gpu": True,
+        "description": "Rolling mean divided by rolling standard deviation",
     },
 ]

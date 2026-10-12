@@ -272,9 +272,9 @@ async function* runParallel(
 
     // 2) GP 初始化(与 GPU 路径同构:种子注入种群,历史最优先精算保不倒退)
     const islands = resolveIslands(cfg.population, cfg.islands)
-    const active = filterSearchFeatures(features.active_feature_ids ?? Array.from({ length: F }, (_, i) => i), cfg.search_feature_ids)
+    const active = filterSearchFeatures(features.active_feature_ids ?? Array.from({ length: F }, (_, i) => i), cfg.search_feature_ids, cfg.seed_tokens)
     if (!active.length) throw new Error("训练段没有可用特征")
-    const sampling = cfg.crypto_profile ? [...active, ...active.filter((i) => i >= 45)] : active
+    const sampling = cfg.crypto_profile ? [...active, ...active.filter((i) => i >= 45 && i < 62)] : active
     const rng = new Rng((cfg.seed ?? 42) + req.startGeneration, sampling)
     // CPU 内核(pykernel)支持全部 51 算子;与原生/GPU 挖掘同源(m3.3 对齐)
     const gpuOps = gpuOpSets(cfg.crypto_profile ?? false, true)
@@ -479,7 +479,7 @@ async function* runSingleProcess(
   let seedWarning: string | undefined
   if (req.config.seed_tokens?.length) {
     if (!features) throw new Error("种子校验缺少训练特征信息，请重新启动搜索")
-    const active = filterSearchFeatures(features.active_feature_ids ?? features.feature_names.map((_,i) => i),req.config.search_feature_ids)
+    const active = filterSearchFeatures(features.active_feature_ids ?? features.feature_names.map((_,i) => i),req.config.search_feature_ids, req.config.seed_tokens)
     const selection = compatibleTrainingSeeds(req.config,active,features.feature_names)
     req = {...req,config:{...req.config,seed_tokens:selection.seeds}}
     seedWarning = selection.warning

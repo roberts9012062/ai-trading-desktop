@@ -8,6 +8,16 @@ const reply = (body: unknown) => new Response(JSON.stringify(body), { status: 20
 const payload: CreateTaskPayload = { close_rules: { pnl_pct: null, total_pnl_pct: null, session_close: false, ai_auto: false }, stop_rules: { loss_pct: null, loss_amount: null, ai_auto: false }, close_on_stop: true, auto_start: false, name: "test", symbol: "btcusdt", symbol_name: "BTC", timeframe: "60m", side_mode: "both", position_mode: "fixed_qty", strategy_type: "ai", strategy_params: { factor_tokens: [0, 71] } }
 
 describe("factor access at persistence and trading boundaries", () => {
+  it("maps the two appended TA slots without moving old operators", () => {
+    expect(desktopTokensToServerV3([62, 63, 64])).toEqual([83, 84, 128])
+    expect(desktopTokensToServerV3([83, 84, 128])).toEqual([83, 84, 128])
+    expect(serverFactorBlockReason([62, 71])).toBeNull()
+    for (const id of [36, 46, 62, 63]) {
+      const mapped = desktopTokensToServerV3([id])
+      expect(mapped).toEqual([id + 21, 135, 135])
+      expect(desktopTokensToServerV3(mapped)).toEqual(mapped)
+    }
+  })
   it("allows ordinary local formulas to be saved but keeps server AI signals separate", async () => {
     const fetch = vi.fn().mockResolvedValue(reply({ id: "saved" }))
     vi.stubGlobal("fetch", fetch)

@@ -116,7 +116,7 @@ export function evaluateFormulaSeries(
       const row = features.get(token)
       if (!row) return null
       if ((token >= 52 || token >= SHORTLINE_TOKEN_OFFSET) && !seriesAdmissible(row)) return null
-      stack.push(row)
+      stack.push(token === 62 || token === 63 ? Float64Array.from(row, v => Number.isFinite(v) ? v : 0) : row)
     } else {
       const op = OPS[token - FEAT_OFFSET]!
       if (stack.length < op.arity) return null

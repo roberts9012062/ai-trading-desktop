@@ -19,7 +19,8 @@ from dataclasses import fields as dc_fields
 import numpy as np
 
 from factor_lab import execute
-from factor_lab.features import FEATURE_NAMES, feature_matrix, active_feature_ids, signature_of, prefix_view_matrix
+from factor_lab.feature_policy import search_feature_pool
+from factor_lab.features import FEATURE_NAMES, SHORTLINE_FEATURE_NAMES, feature_matrix, active_feature_ids, signature_of, prefix_view_matrix
 from factor_lab.market import prepare_bars
 from factor_lab.scoring.cost import DEFAULT_SLIPPAGE_TICKS, turnover_cost_rate
 from data.product_specs import normalize_crypto_symbol, CRYPTO_TICKS
@@ -543,12 +544,12 @@ def run_llm_vocab(payload: dict, bars: list) -> str:
             mat = feature_matrix(train_bars)
             try:
                 active = set(
-                    active_feature_ids(mat, True, max_head_gap=250 if is_v2(bars) else None)
+                    search_feature_pool(active_feature_ids(mat, True, max_head_gap=250 if is_v2(bars) else None), cfg.search_feature_ids, cfg.seed_tokens)
                 )
             except ValueError:
                 active = set()
             excluded_reasons = {
-                FEATURE_NAMES[i]: "训练段数据不可用(缺失/常数/覆盖不足)"
+                FEATURE_NAMES[i]: ("技术研究候选尚未进入默认搜索池，请显式选择或提供种子" if i in (62, 63) else "训练段数据不可用(缺失/常数/覆盖不足)")
                 for i in range(len(FEATURE_NAMES))
                 if i not in active
             }
@@ -627,7 +628,7 @@ def kernel_version() -> str:
     # 更早:批次三口径变更(P0-2 因果归一化;P1-7 warmup 切片与
     # MIN_TEST_BARS=120);同因子在新旧内核下指标不同,历史/收藏按此戳区分
     # 2026-10-11: v2 验证折复用 SplitPlan 的 60 根底线，修复日线误拦。
-    return "pykernel-factor-2026-10-11.2"
+    return "pykernel-factor-2026-10-12.1"
 
 
 # ── 分代步进挖掘会话(本地长程任务 M3) ─────────────────────────
@@ -827,8 +828,8 @@ def run_mine_features(payload: dict, bars: list) -> str:
         }
     return json.dumps(
         {
-            "active_feature_ids": active_feature_ids(mat, cfg.crypto_profile),
-            "feature_names": list(FEATURE_NAMES),
+            "active_feature_ids": search_feature_pool(active_feature_ids(mat, cfg.crypto_profile or _is_v2_profile(cfg.research_profile), max_head_gap=250 if _is_v2_profile(cfg.research_profile) else None), cfg.search_feature_ids, cfg.seed_tokens),
+            "feature_names": list(FEATURE_NAMES) + (list(SHORTLINE_FEATURE_NAMES) if mat.shape[0] > len(FEATURE_NAMES) else []),
             "matrix": np.nan_to_num(mat, nan=0.0, posinf=0.0, neginf=0.0).tolist(),
             "periods": int(periods),
             "cost": float(cost),
@@ -885,7 +886,7 @@ def run_mine_shard(payload: dict, bars: list) -> str:
 
         try:
             head_trim = _v2_head_trim(
-                feat_mat, active_feature_ids(feat_mat, True, max_head_gap=250)
+                feat_mat, search_feature_pool(active_feature_ids(feat_mat, True, max_head_gap=250), cfg.search_feature_ids, cfg.seed_tokens)
             )
         except ValueError:
             head_trim = 0
@@ -1110,7 +1111,7 @@ def run_mine_precise(payload: dict, bars: list) -> str:
         from factor_lab.features import active_feature_ids
 
         head_trim = _v2_head_trim(
-            feat_mat, active_feature_ids(feat_mat, True, max_head_gap=250)
+            feat_mat, search_feature_pool(active_feature_ids(feat_mat, True, max_head_gap=250), cfg.search_feature_ids, cfg.seed_tokens)
         )
     use_test = bool(test_bars) and len(test_bars) >= MIN_TEST_BARS
     if v2:

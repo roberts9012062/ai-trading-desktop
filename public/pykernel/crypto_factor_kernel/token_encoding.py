@@ -43,13 +43,13 @@ V1_FEAT_OFFSET = 14
 V3_FEAT_OFFSET = 128
 V3_TOKEN_THRESHOLD = 128
 
-# 桌面端谱系特征（62 特征表）→ v3 特征 id 的统一偏移：
-# 桌面 0-35 与服务器 0-35 同义不变；桌面 36-61（本地专属/UTC/CRYPTO/
-# 直连/perp 批次）→ v3 57-82（+21）。算子 token：64+op → 128+op（+64）。
+# 桌面端谱系特征（64 特征表）→ v3 特征 id 的统一偏移：
+# 桌面 0-35 与服务器 0-35 同义不变；桌面 36-63（本地专属/UTC/CRYPTO/
+# 直连/perp 批次）→ v3 57-84（+21）。算子 token：64+op → 128+op（+64）。
 DESKTOP_FEAT_SHIFT = 21
 DESKTOP_OP_SHIFT = 64
 # 桌面端谱系特征总数（pykernel FEATURE_NAMES 长度）
-DESKTOP_FEATURE_COUNT = 62
+DESKTOP_FEATURE_COUNT = 64
 
 # v2 谱系特征数（冻结）：服务器 v2 表在桌面 append 前的长度。
 # v2 公式的特征 token 必须 < 57；[57, 64) 在 v2 下仍是非法空洞
@@ -60,12 +60,12 @@ V2_FEATURE_COUNT = 57
 def remap_desktop_to_v3(tokens: list[int]) -> list[int]:
     """桌面端谱系 v2 token → 服务器 v3 token（纯函数）
 
-    桌面特征 <36 不变；36-61 → +21；桌面算子（>=64）→ +64。
+    桌面特征 <36 不变；36-63 → +21；桌面算子（>=64）→ +64。
     含 ≥ V3_TOKEN_THRESHOLD 的输入已是 v3，原样返回。
     """
     if any(t >= V3_TOKEN_THRESHOLD for t in tokens):
         return list(tokens)
-    return [
+    mapped = [
         (
             token + DESKTOP_OP_SHIFT
             if token >= FEAT_OFFSET
@@ -77,6 +77,11 @@ def remap_desktop_to_v3(tokens: list[int]) -> list[int]:
         )
         for token in tokens
     ]
+    # A leaf alone has no operator to declare v3. Double NEG preserves its
+    # value while making the version explicit, including historical 36+ leaves.
+    if len(tokens) == 1 and 36 <= tokens[0] < DESKTOP_FEATURE_COUNT:
+        mapped.extend([V3_FEAT_OFFSET + 7, V3_FEAT_OFFSET + 7])
+    return mapped
 
 
 def is_v3_tokens(tokens: list[int]) -> bool:

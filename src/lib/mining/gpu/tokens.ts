@@ -118,7 +118,11 @@ export function tokensGpuSupported(tokens: number[], featCount: number, fullOps 
   let sp = 0
   let maxSp = 0
   for (const t of tokens) {
-    if (t < FEAT_OFFSET) {
+    if (t >= 115 && t < 123) {
+      if (!fullOps || FEAT_OFFSET + t - 115 >= featCount) return false
+      sp += 1
+      maxSp = Math.max(maxSp, sp)
+    } else if (t < FEAT_OFFSET) {
       if (t < 0 || t >= featCount) return false
       sp += 1
       maxSp = Math.max(maxSp, sp)

@@ -10,6 +10,7 @@
 import type { ShortlineBar } from "./forming-bar"
 import { binaryMap, delta, Series, tsCorr, tsMax, tsMean, tsMin, tsStd, unaryMap } from "./ops"
 import { SHORTLINE_ZSCORE_WINDOW } from "./spec"
+import { calcEMA } from "../indicators"
 
 /** 与 research_context.norm_window_for_bars 同构（头部 ≤5 个间距取中位数） */
 export function normWindowForBars(bars: readonly { timeMs: number }[]): number {
@@ -392,6 +393,30 @@ export function computeLiveFeatures(bars: readonly ShortlineBar[], wanted: Itera
     out.set(58, maskedZscoreCausal(avg, 200))
   }
   if (has(61)) out.set(61, maskedZscoreCausal(maskedMean(flow, 24), 200))
+
+  // New TA rows retain chart initialization, without chart display rounding.
+  if (has(62)) {
+    const prices = Array.from(close)
+    const fast = calcEMA(prices, 12), slow = calcEMA(prices, 26)
+    const dif = prices.map((_, i) => fast[i] === null || slow[i] === null ? NaN : fast[i]! - slow[i]!)
+    const dea = calcEMA(dif.map(v => Number.isFinite(v) ? v : 0), 9)
+    const hist = Float64Array.from(dif, (v, i) => dea[i] === null ? NaN : 2 * (v - dea[i]!) / Math.max(Math.abs(close[i]!), 1e-9))
+    out.set(62, maskedZscoreCausal(hist, 200))
+  }
+  if (has(63)) {
+    const values = new Float64Array(n).fill(NaN)
+    let previousK = 50, previousD = 50
+    for (let i = 8; i < n; i++) {
+      let hh = -Infinity, ll = Infinity
+      for (let j = i - 8; j <= i; j++) { hh = Math.max(hh, high[j]!); ll = Math.min(ll, low[j]!) }
+      const rsv = hh === ll ? 50 : (close[i]! - ll) / (hh - ll) * 100
+      const k = i === 8 ? rsv : (1 - 1 / 3) * previousK + rsv / 3
+      const d = i === 8 ? k : (1 - 1 / 3) * previousD + k / 3
+      values[i] = (3 * k - 2 * d - 50) / 50
+      previousK = k; previousD = d
+    }
+    out.set(63, maskedZscoreCausal(values, 200))
+  }
 
   // v4（token 115-122）：原始值 masked zscore 300
   for (let k = 0; k < 8; k++) {

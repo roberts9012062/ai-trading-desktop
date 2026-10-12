@@ -74,7 +74,7 @@ export function randomTree(
 }
 
 export function treeToTokens(tree: Tree): number[] {
-  if (tree[0] === "feat") return [tree[1]]
+  if (tree[0] === "feat") return [tree[1] < FEAT_OFFSET ? tree[1] : 115 + tree[1] - FEAT_OFFSET]
   const out: number[] = []
   for (const child of tree.slice(2) as Tree[]) out.push(...treeToTokens(child))
   out.push(tree[1] + FEAT_OFFSET)
@@ -84,6 +84,12 @@ export function treeToTokens(tree: Tree): number[] {
 export function tokensToTree(tokens: number[], featCount: number): Tree | null {
   const stack: Tree[] = []
   for (const t of tokens) {
+    if (t >= 115 && t < 123) {
+      const row = FEAT_OFFSET + t - 115
+      if (row >= featCount) return null
+      stack.push(["feat", row])
+      continue
+    }
     if (t < FEAT_OFFSET) {
       if (t < 0 || t >= featCount) return null
       stack.push(["feat", t])

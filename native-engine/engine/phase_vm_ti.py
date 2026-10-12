@@ -3,6 +3,9 @@
 Host decoding produces stack indices only. Every expression value, ordered
 window, prefix scan, raw statistic and normalized output stays on CUDA.
 """
+from factor_lab.features import FEATURE_NAMES
+BASE_FEATURE_COUNT = len(FEATURE_NAMES)
+
 import numpy as np
 import taichi as ti
 
@@ -111,7 +114,10 @@ class PhaseProgram:
             if t < T and rows[p, step, 5] != 0:
                 token, src, other, dst = rows[p, step, 0], rows[p, step, 1], rows[p, step, 2], rows[p, step, 3]
                 if token < 64 or token >= 115:
-                    stack[p, dst, t] = features[token if token < 64 else 62 + (token - 115), t]
+                    value = features[token if token < 64 else BASE_FEATURE_COUNT + (token - 115), t]
+                    if (token == 62 or token == 63) and self.math.is_nan(value):
+                        value = 0.0
+                    stack[p, dst, t] = value
                 else:
                     op = token-64
                     value = ti.cast(0, self.dtype)

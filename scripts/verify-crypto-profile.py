@@ -89,7 +89,8 @@ class CryptoProfileTests(unittest.TestCase):
         self.assertTrue(np.isfinite(feature_matrix(changed)[52]).all())
 
     def test_ops_and_ids(self):
-        self.assertEqual(len(FEATURE_NAMES), 62)
+        self.assertEqual(len(FEATURE_NAMES), 64)
+        self.assertEqual(FEATURE_NAMES[62:], ("MACD_HIST", "KDJ_J"))
         self.assertEqual(OPS_NAMES[38:40], ("EMA_5", "EMA_20"))
         self.assertEqual(OPS_NAMES[40], "TS_CRANK_20")
         np.testing.assert_array_equal(ts_centered_rank(np.ones(30), 20), np.zeros(30))

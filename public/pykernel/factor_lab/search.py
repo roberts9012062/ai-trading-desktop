@@ -183,15 +183,11 @@ def _search_space(mat, cfg, rng):
         mat, crypto,
         max_head_gap=WARMUP_BARS if is_v2_config(cfg) else None,
     )
-    if cfg.search_feature_ids is not None:
-        if not cfg.search_feature_ids or any(isinstance(i, bool) or not isinstance(i, int) or i < 0 for i in cfg.search_feature_ids):
-            raise ValueError("Invalid explicit feature search pool")
-        active = [i for i in active if i in cfg.search_feature_ids]
-        if not active:
-            raise ValueError("No available features in the requested search pool")
+    from .feature_policy import search_feature_pool
+    active = search_feature_pool(active, cfg.search_feature_ids, cfg.seed_tokens)
     if crypto:
         # Modest prior for new information, not calendar overfitting.
-        rng._active_features = active + [i for i in active if i >= 45]
+        rng._active_features = active + [i for i in active if 45 <= i < 62]
     elif cfg.search_feature_ids is not None:
         rng._active_features = active
     for seed in cfg.seed_tokens or []:
@@ -333,7 +329,7 @@ def _random_tree(
 def tree_to_tokens(tree: list) -> list[int]:
     """树 → 后缀 token 序列（vm 执行用）
 
-    v4 短线特征在树内用矩阵行 id（FEAT_COUNT+k，62-69）表示，
+    v4 短线特征在树内用矩阵行 id（FEAT_COUNT+k）表示，
     编码为 token 115-122（token_encoding.SHORTLINE_TOKEN_OFFSET）。
     """
     if tree[0] == "feat":

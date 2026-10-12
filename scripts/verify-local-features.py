@@ -58,7 +58,7 @@ def test_append_only() -> None:
     assert FEATURE_NAMES[36:40] == LOCAL_FEATURES, "本地专属批次应紧跟标准空间之后"
     # v0.2.14 为 52;v0.2.16 起追加直连数据特征 52-58(FUNDING_RATE 等),
     # append-only 扩容后同步计数。新增批次必须在此处同步登记。
-    assert len(FEATURE_NAMES) == 62, f"特征计数应为 62(含 52-58 直连批次与 59-61 永续结构批次), 实际 {len(FEATURE_NAMES)}"
+    assert len(FEATURE_NAMES) == 64, f"特征计数应为 64(含 62-63 技术研究候选), 实际 {len(FEATURE_NAMES)}"
 
 
 def test_text_coverage() -> None:
@@ -87,7 +87,7 @@ def test_causality() -> None:
     for name in FEATURE_NAMES:
         a = base[name][:head]
         b = altered[name][:head]
-        assert np.array_equal(a, b), f"特征 {name} 违反因果性(前段输出被后段数据改变)"
+        assert np.array_equal(a, b, equal_nan=True), f"特征 {name} 违反因果性(前段输出被后段数据改变)"
 
 
 def test_local_only_stamp() -> None:
@@ -115,7 +115,8 @@ def test_matrix_shape() -> None:
     bars = _make_bars(120)
     mat = feature_matrix(bars)
     assert mat.shape == (len(FEATURE_NAMES), 120), f"矩阵形状异常: {mat.shape}"
-    assert np.isfinite(mat).all(), "特征矩阵含 NaN/Inf"
+    assert np.isfinite(mat[:62]).all(), "存量特征矩阵含 NaN/Inf"
+    assert np.isnan(mat[62:]).all(), "技术特征预热不足时必须保留缺失状态"
 
 
 def test_mine_portfolio() -> None:

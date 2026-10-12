@@ -301,6 +301,8 @@ FEATURE_NAMES: tuple[str, ...] = (
     "FUNDING_MEAN24",
     "OI_TREND24",
     "TAKER_IMB24",
+    "MACD_HIST",
+    "KDJ_J",
 )
 
 # ── 搜索空间屏蔽（2026-09 加密化） ──────────────────────────
@@ -313,7 +315,7 @@ FEATURE_NAMES: tuple[str, ...] = (
 # DOM（月内位置）口径在 7×24 下仍然成立，保留在搜索池中。
 # 只影响 GP 随机生成/变异与 LLM 提示词的特征清单，不影响 VM 执行合法性。
 SEARCH_EXCLUDED_FEATURES: frozenset[str] = frozenset(
-    {"TOD", "NIGHT", "DOW"}
+    {"TOD", "NIGHT", "DOW", "MACD_HIST", "KDJ_J"}
 )
 
 
@@ -574,6 +576,8 @@ def _desktop_features(
     out = {name: _zscore_causal(arr, window) for name, arr in struct.items()}
     out.update(clock)
     out.update(direct)
+    from ..technical_features import technical_features
+    out.update(technical_features(bars))
     return out
 
 

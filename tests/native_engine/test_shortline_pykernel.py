@@ -16,6 +16,8 @@ sys.path.insert(0, str(ROOT / "native-engine"))
 sys.path.insert(0, str(ROOT / "public" / "pykernel"))
 
 import numpy as np
+from factor_lab.features import FEATURE_NAMES
+BASE_FEATURE_COUNT = len(FEATURE_NAMES)
 
 
 def _bars(n=420, seed=7, with_sl=True):
@@ -56,7 +58,7 @@ class ShortlineMatrixTests(unittest.TestCase):
         clear_feature_matrix_cache()
         bars = _bars(with_sl=False)
         mat = feature_matrix(bars)
-        self.assertEqual(mat.shape[0], 62)
+        self.assertEqual(mat.shape[0], BASE_FEATURE_COUNT)
 
     def test_sl_columns_extend_matrix_to_70_rows(self):
         from factor_lab.features import (SHORTLINE_COLUMN_KEYS, SHORTLINE_FEATURE_NAMES,
@@ -81,10 +83,10 @@ class ShortlineMatrixTests(unittest.TestCase):
 
         clear_feature_matrix_cache()
         mat = feature_matrix(bars)
-        self.assertEqual(mat.shape[0], 70)
+        self.assertEqual(mat.shape[0], BASE_FEATURE_COUNT + 8)
         # 行 62-69 与 shortline_feature_rows 逐位一致
         for k, name in enumerate(SHORTLINE_FEATURE_NAMES):
-            np.testing.assert_array_equal(mat[62 + k], rows[name])
+            np.testing.assert_array_equal(mat[BASE_FEATURE_COUNT + k], rows[name])
 
     def test_signature_distinguishes_sl_columns(self):
         from factor_lab.features import bars_signature

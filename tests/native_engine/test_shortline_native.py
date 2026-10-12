@@ -13,6 +13,8 @@ sys.path.insert(0, str(ROOT / "native-engine"))
 sys.path.insert(0, str(ROOT / "public" / "pykernel"))
 
 import numpy as np
+from factor_lab.features import FEATURE_NAMES
+BASE_FEATURE_COUNT = len(FEATURE_NAMES)
 
 from tests.native_engine.test_shortline_pykernel import _bars  # 同一合成数据
 
@@ -32,18 +34,20 @@ class ShortlineNativeTests(unittest.TestCase):
 
         bars = _bars(360)
         gpu = compute_features(bars)
-        self.assertEqual(gpu.matrix.shape[0], 70)
+        self.assertEqual(gpu.matrix.shape[0], BASE_FEATURE_COUNT + 8)
         host = gpu.to_numpy()
         cpu = feature_matrix(bars)
-        self.assertEqual(cpu.shape[0], 70)
+        self.assertEqual(cpu.shape[0], BASE_FEATURE_COUNT + 8)
         # v4 行(62-69)宿主侧逐位一致(同一 numpy 实现产出)
         for k in range(8):
-            np.testing.assert_array_equal(host[62 + k], cpu[62 + k])
+            np.testing.assert_array_equal(host[BASE_FEATURE_COUNT + k], cpu[BASE_FEATURE_COUNT + k])
         # base 行在浮点求和顺序容差内一致
         np.testing.assert_allclose(host[:62], cpu[:62], rtol=1e-12, atol=1e-12)
+        # New recursive TA rows differ by CUDA f64 operation ordering (~2e-12).
+        np.testing.assert_allclose(host[62:BASE_FEATURE_COUNT], cpu[62:BASE_FEATURE_COUNT], rtol=1e-10, atol=1e-10)
         # 无 sl 列 → 62 行
         gpu62 = compute_features(_bars(120, with_sl=False))
-        self.assertEqual(gpu62.matrix.shape[0], 62)
+        self.assertEqual(gpu62.matrix.shape[0], BASE_FEATURE_COUNT)
 
     def test_vm_executes_v4_token(self):
         from engine.vm_ti import StackVM, validate_tokens
@@ -58,6 +62,25 @@ class ShortlineNativeTests(unittest.TestCase):
         vm62 = StackVM(gpu62.matrix, "f64", norm_window=250, normalization="causal_v2")
         with self.assertRaises(ValueError):
             validate_tokens([115], vm62.F)
+
+    def test_new_technical_formulas_agree_after_rolling(self):
+        from engine.vm_ti import StackVM
+        from engine.features_ti import compute_features
+        from factor_lab.features import feature_matrix
+        from factor_lab.vm import execute
+
+        bars = _bars(500, with_sl=False)
+        matrix = feature_matrix(bars)
+        gpu = compute_features(bars)
+        formulas = [[62, 78], [63, 78]]
+        for layout in ("candidate_block", "candidate_time_block"):
+            vm = StackVM(gpu.matrix, "f64", tile=2, norm_window=250,
+                         normalization="causal_v2", execution_layout=layout)
+            results = vm.execute_batch(formulas)
+            for tokens, result in zip(formulas, results):
+                expected = execute(tokens, matrix, normalization="causal_v2")
+                self.assertGreater(float(np.std(result[250:])), .1, (layout, tokens))
+                np.testing.assert_allclose(result[250:], expected[250:], rtol=1e-8, atol=1e-8)
 
     def test_metrics_shortline_multiplier(self):
         """shortline 开 → composite = v2 composite × penalty(flip/hl/turnover)"""
