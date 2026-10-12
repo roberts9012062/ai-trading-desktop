@@ -62,6 +62,7 @@ export interface SearchFormPayload {
   /** 冠军种子库 token(本地引擎注入种群头部;来自 G2 冻结合格冠军) */
   seed_tokens?: number[][]
   seed_origin?: "champion_library" | "custom"
+  economic_seed_research?: boolean
   /** 长历史区间（YYYY-MM-DD，需与 end_date 成对；不传走近期数据） */
   start_date?: string
   end_date?: string
@@ -123,6 +124,7 @@ export function FactorSearchForm({
   const [comboSuper, setComboSuper] = useState(false)
   // 冠军种子库(G2 冻结证据合格冠军):本地增强搜索默认注入
   const [useChampionSeeds, setUseChampionSeeds] = useState(true)
+  const [economicSeedResearch, setEconomicSeedResearch] = useState(false)
   const seedPick = useMemo(
     () => championSeedsFor(symbol.trim().toLowerCase() || "BTCUSDT", timeframe),
     [symbol, timeframe],
@@ -214,6 +216,7 @@ export function FactorSearchForm({
       ...antiOverfitPayload(antiOverfitOn, trainRatio, testRecentBars, walkForwardFolds),
       enhanced,
       combo_super: comboSuper,
+      ...(localEngine && economicSeedResearch ? { economic_seed_research: true } : {}),
       ...(localEngine && enhanced && useChampionSeeds && seedPick.seeds.length
         ? { seed_tokens: seedPick.seeds.map((s) => s.tokens),seed_origin:"champion_library" }
         : {}),
@@ -351,6 +354,14 @@ export function FactorSearchForm({
           onModelChange={setModelRowId}
           modelsLoading={modelsLoading}
         />
+      )}
+
+      {localEngine && (
+        <label className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)] cursor-pointer">
+          <input type="checkbox" checked={economicSeedResearch}
+            onChange={(e) => setEconomicSeedResearch(e.target.checked)} />
+          实验公式种子（订单流背离、资金费率差异、持仓确认；尚未通过独立验证，默认关闭）
+        </label>
       )}
 
       {/* 长历史区间（默认关：不带日期 = 近期数据，与历史行为一致） */}

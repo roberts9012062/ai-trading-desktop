@@ -68,6 +68,8 @@ class SearchConfig:
     seed: int = 42
     cost: float = 0.0003
     seed_tokens: list[list[int]] | None = None
+    # Unqualified economic hypotheses require explicit research opt-in.
+    economic_seed_research: bool = False
     search_feature_ids: list[int] | None = None
     train_ratio: float = 0.0
     test_recent_bars: int = 0
@@ -721,7 +723,7 @@ def _search_impl(
     if v2:
         from .seed_templates import seed_fraction, templates_for
 
-        tpl_tokens = templates_for(rng._active_features or [], timeframe)
+        tpl_tokens = templates_for(rng._active_features or [], timeframe, economic=cfg.economic_seed_research)
         k_start = min(len(seeds), len(population))
         k_max = min(k_start + seed_fraction(cfg.population, tpl_tokens), len(population))
         for j in range(k_start, k_max):
@@ -1594,7 +1596,7 @@ def search_stepwise(
     if v2:
         from .seed_templates import seed_fraction, templates_for
 
-        tpl_tokens = templates_for(rng._active_features or [], timeframe)
+        tpl_tokens = templates_for(rng._active_features or [], timeframe, economic=cfg.economic_seed_research)
         k_start = min(len(cfg.seed_tokens or []), len(population))
         k_max = min(k_start + seed_fraction(cfg.population, tpl_tokens), len(population))
         for j in range(k_start, k_max):

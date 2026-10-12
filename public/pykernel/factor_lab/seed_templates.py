@@ -126,35 +126,35 @@ def slow_seed_templates() -> list[dict[str, Any]]:
     return t
 
 
-def templates_for(active_ids: list[int], timeframe: str = "") -> list[list[int]]:
+def templates_for(active_ids: list[int], timeframe: str = "", *, economic: bool = False) -> list[list[int]]:
     """按 active 特征集过滤模板(数据不可用的族不注入),返回 token 列表。
 
-    同族去重:每族最多保留 2 条(方向对算 1 条结构),避免单族占满种子配额。
-    短周期(≤15m)把慢变体族排在前面:配额内优先注入低换手结构,快速版
-    仍保留在其后(探索多样性由训练适应度裁决)。
+    每族最多两条具体公式，先轮流取各族一条再取第二条。
+    短周期(≤15m)在各族内优先慢变体；经济假设须显式开启，默认关闭。
     """
+    from .economic_templates import economic_templates
+
     active = set(active_ids)
     by_family: dict[str, list[list[int]]] = {}
-    for tpl in seed_templates():
+    # Slow variants are first within their family, not an extra family quota.
+    pool = slow_seed_templates() if str(timeframe) in _SLOW_TFS else []
+    if economic:
+        pool = [*economic_templates(), *pool]
+    pool = [*pool, *seed_templates()]
+    seen = set()
+    for tpl in pool:
         missing = [tok for tok in tpl["tokens"]
                    if tok < FEAT_OFFSET and tok not in active]
         if missing:
             continue
-        by_family.setdefault(tpl["family"], []).append(tpl["tokens"])
-    out: list[list[int]] = []
-    if str(timeframe) in _SLOW_TFS:
-        slow_by_family: dict[str, list[list[int]]] = {}
-        for tpl in slow_seed_templates():
-            missing = [tok for tok in tpl["tokens"]
-                       if tok < FEAT_OFFSET and tok not in active]
-            if missing:
-                continue
-            slow_by_family.setdefault(tpl["family"], []).append(tpl["tokens"])
-        for fam in sorted(slow_by_family):
-            out.extend(slow_by_family[fam][:2])
-    for fam in sorted(by_family):
-        out.extend(by_family[fam][:2])
-    return out
+        key = tuple(tpl['tokens'])
+        family = by_family.setdefault(tpl['family'], [])
+        if key not in seen and len(family) < 2:
+            family.append(tpl['tokens'])
+            seen.add(key)
+    # One per family before taking a second direction/variant. Deterministic
+    # insertion order keeps the three explicit hypotheses within small budgets.
+    return [rows[i] for i in range(2) for rows in by_family.values() if i < len(rows)]
 
 
 def seed_fraction(population: int, templates: list | int) -> int:

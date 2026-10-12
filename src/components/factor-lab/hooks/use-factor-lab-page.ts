@@ -328,6 +328,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
           ...(p.combo_super ? { combo_super: true } : {}),
           ...(p.seed_tokens?.length ? { seed_tokens: p.seed_tokens } : {}),
           ...(p.seed_origin ? {seed_origin:p.seed_origin} : {}),
+          ...(p.economic_seed_research ? {economic_seed_research:true} : {}),
           ...(p.start_date && p.end_date ? { start_date: p.start_date, end_date: p.end_date } : {}),
         },
         engine === "native-gpu" ? "native-gpu" : engine === "gpu" ? "gpu" : "cpu",

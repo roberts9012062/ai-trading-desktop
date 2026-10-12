@@ -9,6 +9,7 @@ import { nextGeneration, resolveIslands, StagnationTracker } from "../gpu/evolve
 import { preciseTopK, selectPreciseIndices, selectPreciseIndicesQuota, type RankedCandidate } from "../gpu/rank"
 import type { EvalRequest, GenerationStep, SerializedBest } from "./types"
 import { compatibleTrainingSeeds } from "../seed-compatibility"
+import { withEconomicResearchSeeds } from "../economic-seeds"
 
 export type NativeSessionClient = Pick<NativeEngineClient,
   "loadBars" | "mineFeatures" | "rankShards" | "evalShards" | "strictEval" | "precise" | "disposeSession">
@@ -94,7 +95,8 @@ export async function* runNativeGpuSession(
     const evolveV2 = cfg.evolve_v2 === true
     const stagnation = evolveV2 ? new StagnationTracker(islands) : undefined
     let population: Tree[] = Array.from({ length: cfg.population }, () => randomTreeGpuSafe(cfg.max_depth, F, opOne, opTwo, rng, true))
-    const {seeds:seedTokens,warning:seedWarning} = compatibleTrainingSeeds(cfg,active,features.feature_names)
+    const {seeds:compatibleSeeds,warning:seedWarning} = compatibleTrainingSeeds(cfg,active,features.feature_names)
+    const seedTokens = withEconomicResearchSeeds(cfg,compatibleSeeds,active,features.feature_names)
     for (let i = 0; i < Math.min(seedTokens.length, population.length); i++) {
       const tree = tokensToTree(seedTokens[i], F)
       if (tree) population[i] = tree

@@ -161,6 +161,9 @@ def execute(tokens: list[int], feat_matrix: np.ndarray, *, norm_window: int | No
             if token >= feat_limit:
                 return None
             row = feat_matrix[token]
+            if token < _V3_DIRECT_FLOOR and not np.isfinite(row).all():
+                # Bounded enrichment marks real gaps even in legacy OI/funding rows.
+                return None
             if v3 and token >= _V3_DIRECT_FLOOR and not np.isfinite(row).all():
                 # 桌面 v2 契约：直连特征缺失不得冒充观测——仅容忍"首个
                 # 观测之前"的头部未采样；中间缺口拒绝（nan_to_num 会把
@@ -171,7 +174,7 @@ def execute(tokens: list[int], feat_matrix: np.ndarray, *, norm_window: int | No
                 first = int(np.argmax(finite))
                 if not finite[first:].all():
                     return None
-            if v3 and token in (83, 84):
+            if v3 and token >= _V3_DIRECT_FLOOR:
                 row = np.where(np.isfinite(row), row, 0.0)
             stack.append(row)
         else:

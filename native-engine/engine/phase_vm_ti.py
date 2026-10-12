@@ -115,7 +115,7 @@ class PhaseProgram:
                 token, src, other, dst = rows[p, step, 0], rows[p, step, 1], rows[p, step, 2], rows[p, step, 3]
                 if token < 64 or token >= 115:
                     value = features[token if token < 64 else BASE_FEATURE_COUNT + (token - 115), t]
-                    if (token == 62 or token == 63) and self.math.is_nan(value):
+                    if token >= 52 and token < 64 and self.math.is_nan(value):
                         value = 0.0
                     stack[p, dst, t] = value
                 else:

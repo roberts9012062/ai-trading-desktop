@@ -44,7 +44,7 @@ def bars_signature(bars: list[dict[str, Any]]) -> tuple:
     keys = ("time","open","high","low","close","volume","open_interest",
             "funding_rate","lsr","taker_ratio","xspread","btc_ret",
             "_factor_market","quote_volume","trade_count","taker_buy_volume",
-            "long_short_ratio","taker_imbalance","liquidation_imbalance")
+            "long_short_ratio","taker_imbalance","liquidation_imbalance", "_deriv_quality")
     for bar in bars:
         digest.update(repr(tuple(bar.get(k) for k in keys)).encode("utf-8"))
     return (len(bars), digest.digest())

@@ -185,11 +185,11 @@ def execute(
                 first = int(np.argmax(finite))
                 if not finite[first:].all():
                     return None
-            # New TA warmup is structurally missing, not an interior data gap.
-            # Sanitizing only these new rows prevents cumsum NaN infection;
+            # The continuity guard above has already rejected interior gaps.
+            # Only the legitimate unsampled prefix is neutralized for VM math;
             # admission/head trim still use the original masked matrix.
             row = feat_matrix[token]
-            if token in (62, 63):
+            if v2 and token >= 52:
                 row = np.where(np.isfinite(row), row, 0.0)
             stack.append(row)
         else:

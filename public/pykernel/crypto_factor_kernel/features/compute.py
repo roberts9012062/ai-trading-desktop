@@ -182,6 +182,7 @@ def compute_features(bars: list[dict[str, Any]], *, normalization_window: int | 
     # 价量类做因果归一化（窗口至少覆盖一个完整交易日）
     window = normalization_window if normalization_window is not None else zscore_window(bars)
     out = {name: _zscore_causal(arr, window) for name, arr in raw.items()}
+    _apply_deriv_quality(out, raw, bars, window)
     # 时间类已在 [-1,1] 且带日内周期语义，zscore 会把周期抹平，故不归一化
     out["TOD"] = _time_of_day(bars)
     out["NIGHT"] = _is_night(bars)
@@ -609,6 +610,7 @@ def compute_selected_features(bars: list[dict[str, Any]], *, normalization_windo
     raw: dict[str, np.ndarray] = {'RET': lambda : _ret(close, 1), 'RET5': lambda : _ret(close, 5), 'RET20': lambda : _ret(close, 20), 'MA_DIFF': lambda : (close - ma20) / np.maximum(np.abs(ma20), 1e-09), 'SLOPE20': lambda : delta(ma20, 5) / np.maximum(np.abs(ma20), 1e-09), 'ATR14': lambda : _atr(high, low, close, 14) / np.maximum(close, 1e-09), 'RVOL': lambda : vol_std / np.maximum(vol_ma, 1e-09), 'HL_RANGE': lambda : (high - low) / np.maximum(close, 1e-09), 'DEV': lambda : (close - ma20) / np.maximum(std20, 1e-09), 'RSI14': lambda : _rsi(close, 14), 'AC1': lambda : _ac1(close, 20), 'VOL_RATIO': lambda : volume / np.maximum(vol_ma, 1e-09), 'VOL_Z': lambda : (volume - vol_ma) / np.maximum(vol_std, 1e-09), 'PV_CORR': lambda : ts_corr(_ret(close, 1), volume, 20), 'OI_CHG': lambda : oi_delta / np.maximum(np.abs(open_interest), 1.0) if has_oi else zeros, 'OI_PV': lambda : np.sign(_ret(close, 1)) * np.sign(oi_delta) if has_oi else zeros, 'VOL_OI': lambda : volume / np.maximum(open_interest, 1.0) if has_oi else zeros, 'GAP': lambda : gap, 'CLOSE_POS': lambda : (close - low) / rng, 'UPPER_SHADOW': lambda : (high - np.maximum(open_, close)) / np.maximum(close, 1e-09), 'LOWER_SHADOW': lambda : (np.minimum(open_, close) - low) / np.maximum(close, 1e-09), 'BODY': lambda : (close - open_) / np.maximum(close, 1e-09), 'RET60': lambda : _ret(close, 60), 'MA_DIFF60': lambda : (close - ma60) / np.maximum(np.abs(ma60), 1e-09), 'VOLAT_RATIO': lambda : std20 / np.maximum(std60, 1e-09), 'OI_PC': lambda : ts_corr(_ret(close, 1), oi_delta, 20) if has_oi else zeros, 'OI_CHG5': lambda : delta(open_interest, 5) / np.maximum(np.abs(open_interest), 1.0) if has_oi else zeros, 'OI_CHG20': lambda : delta(open_interest, 20) / np.maximum(np.abs(open_interest), 1.0) if has_oi else zeros, 'VOL_OI_MA': lambda : ts_mean(volume / np.maximum(open_interest, 1.0), 20) if has_oi else zeros, 'SKEW20': lambda : _rolling_moment(_ret(close, 1), 20, 3), 'KURT20': lambda : _rolling_moment(_ret(close, 1), 20, 4), 'STRENGTH': lambda : strength_series(bars), 'MACD': lambda : macd(close), 'ADX14': lambda : adx(high, low, close, 14), 'DONCH20': lambda : donchian_pos(high, low, close, 20), 'PARKINSON20': lambda : parkinson(high, low, 20), 'GK20': lambda : garman_klass(high, low, open_, close, 20), 'SEMIVOL20': lambda : semivol_ratio(close, 20), 'VOV20': lambda : vol_of_vol(close, 20), 'JUMP20': lambda : jump_freq(close, 20), 'VWAP_DEV20': lambda : vwap_dev(high, low, close, volume, 20), 'AMIHUD20': lambda : amihud(close, volume, 20), 'MFI14': lambda : mfi(high, low, close, volume, 14), 'CMF20': lambda : cmf(high, low, close, volume, 20), 'FUNDING': lambda : funding if has_funding else zeros, 'BTC_RET': lambda : btc_ret if has_btc else zeros, 'EXCESS_RET': lambda : _ret(close, 1) - btc_ret if has_btc else zeros, 'LSR': lambda : lsr if has_lsr else zeros, 'TAKER': lambda : taker if has_taker else zeros, 'XSPREAD': lambda : xspread if has_xspread else zeros}
     window = normalization_window if normalization_window is not None else zscore_window(bars)
     out = {name: _zscore_causal(arr(), window) for (name, arr) in raw.items() if needed_names is None or name in needed_names}
+    _apply_deriv_quality(out, raw, bars, window)
     out['TOD'] = _time_of_day(bars)
     out['NIGHT'] = _is_night(bars)
     (dow, dom) = _dow_dom(bars)
@@ -620,3 +622,17 @@ def compute_selected_features(bars: list[dict[str, Any]], *, normalization_windo
     if needed_names is None or any((name in needed_names for name in FEATURE_NAMES[57:])):
         out.update(_desktop_features(bars, close, high, low, volume, funding=funding, has_funding=has_funding, lsr=lsr, has_lsr=has_lsr, taker=taker, has_taker=has_taker))
     return out
+
+
+def _apply_deriv_quality(out, raw, bars, window):
+    quality_fields = {
+        'open_interest': ('OI_CHG', 'OI_PV', 'VOL_OI', 'OI_PC', 'OI_CHG5', 'OI_CHG20', 'VOL_OI_MA'),
+        'funding_rate': ('FUNDING',), 'lsr': ('LSR',), 'taker_ratio': ('TAKER',), 'xspread': ('XSPREAD',),
+    }
+    for field, names in quality_fields.items():
+        if any(field in b.get('_deriv_quality', {}) for b in bars):
+            values, _ = _ffill_field(bars, field)
+            for name in names:
+                if name in out:
+                    arr = raw[name]() if callable(raw[name]) else raw[name]
+                    out[name] = _desktop_masked_zscore(np.where(np.isfinite(values), arr, np.nan), window)

@@ -41,7 +41,7 @@ jobs:
         run: pnpm exec vitest run src/lib/okx-history.test.ts src/lib/okx-archive-repair.test.ts src/lib/okx-local-history.integration.test.ts src/lib/snippet-rest.test.ts src/lib/snippet-pool.test.ts
 
       - name: Verify rescued super-factor member display and persistence
-        run: pnpm exec vitest run src/components/factor-lab/portfolio-card.test.ts src/lib/mining/backends/native-gpu-core.test.ts src/lib/mining/native-runner-integration.test.ts src/lib/mining/research-grade.test.ts src/lib/mining/combo-super.test.ts src/lib/factor-access.test.ts src/lib/shortline/search-profile.test.ts src/lib/mining/gpu/feature-token-roundtrip.test.ts
+        run: pnpm exec vitest run src/components/factor-lab/portfolio-card.test.ts src/lib/mining/backends/native-gpu-core.test.ts src/lib/mining/native-runner-integration.test.ts src/lib/mining/research-grade.test.ts src/lib/mining/combo-super.test.ts src/lib/factor-access.test.ts src/lib/shortline/search-profile.test.ts src/lib/mining/gpu/feature-token-roundtrip.test.ts src/lib/mining/economic-seeds.test.ts
 
       # 原生 GPU 引擎运行时组装(设计 §6):python-build-standalone CPython 3.11
       # + 按 requirements-native.lock 哈希校验安装的冻结依赖 + engine 包。
@@ -61,6 +61,7 @@ jobs:
           .local-data/native-engine-venv/Scripts/python.exe scripts/test-factor-backtest.py
           .local-data/native-engine-venv/Scripts/python.exe scripts/test-realtime-factor.py
           .local-data/native-engine-venv/Scripts/python.exe -m unittest tests.native_engine.test_factor_quality_features -v
+          .local-data/native-engine-venv/Scripts/python.exe -m unittest tests.native_engine.test_economic_templates -v
           .local-data/native-engine-venv/Scripts/python.exe -m unittest discover -s tests/native_engine -p test_wf.py -k FoldSize -v
           .local-data/native-engine-venv/Scripts/python.exe -m unittest discover -s tests/native_engine -p test_shortline_contract.py -k ShortlineCpu -v
           BASE_PREFIX="$(.local-data/native-engine-venv/Scripts/python.exe -c 'import sys; print(sys.base_prefix)')"

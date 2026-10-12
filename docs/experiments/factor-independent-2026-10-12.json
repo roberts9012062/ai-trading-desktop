@@ -1,0 +1,1242 @@
+{
+  "protocol": "docs/plans/2026-10-12-factor-quality-rounds-2-4.md",
+  "method": "60/20/20; next-open linear perp; 5bp fee+2bp slippage single-side; 2x fee/slip stress; real event funding; additive unit-notional returns",
+  "results": [
+    {
+      "symbol": "XRPUSDT",
+      "bars": 6552,
+      "sha256": "3f7f8bbfd1be6f925eba384434cdf2c39b038fc7e70ab9e4c799f7fd93ac9025",
+      "start": "2026-01-01T00:00:00+00:00",
+      "end": "2026-09-30T23:00:00+00:00",
+      "sources": [
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/XRPUSDT/1h/XRPUSDT-1h-2026-01.zip",
+          "sha256": "304aeb41cbe641e8e4d39d9c6b839dc372e07efdd49e5b14d9b62a5128f1deb8",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/XRPUSDT/1h/XRPUSDT-1h-2026-02.zip",
+          "sha256": "bd95d4f6cb4988b981b3e6ae88d6a8ab4123364faf44d6e5ddd93956618d5564",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/XRPUSDT/1h/XRPUSDT-1h-2026-03.zip",
+          "sha256": "916f1669dd934c78b9d94c655d9fe20e95ab355e11650f2aced3561efde05f1b",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/XRPUSDT/1h/XRPUSDT-1h-2026-04.zip",
+          "sha256": "ab93b4954e1b531766ba46e4a079a06f767a40b16cc14a9f8f321ab80af19ae2",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/XRPUSDT/1h/XRPUSDT-1h-2026-05.zip",
+          "sha256": "30273c8778fab32eff2cc1343b3f0fd1087005bca859786cffe4fe8169b4cd97",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/XRPUSDT/1h/XRPUSDT-1h-2026-06.zip",
+          "sha256": "f26db58471a44843813bd757923e999a9d8d8b421fabb11292c015993795d2b6",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/XRPUSDT/1h/XRPUSDT-1h-2026-07.zip",
+          "sha256": "9dbdf2f4b57be325d70455ac36cdf403cf8b90d56688bbe72e930fdf74b832de",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/XRPUSDT/1h/XRPUSDT-1h-2026-08.zip",
+          "sha256": "387e1aa225a3984ac4add2764a9b948c0a255fb38c24b8714690d1d5dce4d48c",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/XRPUSDT/1h/XRPUSDT-1h-2026-09.zip",
+          "sha256": "490701edf518fec0d78441d9bc6adcd92e62c837aca2f4e4e7d6ef37a6c9c68a",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/XRPUSDT/XRPUSDT-fundingRate-2025-12.zip",
+          "sha256": "21c4a5933de28ec693fbe3a43d9ae4504b762e70e7cc0e0de4afd46104abe7f0",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/XRPUSDT/XRPUSDT-fundingRate-2026-01.zip",
+          "sha256": "618977f8e0c4d048292fae038094ea9624c96debfbb1d2bd6463ffcdce2fcd2a",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/XRPUSDT/XRPUSDT-fundingRate-2026-02.zip",
+          "sha256": "8d8be995b48b2085a8384d9e417bfeef2d213b35478baa88cbe5001d0497535d",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/XRPUSDT/XRPUSDT-fundingRate-2026-03.zip",
+          "sha256": "e3399c2e5fd5c18a2716b26530bcedc7fb9ce8adb2641c0882c8ba6e0a336567",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/XRPUSDT/XRPUSDT-fundingRate-2026-04.zip",
+          "sha256": "0e586915d578a977ad69482ddc52c11d9c2c1a767d3865078553b3e91fb7716a",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/XRPUSDT/XRPUSDT-fundingRate-2026-05.zip",
+          "sha256": "f8c0c09953b112a7f5ac203a826811ead1ac43db8c075b17b2ca69e837828255",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/XRPUSDT/XRPUSDT-fundingRate-2026-06.zip",
+          "sha256": "f5d1b51767ddc812c4608080adf54cfca0db7cba592d3e62d7416cd358a3ebde",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/XRPUSDT/XRPUSDT-fundingRate-2026-07.zip",
+          "sha256": "c705d06f311e974474a74dc2c5f572c9180630930cf2d5dbaf08cfb7f3d1948c",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/XRPUSDT/XRPUSDT-fundingRate-2026-08.zip",
+          "sha256": "7796d84350af4b2b162dd362c9d27cc79643578115f1cde3e333075085596d1c",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/XRPUSDT/XRPUSDT-fundingRate-2026-09.zip",
+          "sha256": "f668315d6cd6da13cfcd5f83e4658dd4c1e9042e06f2277e804feb9d857da5b2",
+          "official_checksum_verified": true
+        }
+      ],
+      "active_features_training_only": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        31,
+        32,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        58,
+        59,
+        61
+      ],
+      "funding_settlement_events": 819,
+      "splits": {
+        "train_end": 3931,
+        "validation_end": 5241,
+        "holdout_end": 6552
+      },
+      "arms": {
+        "baseline": {
+          "tokens": [
+            4,
+            94,
+            71
+          ],
+          "candidate_count": 176,
+          "executable_nonconstant": 176,
+          "training_2x": {
+            "net_return": 0.3311177727205961,
+            "sortino": 2.114991948731952,
+            "max_drawdown": 0.1685574760051211,
+            "position_changes": 3322,
+            "half_returns": [
+              0.2815594400412362,
+              0.04955833267935991
+            ],
+            "fees": 0.13051933456291573,
+            "funding": 0.001991830386134868
+          },
+          "validation_2x": {
+            "net_return": -0.05410301394883907,
+            "sortino": -1.2139616664254886,
+            "max_drawdown": 0.17688006599523154,
+            "position_changes": 1276,
+            "half_returns": [
+              -0.08189823872684458,
+              0.027795224778005494
+            ],
+            "fees": 0.03764441439752175,
+            "funding": 0.0007162980455690153
+          },
+          "eligible_before_holdout": false,
+          "holdout": {
+            "net_return": -0.3450859577352007,
+            "sortino": -3.2924510949158696,
+            "max_drawdown": 0.5759513724771154,
+            "position_changes": 1259,
+            "half_returns": [
+              -0.46999408221878236,
+              0.12490812448358174
+            ],
+            "fees": 0.018673328063280568,
+            "funding": 0.0009938368081579023
+          },
+          "holdout_2x": {
+            "net_return": -0.3637592857984812,
+            "sortino": -3.4790019451485685,
+            "max_drawdown": 0.5833562496046323,
+            "position_changes": 1259,
+            "half_returns": [
+              -0.4790326025834405,
+              0.11527331678495925
+            ],
+            "fees": 0.037346656126561135,
+            "funding": 0.0009938368081579023
+          },
+          "qualified": false
+        },
+        "economic_hypotheses": {
+          "tokens": [
+            4,
+            94,
+            71
+          ],
+          "candidate_count": 180,
+          "executable_nonconstant": 180,
+          "training_2x": {
+            "net_return": 0.3311177727205961,
+            "sortino": 2.114991948731952,
+            "max_drawdown": 0.1685574760051211,
+            "position_changes": 3322,
+            "half_returns": [
+              0.2815594400412362,
+              0.04955833267935991
+            ],
+            "fees": 0.13051933456291573,
+            "funding": 0.001991830386134868
+          },
+          "validation_2x": {
+            "net_return": -0.05410301394883907,
+            "sortino": -1.2139616664254886,
+            "max_drawdown": 0.17688006599523154,
+            "position_changes": 1276,
+            "half_returns": [
+              -0.08189823872684458,
+              0.027795224778005494
+            ],
+            "fees": 0.03764441439752175,
+            "funding": 0.0007162980455690153
+          },
+          "eligible_before_holdout": false,
+          "holdout": {
+            "net_return": -0.3450859577352007,
+            "sortino": -3.2924510949158696,
+            "max_drawdown": 0.5759513724771154,
+            "position_changes": 1259,
+            "half_returns": [
+              -0.46999408221878236,
+              0.12490812448358174
+            ],
+            "fees": 0.018673328063280568,
+            "funding": 0.0009938368081579023
+          },
+          "holdout_2x": {
+            "net_return": -0.3637592857984812,
+            "sortino": -3.4790019451485685,
+            "max_drawdown": 0.5833562496046323,
+            "position_changes": 1259,
+            "half_returns": [
+              -0.4790326025834405,
+              0.11527331678495925
+            ],
+            "fees": 0.037346656126561135,
+            "funding": 0.0009938368081579023
+          },
+          "qualified": false
+        }
+      },
+      "economic_training_diagnostics": [
+        {
+          "tokens": [
+            61,
+            46,
+            65,
+            94
+          ],
+          "training_2x": {
+            "net_return": 0.3011045001072894,
+            "sortino": 1.8603723198327788,
+            "max_drawdown": 0.16189134391995794,
+            "position_changes": 3334,
+            "half_returns": [
+              0.18117965207522824,
+              0.11992484803206122
+            ],
+            "fees": 0.12356551084996267,
+            "funding": -0.0015807285061758334
+          },
+          "validation_2x": {
+            "net_return": 0.13970879389759605,
+            "sortino": 3.4366225711687948,
+            "max_drawdown": 0.10464539671041204,
+            "position_changes": 1261,
+            "half_returns": [
+              0.043661223618902185,
+              0.09604757027869387
+            ],
+            "fees": 0.05182381767417818,
+            "funding": -0.00043962261266830224
+          }
+        },
+        {
+          "tokens": [
+            61,
+            46,
+            65,
+            94,
+            71
+          ],
+          "training_2x": {
+            "net_return": -0.5482355218072148,
+            "sortino": -3.274310309363435,
+            "max_drawdown": 0.6685314337786791,
+            "position_changes": 3334,
+            "half_returns": [
+              -0.2975952613323505,
+              -0.25064026047486426
+            ],
+            "fees": 0.12356551084996267,
+            "funding": 0.0015807285061758334
+          },
+          "validation_2x": {
+            "net_return": -0.2433564292459524,
+            "sortino": -5.1362808786043015,
+            "max_drawdown": 0.25561440975447547,
+            "position_changes": 1261,
+            "half_returns": [
+              -0.10131061700807498,
+              -0.14204581223787743
+            ],
+            "fees": 0.05182381767417818,
+            "funding": 0.00043962261266830224
+          }
+        },
+        {
+          "tokens": [
+            61,
+            59,
+            65,
+            94
+          ],
+          "training_2x": {
+            "net_return": -0.07449780669666459,
+            "sortino": -0.3981446134933534,
+            "max_drawdown": 0.3393208998336352,
+            "position_changes": 3341,
+            "half_returns": [
+              -0.07060546745240537,
+              -0.0038923392442592325
+            ],
+            "fees": 0.0903861166646436,
+            "funding": -0.0015637990215257272
+          },
+          "validation_2x": {
+            "net_return": -0.0051186059640341425,
+            "sortino": -0.1039420013497894,
+            "max_drawdown": 0.19538562933070264,
+            "position_changes": 1288,
+            "half_returns": [
+              -0.0948268011910075,
+              0.08970819522697335
+            ],
+            "fees": 0.03653113062606382,
+            "funding": 0.0003717545171678389
+          }
+        },
+        {
+          "tokens": [
+            61,
+            59,
+            65,
+            94,
+            71
+          ],
+          "training_2x": {
+            "net_return": -0.10627442663262268,
+            "sortino": -0.5639093698369455,
+            "max_drawdown": 0.29751255352827954,
+            "position_changes": 3341,
+            "half_returns": [
+              -0.009895721710629385,
+              -0.09637870492199326
+            ],
+            "fees": 0.0903861166646436,
+            "funding": 0.0015637990215257272
+          },
+          "validation_2x": {
+            "net_return": -0.06794365528809357,
+            "sortino": -1.374954612389484,
+            "max_drawdown": 0.21833853735827635,
+            "position_changes": 1288,
+            "half_returns": [
+              0.06859773251575406,
+              -0.1365413878038476
+            ],
+            "fees": 0.03653113062606382,
+            "funding": -0.0003717545171678389
+          }
+        }
+      ]
+    },
+    {
+      "symbol": "ADAUSDT",
+      "bars": 6552,
+      "sha256": "a19a6a69810b979e6b169f1c4e2567c0cd45bbdedcd8092f7a528beea4ffa05f",
+      "start": "2026-01-01T00:00:00+00:00",
+      "end": "2026-09-30T23:00:00+00:00",
+      "sources": [
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/ADAUSDT/1h/ADAUSDT-1h-2026-01.zip",
+          "sha256": "0980489110cafbe0340bed14dfe08d6ec6b5afd31ce1123c17b7fd655cc672f0",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/ADAUSDT/1h/ADAUSDT-1h-2026-02.zip",
+          "sha256": "2cbecbc4e3291b363895e93618cac3d4328f737ee34af2b1dbb446b3447522ce",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/ADAUSDT/1h/ADAUSDT-1h-2026-03.zip",
+          "sha256": "ff5904ca0403f13d03dd46f2e84992f328f05d1c19b6d35702882981b123fc87",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/ADAUSDT/1h/ADAUSDT-1h-2026-04.zip",
+          "sha256": "50f5e57f0a20a83bb49e485afd0bb6725a01ad4bd16e179dc9028ad4ea9ff7de",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/ADAUSDT/1h/ADAUSDT-1h-2026-05.zip",
+          "sha256": "946ae68bd3e3e97eaa5a94998b67130aab3bed1c9bcde0444280d6e22c1ad12e",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/ADAUSDT/1h/ADAUSDT-1h-2026-06.zip",
+          "sha256": "d09ab1f1574e388622ac742fae2988e3e0ff7041cf1b1a40835a4e4fa3a76209",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/ADAUSDT/1h/ADAUSDT-1h-2026-07.zip",
+          "sha256": "00ed276f06a95b516d80deabf294d9bcb0dc646878454ac70e7840e684b8ffc4",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/ADAUSDT/1h/ADAUSDT-1h-2026-08.zip",
+          "sha256": "fb9dda5a4c5e4f12d332222fb169490eb51f02bc96b724bdd96fcef009d8eff6",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/ADAUSDT/1h/ADAUSDT-1h-2026-09.zip",
+          "sha256": "8572741425df966b21360797a9a6cd1df71fd4ab275cee670182d29927c9fa65",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/ADAUSDT/ADAUSDT-fundingRate-2025-12.zip",
+          "sha256": "14d01f1b4dba807e178f3e21154c2b70e0d6a7921322dd082da59d7356e63879",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/ADAUSDT/ADAUSDT-fundingRate-2026-01.zip",
+          "sha256": "261376bf6f7d275b4dce115e8d2802e4a18a05504b8fb6717db4d3834aad7d3e",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/ADAUSDT/ADAUSDT-fundingRate-2026-02.zip",
+          "sha256": "b9934577dcac9d5a9d3a63a66261738d7f9c128bd986b4fd90393e15c131e182",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/ADAUSDT/ADAUSDT-fundingRate-2026-03.zip",
+          "sha256": "5a9a9b2e3b41521ab2cc28ece3ece06d8611f0f033cabaa1ac1f7e678ce23c0e",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/ADAUSDT/ADAUSDT-fundingRate-2026-04.zip",
+          "sha256": "b2769eeed3ad6e22d871c995632110cc568c6a40d1d61be7158cad1fc4d60cf8",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/ADAUSDT/ADAUSDT-fundingRate-2026-05.zip",
+          "sha256": "6e32d7bbdfaa3a2542fe39f918c1b79fccb01be6ee725775095a93c253778862",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/ADAUSDT/ADAUSDT-fundingRate-2026-06.zip",
+          "sha256": "e41b9ac1f3d6651ff94562de9b3a0297016c6dc2d2def42f6561d963cfdb0fc1",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/ADAUSDT/ADAUSDT-fundingRate-2026-07.zip",
+          "sha256": "b5f0642d725a80e55a4f6588ad2c55529ac22ea21e08022fde0056d39ee7a59c",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/ADAUSDT/ADAUSDT-fundingRate-2026-08.zip",
+          "sha256": "ede6e08abb0784007fe2d768644069ede9012a1a2e271b534d75a97fcd8edd34",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/ADAUSDT/ADAUSDT-fundingRate-2026-09.zip",
+          "sha256": "987dea07f28d553b81153d542b0c476686773af011b4b31c3aed1a335f5c6518",
+          "official_checksum_verified": true
+        }
+      ],
+      "active_features_training_only": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        31,
+        32,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        58,
+        59,
+        61
+      ],
+      "funding_settlement_events": 819,
+      "splits": {
+        "train_end": 3931,
+        "validation_end": 5241,
+        "holdout_end": 6552
+      },
+      "arms": {
+        "baseline": {
+          "tokens": [
+            47,
+            94,
+            71
+          ],
+          "candidate_count": 176,
+          "executable_nonconstant": 176,
+          "training_2x": {
+            "net_return": 0.32596449910020253,
+            "sortino": 1.6491784247853676,
+            "max_drawdown": 0.26671235616413164,
+            "position_changes": 3339,
+            "half_returns": [
+              0.15520653544372354,
+              0.17075796365647894
+            ],
+            "fees": 0.09391809700639822,
+            "funding": 0.002432231580518703
+          },
+          "validation_2x": {
+            "net_return": 0.1727476888673813,
+            "sortino": 2.3630875521968444,
+            "max_drawdown": 0.1757942304288077,
+            "position_changes": 1279,
+            "half_returns": [
+              0.24633572118429786,
+              -0.07358803231691652
+            ],
+            "fees": 0.03533793124643092,
+            "funding": 0.003412448132230628
+          },
+          "eligible_before_holdout": true,
+          "holdout": {
+            "net_return": -0.6330762197980233,
+            "sortino": -6.1704758056727895,
+            "max_drawdown": 0.6548654459045259,
+            "position_changes": 1204,
+            "half_returns": [
+              -0.5187260842445244,
+              -0.1143501355534989
+            ],
+            "fees": 0.015444772918892557,
+            "funding": 0.0014880242338158323
+          },
+          "holdout_2x": {
+            "net_return": -0.6485209927169159,
+            "sortino": -6.32190962003105,
+            "max_drawdown": 0.6702043996856395,
+            "position_changes": 1204,
+            "half_returns": [
+              -0.5252551144036486,
+              -0.12326587831326727
+            ],
+            "fees": 0.030889545837785113,
+            "funding": 0.0014880242338158323
+          },
+          "qualified": false
+        },
+        "economic_hypotheses": {
+          "tokens": [
+            47,
+            94,
+            71
+          ],
+          "candidate_count": 180,
+          "executable_nonconstant": 180,
+          "training_2x": {
+            "net_return": 0.32596449910020253,
+            "sortino": 1.6491784247853676,
+            "max_drawdown": 0.26671235616413164,
+            "position_changes": 3339,
+            "half_returns": [
+              0.15520653544372354,
+              0.17075796365647894
+            ],
+            "fees": 0.09391809700639822,
+            "funding": 0.002432231580518703
+          },
+          "validation_2x": {
+            "net_return": 0.1727476888673813,
+            "sortino": 2.3630875521968444,
+            "max_drawdown": 0.1757942304288077,
+            "position_changes": 1279,
+            "half_returns": [
+              0.24633572118429786,
+              -0.07358803231691652
+            ],
+            "fees": 0.03533793124643092,
+            "funding": 0.003412448132230628
+          },
+          "eligible_before_holdout": true,
+          "holdout": {
+            "net_return": -0.6330762197980233,
+            "sortino": -6.1704758056727895,
+            "max_drawdown": 0.6548654459045259,
+            "position_changes": 1204,
+            "half_returns": [
+              -0.5187260842445244,
+              -0.1143501355534989
+            ],
+            "fees": 0.015444772918892557,
+            "funding": 0.0014880242338158323
+          },
+          "holdout_2x": {
+            "net_return": -0.6485209927169159,
+            "sortino": -6.32190962003105,
+            "max_drawdown": 0.6702043996856395,
+            "position_changes": 1204,
+            "half_returns": [
+              -0.5252551144036486,
+              -0.12326587831326727
+            ],
+            "fees": 0.030889545837785113,
+            "funding": 0.0014880242338158323
+          },
+          "qualified": false
+        }
+      },
+      "economic_training_diagnostics": [
+        {
+          "tokens": [
+            61,
+            46,
+            65,
+            94
+          ],
+          "training_2x": {
+            "net_return": 0.13339111057230013,
+            "sortino": 0.6805389398811577,
+            "max_drawdown": 0.4812342117651986,
+            "position_changes": 3350,
+            "half_returns": [
+              0.4608419916230848,
+              -0.3274508810507846
+            ],
+            "fees": 0.10512640881851293,
+            "funding": 0.003291644201888893
+          },
+          "validation_2x": {
+            "net_return": -0.22188349347339253,
+            "sortino": -2.7403444400677213,
+            "max_drawdown": 0.4082128242447324,
+            "position_changes": 1294,
+            "half_returns": [
+              -0.2096923961610196,
+              -0.012191097312372976
+            ],
+            "fees": 0.04658388559789532,
+            "funding": 0.0007752699153394692
+          }
+        },
+        {
+          "tokens": [
+            61,
+            46,
+            65,
+            94,
+            71
+          ],
+          "training_2x": {
+            "net_return": -0.34364392820932604,
+            "sortino": -1.6932965961078186,
+            "max_drawdown": 0.7316384852085559,
+            "position_changes": 3350,
+            "half_returns": [
+              -0.5765715043329782,
+              0.23292757612365222
+            ],
+            "fees": 0.10512640881851293,
+            "funding": -0.003291644201888893
+          },
+          "validation_2x": {
+            "net_return": 0.12871572227760186,
+            "sortino": 1.6031255807216138,
+            "max_drawdown": 0.18820357328021659,
+            "position_changes": 1294,
+            "half_returns": [
+              0.1580904858554777,
+              -0.029374763577875794
+            ],
+            "fees": 0.04658388559789532,
+            "funding": -0.0007752699153394692
+          }
+        },
+        {
+          "tokens": [
+            61,
+            59,
+            65,
+            94
+          ],
+          "training_2x": {
+            "net_return": 0.015257676059958203,
+            "sortino": 0.08419213814029629,
+            "max_drawdown": 0.2816557623159621,
+            "position_changes": 3358,
+            "half_returns": [
+              0.15997072253741068,
+              -0.14471304647745248
+            ],
+            "fees": 0.09745522390999309,
+            "funding": 0.0019669284895509403
+          },
+          "validation_2x": {
+            "net_return": -0.4311365364208395,
+            "sortino": -5.611845649966679,
+            "max_drawdown": 0.4873196372212007,
+            "position_changes": 1251,
+            "half_returns": [
+              -0.14221880288325145,
+              -0.28891773353758804
+            ],
+            "fees": 0.032993565026446584,
+            "funding": 0.004288067384895318
+          }
+        },
+        {
+          "tokens": [
+            61,
+            59,
+            65,
+            94,
+            71
+          ],
+          "training_2x": {
+            "net_return": -0.21016812387994432,
+            "sortino": -1.1035114034902178,
+            "max_drawdown": 0.2938184118255851,
+            "position_changes": 3358,
+            "half_returns": [
+              -0.25217468867390774,
+              0.042006564793963384
+            ],
+            "fees": 0.09745522390999309,
+            "funding": -0.0019669284895509403
+          },
+          "validation_2x": {
+            "net_return": 0.36514940636794635,
+            "sortino": 5.946789250430975,
+            "max_drawdown": 0.18217651001380117,
+            "position_changes": 1251,
+            "half_returns": [
+              0.10456732565691981,
+              0.26058208071102656
+            ],
+            "fees": 0.032993565026446584,
+            "funding": -0.004288067384895318
+          }
+        }
+      ]
+    },
+    {
+      "symbol": "DOGEUSDT",
+      "bars": 6552,
+      "sha256": "ea097147cb4a23ef5d68c3edc354d1edd7ba97070a83a3faefc60dc627c4d945",
+      "start": "2026-01-01T00:00:00+00:00",
+      "end": "2026-09-30T23:00:00+00:00",
+      "sources": [
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/DOGEUSDT/1h/DOGEUSDT-1h-2026-01.zip",
+          "sha256": "cbc685e1bc177a494010c94b040bebcc9eaba60b7650f38fec08cbdfcaa57e2c",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/DOGEUSDT/1h/DOGEUSDT-1h-2026-02.zip",
+          "sha256": "eaf60970a1ec65c6249ea96ab981a2c408c80905a3bf86069b526a0ac3785e93",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/DOGEUSDT/1h/DOGEUSDT-1h-2026-03.zip",
+          "sha256": "a860e9dd8d6f336f8b00ced16765c7204481eb62a8ae07b38cbfc6979b922a41",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/DOGEUSDT/1h/DOGEUSDT-1h-2026-04.zip",
+          "sha256": "5ff55e9f57612317342b5b7376a173ded35f303b952c2deb46d33d2379449ce0",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/DOGEUSDT/1h/DOGEUSDT-1h-2026-05.zip",
+          "sha256": "57b1a7622b5dc452882376e8aa9374d94a054f68f54719962ac9bbd6d1a10e3b",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/DOGEUSDT/1h/DOGEUSDT-1h-2026-06.zip",
+          "sha256": "a7f64ab230b73294500e5e12efcb2ca7e6124e067dc5509f4874909a578f7dfd",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/DOGEUSDT/1h/DOGEUSDT-1h-2026-07.zip",
+          "sha256": "74da55c804cb4a3bea951205b24bd2583c360624e0abdc43eb51dd54d4920ccc",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/DOGEUSDT/1h/DOGEUSDT-1h-2026-08.zip",
+          "sha256": "71247f5f7704590576a4cecef0606135f8601a46ae91d1368aab0dbb809e736a",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/DOGEUSDT/1h/DOGEUSDT-1h-2026-09.zip",
+          "sha256": "554d03c9b5f688e25d7143791099884de8f4c582240aabe934eeca917e91f0c7",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/DOGEUSDT/DOGEUSDT-fundingRate-2025-12.zip",
+          "sha256": "8e84dea86eb7fe0cb7b2f9278f0df0479b68ae10ac9b6ade872372888769f874",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/DOGEUSDT/DOGEUSDT-fundingRate-2026-01.zip",
+          "sha256": "73c2760e0bf4a5dd8af31d1f03ba1e6d213aa1ed42da17a8c537f28c7f033f44",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/DOGEUSDT/DOGEUSDT-fundingRate-2026-02.zip",
+          "sha256": "5a82031b9e3009265751cf02853ded1e1649bd3c2c3c764d5e50e64edc944a6e",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/DOGEUSDT/DOGEUSDT-fundingRate-2026-03.zip",
+          "sha256": "f4b2222b88d3cf518939c38a20fdd224629c3844a8d2f710c8c14e4fe9409d85",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/DOGEUSDT/DOGEUSDT-fundingRate-2026-04.zip",
+          "sha256": "1a041267001c6417220e595f9c723919eec3b2e317012a8cfd22f95ac8105ceb",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/DOGEUSDT/DOGEUSDT-fundingRate-2026-05.zip",
+          "sha256": "99411bbfdc7508a498204faf9ce3f02958f484828a5ffd309b6c267b89c89ba6",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/DOGEUSDT/DOGEUSDT-fundingRate-2026-06.zip",
+          "sha256": "b701956a49aa6e9daf692eccbe0c79be94dd3e0dbacde8996852f551a5fbfdba",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/DOGEUSDT/DOGEUSDT-fundingRate-2026-07.zip",
+          "sha256": "c057c34d18f83d10284d62eed9d377cb195e8ba12f0cc272a1cb7c34aafdb40b",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/DOGEUSDT/DOGEUSDT-fundingRate-2026-08.zip",
+          "sha256": "e94b7f308b5182da6bc8cd121ff4cde1dd185a75cc755ba774a15446c8909dd9",
+          "official_checksum_verified": true
+        },
+        {
+          "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/DOGEUSDT/DOGEUSDT-fundingRate-2026-09.zip",
+          "sha256": "c16b0e33fa893bc12f9cdb2a89fd2eef29c50fbe1de5d0b594cbb0cd0e03a7cb",
+          "official_checksum_verified": true
+        }
+      ],
+      "active_features_training_only": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        31,
+        32,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        58,
+        59,
+        61
+      ],
+      "funding_settlement_events": 819,
+      "splits": {
+        "train_end": 3931,
+        "validation_end": 5241,
+        "holdout_end": 6552
+      },
+      "arms": {
+        "baseline": {
+          "tokens": [
+            24,
+            94,
+            71
+          ],
+          "candidate_count": 176,
+          "executable_nonconstant": 176,
+          "training_2x": {
+            "net_return": 0.3181740917742316,
+            "sortino": 1.7585138620406215,
+            "max_drawdown": 0.18203465146527464,
+            "position_changes": 3244,
+            "half_returns": [
+              0.34534080248566623,
+              -0.027166710711434533
+            ],
+            "fees": 0.09407997424379426,
+            "funding": 0.00351824841597417
+          },
+          "validation_2x": {
+            "net_return": 0.09833388571704682,
+            "sortino": 1.7850281294936587,
+            "max_drawdown": 0.1402204132384934,
+            "position_changes": 1267,
+            "half_returns": [
+              -0.04915938930490553,
+              0.14749327502195234
+            ],
+            "fees": 0.03551678607334936,
+            "funding": 0.0006454430218948258
+          },
+          "eligible_before_holdout": true,
+          "holdout": {
+            "net_return": -0.5193764790785937,
+            "sortino": -5.448833160441131,
+            "max_drawdown": 0.6319037284829765,
+            "position_changes": 1267,
+            "half_returns": [
+              -0.3712988908766964,
+              -0.1480775882018974
+            ],
+            "fees": 0.014379821542580782,
+            "funding": 0.0012343450574552283
+          },
+          "holdout_2x": {
+            "net_return": -0.5337563006211746,
+            "sortino": -5.616685888682987,
+            "max_drawdown": 0.6396967283885762,
+            "position_changes": 1267,
+            "half_returns": [
+              -0.38034926082396403,
+              -0.15340703979721054
+            ],
+            "fees": 0.028759643085161563,
+            "funding": 0.0012343450574552283
+          },
+          "qualified": false
+        },
+        "economic_hypotheses": {
+          "tokens": [
+            24,
+            94,
+            71
+          ],
+          "candidate_count": 180,
+          "executable_nonconstant": 180,
+          "training_2x": {
+            "net_return": 0.3181740917742316,
+            "sortino": 1.7585138620406215,
+            "max_drawdown": 0.18203465146527464,
+            "position_changes": 3244,
+            "half_returns": [
+              0.34534080248566623,
+              -0.027166710711434533
+            ],
+            "fees": 0.09407997424379426,
+            "funding": 0.00351824841597417
+          },
+          "validation_2x": {
+            "net_return": 0.09833388571704682,
+            "sortino": 1.7850281294936587,
+            "max_drawdown": 0.1402204132384934,
+            "position_changes": 1267,
+            "half_returns": [
+              -0.04915938930490553,
+              0.14749327502195234
+            ],
+            "fees": 0.03551678607334936,
+            "funding": 0.0006454430218948258
+          },
+          "eligible_before_holdout": true,
+          "holdout": {
+            "net_return": -0.5193764790785937,
+            "sortino": -5.448833160441131,
+            "max_drawdown": 0.6319037284829765,
+            "position_changes": 1267,
+            "half_returns": [
+              -0.3712988908766964,
+              -0.1480775882018974
+            ],
+            "fees": 0.014379821542580782,
+            "funding": 0.0012343450574552283
+          },
+          "holdout_2x": {
+            "net_return": -0.5337563006211746,
+            "sortino": -5.616685888682987,
+            "max_drawdown": 0.6396967283885762,
+            "position_changes": 1267,
+            "half_returns": [
+              -0.38034926082396403,
+              -0.15340703979721054
+            ],
+            "fees": 0.028759643085161563,
+            "funding": 0.0012343450574552283
+          },
+          "qualified": false
+        }
+      },
+      "economic_training_diagnostics": [
+        {
+          "tokens": [
+            61,
+            46,
+            65,
+            94
+          ],
+          "training_2x": {
+            "net_return": 0.2564037794729024,
+            "sortino": 1.4575860893499062,
+            "max_drawdown": 0.2176346913475684,
+            "position_changes": 3366,
+            "half_returns": [
+              0.11044419338464484,
+              0.14595958608825751
+            ],
+            "fees": 0.11996995606536934,
+            "funding": 0.0012149956690027087
+          },
+          "validation_2x": {
+            "net_return": 0.012290536875242578,
+            "sortino": 0.21375796164875077,
+            "max_drawdown": 0.196743420454986,
+            "position_changes": 1261,
+            "half_returns": [
+              -0.0602788912958233,
+              0.07256942817106586
+            ],
+            "fees": 0.05032072101638482,
+            "funding": 6.260419546330774e-05
+          }
+        },
+        {
+          "tokens": [
+            61,
+            46,
+            65,
+            94,
+            71
+          ],
+          "training_2x": {
+            "net_return": -0.49634369160364106,
+            "sortino": -2.7771490490494943,
+            "max_drawdown": 0.6962620876958092,
+            "position_changes": 3366,
+            "half_returns": [
+              -0.22017748800013623,
+              -0.27616620360350475
+            ],
+            "fees": 0.11996995606536934,
+            "funding": -0.0012149956690027087
+          },
+          "validation_2x": {
+            "net_return": -0.11293197890801218,
+            "sortino": -2.258469760207403,
+            "max_drawdown": 0.28259662234191674,
+            "position_changes": 1261,
+            "half_returns": [
+              0.016492431502543994,
+              -0.1294244104105562
+            ],
+            "fees": 0.05032072101638482,
+            "funding": -6.260419546330774e-05
+          }
+        },
+        {
+          "tokens": [
+            61,
+            59,
+            65,
+            94
+          ],
+          "training_2x": {
+            "net_return": 0.038557151500559446,
+            "sortino": 0.2236581640888694,
+            "max_drawdown": 0.42356309725649194,
+            "position_changes": 3351,
+            "half_returns": [
+              0.07291047271389478,
+              -0.03435332121333529
+            ],
+            "fees": 0.12239950943487615,
+            "funding": -0.0010108446057780175
+          },
+          "validation_2x": {
+            "net_return": 0.08727749404894676,
+            "sortino": 1.6665150539693347,
+            "max_drawdown": 0.14181163454033494,
+            "position_changes": 1258,
+            "half_returns": [
+              -3.859955517540592e-05,
+              0.08731609360412217
+            ],
+            "fees": 0.04000517995906931,
+            "funding": -0.0007112124006616159
+          }
+        },
+        {
+          "tokens": [
+            61,
+            59,
+            65,
+            94,
+            71
+          ],
+          "training_2x": {
+            "net_return": -0.2833561703703117,
+            "sortino": -1.5472642579452078,
+            "max_drawdown": 0.41844010500197937,
+            "position_changes": 3351,
+            "half_returns": [
+              -0.20605154591028604,
+              -0.07730462446002564
+            ],
+            "fees": 0.12239950943487615,
+            "funding": 0.0010108446057780175
+          },
+          "validation_2x": {
+            "net_return": -0.16728785396708543,
+            "sortino": -3.361646449707625,
+            "max_drawdown": 0.28817488914796446,
+            "position_changes": 1258,
+            "half_returns": [
+              -0.03358305389341648,
+              -0.13370480007366894
+            ],
+            "fees": 0.04000517995906931,
+            "funding": 0.0007112124006616159
+          }
+        }
+      ]
+    }
+  ]
+}

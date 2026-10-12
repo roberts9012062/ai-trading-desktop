@@ -98,6 +98,8 @@ def _open_interest(bars: list[dict[str, Any]]) -> tuple[np.ndarray, bool]:
     缺失值用前一根的值前向填充（因果）；整段都没有持仓量时返回
     (全零, False)，由调用方把仓量类特征置零，避免造出假信号。
     """
+    if any('open_interest' in b.get('_deriv_quality', {}) for b in bars):
+        return _ffill_field(bars, 'open_interest')
     raw = [bar.get("open_interest") for bar in bars]
     if not any(v is not None for v in raw):
         return np.zeros(len(bars), dtype=float), False
@@ -127,6 +129,10 @@ def _ffill_field(
     全零段返回 False 让特征层置零（与 OI 的 fail-safe 同语义）。
     """
     raw = [bar.get(field) for bar in bars]
+    if any(field in b.get('_deriv_quality', {}) for b in bars):
+        out = np.array([float(v) if v is not None and math.isfinite(float(v)) else np.nan
+                        for v in raw], dtype=float)
+        return out, bool(np.isfinite(out).any())
     if not any(v is not None for v in raw):
         return np.zeros(len(bars), dtype=float), False
     out = np.zeros(len(bars), dtype=float)

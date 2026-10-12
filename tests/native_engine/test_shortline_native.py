@@ -68,19 +68,22 @@ class ShortlineNativeTests(unittest.TestCase):
         from engine.features_ti import compute_features
         from factor_lab.features import feature_matrix
         from factor_lab.vm import execute
+        from factor_lab.market import prepare_bars
 
-        bars = _bars(500, with_sl=False)
+        bars = prepare_bars({'symbol': 'ETHUSDT', 'research_profile': 'crypto_local_v2'}, _bars(500, with_sl=False))
         matrix = feature_matrix(bars)
         gpu = compute_features(bars)
-        formulas = [[62, 78], [63, 78]]
+        formulas = [[62, 78], [63, 78], [61, 94], [59, 94], [61, 46, 65, 94]]
         for layout in ("candidate_block", "candidate_time_block"):
             vm = StackVM(gpu.matrix, "f64", tile=2, norm_window=250,
                          normalization="causal_v2", execution_layout=layout)
-            results = vm.execute_batch(formulas)
-            for tokens, result in zip(formulas, results):
-                expected = execute(tokens, matrix, normalization="causal_v2")
-                self.assertGreater(float(np.std(result[250:])), .1, (layout, tokens))
-                np.testing.assert_allclose(result[250:], expected[250:], rtol=1e-8, atol=1e-8)
+            for offset in range(0, len(formulas), 2):
+                batch = formulas[offset:offset + 2]
+                results = vm.execute_batch(batch)
+                for tokens, result in zip(batch, results):
+                    expected = execute(tokens, matrix, normalization="causal_v2")
+                    self.assertGreater(float(np.std(result[250:])), .1, (layout, tokens))
+                    np.testing.assert_allclose(result[250:], expected[250:], rtol=1e-8, atol=1e-8)
 
     def test_metrics_shortline_multiplier(self):
         """shortline 开 → composite = v2 composite × penalty(flip/hl/turnover)"""

@@ -32,6 +32,22 @@ function fixture(qualified = true) {
 }
 
 describe("native GPU generation core", () => {
+  it("injects only explicitly enabled and available economic research seeds", async () => {
+    const { client } = fixture()
+    const names = Array.from({length:64}, (_,i) => `feature${i}`)
+    names[46] = 'CRYPTO_MOM24'; names[59] = 'FUNDING_MEAN24'
+    names[60] = 'OI_TREND24'; names[61] = 'TAKER_IMB24'
+    client.mineFeatures.mockResolvedValue({...await client.mineFeatures(),feature_names:names,
+      active_feature_ids:[46,59,61]}) // Real OI absent: confirmation family must not enter.
+    const req = {...request,config:{...request.config,research_profile:'crypto_local_v2',economic_seed_research:true}}
+    const gen = runNativeGpuSession(client,hello,bars,req,new AbortController().signal)
+    await gen.next()
+    const formulas = client.evalShards.mock.calls.flatMap(call => call[1])
+    expect(formulas).toContainEqual([61,46,65,94])
+    expect(formulas).toContainEqual([61,59,65,94])
+    expect(formulas.some(tokens => tokens.includes(60))).toBe(false)
+    await gen.return([])
+  })
   it("continues DOT daily OKX training when one automatic library seed needs absent taker flow", async () => {
     const { client } = fixture()
     const names = Array.from({length:62}, (_,i) => `feature${i}`)

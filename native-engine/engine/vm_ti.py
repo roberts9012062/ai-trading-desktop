@@ -893,7 +893,7 @@ class _StackProgram:
                         for offset in range((T + 255 - lane) // 256):
                             t = lane + offset * 256
                             value = features[feat_row, t]
-                            if (tok == 62 or tok == 63) and self.is_nan(value):
+                            if tok >= 52 and tok < 64 and self.is_nan(value):
                                 value = 0.0
                             stack[p, sp, t] = value
                         ti.simt.block.sync()
