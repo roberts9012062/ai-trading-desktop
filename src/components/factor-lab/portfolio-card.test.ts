@@ -1,11 +1,14 @@
-import { createElement } from "react"
-import { renderToStaticMarkup } from "react-dom/server"
+import { createElement, type ReactNode } from "react"
+import { MemoryRouter } from "react-router-dom"
+import { renderToStaticMarkup as renderStatic } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 import type { PortfolioResult } from "@/lib/factor-lab-api"
 import { PortfolioCard } from "./portfolio-card"
 import { ChampionTable } from "./champion-table"
 import { championFromFavorite } from "./hooks/factor-helpers"
 import type { FactorFavoriteItem } from "@/lib/factor-lab-api"
+
+const renderToStaticMarkup = (node: ReactNode) => renderStatic(createElement(MemoryRouter, null, node))
 
 const metrics = { ann_ret: .543, sortino: 1.89, calmar: 1 }
 const portfolio: PortfolioResult = {
@@ -20,6 +23,7 @@ describe("passed portfolio members", () => {
     const html = renderToStaticMarkup(createElement(ChampionTable, props))
     expect(html).toContain("★ 超级因子")
     expect(html).toContain("查看数据")
+    expect(html).toContain("LLM 调整进化")
     expect(html).not.toContain("暂无结果")
     const single = championFromFavorite({ tokens: [0], text: "SINGLE_FORMULA", metrics: {}, composite: 1 } as FactorFavoriteItem)
     const ranked = renderToStaticMarkup(createElement(ChampionTable, { ...props, champions: [single] }))
