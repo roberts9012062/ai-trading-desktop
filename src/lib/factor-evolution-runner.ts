@@ -1,7 +1,7 @@
 import { useAuthStore } from "@/stores/auth"
-import { getEvolutionJob, resumeEvolutionJob, stepEvolutionJob, stopEvolutionJob, type EvolutionJob } from "./factor-evolution-api"
+import { getEvolutionJob, getEvolutionProgress, resumeEvolutionJob, stepEvolutionJob, stopEvolutionJob, type EvolutionJob, type EvolutionProgress } from "./factor-evolution-api"
 
-type Snapshot = {job: EvolutionJob | null; running: boolean; error: string | null; stage: string}
+type Snapshot = {job: EvolutionJob | null; running: boolean; error: string | null; stage: string; progress?: EvolutionProgress; stepStartedAt?: number}
 let snapshot: Snapshot = {job: null, running: false, error: null, stage: ""}
 const listeners = new Set<() => void>()
 let sequence = 0
@@ -17,14 +17,14 @@ export const evolutionSnapshot = () => snapshot
 export const evolutionRunning = (job: EvolutionJob) => job.status === "ready" || job.status === "context"
 export function showEvolutionJob(job: EvolutionJob) {
   owner = scope()
-  publish({job, error: null})
+  publish({job, error: null, progress:job.progress})
   try { localStorage.setItem(storageKey(), job.id) } catch { /* server copy remains available */ }
 }
 export async function restoreEvolution() {
   if (owner === scope() && snapshot.job) return
   ++sequence
   owner = scope()
-  publish({job: null, running: false, error: null, stage: ""})
+  publish({job: null, running: false, error: null, stage: "", progress:undefined, stepStartedAt:undefined})
   const id = localStorage.getItem(storageKey())
   if (!id) return
   const expectedOwner = owner
@@ -43,8 +43,23 @@ export async function runEvolution(job: EvolutionJob, resume = false) {
     while (ticket === sequence && scope() === expectedOwner && evolutionRunning(job)) {
       const read = Object.values(job.coverage).reduce((s, c) => s + c.read, 0)
       const total = Object.values(job.coverage).reduce((s, c) => s + c.total, 0)
-      publish({stage: job.status === "context" ? `模型复盘历史记录 ${read}/${total}` : `第 ${job.round + 1} 轮 · LLM 优化 → 训练/验证 → Walk-Forward`})
-      job = await stepEvolutionJob(job.id)
+      publish({stage: job.status === "context" ? `模型复盘历史记录 ${read}/${total}` : `第 ${job.round + 1} 轮 · LLM 优化 → 训练/验证 → Walk-Forward`, progress:undefined, stepStartedAt:Date.now()})
+      // Poll only the small progress response while the expensive step is in flight.
+      // A per-step guard prevents late responses from overwriting a newer round.
+      let active = true
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const current = () => active && ticket === sequence && scope() === expectedOwner
+      const poll = async () => {
+        if (!current()) return
+        try {
+          const update = await getEvolutionProgress(job.id)
+          if (current() && update.progress) publish({progress:update.progress})
+        } catch { /* a transient progress failure must not cancel a paid step */ }
+        if (current()) timer = setTimeout(() => void poll(), 2000)
+      }
+      timer = setTimeout(() => void poll(), 2000)
+      try { job = await stepEvolutionJob(job.id) }
+      finally { active = false; clearTimeout(timer) }
       if (ticket !== sequence || scope() !== expectedOwner) return
       showEvolutionJob(job)
     }
@@ -61,8 +76,8 @@ export async function stopEvolution() {
   // step may finish, but no further paid iteration starts.
   await stopEvolutionJob(job.id)
   ++sequence
-  publish({running: false, stage: "已请求停止；当前模型调用结束后可刷新或恢复"})
+  publish({running: false, progress:undefined, stage: "已请求停止；当前模型调用结束后可刷新或恢复"})
 }
 useAuthStore.subscribe(() => {
-  if (owner && owner !== scope()) { ++sequence; owner = ""; publish({job: null, running: false, error: null, stage: ""}) }
+  if (owner && owner !== scope()) { ++sequence; owner = ""; publish({job: null, running: false, error: null, stage: "", progress:undefined, stepStartedAt:undefined}) }
 })

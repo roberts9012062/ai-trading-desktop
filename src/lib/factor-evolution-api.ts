@@ -31,7 +31,10 @@ export interface EvolutionValidation {
   passed: boolean; train?: EvolutionMetrics; validation?: EvolutionMetrics; folds?: EvolutionMetrics[]
   holdout?: EvolutionMetrics; reasons?: string[]; funding_complete: boolean; wf_consistency?: number
 }
-export interface EvolutionReport { round: number; recipe?: EvolutionRecipe; text?: string; validation?: EvolutionValidation; sealed?: EvolutionValidation; error?: string }
+export interface EvolutionProgress {
+  phase: string; message: string; round: number; completed_rounds: number; current: number; total: number; updated_at?: string
+}
+export interface EvolutionReport { round: number; recipe?: EvolutionRecipe; text?: string; validation?: EvolutionValidation; sealed?: EvolutionValidation; error?: string; format_repairs?: number; proposal?: unknown }
 export interface EvolutionJob {
   id: string; source: EvolutionSource; symbol: string; timeframe: string; data_channel: string
   status: "context" | "ready" | "paused" | "stopped" | "passed" | "exhausted" | "sealed_failed"
@@ -40,10 +43,12 @@ export interface EvolutionJob {
   history_note: string; bars_sha256: string; error?: string; sealed_used: boolean
   application?: {id: string; status: string}
   baseline?: EvolutionValidation & {error?: string}
+  progress?: EvolutionProgress
 }
 const root = "/api/factor-lab/evolution"
 export const getEvolutionTargets = () => factorLabRequest<{ items: EvolutionSource[] }>(`${root}/targets`).then(r => r.items)
 export const getEvolutionJob = (id: string) => factorLabRequest<EvolutionJob>(`${root}/jobs/${id}`)
+export const getEvolutionProgress = (id: string) => factorLabRequest<Pick<EvolutionJob, "id" | "status" | "round" | "max_rounds" | "progress" | "coverage" | "error">>(`${root}/jobs/${id}/progress`, undefined, 5_000)
 export function createEvolutionJob(body: {source: EvolutionSource; model_row_id: string; symbol: string; timeframe: string; data_channel: string; bars: unknown[]; settings: EvolutionSettings; max_rounds: number; hint: string}) {
   return factorLabRequest<EvolutionJob>(`${root}/jobs`, {method: "POST", body: JSON.stringify(body)}, 240_000)
 }

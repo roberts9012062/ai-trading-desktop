@@ -75,7 +75,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 1500,
   },
   test: {
-    // 只收集 .ts 测试;frontend 拷来的 *.test.mjs 是 node 独立脚本,非 vitest 套件
-    include: ["src/**/*.test.ts"],
+    // frontend 拷来的 *.test.mjs 是 node 独立脚本,非 vitest 套件
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
   },
 })
