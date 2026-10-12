@@ -16,6 +16,7 @@ import { TIMEFRAME_SECONDS, type ShortlineTimeframe } from "@/lib/shortline/spec
 import { DataChannelSelect } from "@/components/common/data-channel-select"
 import { researchFactorRangeFor } from "../factor-range-limits"
 import { readFactorValidation, writeFactorValidation } from "@/lib/factor-validation-settings"
+import { completeFundingMonthEnd, evolutionFundingIssue, evolutionHistoryGap, evolutionSamplePlan } from "@/lib/factor-evolution-samples"
 import { applyEvolutionJob, cancelEvolutionReplacement, createEvolutionJob, getEvolutionJob, getEvolutionTargets, getEvolutionTaskState,
   type EvolutionJob, type EvolutionMetrics, type EvolutionSource } from "@/lib/factor-evolution-api"
 import { evolutionRunning, evolutionSnapshot, restoreEvolution, runEvolution, showEvolutionJob, stopEvolution, subscribeEvolution } from "@/lib/factor-evolution-runner"
@@ -59,10 +60,15 @@ export function FactorEvolutionPage() {
   const [folder, setFolder] = useState("")
   const [multiSelect, setMultiSelect] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [history, setHistory] = useState<{n: number; first: string; last: string} | null>(null)
+  const [historyFix, setHistoryFix] = useState<{start?: string; end?: string} | null>(null)
   const favoriteTargets = targets.filter(t => ["favorite", "shortline_favorite"].includes(t.kind))
   const visibleTargets = targets.filter(t => t.kind === "task" || !folder || (t.folder_name || "未分组") === folder)
   const last = job?.reports.at(-1)
   const disabled = busy || running
+  const samplePlan = evolutionSamplePlan(history?.n || 0, timeframe, validation)
+  const monthlyFunding = channel === "okx" || channel === "binance_usdt"
+  const fundingMonthEnd = completeFundingMonthEnd()
 
   async function refreshTargets() {
     try { setTargets(await getEvolutionTargets()) } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
@@ -79,6 +85,7 @@ export function FactorEvolutionPage() {
     if (resolved) {choose(resolved); selectedLocation.current = location.key}
   }, [location.key, targets])
   useEffect(() => { writeFactorValidation(validation) }, [validation])
+  useEffect(() => {setHistory(null); setHistoryFix(null)}, [symbol, timeframe, channel, start, end])
   useEffect(() => {
     setApplication(job?.application || null)
     if (job && !alias) setAlias(`${job.source.name || "因子"}·进化`)
@@ -125,20 +132,38 @@ export function FactorEvolutionPage() {
   async function startEvolution() {
     if (!source || !model) { setError("请选择进化目标和对话模型"); return }
     if (!validation.enabled || validation.train_ratio < .1 || validation.walk_forward_folds < 2) { setError("进化须启用防过拟合、训练比例 ≥0.1 和至少 2 折 Walk-Forward；可在下方修改共享设置"); return }
+    if (samplePlan.fixedIssue) {setError(samplePlan.fixedIssue); return}
     const maxRounds = Number(rounds)
     if (!rounds.trim() || !Number.isInteger(maxRounds) || maxRounds < 0 || maxRounds > 10000) { setError("请输入 0–10000 的整数轮数，0 表示无限迭代"); return }
     if (!start || !end || start >= end) { setError("请填写有效历史起止日期"); return }
     const feeRate = Number(fee) / 100, slip = Number(slippage)
     if (!Number.isFinite(feeRate) || feeRate < .0001 || feeRate > .05 || !Number.isFinite(slip) || slip < 0 || slip > 100) { setError("手续费须在 0.01%–5%，滑点须在 0–100 bps"); return }
-    setBusy(true); setError(null); setMessage(null); setApplication(null)
+    setBusy(true); setError(null); setMessage(null); setApplication(null); setHistory(null); setHistoryFix(null)
     try {
       let bars = await prepareSearchBars({symbol: symbol.trim().toUpperCase(), timeframe, data_channel: channel, start_date: start, end_date: end,
         population: 1, generations: 1, top_n: 1, seed: 0}, setStage)
+      setHistory({n:bars.length, first:bars[0].time, last:bars.at(-1)!.time})
+      const plan = evolutionSamplePlan(bars.length, timeframe, validation)
+      if (bars.length > 120000) throw new Error(`进化行情上限 120000 根，实际 ${bars.length} 根；请缩小区间`)
+      if (plan.issue) throw new Error(plan.issue)
+      const gap = evolutionHistoryGap(bars,timeframe)
+      if (gap) {
+        const suggestedEnd = monthlyFunding && end > fundingMonthEnd ? fundingMonthEnd : end
+        if (gap.suggestedStart < suggestedEnd) setHistoryFix({start:gap.suggestedStart,end:suggestedEnd})
+        throw new Error(gap.message)
+      }
       if (channel === "okx" || channel === "binance_usdt") {
         setStage("补齐区间内每一次真实资金费率结算…")
         const from = bars[0].open_time ?? barTimeToMs(bars[0].time)
         const to = bars.at(-1)!.open_time ?? barTimeToMs(bars.at(-1)!.time)
         const events = channel === "okx" ? await readCachedOkxFunding(symbol, from, to) : await fetchFundingHistory(symbol, from, to, setStage)
+        const fundingIssue = evolutionFundingIssue(bars,events)
+        if (fundingIssue) {
+          const lastEvent = events.at(-1)
+          const suggestedEnd = lastEvent ? new Date(lastEvent.t).toISOString().slice(0,10) : fundingMonthEnd
+          if (start < suggestedEnd && suggestedEnd < end) setHistoryFix({end:suggestedEnd})
+          throw new Error(fundingIssue)
+        }
         bars = attachEvolutionFunding(bars, events)
       }
       if (source.shortline && (channel === "okx" || channel === "binance_usdt")) {
@@ -193,6 +218,7 @@ export function FactorEvolutionPage() {
       <div className="flex gap-2 text-[11px] text-[var(--text-muted)] pt-2"><span>选择目标</span><ArrowRight size={13} /><span>LLM 迭代</span><ArrowRight size={13} /><span>样本外验收</span><ArrowRight size={13} /><span>保存或替换</span></div>
     </header>
     {(error || state.error) && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-xs text-down">{error || state.error}</p>}
+    {historyFix && <div className="flex flex-wrap items-center gap-2 text-xs"><span>建议区间：{historyFix.start || start} 至 {historyFix.end || end}（重新取数校验）</span><Button size="sm" variant="outline" disabled={disabled} onClick={() => {if (historyFix.start) setStart(historyFix.start); if (historyFix.end) setEnd(historyFix.end); setError(null)}}>使用建议历史区间</Button></div>}
     {message && <p role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs text-up">{message}</p>}
     <div className="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-5 items-start">
       <section className={`${box} p-4 space-y-4`}>
@@ -208,6 +234,8 @@ export function FactorEvolutionPage() {
         <div className="grid grid-cols-2 gap-2"><label className="text-xs space-y-1.5">品种<Input aria-label="品种" value={symbol} disabled={disabled || !!source?.symbol} onChange={e => setSymbol(e.target.value)} /></label><label className="text-xs space-y-1.5">周期<select aria-label="周期" className={selectStyle} value={timeframe} disabled={disabled || !!source?.timeframe} onChange={e => {setTimeframe(e.target.value); const r = researchFactorRangeFor(e.target.value, channel); setStart(r.start); setEnd(r.end)}}>{["1m", "5m", "15m", "30m", "60m", "240m", "1d"].map(tf => <option key={tf}>{tf}</option>)}</select></label></div>
         <label className="block text-xs space-y-1.5"><span>历史数据渠道</span><DataChannelSelect value={channel} disabled={disabled} onChange={ch => {setChannel(ch); const range = researchFactorRangeFor(timeframe, ch); setStart(range.start); setEnd(range.end)}} /></label>
         <div className="grid grid-cols-2 gap-2"><label className="text-xs space-y-1.5">开始日期<Input aria-label="开始日期" type="date" value={start} disabled={disabled} onChange={e => setStart(e.target.value)} /></label><label className="text-xs space-y-1.5">结束日期<Input aria-label="结束日期" type="date" value={end} disabled={disabled} onChange={e => setEnd(e.target.value)} /></label></div>
+        {monthlyFunding && end > fundingMonthEnd && <div className="text-[11px] text-[var(--text-muted)] space-y-2"><p>永续资金费率使用月归档，当月通常尚未发布。可先使用上一完整月份；仍以实际下载覆盖为准。</p><Button size="sm" variant="outline" disabled={disabled || start >= fundingMonthEnd} onClick={() => setEnd(fundingMonthEnd)}>结束日期改至 {fundingMonthEnd}</Button></div>}
+        {history && <p role="status" className="text-[11px] text-[var(--text-muted)]">实际取数 {history.n.toLocaleString()} 根：{history.first} 至 {history.last}。训练预热后 {Math.max(0,samplePlan.train-samplePlan.warmup).toLocaleString()} / 验证 {samplePlan.validation.toLocaleString()} / 封存 {samplePlan.holdout.toLocaleString()} 根。</p>}
         <div className="grid grid-cols-2 gap-2"><label className="text-xs space-y-1.5">手续费（%）<Input aria-label="手续费" type="number" step="0.01" value={fee} disabled={disabled} onChange={e => setFee(e.target.value)} /></label><label className="text-xs space-y-1.5">滑点（bps）<Input aria-label="滑点" type="number" value={slippage} disabled={disabled} onChange={e => setSlippage(e.target.value)} /></label></div>
         <label className="block text-xs space-y-1.5"><span>优化要求（可选）</span><textarea className={`${selectStyle} h-20 py-2 resize-y`} disabled={disabled} maxLength={3000} value={hint} onChange={e => setHint(e.target.value)} placeholder="例如：减少反复开平仓，保留趋势逻辑" /></label>
         <label className="block text-xs space-y-1.5"><span>最大迭代轮数</span><Input aria-label="最大迭代轮数" type="number" min={0} max={10000} value={rounds} disabled={disabled} onChange={e => setRounds(e.target.value)} /><span className="block text-[10px] text-[var(--text-muted)]">默认 20；0 持续迭代直至通过，可随时停止。模型调用按用户渠道计费。</span></label>
@@ -219,6 +247,8 @@ export function FactorEvolutionPage() {
           <h2 className="text-sm font-medium flex items-center gap-2"><ShieldCheck size={16} className="text-[var(--primary)]" />2. 防过拟合设置 <span className="text-[10px] text-[var(--text-muted)] font-normal">与因子实验室共享</span></h2>
           <label className="flex items-center gap-2 text-xs"><input type="checkbox" disabled={disabled} checked={validation.enabled} onChange={e => setValidation(v => ({...v, enabled: e.target.checked}))} />启用训练/测试切分 + Walk-Forward 样本外验证（进化必需）</label>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3"><label className="text-xs space-y-1.5">训练比例<Input aria-label="训练比例" type="number" min={0} max={.9} step={.05} disabled={disabled} value={validation.train_ratio} onChange={e => setValidation(v => ({...v, train_ratio: Number(e.target.value)}))} /></label><label className="text-xs space-y-1.5">近期作测试（0=按比例）<Input aria-label="近期作测试" type="number" min={0} max={20000} disabled={disabled} value={validation.test_recent_bars} onChange={e => setValidation(v => ({...v, test_recent_bars: Number(e.target.value)}))} /></label><label className="text-xs space-y-1.5">Walk-Forward 折数<Input aria-label="Walk-Forward 折数" type="number" min={0} max={10} disabled={disabled} value={validation.walk_forward_folds} onChange={e => setValidation(v => ({...v, walk_forward_folds: Number(e.target.value)}))} /></label></div>
+          <p className="text-[11px] text-[var(--text-muted)]">当前 {timeframe}：验证至少 {samplePlan.minValidation.toLocaleString()} 根，封存至少 {samplePlan.minHoldout.toLocaleString()} 根；两段分别覆盖至少 {samplePlan.days} 天。</p>
+          {samplePlan.fixedIssue && <div className="text-xs text-down space-y-2"><p>{samplePlan.fixedIssue}</p><Button size="sm" variant="outline" disabled={disabled} onClick={() => {setValidation(v => ({...v,test_recent_bars:0})); setError(null)}}>改为按比例切分</Button></div>}
           <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">最后 20% 单独封存，训练比例作用于其余 80%。每轮只反馈训练和验证；达到门槛后封存验收一次，失败即结束。次根开盘成交，同时检查阈值开平仓收益及双倍成本压力（无杠杆，不含原任务全部止盈止损或短线逐笔成交细节）；永续还要求完整资金费率事件。验证、封存各覆盖至少 30 天，分钟短线周期至少 7 天。</p>
         </section>
         {!job ? <section className={`${box} py-16 text-center space-y-3`}><FlaskConical size={30} className="mx-auto text-[var(--text-muted)]" /><p className="text-sm">选择一个值得继续打磨的因子</p><p className="text-xs text-[var(--text-muted)]">每轮保留公式变更、验证结果和失败原因。</p></section> : <>
