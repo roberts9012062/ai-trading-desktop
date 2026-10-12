@@ -48,9 +48,9 @@ export const LOCAL_HISTORY_CHANNELS: Array<{
 }> = [
   {
     id: "okx",
-    name: "OKX 合约（本地官方归档）",
+    name: "OKX 合约（本地下载·支持备用）",
     kind: "swap",
-    note: "本机下载官方 K线/资金费率归档，不转发服务器；K线2023-07起，近期文件有发布延迟，未发布资金费标记缺失",
+    note: "本机下载官方 K线归档，支持历史接口备用和缺口交叉校验；资金费率仍使用归档，未发布标记缺失；研究日期范围2023-07起",
   },
   {
     id: "binance_usdt",

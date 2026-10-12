@@ -38,7 +38,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Verify official OKX archive validation and repair
-        run: pnpm exec vitest run src/lib/okx-history.test.ts src/lib/okx-archive-repair.test.ts src/lib/okx-local-history.integration.test.ts src/lib/snippet-rest.test.ts src/lib/snippet-pool.test.ts
+        run: pnpm exec vitest run src/lib/okx-history.test.ts src/lib/okx-history-backup.test.ts src/lib/okx-history-source.test.ts src/lib/okx-archive-repair.test.ts src/lib/okx-local-history.integration.test.ts src/lib/snippet-rest.test.ts src/lib/snippet-pool.test.ts
 
       - name: Verify rescued super-factor member display and persistence
         run: pnpm exec vitest run src/components/factor-lab/portfolio-card.test.ts src/lib/portfolio-favorite.test.ts src/components/factor-lab/hooks/factor-helpers.test.ts src/lib/mining/backends/native-gpu-core.test.ts src/lib/mining/native-runner-integration.test.ts src/lib/mining/research-grade.test.ts src/lib/mining/combo-super.test.ts src/lib/factor-access.test.ts src/lib/shortline/search-profile.test.ts src/lib/mining/gpu/feature-token-roundtrip.test.ts src/lib/mining/economic-seeds.test.ts

@@ -7,7 +7,8 @@
  * 历史深度不同（如 Binance 现货 2017-08 起）。
  */
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
+import { getOkxHistorySource, setOkxHistorySource, subscribeOkxHistorySource, type OkxHistorySource } from "@/lib/okx-history-source"
 import { isLocalResearchChannel } from "@/lib/kline-channels"
 import {
   getChannelRange,
@@ -51,6 +52,7 @@ export function DataChannelSelect(props: {
     () => _channelsCache ?? extraChannels ?? []
   )
   const [probing, setProbing] = useState(false)
+  const okxSource = useSyncExternalStore(subscribeOkxHistorySource,getOkxHistorySource,() => "auto" as const)
   const [error, setError] = useState<string | null>(null)
   const onRangeRef = useRef(onRange)
   onRangeRef.current = onRange
@@ -125,7 +127,7 @@ export function DataChannelSelect(props: {
         onChange={(e) => onChange(e.target.value)}
         className="w-full h-8 mt-1 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-sm"
       >
-        {!channels.some((c) => c.id === "okx") && <option value="okx">OKX 合约（本地官方归档）</option>}
+        {!channels.some((c) => c.id === "okx") && <option value="okx">OKX 合约（本地下载·支持备用）</option>}
         {channels
           .filter((c) => isLocalResearchChannel(c.id) && (!kinds?.length || kinds.includes(c.kind)))
           .map((c) => (
@@ -134,6 +136,17 @@ export function DataChannelSelect(props: {
             </option>
           ))}
       </select>
+      {value === "okx" && <div className="mt-2 space-y-1">
+        <span className="text-xs text-[var(--text-secondary)]">K线下载方式</span>
+        <select aria-label="OKX K线下载方式" disabled={disabled} value={okxSource}
+          onChange={e => setOkxHistorySource(e.target.value as OkxHistorySource)}
+          className="w-full h-8 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-xs">
+          <option value="auto">自动：归档优先，历史接口备用</option>
+          <option value="archive">仅使用官方归档</option>
+          <option value="rest">使用备用历史接口（分页较慢）</option>
+        </select>
+        <p className="text-[10px] text-[var(--text-muted)]">本机下载并缓存；备用接口经公共线路读取 OKX 数据。资金费率和逐笔仍使用归档。</p>
+      </div>}
       {error && (
         <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{error}</p>
       )}

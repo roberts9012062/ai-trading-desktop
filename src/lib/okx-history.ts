@@ -11,6 +11,7 @@ import { sha256Hex, type TickBucket } from "./shortline/digest"
 import { BucketAccumulator } from "./shortline/bucket-stream"
 import { snippetPublicGet, SnippetReadError } from "./snippet-rest"
 import { refreshSnippetPool, snippetOrigin, rotateSnippetRest } from "./snippet-pool"
+import { getOkxHistorySource, type OkxHistorySource } from "./okx-history-source"
 
 export type OkxArchiveKind = "candles" | "trades" | "funding"
 export type ShortlineHistorySource = "okx" | "binance_usdt"
@@ -71,6 +72,7 @@ class MissingContractVolume extends Error {
   constructor(readonly time: number) { super("OKX 旧归档缺基础币成交量，需要校验同期合约面值") }
 }
 class ArchiveContentsError extends Error {}
+class ArchiveTransportError extends Error {}
 class ArchiveVerificationUnavailable extends Error {}
 class ContractVolumeMismatch extends Error {
   constructor() { super("OKX 合约数量换算不一致") }
@@ -345,7 +347,7 @@ async function saveArchiveBytes(key: string, bytes: Uint8Array): Promise<void> {
 }
 
 /** Official files + public API via the assigned Snippets node; no server kline fallback. */
-export async function fetchOkxArchive(kind: OkxArchiveKind, symbol: string, key: string, signal?: AbortSignal, progress?: (msg:string)=>void): Promise<Uint8Array | null> {
+export async function fetchOkxArchive(kind: OkxArchiveKind, symbol: string, key: string, signal?: AbortSignal, progress?: (msg:string)=>void, transport?: {timeoutMs:number;attempts:number}): Promise<Uint8Array | null> {
   if (signal?.aborted) throw new DOMException("已停止", "AbortError")
   // Validate before cache/network lookup.
   okxArchiveUrl(kind,symbol,key)
@@ -363,11 +365,11 @@ export async function fetchOkxArchive(kind: OkxArchiveKind, symbol: string, key:
   }
   let error: unknown
   for (const origin of [CDN,OFFICIAL]) {
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < (transport?.attempts ?? 2); attempt++) {
       if (signal?.aborted) throw new DOMException("已停止", "AbortError")
       const controller = new AbortController(), relay = () => controller.abort()
       signal?.addEventListener("abort",relay,{once:true})
-      const timer = setTimeout(relay,180000)
+      const timer = setTimeout(relay,transport?.timeoutMs ?? 180000)
       try {
         const response = await fetch(okxArchiveUrl(kind,symbol,key,origin),{signal:controller.signal,credentials:"omit"})
         if (response.status === 404) return null
@@ -396,7 +398,97 @@ export async function fetchOkxArchive(kind: OkxArchiveKind, symbol: string, key:
       } finally { clearTimeout(timer); signal?.removeEventListener("abort",relay) }
     }
   }
-  throw new Error(`OKX 官方历史文件直连失败（${key}）：${error instanceof Error ? error.message : String(error)}；请检查本机网络，不会转发服务器`)
+  throw new ArchiveTransportError(`OKX 官方历史文件直连失败（${key}）：${error instanceof Error ? error.message : String(error)}；请检查本机网络，不会转发服务器`)
+}
+
+function restCandleRows(data: unknown[], symbol: string, after: number): MinuteBar[] {
+  if (data.length > 100) throw new Error("OKX 备用接口响应超出分页上限")
+  let previous = after
+  const csv: string[] = []
+  for (const row of data) {
+    if (!Array.isArray(row) || row.length !== 9 || row.some(v => typeof v !== "string" || /[,\r\n]/.test(v))) throw new Error("OKX 备用接口 K线行非法")
+    const r = row as string[], t = numeric(r[0])
+    if (t >= previous) throw new Error("OKX 备用接口分页未推进或时间重复")
+    if (r[8] !== "1") throw new Error("OKX 备用接口返回未收盘 K线")
+    previous = t
+    csv.push(`${okxInstrument(symbol)},${r.slice(1,8).join(",")},${r[0]},1`)
+  }
+  return parseOkxCandles(CANDLE_HEADER+csv.toReversed().join("\n"),symbol)
+}
+function completeRestDay(bytes: Uint8Array, symbol: string, day: string): MinuteBar[] {
+  const bars = parseOkxCandles(archiveCsv(bytes),symbol), start = okxArchiveDayStart(day)
+  if (bars.length !== 1440 || bars.some((b,i) => b.open_time !== start+i*60000)) {
+    throw new Error(`OKX ${day} 备用接口数据不完整：分钟缺失，不能用于研究；请调整区间或稍后重试`)
+  }
+  return bars
+}
+/** A separate cache namespace preserves the provenance of official REST data.
+ * Resume pages are saved only after strict validation; an incomplete day never
+ * reaches a research caller. Existing Snippets retry/route/cancellation applies. */
+async function fetchOkxRestDay(symbol: string, day: string, signal?: AbortSignal, progress?: (msg:string)=>void): Promise<MinuteBar[]> {
+  checkStopped(signal)
+  const key = `okx-rest-day-v1:${okxInstrument(symbol)}:${day}`
+  const saved = await cachedBytes(key)
+  if (saved) { progress?.(`本机缓存 OKX 备用历史接口 ${day}`); return completeRestDay(saved,symbol,day) }
+  const start = okxArchiveDayStart(day), rows: MinuteBar[] = [], origins = new Set<string>()
+  let cursor = start+DAY, pages = 0
+  progress?.(`本机使用 OKX 备用历史接口 ${day}…`)
+  while (cursor > start) {
+    if (pages++) await pauseApi(signal)
+    if (pages > 20) throw new Error(`OKX ${day} 备用接口分页超限，数据不完整`)
+    const payload = await snippetCandlePage(symbol,cursor,signal,progress)
+    checkStopped(signal)
+    let part: MinuteBar[]
+    try {
+      part = restCandleRows(payload.data,symbol,cursor)
+      const times = new Set(part.map(b => b.open_time!))
+      // Do not retain a page containing holes: a later retry must be able to
+      // obtain newly available upstream data rather than replay that hole.
+      for (let t = Math.max(start,part[0]?.open_time ?? cursor); t < cursor; t += 60000) {
+        if (!times.has(t)) throw new Error(`OKX ${day} 备用接口分钟缺失，数据不完整；请稍后重试`)
+      }
+    } catch (e) {
+      const db = await openDb()
+      if (db) await idbDelete(db,OKX_ARCHIVE_STORE,repairPageKey(symbol,cursor))
+      throw e
+    }
+    if (!part.length) throw new Error(`OKX ${day} 备用接口分钟缺失，数据不完整；请调整区间或稍后重试`)
+    origins.add(payload.origin)
+    await saveArchiveBytes(repairPageKey(symbol,cursor),new TextEncoder().encode(JSON.stringify(payload)))
+    rows.push(...part.filter(b => b.open_time! >= start && b.open_time! < start+DAY))
+    cursor = part[0]!.open_time!
+    progress?.(`OKX 备用历史接口 ${day} ${rows.length}/1440 根…`)
+  }
+  rows.sort((a,b) => a.open_time!-b.open_time!)
+  const bytes = zipSync({
+    "candles.csv":new TextEncoder().encode(CANDLE_HEADER+rows.map(b => `${okxInstrument(symbol)},${b.open},${b.high},${b.low},${b.close},${b.contract_volume},${b.volume},${b.quote_volume ?? "None"},${b.open_time},1`).join("\n")),
+    "source.json":new TextEncoder().encode(JSON.stringify({source:"okx-history-candles",transport:"snippets",proxyOrigins:[...origins],instrument:okxInstrument(symbol),day,rows:rows.length,downloadedAt:new Date().toISOString()})),
+  })
+  const checked = completeRestDay(bytes,symbol,day) // Includes unit consistency across pages.
+  checkStopped(signal)
+  await saveArchiveBytes(key,bytes)
+  return checked
+}
+
+async function fillArchiveGaps(part: MinuteBar[], symbol: string, from: number, to: number, signal?: AbortSignal, progress?: (msg:string)=>void): Promise<MinuteBar[]> {
+  const byTime = new Map(part.map(b => [b.open_time!,b]))
+  for (let dayStart = okxArchiveDayStart(okxArchiveDate(from)); dayStart <= to; dayStart += DAY) {
+    const lo = Math.max(dayStart,from), hi = Math.min(dayStart+DAY,Math.floor((to+1)/60000)*60000)
+    let missing = false
+    for (let t = lo; t < hi; t += 60000) if (!byTime.has(t)) { missing = true; break }
+    if (!missing) continue
+    const day = okxArchiveDate(dayStart)
+    progress?.(`OKX ${day} 归档分钟缺失，使用备用接口交叉校验补齐…`)
+    const backup = await fetchOkxRestDay(symbol,day,signal,progress)
+    for (const b of backup) {
+      const old = byTime.get(b.open_time!)
+      if (old && (["open","high","low","close","contract_volume","volume","quote_volume"] as const).some(k => old[k] !== b[k])) {
+        throw new Error(`OKX ${day} 归档与备用接口数据不一致（${b.open_time}），停止补齐`)
+      }
+    }
+    for (const b of backup) if (!byTime.has(b.open_time!)) byTime.set(b.open_time!,b)
+  }
+  return [...byTime.values()].sort((a,b) => a.open_time!-b.open_time!)
 }
 
 function periodWindow(t: number, period: string): [number,number] {
@@ -427,12 +519,17 @@ export function resampleOkxBars(minutes: readonly MinuteBar[], period: string): 
   flush(); return out
 }
 
-export async function fetchOkxFundingHistory(symbol: string, from: number, to: number, progress?: (msg:string) => void, signal?: AbortSignal): Promise<OkxFundingEvent[]> {
+export async function fetchOkxFundingHistory(symbol: string, from: number, to: number, progress?: (msg:string) => void, signal?: AbortSignal, allowUnavailable = false): Promise<OkxFundingEvent[]> {
   const d = new Date(from-DAY+BJ); d.setUTCDate(1); d.setUTCHours(0,0,0,0)
   const events: OkxFundingEvent[] = []
   while (d.getTime()-BJ <= to) {
     const month = d.toISOString().slice(0,7); progress?.(`本机拉取 OKX 资金费率月包 ${month}…`)
-    const zip = await fetchOkxArchive("funding",symbol,month,signal)
+    let zip: Uint8Array | null = null
+    try { zip = await fetchOkxArchive("funding",symbol,month,signal,progress,allowUnavailable ? {timeoutMs:30000,attempts:1} : undefined) }
+    catch (e) {
+      if (!allowUnavailable || !(e instanceof ArchiveTransportError)) throw e
+      progress?.(`OKX ${month} 资金费率归档连接失败，标记缺失；依赖资金费率的研究须等待补齐`)
+    }
     if (zip) events.push(...parseOkxFunding(archiveCsv(zip),symbol))
     else progress?.(`OKX ${month} 资金费率未发布/不可用，标记缺失`)
     d.setUTCMonth(d.getUTCMonth()+1)
@@ -460,7 +557,9 @@ export function joinOkxFunding(bars: KlineBar[], events: OkxFundingEvent[]): Kli
   })
 }
 
-export async function fetchOkxHistoryRange(symbol: string, period: string, from: number, to: number, progress?: (msg:string) => void): Promise<KlineBar[]> {
+export async function fetchOkxHistoryRange(symbol: string, period: string, from: number, to: number, progress?: (msg:string) => void, options?: {source?:OkxHistorySource;signal?:AbortSignal}): Promise<KlineBar[]> {
+  const source = options?.source ?? getOkxHistorySource(), signal = options?.signal
+  checkStopped(signal)
   if (!Number.isFinite(from) || !Number.isFinite(to) || from > to) throw new Error("OKX 历史区间非法")
   const max = Math.min(to,okxArchiveDayStart(latestOkxArchiveDay())+DAY-1)
   const start = Math.max(OKX_CANDLE_FLOOR,periodWindow(from,period)[0])
@@ -468,6 +567,9 @@ export async function fetchOkxHistoryRange(symbol: string, period: string, from:
   let cursor = okxArchiveDayStart(okxArchiveDate(start))
   let carry: MinuteBar[] = []
   const result: KlineBar[] = []
+  let restUntil = 0, nextMonthAttempt = 0
+  // Automatic fallback should become usable within a bounded network wait.
+  const transport = source === "auto" ? {timeoutMs:30000,attempts:1} : undefined
   const append = (part: MinuteBar[]) => {
     const byTime = new Map([...carry,...part].map((b) => [b.open_time!,b]))
     const all = [...byTime.values()].sort((a,b) => a.open_time!-b.open_time!)
@@ -481,25 +583,42 @@ export async function fetchOkxHistoryRange(symbol: string, period: string, from:
     carry = all.slice(cut)
   }
   while (cursor <= max) {
+    checkStopped(signal)
     const d = new Date(cursor+BJ), month = d.toISOString().slice(0,7)
     const monthEnd = Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1)-BJ
     const now = new Date(Date.now()+BJ)
     const useMonth = monthEnd <= Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),1)-BJ
     let zip: Uint8Array | null = null
-    if (useMonth) { progress?.(`本机下载 OKX K线月包 ${month}…`); zip = await fetchOkxArchive("candles",symbol,month,undefined,progress) }
+    if (useMonth && source !== "rest" && cursor >= restUntil && cursor >= nextMonthAttempt) {
+      nextMonthAttempt = monthEnd
+      progress?.(`本机下载 OKX K线月包 ${month}…`)
+      try { zip = await fetchOkxArchive("candles",symbol,month,signal,progress,transport) }
+      catch (e) {
+        if (source !== "auto" || !(e instanceof ArchiveTransportError)) throw e
+        restUntil = monthEnd
+        progress?.(`OKX ${month} 归档连接失败，按日使用备用历史接口…`)
+      }
+    }
     if (zip) {
-      append(parseOkxCandles(archiveCsv(zip),symbol)); cursor=monthEnd
+      let part = parseOkxCandles(archiveCsv(zip),symbol)
+      if (source === "auto") part = await fillArchiveGaps(part,symbol,cursor,Math.min(max,monthEnd-1),signal,progress)
+      append(part); cursor=monthEnd
     } else {
       const day = d.toISOString().slice(0,10); progress?.(`本机下载 OKX K线日包 ${day}…`)
-      zip = await fetchOkxArchive("candles",symbol,day,undefined,progress)
-      if (!zip) throw new Error(`OKX ${day} K线归档未发布或该合约无数据，请调整研究区间；不会转发服务器`)
-      append(parseOkxCandles(archiveCsv(zip),symbol)); cursor += DAY
+      if (source !== "rest" && cursor >= restUntil) {
+        try { zip = await fetchOkxArchive("candles",symbol,day,signal,progress,transport) }
+        catch (e) { if (source !== "auto" || !(e instanceof ArchiveTransportError)) throw e }
+      }
+      if (!zip && source === "archive") throw new Error(`OKX ${day} K线归档未发布或该合约无数据，请调整研究区间；不会转发服务器`)
+      let part = zip ? parseOkxCandles(archiveCsv(zip),symbol) : await fetchOkxRestDay(symbol,day,signal,progress)
+      if (zip && source === "auto") part = await fillArchiveGaps(part,symbol,cursor,Math.min(max,cursor+DAY-1),signal,progress)
+      append(part); cursor += DAY
     }
   }
   const bars = result
     .filter((b) => b.open_time! >= from && periodWindow(b.open_time!,period)[1]-1 <= to)
   if (!bars.length) return []
-  const funding = await fetchOkxFundingHistory(symbol,bars[0]!.open_time!,bars.at(-1)!.open_time!,progress)
+  const funding = await fetchOkxFundingHistory(symbol,bars[0]!.open_time!,bars.at(-1)!.open_time!,progress,signal,source !== "archive")
   return joinOkxFunding(bars,funding)
 }
 
