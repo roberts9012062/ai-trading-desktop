@@ -84,7 +84,7 @@ export interface ShortlineFavoriteItem {
   name: string
   symbol: string
   timeframe: string
-  tokens: number[]
+  tokens: number[] | number[][]
   text: string
   composite: number | null
   metrics: Record<string, unknown> | null

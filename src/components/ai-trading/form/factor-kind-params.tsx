@@ -53,7 +53,7 @@ export function FactorKindParams({
     setFavId(id)
     const item = favorites.find((f) => f.id === id)
     if (!item) return
-    onQuant({ ...quant, factorTokensText: item.tokens.join(",") })
+    onQuant({ ...quant, factorTokensText: item.tokens.join(","), factorRecipe: undefined })
     // 回填收藏因子的品种与周期到外层任务表单
     if (onApplyMeta) onApplyMeta(item.symbol, item.timeframe)
   }
@@ -91,7 +91,7 @@ export function FactorKindParams({
           value={quant.factorTokensText}
           onChange={(e) => {
             setFavId("")
-            onQuant({ ...quant, factorTokensText: e.target.value })
+            onQuant({ ...quant, factorTokensText: e.target.value, factorRecipe: undefined })
           }}
           placeholder="如 0,8,1,14（从因子实验室复制）"
           className="font-num"

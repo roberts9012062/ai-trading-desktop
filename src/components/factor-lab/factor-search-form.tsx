@@ -27,6 +27,7 @@ import { DEFAULT_KLINE_CHANNEL, latestResearchArchiveDay } from "@/lib/kline-cha
 import { FACTOR_HELP, HelpTip, LabelWithHelp } from "./help-tip"
 import { CoachControls } from "./llm/coach-controls"
 import { antiOverfitPayload } from "./hooks/factor-helpers"
+import { readFactorValidation, writeFactorValidation } from "@/lib/factor-validation-settings"
 
 const TIMEFRAMES = [
   { value: "1d", label: "日线" },
@@ -113,11 +114,14 @@ export function FactorSearchForm({
   // 语义不一，仅作特殊场景手动开。
   // antiOverfitOn 是启用位（决定三参是否透传），showAntiOverfit 仅控制面板展开，
   // 二者必须解耦：曾用折叠状态当启用位，面板默认收起时防护以 0 发出。
-  const [antiOverfitOn, setAntiOverfitOn] = useState(true)
+  const [antiOverfitOn, setAntiOverfitOn] = useState(() => readFactorValidation().enabled)
   const [showAntiOverfit, setShowAntiOverfit] = useState(false)
-  const [trainRatio, setTrainRatio] = useState(0.7)
-  const [testRecentBars, setTestRecentBars] = useState(0)
-  const [walkForwardFolds, setWalkForwardFolds] = useState(3)
+  const [trainRatio, setTrainRatio] = useState(() => readFactorValidation().train_ratio)
+  const [testRecentBars, setTestRecentBars] = useState(() => readFactorValidation().test_recent_bars)
+  const [walkForwardFolds, setWalkForwardFolds] = useState(() => readFactorValidation().walk_forward_folds)
+  useEffect(() => {
+    writeFactorValidation({enabled: antiOverfitOn, train_ratio: trainRatio, test_recent_bars: testRecentBars, walk_forward_folds: walkForwardFolds})
+  }, [antiOverfitOn, trainRatio, testRecentBars, walkForwardFolds])
   // 本地增强挖掘(默认开;服务端引擎忽略)
   const [enhanced, setEnhanced] = useState(true)
   // 组合因子(默认关):末代组合优质/回捞因子测超级因子,单因子全军覆没时的兜底

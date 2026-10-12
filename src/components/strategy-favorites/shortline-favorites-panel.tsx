@@ -6,6 +6,8 @@
  * v3 编码(83 行特征表),两套表 52 号后同号不同义,混存必被误读。
  */
 
+import { EvolutionButton } from "@/components/factor-lab/evolution/evolution-button"
+import { EvolutionEvidence } from "@/components/factor-lab/evolution/evolution-evidence"
 import { useEffect, useState } from "react"
 import { FavoriteTransferToolbar, StrategyExportButton } from "./transfer-controls"
 import {
@@ -49,7 +51,7 @@ export function ShortlineFavoritesPanel() {
   }
 
   function onCopy(item: ShortlineFavoriteItem) {
-    void navigator.clipboard?.writeText(item.tokens.join(","))
+    void navigator.clipboard?.writeText(Array.isArray(item.tokens[0]) ? JSON.stringify({groups: item.tokens, weights: (item.metrics?.evolution_recipe as {weights?: number[]} | undefined)?.weights}) : item.tokens.join(","))
     setCopiedId(item.id)
     setTimeout(() => setCopiedId(null), 1500)
   }
@@ -95,6 +97,7 @@ export function ShortlineFavoritesPanel() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <EvolutionButton source={{kind: "shortline_favorite", id: f.id}} />
                   <StrategyExportButton kind="shortline" favoriteId={f.id} />
                   <button
                     type="button"
@@ -117,6 +120,7 @@ export function ShortlineFavoritesPanel() {
                 {f.text || f.tokens.join(" ")}
               </div>
               {f.note ? <div className="text-[10px] text-[var(--text-muted)]">{f.note}</div> : null}
+              {!!f.metrics?.evolution_recipe && <details className="text-xs"><summary className="cursor-pointer text-[var(--primary)]">进化验证数据与组合权重</summary><div className="pt-2"><EvolutionEvidence metrics={f.metrics} /></div></details>}
             </div>
           ))}
         </div>

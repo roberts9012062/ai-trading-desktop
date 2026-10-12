@@ -120,6 +120,7 @@ def evaluate_portfolio(session, champions, *, diagnostics=False, combo_super=Fal
                                'ic_weighted': _fold_sortinos(1) if has_weights else None}
         result = {'n_factors': K, 'avg_abs_corr': round(float(avg_corr.to_numpy()[0]), 3),
                   'equal': equal, 'ic_weighted': weighted,
+                  'ic_weights': weights.to_numpy().tolist() if has_weights else None,
                   'best_single': max(singles, key=lambda row: row['sortino']),
                   'equal_2x': equal_2x, 'ic_weighted_2x': weighted_2x,
                   'best_single_2x': max(singles_2x, key=lambda row: row['sortino']),

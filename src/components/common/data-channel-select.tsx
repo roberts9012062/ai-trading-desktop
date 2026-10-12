@@ -20,6 +20,7 @@ let _channelsCache: HistoryChannel[] | null = null
 
 export function DataChannelSelect(props: {
   value: string
+  disabled?: boolean
   onChange: (channel: string) => void
   /** 品种（规范符号）；为空时不探测范围 */
   symbol?: string | null
@@ -36,6 +37,7 @@ export function DataChannelSelect(props: {
 }): React.JSX.Element {
   const {
     value,
+    disabled,
     onChange,
     symbol,
     timeframe,
@@ -118,6 +120,7 @@ export function DataChannelSelect(props: {
         )}
       </div>
       <select
+        disabled={disabled}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="w-full h-8 mt-1 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 text-sm"

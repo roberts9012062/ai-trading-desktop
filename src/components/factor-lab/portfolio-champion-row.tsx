@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react"
 import { addFactorFavorite, type PortfolioResult } from "@/lib/factor-lab-api"
 import { favoriteTokensKey, portfolioFavoritePayload, portfolioMetrics, portfolioMode } from "@/lib/portfolio-favorite"
 import { PortfolioCard } from "./portfolio-card"
+import { EvolutionButton } from "./evolution/evolution-button"
+import { evolutionPortfolioRecipe } from "@/lib/factor-evolution-recipe"
 
 /** A combination is a separate ranked entry; its members remain single-factor entries. */
 export function PortfolioChampionRow({ portfolio, showCombo, showTest, showHoldout, showDsr, symbol, timeframe, favoritedKeys, onFavorited }: {
@@ -69,6 +71,7 @@ export function PortfolioChampionRow({ portfolio, showCombo, showTest, showHoldo
       {showHoldout && <td className="px-2 text-right">{portfolio.segment === "holdout" ? metrics?.sortino.toFixed(2) ?? "—" : "—"}</td>}
       {showDsr && <td className="px-2 text-right">—</td>}
       <td className="px-2 py-2 text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
+        {!!portfolio.members?.length && <EvolutionButton className="mr-2" source={{kind: "candidate", name: "超级因子组合", symbol, timeframe, recipe: evolutionPortfolioRecipe(portfolio)}} />}
         <button type="button" aria-expanded={expanded} className="text-[10px] text-[var(--primary)] hover:underline mr-2" onClick={() => setExpanded(value => !value)}>{expanded ? "收起数据" : "查看数据"}</button>
         <button type="button" className="text-[10px] text-[var(--primary)] hover:underline disabled:text-[var(--text-muted)] disabled:cursor-not-allowed" disabled={!canSave || favorited || saving} onClick={() => void save()} title={!canSave ? "完整且验收通过的组合可收藏为超级因子" : "收藏完整组合与本次评估数据"}>{saving ? "收藏中…" : favorited ? "已收藏" : "收藏"}</button>
       </td>

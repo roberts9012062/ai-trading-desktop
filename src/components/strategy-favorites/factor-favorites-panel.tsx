@@ -45,6 +45,7 @@ import {
 } from "@/components/strategy-favorites/folder-column"
 import { SortableCard } from "@/components/strategy-favorites/sortable-card"
 import { FavoriteTransferToolbar, StrategyExportButton } from "./transfer-controls"
+import { EvolutionButton } from "@/components/factor-lab/evolution/evolution-button"
 
 /** 卡片内容（排序位与 DragOverlay 共用） */
 function FactorCardView({
@@ -72,6 +73,7 @@ function FactorCardView({
           </p>
         </div>
         <StrategyExportButton kind="factor" favoriteId={f.id} />
+        <EvolutionButton source={{kind: "favorite", id: f.id}} />
         <button
           type="button"
           onClick={(e) => {
@@ -101,6 +103,7 @@ function FactorCardView({
         )}
       </div>
       {!isSingleFactorFavorite(f) && <button type="button" className="text-xs text-amber-500 mt-2 text-left hover:underline" onClick={() => setShowData(true)}>组合 · 查看数据（{f.tokens.length} 成员）</button>}
+      {isSingleFactorFavorite(f) && f.metrics?.evolution_recipe && <button type="button" className="text-xs text-[var(--primary)] mt-2 text-left hover:underline" onClick={() => setShowData(true)}>查看进化验证数据</button>}
       <PortfolioFavoriteDialog item={showData ? f : null} onClose={() => setShowData(false)} />
     </div>
   )

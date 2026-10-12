@@ -56,7 +56,10 @@ export function ShortlineKindParams({
     setFavId(id)
     const item = favorites.find((f) => f.id === id)
     if (!item) return
-    onQuant({ ...quant, factorTokensText: item.tokens.join(",") })
+    const groups = Array.isArray(item.tokens[0]) ? item.tokens as number[][] : [item.tokens as number[]]
+    const saved = item.metrics?.evolution_recipe as {weights?: number[]} | undefined
+    const weights = saved?.weights ?? groups.map(() => 1 / groups.length)
+    onQuant({ ...quant, factorTokensText: groups.map(g => g.join(",")).join("\n"), factorRecipe: {groups, weights} })
     if (onApplyMeta) onApplyMeta(item.symbol, item.timeframe)
   }
 
@@ -93,7 +96,7 @@ export function ShortlineKindParams({
           value={quant.factorTokensText}
           onChange={(e) => {
             setFavId("")
-            onQuant({ ...quant, factorTokensText: e.target.value })
+            onQuant({ ...quant, factorTokensText: e.target.value, factorRecipe: undefined })
           }}
           placeholder="如 0,87,76（从桌面短线实验室复制）"
           className="font-num"

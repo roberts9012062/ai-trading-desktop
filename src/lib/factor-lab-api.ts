@@ -159,6 +159,7 @@ export interface PortfolioResult {
   avg_abs_corr: number
   equal: PortfolioMetrics
   ic_weighted?: PortfolioMetrics | null
+  ic_weights?: number[] | null
   best_single: PortfolioMetrics
   /** 评估区间(本地内核):缺省=全段(含训练段,样本内);test=测试段;holdout=封存段 */
   segment?: "full" | "test" | "holdout"
@@ -265,7 +266,7 @@ export interface FactorFavoriteItem {
   tokens: number[] | number[][]
   text: string
   composite: number | null
-  metrics: (Partial<FactorMetrics> & { portfolio_snapshot?: PortfolioResult }) | null
+  metrics: (Partial<FactorMetrics> & { portfolio_snapshot?: PortfolioResult; evolution_recipe?: {groups: number[][]; weights: number[]; rationale?: string}; evolution_validation?: unknown; evolution_sealed?: unknown; evolution_rounds?: number }) | null
   note: string | null
   /** 所属收藏文件夹（空=未分类） */
   folder_id?: string | null
@@ -291,7 +292,7 @@ export interface LlmGenerateResult extends SearchResult {
   }
 }
 
-async function request<T>(
+export async function factorLabRequest<T>(
   path: string,
   options: RequestInit = {},
   timeoutMs: number = SEARCH_TIMEOUT_MS,
@@ -326,6 +327,8 @@ async function request<T>(
     clearTimeout(timer)
   }
 }
+
+const request = factorLabRequest
 
 export async function searchFactors(payload: {
   symbol: string

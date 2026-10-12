@@ -7,6 +7,7 @@
 import { useState } from "react"
 import { isSingleFactorFavorite } from "@/lib/portfolio-favorite"
 import { PortfolioFavoriteDialog } from "./portfolio-favorite-dialog"
+import { EvolutionButton } from "../evolution/evolution-button"
 import { groupNativeOrigins, nativeOrigin } from "@/lib/native-engine/origin"
 import {
   patchFactorFavorite,
@@ -117,7 +118,7 @@ export function FavoritesPanel(
                   <button
                     type="button"
                     className="w-full text-left"
-                    onClick={() => isSingleFactorFavorite(it) ? onSelect(it) : setPortfolioItem(it)}
+                    onClick={() => isSingleFactorFavorite(it) && !it.metrics?.evolution_recipe ? onSelect(it) : setPortfolioItem(it)}
                   >
                     <div className="text-[var(--text-primary)] font-medium truncate">
                       {!isSingleFactorFavorite(it) && <span className="text-amber-500 mr-1">组合 ·</span>}{it.name}
@@ -127,6 +128,7 @@ export function FavoritesPanel(
                     </div>
                   </button>
                   <div className="flex gap-2 mt-1 text-[var(--text-muted)]">
+                    <EvolutionButton source={{kind: "favorite", id: it.id}} />
                     {it.symbol && <span>{it.symbol}</span>}
                     {nativeOrigin(it.metrics) && <span title={nativeOrigin(it.metrics) ?? undefined}>原生 GPU · f64</span>}
                     {it.composite != null && (

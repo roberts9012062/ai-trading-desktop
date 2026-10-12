@@ -12,6 +12,8 @@
 
 import { NumericInput } from "@/components/ui/numeric-input"
 import { withNumericValidation, withNumericReset } from "@/lib/numeric-input"
+import { evolutionPortfolioRecipe } from "@/lib/factor-evolution-recipe"
+import { EvolutionButton } from "@/components/factor-lab/evolution/evolution-button"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ChevronDown } from "lucide-react"
 import ShortlineExecutionPanel, { ENHANCED_SHORTLINE_DECISION } from "./shortline-execution-panel"
@@ -926,6 +928,8 @@ export default function ShortlineLabPageV2() {
                         {c.composite.toFixed(3)}
                       </span>
                       {favButton(c)}
+                      <EvolutionButton source={{kind: "candidate", name: c.text || "短线因子", symbol, timeframe, shortline: true, data_channel: dataSource,
+                        recipe: {groups: [c.tokens], weights: [1]}}} />
                     </div>
                   </div>
                   <p className="text-xs text-gray-300 truncate font-mono">
@@ -986,6 +990,8 @@ export default function ShortlineLabPageV2() {
                           {c.composite.toFixed(3)}
                         </span>
                         {favButton(c)}
+                      <EvolutionButton source={{kind: "candidate", name: c.text || "短线因子", symbol, timeframe, shortline: true, data_channel: dataSource,
+                        recipe: {groups: [c.tokens], weights: [1]}}} />
                       </div>
                     </div>
                     <p className="text-xs text-gray-300 truncate font-mono">
@@ -1035,6 +1041,8 @@ export default function ShortlineLabPageV2() {
                   封存段 · 平均相关 |{pf.avg_abs_corr.toFixed(3)}|
                 </span>
               </div>
+              {!!pf.members?.length && <EvolutionButton source={{kind: "candidate", name: "短线超级组合", symbol, timeframe, shortline: true, data_channel: dataSource,
+                recipe: evolutionPortfolioRecipe(pf)}} />}
               {rescued && (
                 <p className="text-xs text-emerald-400/90 leading-relaxed">
                   组合救活：单个成员在 2× 成本下全部转负，但组合对冲降低了净换手与成本拖累，

@@ -92,6 +92,7 @@ def evaluate_portfolio(
         "avg_abs_corr": round(avg_abs_corr, 3),
         "equal": equal,
         "ic_weighted": ic_weighted,
+        "ic_weights": (w / w.sum()).tolist() if has_weights else None,
         "best_single": best_single,
     }
     if not combo_super:

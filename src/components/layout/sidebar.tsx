@@ -57,6 +57,7 @@ const MENU_ITEMS: MenuItem[] = [
     children: [
       { label: "因子实验室", path: "/factor-lab" },
       { label: "短线因子实验室", path: "/factor-lab/shortline" },
+      { label: "因子进化", path: "/factor-lab/evolution" },
     ],
   },
   { icon: Bookmark, label: "策略收藏夹", path: "/strategy-favorites", demo: false },

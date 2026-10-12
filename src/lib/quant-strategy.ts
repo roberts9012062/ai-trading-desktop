@@ -63,6 +63,7 @@ export interface QuantParamsState {
   sv2ZoneDrop: number; sv2BufMult: number; sv2AtrPeriod: number; sv2Cooldown: number
   // 因子公式（逗号分隔的 token 序列，来自因子实验室）
   factorTokensText: string
+  factorRecipe?: { groups: number[][]; weights: number[] }
   // 短线因子（shortline_factor）：§4 决策参数 + cadence/预热/日亏
   slCadenceSec: number
   slWarmupBars: number
@@ -181,13 +182,17 @@ export function paramsToQuantState(
   params: Record<string, unknown> | null | undefined,
 ): QuantParamsState {
   const base: QuantParamsState = { ...DEFAULT_QUANT_PARAMS, quantKind: kind }
-  const p = params ?? {}
+  const raw = params ?? {}
+  const p = kind === "shortline_factor" && raw.shortline && typeof raw.shortline === "object"
+    ? raw.shortline as Record<string, unknown> : raw
   const n = (key: string, fb: number): number => {
     const v = p[key]
     return typeof v === "number" && Number.isFinite(v) ? v : fb
   }
   switch (kind) {
     case "shortline_factor": {
+      const champions = Array.isArray(p.champions) ? p.champions as {tokens: number[]; weight: number}[] : []
+      const recipe = champions.length ? {groups: champions.map(c => c.tokens), weights: champions.map(c => c.weight)} : undefined
       const d = (p.decision ?? {}) as Record<string, unknown>
       const nd = (key: string, fb: number): number =>
         typeof d[key] === "number" && Number.isFinite(d[key] as number)
@@ -195,7 +200,8 @@ export function paramsToQuantState(
           : fb
       return {
         ...base,
-        factorTokensText: Array.isArray(p.factor_tokens)
+        factorRecipe: recipe,
+        factorTokensText: recipe ? recipe.groups.map(g => g.join(",")).join("\n") : Array.isArray(p.factor_tokens)
           ? (p.factor_tokens as number[]).join(",")
           : base.factorTokensText,
         slCadenceSec: n("cadence_seconds", 5),
@@ -203,7 +209,7 @@ export function paramsToQuantState(
         slThreshold: nd("threshold", 0.25),
         slConfirmSteps: nd("confirm_steps", 3),
         slMaxPerHour: nd("max_actions_per_hour", 6),
-        slDailyLoss: n("daily_loss_limit_usdt", 50),
+        slDailyLoss: n("daily_loss_limit_usdt", Number((p.risk as Record<string, unknown> | undefined)?.daily_loss_limit_usdt) || 50),
       }
     }
     case "ma_cross":
@@ -357,10 +363,10 @@ export function buildStrategyParams(
     case "strength_entry_v2":
       return buildStrengthV2Params(q)
     case "factor":
-      return { factor_tokens: parseFactorTokens(q.factorTokensText) }
+      return q.factorRecipe ? {factor_tokens: q.factorRecipe.groups, factor_weights: q.factorRecipe.weights} : { factor_tokens: parseFactorTokens(q.factorTokensText) }
     case "shortline_factor":
       return {
-        factor_tokens: parseFactorTokens(q.factorTokensText),
+        ...(q.factorRecipe ? {champions: q.factorRecipe.groups.map((tokens, i) => ({id: i + 1, tokens, weight: q.factorRecipe!.weights[i]}))} : {factor_tokens: parseFactorTokens(q.factorTokensText)}),
         cadence_seconds: q.slCadenceSec,
         warmup_bars: q.slWarmupBars,
         decision: {
@@ -425,7 +431,7 @@ export function validateQuantParams(q: QuantParamsState): string | null {
   if (strengthErr) return strengthErr
   if (
     (q.quantKind === "factor" || q.quantKind === "shortline_factor") &&
-    parseFactorTokens(q.factorTokensText).length === 0
+    !q.factorRecipe && parseFactorTokens(q.factorTokensText).length === 0
   ) {
     return "因子公式 tokens 不能为空（从因子实验室收藏选择或复制）"
   }

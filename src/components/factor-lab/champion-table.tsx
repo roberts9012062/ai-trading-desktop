@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { FACTOR_HELP, HelpTip } from "./help-tip"
 import { ComboSimilarityPanel } from "./combo/combo-similarity-panel"
 import { PortfolioChampionRow } from "./portfolio-champion-row"
+import { EvolutionButton } from "./evolution/evolution-button"
 
 interface ChampionTableProps {
   champions: Champion[]
@@ -376,6 +377,7 @@ export function ChampionTable({
                   </td>
                 )}
                 <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                  <EvolutionButton className="mr-2" source={{kind: "candidate", name: c.text, symbol: comboSymbol, timeframe: comboTimeframe, recipe: {groups: [c.tokens], weights: [1]}}} />
                   <button
                     type="button"
                     className="text-[10px] text-[var(--text-muted)] hover:text-[var(--primary)] mr-2"
