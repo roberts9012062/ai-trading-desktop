@@ -27,6 +27,7 @@ import {
 import type { DeviceKind, MiningTask, RunnerKind } from "@/lib/mining/types"
 import { championSeedsFor } from "@/lib/mining/champion-seeds"
 import { MiningSymbolCombobox } from "./mining-symbol-combobox"
+import { LlmSeedControls } from "./llm-seed-controls"
 import { CryptoDataPanel } from "@/components/common/crypto-data-panel"
 import { DataChannelSelect } from "@/components/common/data-channel-select"
 import { DEFAULT_KLINE_CHANNEL } from "@/lib/kline-channels"
@@ -321,11 +322,11 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
   // 冠军种子库(G2 冻结证据合格冠军):默认注入,提交时按币种+周期选取
   const [useChampionSeeds, setUseChampionSeeds] = useState(true)
   const seedPick = championSeedsFor(symbol || "BTCUSDT", timeframe)
-  // LLM 种子(路线 B 本地化,M5):本地直连 LLM 生成候选注入种群头部
+  // LLM 种子：复用 AI 设置中的模型。
   const [useLlmSeed, setUseLlmSeed] = useState(false)
+  const [llmModel, setLlmModel] = useState("")
   const [llmHint, setLlmHint] = useState("")
   const [llmError, setLlmError] = useState<string | null>(null)
-  const [llmReady, setLlmReady] = useState<boolean | null>(null)
   // 跨币种验证(深挖强化):同板块 1-4 个伙伴币种联合验证冠军
   const [useCrossValidate, setUseCrossValidate] = useState(false)
   const [jointTraining, setJointTraining] = useState(false)
@@ -355,17 +356,6 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [device])
   const [submitting, setSubmitting] = useState(false)
-
-  // 本地直连可用性(未配置则置灰开关并提示入口)
-  useEffect(() => {
-    let cancelled = false
-    void import("@/lib/local-ai").then(({ getActiveLocalAi }) => {
-      if (!cancelled) setLlmReady(getActiveLocalAi() != null)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   /** 应用预设:一键填入种群/代数/树深/岛数 */
   function applyPreset(p: MiningPreset): void {
@@ -411,10 +401,13 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
       if (origin === "local" && useLlmSeed) {
         setLlmError(null)
         try {
-          const { localLlmGenerateFactors } = await import("@/lib/llm-factor-seed")
-          const seed = await localLlmGenerateFactors({
+          if (!llmModel) throw new Error("请先选择种子模型")
+          const { generateLlmFactorSeeds } = await import("@/lib/llm-factor-seed")
+          const seed = await generateLlmFactorSeeds({
             symbol: symbol.trim().toLowerCase(),
             timeframe,
+            channel: dataChannel,
+            modelRowId: llmModel,
             ...(llmHint.trim() ? { hint: llmHint.trim() } : {}),
           })
           if (seed.tokens.length === 0) {
@@ -773,43 +766,11 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
         </div>
       )}
 
-      {/* LLM 种子(路线 B 本地化,M5):本地直连 LLM 生成候选注入种群头部,
-          「LLM 直觉 + GPU 暴力」混合搜索;未配置本地直连时置灰 */}
+      {/* 模型复用 AI 设置。 */}
       {origin === "local" && (
-        <div className="space-y-1">
-          <Label>LLM 种子（可选）</Label>
-          <label className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)] cursor-pointer">
-            <input
-              type="checkbox"
-              checked={useLlmSeed}
-              disabled={llmReady !== true}
-              onChange={(e) => {
-                setUseLlmSeed(e.target.checked)
-                setLlmError(null)
-              }}
-            />
-            用本地直连大模型生成候选公式，注入种群当种子
-          </label>
-          {llmReady !== true && (
-            <p className="text-[10px] text-amber-500">
-              本地直连未配置：在 AI 聊天面板开启「本地直连」并填好 Key/模型后可用。
-            </p>
-          )}
-          {useLlmSeed && (
-            <input
-              type="text"
-              value={llmHint}
-              onChange={(e) => setLlmHint(e.target.value)}
-              placeholder="挖掘思路提示（可选），如「关注夜盘持仓变化」"
-              className="w-full h-9 px-3 text-xs rounded-md border border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
-            />
-          )}
-          {llmError && <p className="text-[10px] text-down">{llmError}</p>}
-          <p className="text-[10px] text-[var(--text-muted)] leading-tight">
-            提交时先由大模型给出 6-10 条候选公式（token 严格校验，非法自动丢弃），
-            与随机种群一起进入进化——模型直觉提供多样化起点，GPU 负责大规模精炼。
-          </p>
-        </div>
+        <LlmSeedControls enabled={useLlmSeed} onEnabledChange={value => {setUseLlmSeed(value); setLlmError(null)}}
+          model={llmModel} onModelChange={value => {setLlmModel(value); setLlmError(null)}}
+          hint={llmHint} onHintChange={setLlmHint} error={llmError} />
       )}
 
       {/* 跨币种验证(深挖强化):开启后冠军须通过同板块 1-4 个伙伴币种的

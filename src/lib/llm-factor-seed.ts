@@ -1,7 +1,7 @@
 /**
  * LLM 因子种子生成(服务端路线 B 的本地化,深挖强化 M5)
  *
- * 用本地直连 LLM 生成因子公式 token 候选,注入 GP 种群当种子(与
+ * 用 AI 设置中的模型生成因子公式 token 候选,注入 GP 种群当种子(与
  * seed_tokens 同机制)——「LLM 直觉 + GPU 暴力」混合搜索:LLM 提供
  * 人类先验的多样化起点,GP 负责大规模精炼。
  *
@@ -11,7 +11,7 @@
  */
 
 import { isCryptoSymbol } from "@/lib/mining/crypto-profile"
-import { localChatJson } from "@/lib/local-ai"
+import { factorLabRequest } from "@/lib/factor-lab-api"
 import { tokensToTree } from "@/lib/mining/gpu/gp"
 import type { MultimodalMessage } from "@/lib/ai-stream"
 
@@ -32,6 +32,8 @@ interface LlmVocab {
 export interface LlmSeedOptions {
   symbol: string
   timeframe: string
+  /** AI 设置中的用户模型。 */
+  modelRowId: string
   /** 用户自由提示(挖掘思路/市场观点) */
   hint?: string
   /** 已有冠军(提示 LLM 提供不同思路,避免重复探索) */
@@ -173,20 +175,24 @@ function parseCandidates(raw: string): { candidates?: unknown; note?: unknown } 
 }
 
 /** 生成因子种子:词表 → LLM → 严格校验,返回合法 token 候选(可能为空) */
-export async function localLlmGenerateFactors(opts: LlmSeedOptions): Promise<LlmSeedResult> {
+export async function generateLlmFactorSeeds(opts: LlmSeedOptions): Promise<LlmSeedResult> {
+  if (!opts.modelRowId) throw new Error("请先选择 AI 设置中的种子模型")
   // 取数/预检后才请求词表(方案 §10 LLM 约定)
   const bars = await probeBars(opts)
   const vocab = await fetchVocab(opts, bars)
   const messages = buildMessages(opts, vocab)
-  const raw = await localChatJson(messages, { temperature: 0.7, signal: opts.signal })
+  const raw = (await factorLabRequest<{content: string}>("/api/factor-lab/llm-seeds", {
+        method: "POST",
+        body: JSON.stringify({model_row_id: opts.modelRowId, messages}),
+      }, 90_000)).content
   const parsed = parseCandidates(raw)
   const featCount = (Math.max(...vocab.features.map((f) => f.id)) + 1)
   const tokensList: number[][] = []
   if (Array.isArray(parsed.candidates)) {
     const seen = new Set<string>()
     for (const item of parsed.candidates) {
-      if (!Array.isArray(item)) continue
-      const tokens = item.filter((t): t is number => Number.isInteger(t))
+      if (!Array.isArray(item) || !item.every((t) => Number.isInteger(t))) continue
+      const tokens = item as number[]
       if (tokens.length < 2 || tokens.length > 32) continue
       // 栈式合法性校验(tokensToTree 非空 = 合法),非法候选直接丢弃
       if (!tokensToTree(tokens, featCount)) continue

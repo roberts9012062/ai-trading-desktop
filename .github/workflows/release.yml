@@ -46,6 +46,9 @@ jobs:
       - name: Verify factor evolution boundaries and recipe persistence
         run: pnpm exec vitest run src/lib/factor-evolution.test.ts src/lib/factor-evolution-runner.test.ts src/lib/factor-evolution-samples.test.ts src/components/factor-lab/evolution/evolution-page.test.ts src/lib/binance-local-history.test.ts
 
+      - name: Verify AI settings model selection for super-factor LLM seeds
+        run: pnpm exec vitest run src/lib/llm-factor-seed.test.ts
+
       # 原生 GPU 引擎运行时组装(设计 §6):python-build-standalone CPython 3.11
       # + 按 requirements-native.lock 哈希校验安装的冻结依赖 + engine 包。
       # assemble 脚本内置打包解释器导入自检与 MANIFEST.sha256 生成。
