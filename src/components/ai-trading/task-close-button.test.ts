@@ -26,6 +26,12 @@ describe("manual close card button", () => {
     expect(render({ ...task, status: "stopped" })).not.toContain('disabled=""')
     expect(render({ ...task, close_rules: { profit_lock: { cooldown_signals: 3 } } } as AITradingTask)).toContain("冷却 3 次有效开仓信号")
   })
+  it("permits an authoritative recheck when position data is unresolved", () => {
+    const html = render({ ...task, status: "stopped", position_qty: 0, has_open_position: false, position_sync_status: "reconciling" })
+    expect(html).not.toContain('disabled=""')
+    expect(html).toContain("核对并平仓")
+    expect(html).toContain("重新核对交易所持仓")
+  })
   it("exposes the same action on profit comparison cards", () => {
     const held = { ...task, id: "held", name: "持仓任务", symbol: "avaxusdt", strategy_type: "multi_cycle_hunter", position_direction: "long" } as AITradingTask
     const legend = renderToStaticMarkup(createElement(EquityLegend, { tasks: [held], allTasks: [held], series: {}, profitBars: [], highlightTaskId: null, onHighlightChange: () => {} }))

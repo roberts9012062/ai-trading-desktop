@@ -50,7 +50,7 @@ jobs:
         run: pnpm exec vitest run src/lib/llm-factor-seed.test.ts
 
       - name: Verify paused task residual position display
-        run: pnpm exec vitest run src/components/ai-trading/equity/equity-chart.test.ts src/components/ai-trading/equity/equity-wave-data.test.ts src/lib/hunter/task-visibility.test.ts
+        run: pnpm exec vitest run src/components/ai-trading/task-close-button.test.ts src/components/ai-trading/equity/equity-chart.test.ts src/components/ai-trading/equity/equity-wave-data.test.ts src/lib/hunter/task-visibility.test.ts
 
       - name: Verify real-money authorization and targeted notices
         run: pnpm exec vitest run src/lib/live-permission.test.ts src/lib/announcements.test.ts src/lib/live-api-history.test.ts

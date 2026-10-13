@@ -288,7 +288,7 @@ export function TaskList({
                 </div>
               ) : (
                 <span className="text-[11px] text-[var(--text-muted)] truncate">
-                  未持仓{runtimeLabel(task) ? " · " + runtimeLabel(task) : ""}
+                  {task.position_sync_status ? "持仓/委托待确认" : "未持仓"}{runtimeLabel(task) ? " · " + runtimeLabel(task) : ""}
                 </span>
               )}
               <TaskActions

@@ -103,3 +103,11 @@ it.each(["paused", "stopped"] as const)("identifies a %s task's remaining positi
   expect(closed).not.toContain("仍有持仓")
   expect(closed).not.toContain('data-task-id="icp"')
 })
+
+it("does not call an unresolved stopped task flat on its task card", () => {
+  const task = { id: "pending", name: "待确认任务", symbol: "btcusdt", timeframe: "240m", status: "stopped", strategy_type: "ma_cross", position_qty: 0, has_open_position: false, position_sync_status: "reconciling" } as AITradingTask
+  const html = renderToString(createElement(TaskList, { tasks: [task], selectedId: null, onSelect: () => {} }))
+  expect(html).toContain("持仓/委托待确认")
+  expect(html).not.toContain("未持仓")
+  expect(html).toContain("核对并平仓")
+})
