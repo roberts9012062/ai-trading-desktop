@@ -44,7 +44,7 @@ jobs:
         run: pnpm exec vitest run src/components/factor-lab/portfolio-card.test.ts src/lib/portfolio-favorite.test.ts src/components/factor-lab/hooks/factor-helpers.test.ts src/lib/mining/backends/native-gpu-core.test.ts src/lib/mining/native-runner-integration.test.ts src/lib/mining/research-grade.test.ts src/lib/mining/combo-super.test.ts src/lib/factor-access.test.ts src/lib/shortline/search-profile.test.ts src/lib/mining/gpu/feature-token-roundtrip.test.ts src/lib/mining/economic-seeds.test.ts
 
       - name: Verify factor evolution boundaries and recipe persistence
-        run: pnpm exec vitest run src/lib/factor-evolution.test.ts src/lib/factor-evolution-runner.test.ts src/lib/factor-evolution-samples.test.ts src/components/factor-lab/evolution/evolution-page.test.ts src/components/factor-lab/evolution/evolution-progress.test.tsx src/lib/binance-local-history.test.ts
+        run: pnpm exec vitest run src/lib/factor-evolution.test.ts src/lib/factor-evolution-runner.test.ts src/lib/factor-evolution-samples.test.ts src/components/factor-lab/evolution/evolution-page.test.ts src/components/factor-lab/evolution/evolution-progress.test.tsx src/components/factor-lab/evolution/evolution-research-report.test.tsx src/lib/binance-local-history.test.ts
 
       - name: Verify AI settings model selection for super-factor LLM seeds
         run: pnpm exec vitest run src/lib/llm-factor-seed.test.ts
@@ -66,7 +66,7 @@ jobs:
           .local-data/native-engine-venv/Scripts/python.exe scripts/test-quant-kernel.py
           .local-data/native-engine-venv/Scripts/python.exe scripts/test-factor-backtest.py
           .local-data/native-engine-venv/Scripts/python.exe scripts/test-realtime-factor.py
-          .local-data/native-engine-venv/Scripts/python.exe -m unittest tests.native_engine.test_factor_quality_features -v
+          .local-data/native-engine-venv/Scripts/python.exe -m unittest tests.native_engine.test_factor_quality_features tests.native_engine.test_factor_semantics -v
           .local-data/native-engine-venv/Scripts/python.exe -m unittest tests.native_engine.test_economic_templates -v
           .local-data/native-engine-venv/Scripts/python.exe -m unittest discover -s tests/native_engine -p test_wf.py -k FoldSize -v
           .local-data/native-engine-venv/Scripts/python.exe -m unittest discover -s tests/native_engine -p test_shortline_contract.py -k ShortlineCpu -v

@@ -1068,6 +1068,9 @@ def _dedup_top(
     for comp, tokens, metrics in sorted(
         champions, key=lambda x: x[0], reverse=True
     ):
+        # Resumed archives and imported shard results must pass current rules too.
+        if validate(tokens):
+            continue
         key = tuple(tokens)
         if key in seen:
             continue

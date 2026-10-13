@@ -8,9 +8,8 @@ token 约定（v2 编码，见 token_encoding.py）：
 FEAT_OFFSET 冻结为常量而非 len(FEATURE_NAMES)：新增特征不再平移算子 id，
 避免已持久化的 token 被解码成别的算子。
 
-「恒正感染模型」（借鉴 AlphaMaster 思路，纯自研）：
-  某些算子输出恒非负（TS_RANK/ABS），连续使用传播算子会让因子退化为
-  「永远做多」的 beta 因子；只有恢复算子（SUB/TS_ZSCORE 等）能打破感染。
+研究准入按公式树逐分支推导值域与依赖，数值执行保持兼容。
+原始单侧值域不等于最终滚动归一化后必然单边交易。
 """
 
 from __future__ import annotations
@@ -40,32 +39,6 @@ if FEAT_COUNT > V3_FEAT_OFFSET:
 
 # 输出恒非负的算子（丢失符号信息）
 POSITIVE_ONLY_OPS = {"TS_RANK_10", "TS_RANK_20", "TS_RANK_60", "ABS", "STEP"}
-# 在恒正值域上输出仍恒正（感染传播）
-INFECTED_PROPAGATING_OPS = {
-    "TS_RANK_10", "TS_RANK_20", "TS_RANK_60", "ABS", "STEP",
-    "TS_MA_5", "TS_MA_10", "TS_MA_20", "TS_MA_60",
-    "TS_MAX_10", "TS_MAX_20", "TS_MIN_10",
-    "SQRT", "SIGNED_LOG", "SIGMOID", "TANH",
-    "LAG_1", "LAG_5",  # 恒等传递，感染不灭
-    "EMA_5", "EMA_20",  # 平滑传递，同 MA 族
-    # 批次2续（id 40-43，与桌面端对齐）：rank/加权均值族在恒正值域上仍恒正
-    "TS_CRANK_20", "TS_CRANK_60",
-    "DECAY_LINEAR_10", "DECAY_LINEAR_20",
-    # 批次4：WINSOR 分位裁剪/VOL_SCALE 不改变符号
-    "WINSOR_20", "VOL_SCALE_20",
-}
-# 能恢复符号信息
-SIGN_RESTORE_OPS = {
-    "SUB", "DIV", "NEG",
-    "TS_STD_10", "TS_STD_20", "TS_STD_60", "TS_ZSCORE_20", "TS_ZSCORE_60",
-    "DELTA_1", "DELTA_5", "TS_ATR_NORM",
-    "CORR_20",  # 输出 [-1,1] 对称，天然恢复符号
-    "TS_DEMEAN_20", "BETA_20", "RESID_20",  # 去均值/回归残差族，恢复符号
-    # 批次3/4 新增：稳健标准化/信噪比/长窗口 zscore/差分均恢复符号
-    "ROBUST_ZSCORE_20", "SNR_20", "SNR_60", "TS_ZSCORE_120", "DELTA_24",
-}
-
-
 def token_name(token: int, v3: bool = False) -> str:
     """token → 名称（v3=True 时算子基址为 128，特征表为扩展表）"""
     token = int(token)
@@ -77,37 +50,15 @@ def token_name(token: int, v3: bool = False) -> str:
     return OPS_NAMES[idx] if idx < len(OPS_NAMES) else f"op_{token}"
 
 
+def analyze(tokens: list[int]) -> dict:
+    from .semantics import inspect_formula
+    v3 = any(type(token) is int and token >= V3_FEAT_OFFSET for token in tokens)
+    return inspect_formula(tokens, FEATURE_NAMES if v3 else FEATURE_NAMES[:V2_FEATURE_COUNT], OPS_CONFIG,
+                           V3_FEAT_OFFSET if v3 else FEAT_OFFSET)
+
+
 def validate(tokens: list[int]) -> list[str]:
-    """校验公式结构，返回违规原因列表（空 = 合法）"""
-    violations: list[str] = []
-    v3 = is_v3_tokens(tokens)
-    feat_offset = V3_FEAT_OFFSET if v3 else FEAT_OFFSET
-    infected = False
-    chain = 0
-    last_positive = None
-    for i, token in enumerate(tokens):
-        token = int(token)
-        if token < feat_offset:
-            continue
-        name = token_name(token, v3=v3)
-        if name in POSITIVE_ONLY_OPS:
-            if not infected:
-                infected = True
-                last_positive = name
-            chain += 1
-        elif infected and name in SIGN_RESTORE_OPS:
-            infected = False
-            chain = 0
-            last_positive = None
-        elif infected and name in INFECTED_PROPAGATING_OPS:
-            chain += 1
-            if chain >= 3:
-                violations.append(
-                    f"步骤{i}: 恒正感染链过长（{last_positive} 起 {chain} 个传播算子），因子将退化为 beta"
-                )
-    if infected and chain >= 2:
-        violations.append(f"公式末尾恒正感染（链长 {chain}），输出偏单方向")
-    return violations
+    return analyze(tokens)["errors"]
 
 
 def _normalize_output(x: np.ndarray) -> np.ndarray:

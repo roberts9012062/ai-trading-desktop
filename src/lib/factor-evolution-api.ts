@@ -34,7 +34,29 @@ export interface EvolutionValidation {
 export interface EvolutionProgress {
   phase: string; message: string; round: number; completed_rounds: number; current: number; total: number; updated_at?: string
 }
-export interface EvolutionReport { round: number; recipe?: EvolutionRecipe; text?: string; validation?: EvolutionValidation; sealed?: EvolutionValidation; error?: string; format_repairs?: number; proposal?: unknown }
+export interface FormulaDiagnostic { errors: string[]; warnings: Array<{code: string; index: number; message: string}>; depth: number; lookback: number; feature_ids: number[]; normalization_note?: string }
+export interface FormulaEvidence {
+  error?: string
+  coverage?: {bars: number; warmup: number; start: string; end: string; train_end: string; sealed_visible: boolean}
+  bars_sha256?: string; recipe_hash?: string; interpretation?: string
+  diagnostics?: {errors: string[]; members: FormulaDiagnostic[]}
+  regimes?: Record<string, {bars: number; long_share: number | null; short_share: number | null; mean_score: number | null}>
+  points?: Array<{index: number; segment: string; bar: {time: string; open: number; high: number; low: number; close: number; volume?: number}; return_60: number; regime: string; score: number;
+    members: Array<{weight: number; score: number; nodes: Array<{index: number; token: number; name: string; value: number}>}>}>
+}
+export interface EvolutionAudit {
+  passed: boolean; reasons?: string[]; diagnostics?: FormulaEvidence["diagnostics"]
+  tests?: Array<{name: string; passed: boolean}>
+  causal_prefix?: {passed: boolean; max_error: number; prefix_bars: number}
+  comparison?: {passed: boolean; baseline_available?: boolean; changes?: Record<string, number>}
+}
+export interface ResearchReport {
+  decision: "accepted" | "awaiting_seal" | "rejected"; hypothesis: string
+  facts: {validation_net_return?: number; validation_stress_ann_ret?: number; wf_consistency?: number; holdout_passed?: boolean | null; comparison?: EvolutionAudit["comparison"]}
+  reasons: string[]; next_steps: string[]; limitations: string[]
+}
+export interface EvolutionReport { round: number; recipe?: EvolutionRecipe; text?: string; validation?: EvolutionValidation; sealed?: EvolutionValidation; error?: string; format_repairs?: number; proposal?: unknown;
+  audit?: EvolutionAudit; evidence?: FormulaEvidence; review?: ResearchReport; inspections?: Array<{indices: number[]; bars_sha256: string}> }
 export interface EvolutionJob {
   id: string; source: EvolutionSource; symbol: string; timeframe: string; data_channel: string
   status: "context" | "ready" | "paused" | "stopped" | "passed" | "exhausted" | "sealed_failed"
@@ -43,6 +65,8 @@ export interface EvolutionJob {
   history_note: string; bars_sha256: string; error?: string; sealed_used: boolean
   application?: {id: string; status: string}
   baseline?: EvolutionValidation & {error?: string}
+  research_evidence?: FormulaEvidence
+  runtime_evidence?: {available: boolean; reason?: string; note?: string; examples?: Array<{record: {id: string; time: string; reason?: string}; bars_used: number; matches_current_recipe?: boolean; point: NonNullable<FormulaEvidence["points"]>[number]}>}
   progress?: EvolutionProgress
 }
 const root = "/api/factor-lab/evolution"
