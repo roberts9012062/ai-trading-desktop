@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { UserDetailTabs } from "@/components/admin/user-detail-tabs"
 import { UserQuotaCard } from "@/components/admin/user-quota-card"
+import { LivePermissionCard } from "@/components/admin/live-permission-card"
 import {
   getAdminUserAiDecisionsApi,
   getAdminUserAiTasksApi,
@@ -215,6 +216,7 @@ function AdminUserDetailInner(): React.JSX.Element {
           </div>
 
           <UserQuotaCard userId={userId} />
+          <LivePermissionCard userId={userId} username={u.username} enabled={Boolean(u.live_trading_enabled)} onChanged={() => void load()} />
 
           <UserDetailTabs
             orders={orders}

@@ -49,6 +49,9 @@ jobs:
       - name: Verify AI settings model selection for super-factor LLM seeds
         run: pnpm exec vitest run src/lib/llm-factor-seed.test.ts
 
+      - name: Verify real-money authorization and targeted notices
+        run: pnpm exec vitest run src/lib/live-permission.test.ts src/lib/announcements.test.ts src/lib/live-api-history.test.ts
+
       # 原生 GPU 引擎运行时组装(设计 §6):python-build-standalone CPython 3.11
       # + 按 requirements-native.lock 哈希校验安装的冻结依赖 + engine 包。
       # assemble 脚本内置打包解释器导入自检与 MANIFEST.sha256 生成。

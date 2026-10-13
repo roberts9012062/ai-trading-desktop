@@ -4,6 +4,7 @@ export interface PublishedAnnouncement {
   content: string
   published: boolean
   published_at: string
+  target_usernames?: string[] | null
 }
 const base = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -17,8 +18,12 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 export const latestAnnouncement = () => call<{ item: PublishedAnnouncement | null }>("/api/announcements/latest")
 export const listAnnouncements = async (admin = false) => (await call<{ items: PublishedAnnouncement[] }>(admin ? "/api/admin/announcements" : "/api/announcements")).items
-export const publishAnnouncement = (title: string, content: string) => call<PublishedAnnouncement>("/api/admin/announcements", { method: "POST", body: JSON.stringify({ title, content }) })
+export const publishAnnouncement = (title: string, content: string, target_usernames?: string[]) => call<PublishedAnnouncement>("/api/admin/announcements", { method: "POST", body: JSON.stringify({ title, content, ...(target_usernames?.length ? { target_usernames } : {}) }) })
 export const withdrawAnnouncement = (id: string) => call<PublishedAnnouncement>(`/api/admin/announcements/${encodeURIComponent(id)}/withdraw`, { method: "POST" })
+
+export function parseAnnouncementAudience(value: string): string[] {
+  return [...new Set(value.split(/[\s,，]+/).map(name => name.trim()).filter(Boolean))]
+}
 
 export function announcementScope(userId: string, server?: string): string {
   let endpoint = server || base || location.origin

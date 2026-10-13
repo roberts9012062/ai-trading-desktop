@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { announcementScope, isAnnouncementDismissed, setAnnouncementDismissed } from "./announcements"
+import { announcementScope, isAnnouncementDismissed, setAnnouncementDismissed, parseAnnouncementAudience, publishAnnouncement } from "./announcements"
 
 describe("startup announcement preferences", () => {
   beforeEach(() => {
@@ -29,5 +29,14 @@ describe("startup announcement preferences", () => {
     vi.stubGlobal("localStorage", { getItem: () => { throw Error("storage disabled") }, setItem: () => { throw Error("storage disabled") } })
     expect(isAnnouncementDismissed("scope", "first")).toBe(false)
     expect(setAnnouncementDismissed("scope", "first", true)).toBe(false)
+  })
+  it("preserves a private recipient list and deduplicates typed usernames", async () => {
+    const audience = parseAnnouncementAudience("none, none2，qy123 none")
+    expect(audience).toEqual(["none", "none2", "qy123"])
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "private" })))
+    vi.stubGlobal("fetch", fetch)
+    await publishAnnouncement("maintenance", "apology", audience)
+    expect(JSON.parse(fetch.mock.calls[0][1].body).target_usernames).toEqual(audience)
+    expect(parseAnnouncementAudience("  ")).toEqual([])
   })
 })

@@ -7,7 +7,7 @@ import { announcementScope, isAnnouncementDismissed, latestAnnouncement, setAnno
 import { formatShanghaiTime } from "@/lib/utils"
 
 // Cleared on application restart; route changes or mode switching do not repeat a popup.
-const checkedSessions = new Set<string>()
+const seenAnnouncements = new Set<string>()
 export function AnnouncementPopup(): React.JSX.Element | null {
   const userId = useAuthStore(s => s.user?.id)
   const token = useAuthStore(s => s.accessToken)
@@ -21,21 +21,24 @@ export function AnnouncementPopup(): React.JSX.Element | null {
     if (!userId || !authenticated) return
     const key = announcementScope(userId)
     setScope(key)
-    if (checkedSessions.has(key)) return
     let cancelled = false
-    let retry: ReturnType<typeof setTimeout> | undefined
+    let loading = false
     async function load(): Promise<void> {
+      if (loading) return
+      loading = true
       try {
         const { item } = await latestAnnouncement()
         if (cancelled) return
-        checkedSessions.add(key)
-        if (item && !isAnnouncementDismissed(key, item.id)) setNotice(item)
-      } catch {
-        if (!cancelled) retry = setTimeout(() => void load(), 30000)
-      }
+        const seenKey = item ? `${key}:${item.id}` : ""
+        if (item && !seenAnnouncements.has(seenKey) && !isAnnouncementDismissed(key, item.id)) {
+          seenAnnouncements.add(seenKey); setChecked(false); setStorageError(false); setNotice(item)
+        }
+      } catch { /* retain the current notice and retry at the next poll */ }
+      finally { loading = false }
     }
     void load()
-    return () => { cancelled = true; if (retry) clearTimeout(retry) }
+    const timer = setInterval(() => void load(), 30000)
+    return () => { cancelled = true; clearInterval(timer) }
   }, [userId, authenticated])
   if (!notice) return null
   return <Dialog open onOpenChange={open => { if (!open) setNotice(null) }}>

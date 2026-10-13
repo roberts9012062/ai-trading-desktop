@@ -159,6 +159,7 @@ export interface AdminUserItem {
   real_name_verified: boolean
   role: "user" | "admin"
   status: "active" | "frozen"
+  live_trading_enabled?: boolean
   created_at: string
   updated_at: string
   /** 兼容：默认实盘权益 */
@@ -347,6 +348,12 @@ export async function updateAdminUserApi(
   return adminRequest<AdminUserItem>(`/api/admin/users/${userId}`, {
     method: "PUT",
     body: JSON.stringify(body),
+  })
+}
+
+export function setAdminLivePermissionApi(userId: string, enabled: boolean): Promise<{ enabled: boolean; message: string; warnings: string[] }> {
+  return adminRequest(`/api/admin/users/${encodeURIComponent(userId)}/live-trading`, {
+    method: "PUT", body: JSON.stringify({ enabled }),
   })
 }
 

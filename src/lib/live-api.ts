@@ -85,6 +85,10 @@ export function storeVenue(venue: TradingVenue): void {
 
 // ===== 凭证 =====
 
+export function getLivePermissionApi(): Promise<{ enabled: boolean; message: string }> {
+  return liveRequest("/api/live/permission", {}, true)
+}
+
 export interface VenueCredential {
   venue: string
   api_key_masked: string

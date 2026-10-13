@@ -13,11 +13,14 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { canConnectExchange, isRealTradingProtection, REAL_TRADING_PROTECTION_MESSAGE } from "@/lib/live-permission"
 import { Loader2, ShieldCheck, ShieldAlert } from "lucide-react"
 import {
   VENUES,
   deleteCredentialApi,
   getCredentialsApi,
+  getLivePermissionApi,
   saveCredentialApi,
   testCredentialApi,
   type TradingVenue,
@@ -31,7 +34,7 @@ type EditState = {
   demo: boolean
 }
 
-const EMPTY: EditState = { apiKey: "", secret: "", passphrase: "", demo: false }
+const EMPTY: EditState = { apiKey: "", secret: "", passphrase: "", demo: true }
 
 function VenueCard({
   venue,
@@ -39,6 +42,7 @@ function VenueCard({
   open,
   credential,
   onSaved,
+  realTradingEnabled,
 }: {
   venue: TradingVenue
   name: string
@@ -46,6 +50,7 @@ function VenueCard({
   open: boolean
   credential: VenueCredential | undefined
   onSaved: () => void
+  realTradingEnabled: boolean
 }): React.JSX.Element {
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<EditState>(EMPTY)
@@ -53,6 +58,7 @@ function VenueCard({
   const [testing, setTesting] = useState(false)
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
+  const [protectionOpen, setProtectionOpen] = useState(false)
 
   useEffect(() => {
     if (credential) {
@@ -63,6 +69,9 @@ function VenueCard({
   const save = async () => {
     setError("")
     setMessage("")
+    if (!canConnectExchange(form.demo, realTradingEnabled)) {
+      setProtectionOpen(true); return
+    }
     if (!form.apiKey.trim()) {
       setError("请填写 API Key")
       return
@@ -89,6 +98,7 @@ function VenueCard({
         onSaved()
       }
     } catch (e) {
+      if (isRealTradingProtection(e)) setProtectionOpen(true)
       setError(e instanceof Error ? e.message : "保存失败")
     } finally {
       setBusy(false)
@@ -96,6 +106,9 @@ function VenueCard({
   }
 
   const test = async () => {
+    if (credential && !canConnectExchange(credential.demo, realTradingEnabled)) {
+      setProtectionOpen(true); return
+    }
     setError("")
     setMessage("")
     setTesting(true)
@@ -107,6 +120,7 @@ function VenueCard({
         setError(res.error ?? "连通失败")
       }
     } catch (e) {
+      if (isRealTradingProtection(e)) setProtectionOpen(true)
       setError(e instanceof Error ? e.message : "连通失败")
     } finally {
       setTesting(false)
@@ -202,7 +216,10 @@ function VenueCard({
             <input
               type="checkbox"
               checked={form.demo}
-              onChange={(e) => setForm((f) => ({ ...f, demo: e.target.checked }))}
+              onChange={(e) => {
+                if (!canConnectExchange(e.target.checked, realTradingEnabled)) { setProtectionOpen(true); return }
+                setForm((f) => ({ ...f, demo: e.target.checked }))
+              }}
             />
             模拟盘凭证（OKX Demo / Binance demo-fapi / Gate testnet）
           </label>
@@ -254,6 +271,12 @@ function VenueCard({
         <p className="text-[10px] text-[var(--text-muted)] break-all">{credential.last_error}</p>
       )}
       {message && <p className="text-[11px] text-[var(--accent-up)]">{message}</p>}
+      <Dialog open={protectionOpen} onOpenChange={setProtectionOpen}>
+        <DialogContent><DialogHeader><DialogTitle>实验探索项目 · 用户资金保护</DialogTitle>
+          <DialogDescription className="leading-7">{REAL_TRADING_PROTECTION_MESSAGE}</DialogDescription></DialogHeader>
+          <Button onClick={() => setProtectionOpen(false)}>我知道了</Button>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -261,12 +284,15 @@ function VenueCard({
 export function ExchangeCredentialsPanel(): React.JSX.Element {
   const [credentials, setCredentials] = useState<VenueCredential[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [realTradingEnabled, setRealTradingEnabled] = useState(false)
 
   const load = async () => {
     try {
-      setCredentials(await getCredentialsApi())
+      const [rows, permission] = await Promise.all([getCredentialsApi(), getLivePermissionApi()])
+      setCredentials(rows); setRealTradingEnabled(permission.enabled)
     } catch {
       setCredentials([])
+      setRealTradingEnabled(false)
     } finally {
       setLoaded(true)
     }
@@ -279,9 +305,9 @@ export function ExchangeCredentialsPanel(): React.JSX.Element {
   return (
     <div className="space-y-3">
       <div>
-        <h3 className="text-sm font-semibold">实盘交易所接入</h3>
+        <h3 className="text-sm font-semibold">交易所接入</h3>
         <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
-          当前开放 OKX · 凭证加密存储 · 实盘下单前请先测试连通
+          当前开放 OKX 模拟盘 · 真实资金接入须经管理员授权 · 凭证加密存储
         </p>
       </div>
       {loaded ? (
@@ -294,6 +320,7 @@ export function ExchangeCredentialsPanel(): React.JSX.Element {
               open={v.venue === "okx"}
               credential={credentials.find((c) => c.venue === v.venue)}
               onSaved={() => void load()}
+              realTradingEnabled={realTradingEnabled}
             />
           ))}
         </div>
