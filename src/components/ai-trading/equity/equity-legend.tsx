@@ -18,6 +18,7 @@ import type { Hunter } from "@/lib/hunter/api"
 import { groupHunterRows, hunterProfitTotals } from "@/lib/hunter/profit-groups"
 import { visibleHunterChildren } from "@/lib/hunter/task-visibility"
 import { TaskPositionActivity } from "./task-position-activity"
+import { taskHasOpenPosition } from "./equity-data"
 
 interface EquityLegendProps {
   tasks: AITradingTask[]
@@ -96,6 +97,7 @@ export function EquityLegend({
   // 浮盈榜：仅当前持仓任务，value=浮动盈亏
   const floatingRows = useMemo<LegendRow[]>(() => {
     return tasks
+      .filter(taskHasOpenPosition)
       .map((task, idx) => {
         const last = taskPnlFromQuotes(task, quotes).pnl
         const color = resolveSeriesColor(
@@ -197,7 +199,7 @@ export function EquityLegend({
     const visibleChildren = visibleHunterChildren(group.children, allTasks, group.hunter)
     const childTotal = group.children.reduce((sum, child) => sum + child.value, 0)
     const value = mode === "total" ? hunterProfitTotals(group.hunter, {realized: childTotal, unrealized: 0}).totalPnl : childTotal
-    const row = { ...group.children[0], taskId: group.id, displayName: group.hunter.name, modelId: null, providerName: null, icon: null, strategyType: "multi_cycle_hunter", tagText: `${visibleChildren.length} 个运行子任务`, tagClass: "bg-sky-500/15 text-sky-300", symbol: "", symbolName: "猎手收益汇总", footnote: "点击展开各币收益明细", value }
+    const row = { ...group.children[0], taskId: group.id, displayName: group.hunter.name, modelId: null, providerName: null, icon: null, strategyType: "multi_cycle_hunter", tagText: `${visibleChildren.length} 个${mode === "floating" ? "持仓" : "运行"}子任务`, tagClass: "bg-sky-500/15 text-sky-300", symbol: "", symbolName: "猎手收益汇总", footnote: "点击展开各币收益明细", value }
     return { ...group, visibleChildren, row: { ...row, valuePending: mode === "floating" && group.children.some(child => child.valuePending) } }
   }).filter(group => !group.hunter || group.hunter.status !== "stopped" || group.visibleChildren.length > 0).sort((a, b) => b.row.value - a.row.value), [rows, allTasks, hunters, mode])
   const maxAbs = useMemo(() => {
@@ -219,7 +221,7 @@ export function EquityLegend({
         </TabButton>
         <span className="ml-auto text-[10px] text-[var(--text-muted)]">
           {mode === "floating"
-            ? "持仓浮盈与猎手运行任务（待成交／待对账单列）"
+            ? "仅显示已确认持仓的浮动盈亏"
             : "已实现 + 持仓浮盈"}
         </span>
       </div>

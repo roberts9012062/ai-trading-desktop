@@ -10,7 +10,7 @@ import { wavePositionKey, wavePositionStatus, type EquityTraces } from "./equity
 import { dayWaveSamples } from "./equity-wave-day"
 import { useWaveDay } from "./use-wave-day"
 import type { Hunter } from "@/lib/hunter/api"
-import { comparisonTasks } from "@/lib/hunter/task-visibility"
+import { taskHasOpenPosition } from "./equity-data"
 import { inactivePositionLabel } from "./task-position-activity"
 
 interface EquityChartProps {
@@ -26,8 +26,8 @@ export function EquityChart({ tasks, series, traces = {}, profitBars = [], hunte
   const day = useWaveDay()
   const quotes = useMarketStore((s) => s.quotes)
   const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null)
-  const chartTasks = useMemo(() => tasks.filter(t => wavePositionStatus(t) !== "flat" && (wavePositionStatus(t) === "unknown" || traces[t.id]?.positionKey === wavePositionKey(t)) && traces[t.id]?.samples.length > 0), [tasks, traces])
-  const legendTasks = useMemo(() => comparisonTasks(tasks, hunters), [tasks, hunters])
+  const legendTasks = useMemo(() => tasks.filter(taskHasOpenPosition), [tasks])
+  const chartTasks = useMemo(() => legendTasks.filter(t => traces[t.id]?.positionKey === wavePositionKey(t) && traces[t.id]?.samples.length > 0), [legendTasks, traces])
   const values = useMemo(() => new Map(chartTasks.map(t => [t.id, taskPnlFromQuotes(t, quotes).pnl])), [chartTasks, quotes])
   const leader = chartTasks.filter(t => wavePositionStatus(t) === "open").reduce<AITradingTask | null>((best, task) => !best || values.get(task.id)! > values.get(best.id)! ? task : best, null)
   const pointCount = chartTasks.reduce((count, task) => count + dayWaveSamples(traces[task.id].samples, day).length, 0)
@@ -54,7 +54,7 @@ export function EquityChart({ tasks, series, traces = {}, profitBars = [], hunte
           <span className="text-[var(--text-muted)]">{pointCount} 个采样点</span>
         </div>
       </div>
-      {legendTasks.some(task => inactivePositionLabel(task)) && <p role="status" className="mb-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-300">任务暂停或停止不代表已经平仓；下方保留余仓或待确认的持仓信息，完整平仓并对账确认后移除。</p>}
+      {legendTasks.some(task => inactivePositionLabel(task)) && <p role="status" className="mb-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-300">任务暂停或停止不代表已经平仓；下方仍展示实际持仓浮盈，完整平仓并对账确认后移除。</p>}
       <EquityWavePlot tasks={chartTasks} traces={traces} highlightTaskId={activeHighlight} day={day} />
       <EquityLegend tasks={legendTasks} allTasks={tasks} hunters={hunters} series={series} profitBars={profitBars} highlightTaskId={activeHighlight} onHighlightChange={setHighlightTaskId} />
     </div>

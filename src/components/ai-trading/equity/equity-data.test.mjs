@@ -138,4 +138,14 @@ test("taskHasOpenPosition filters out flat (no position) tasks", async () => {
     position_direction: null,
   }
   assert.equal(taskHasOpenPosition(freshTask), false)
+  for (const candidate of [
+    { ...longTask, position_sync_status: "reconciling" },
+    { ...longTask, position_sync_status: "unavailable" },
+    { ...longTask, position_qty: 0 },
+    { ...longTask, position_qty: NaN },
+    { ...longTask, position_qty: Infinity },
+    { has_open_position: true },
+    { position_direction: "long" },
+    { position_qty: 1 },
+  ]) assert.equal(taskHasOpenPosition(candidate), false)
 })

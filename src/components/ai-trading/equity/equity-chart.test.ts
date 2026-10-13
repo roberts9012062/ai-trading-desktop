@@ -57,7 +57,7 @@ it("updates floating cards and the leader from the same quotes as task cards bef
   market.quotes = {}
 })
 
-it("lists all three active hunter children without requiring fills or curve samples", () => {
+it("lists only confirmed held hunter children, even before the first curve sample", () => {
   const tasks = [
     { id: "filled", name: "已成交", symbol: "bzusdt", position_qty: 9.6, position_direction: "short", position_unrealized: 2 },
     { id: "reconcile", name: "XRP待对账", symbol: "xrpusdt", position_qty: 0, position_sync_status: "reconciling" },
@@ -66,9 +66,9 @@ it("lists all three active hunter children without requiring fills or curve samp
   ].map(t => ({ timeframe: "60m", status: "running", strategy_type: "multi_cycle_hunter", ...t })) as AITradingTask[]
   const hunter = { id: "h", name: "枢轴猎手", status: "running", runtime: {}, opportunities: tasks.map(t => ({ task_id: t.id, finished_at: t.id === "finished" ? "2026-10-08" : null })) } as Hunter
   const html = renderToString(createElement(EquityChart, { tasks, series: {}, traces: {}, hunters: [hunter] }))
-  expect(html).toContain("3 个运行子任务")
-  for (const name of ["已成交", "XRP待对账", "待成交单", "持仓待对账", "等待成交"]) expect(html).toContain(name)
-  expect(html).not.toContain("结束单")
+  expect(html).toContain("1 个持仓子任务")
+  expect(html).toContain("已成交")
+  for (const name of ["XRP待对账", "待成交单", "持仓待对账", "等待成交", "结束单"]) expect(html).not.toContain(name)
   expect(html).not.toContain('data-task-id="pending"')
   expect(html).not.toContain('data-task-id="reconcile"')
 })
@@ -80,8 +80,9 @@ it("keeps observations through an unknown snapshot without sampling a false zero
   const next = updateEquityTraces(traces, [unresolved], Date.now()+1000)
   expect(next.held).toBe(traces.held)
   const html=renderToString(createElement(EquityChart, { tasks: [unresolved], series: {}, traces: next }))
-  expect(html).toContain("持仓待对账")
-  expect(html).toContain('data-task-id="held"')
+  expect(html).not.toContain("持仓待对账")
+  expect(html).not.toContain('data-task-id="held"')
+  expect(html).not.toContain("Held")
   expect(html).not.toContain("浮盈领先")
 })
 
@@ -95,13 +96,22 @@ it.each(["paused", "stopped"] as const)("identifies a %s task's remaining positi
   if (status === "paused") expect(html).toContain(task.pause_reason)
   const unknown = { ...task, position_qty: 0, has_open_position: false, position_sync_status: "reconciling" as const }
   const unresolved = renderToString(createElement(EquityChart, { tasks: [unknown], series: {}, traces }))
-  expect(unresolved).toContain(status === "paused" ? "已暂停 · 持仓待确认" : "已停止 · 持仓待确认")
+  expect(unresolved).not.toContain("ICP余仓")
   expect(unresolved).not.toContain("仍有持仓")
   const flat = { ...task, position_qty: 0, position_direction: null, has_open_position: false }
   const closed = renderToString(createElement(EquityChart, { tasks: [flat], series: {}, traces }))
   expect(closed).not.toContain("ICP余仓")
   expect(closed).not.toContain("仍有持仓")
   expect(closed).not.toContain('data-task-id="icp"')
+})
+
+it("shows only the actual DOT holding from the reported five-task snapshot", () => {
+  const tasks = ["BTC", "ICP", "雪崩", "ADA"].map(name => ({ id: name, name, symbol: `${name.toLowerCase()}usdt`, status: "running", position_qty: 0, has_open_position: false, position_sync_status: "reconciling" })) as AITradingTask[]
+  tasks.push({ id: "dot", name: "波卡日周期", symbol: "dotusdt", timeframe: "1d", status: "running", position_qty: 855, position_direction: "long", position_avg_price: 1.17, position_last_price: 1.17 - 5.82 / 855, position_unrealized: -5.82 } as AITradingTask)
+  const html = renderToString(createElement(EquityChart, { tasks, series: {}, traces: {} }))
+  expect(html).toContain("波卡日周期")
+  expect(html).toContain("-5.82")
+  for (const name of ["BTC", "ICP", "雪崩", "ADA", "持仓待对账"]) expect(html).not.toContain(name)
 })
 
 it("does not call an unresolved stopped task flat on its task card", () => {

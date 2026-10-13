@@ -33,19 +33,12 @@ export function taskLivePnl(
 }
 
 /**
- * 是否当前持有仓位。仅开仓后的任务才进入「AI 模型收益对比」，
- * 空仓（含曾下单但已平仓）的任务不进入对比。
+ * 浮盈对比仅收录已确认的正数量多空仓位；待成交、待对账与旧标记不入榜。
  */
 export function taskHasOpenPosition(task: AITradingTask): boolean {
-  if (task.has_open_position === true) return true
-  if ((task.position_qty ?? 0) > 0) return true
-  if (
-    task.position_direction === "long" ||
-    task.position_direction === "short"
-  ) {
-    return true
-  }
-  return false
+  const qty = task.position_qty
+  return !task.position_sync_status && typeof qty === "number" && Number.isFinite(qty) && qty > 0 &&
+    (task.position_direction === "long" || task.position_direction === "short")
 }
 
 /**
