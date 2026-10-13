@@ -11,6 +11,7 @@ import { dayWaveSamples } from "./equity-wave-day"
 import { useWaveDay } from "./use-wave-day"
 import type { Hunter } from "@/lib/hunter/api"
 import { comparisonTasks } from "@/lib/hunter/task-visibility"
+import { inactivePositionLabel } from "./task-position-activity"
 
 interface EquityChartProps {
   tasks: AITradingTask[]
@@ -53,6 +54,7 @@ export function EquityChart({ tasks, series, traces = {}, profitBars = [], hunte
           <span className="text-[var(--text-muted)]">{pointCount} 个采样点</span>
         </div>
       </div>
+      {legendTasks.some(task => inactivePositionLabel(task)) && <p role="status" className="mb-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-300">任务暂停或停止不代表已经平仓；下方保留余仓或待确认的持仓信息，完整平仓并对账确认后移除。</p>}
       <EquityWavePlot tasks={chartTasks} traces={traces} highlightTaskId={activeHighlight} day={day} />
       <EquityLegend tasks={legendTasks} allTasks={tasks} hunters={hunters} series={series} profitBars={profitBars} highlightTaskId={activeHighlight} onHighlightChange={setHighlightTaskId} />
     </div>

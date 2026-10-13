@@ -17,6 +17,7 @@ import { buildTaskProfitBars } from "../profit/profit-bar-data"
 import type { Hunter } from "@/lib/hunter/api"
 import { groupHunterRows, hunterProfitTotals } from "@/lib/hunter/profit-groups"
 import { visibleHunterChildren } from "@/lib/hunter/task-visibility"
+import { TaskPositionActivity } from "./task-position-activity"
 
 interface EquityLegendProps {
   tasks: AITradingTask[]
@@ -400,6 +401,7 @@ function LegendCard({
       <div className="mt-1 text-[10px] text-[var(--text-muted)] truncate">
         {row.footnote}
       </div>
+      {task && <TaskPositionActivity task={task} />}
       {task && <TaskProfitLockStatus task={task} />}
       {task && !summary && <TaskCloseControl task={task} />}
     </div>

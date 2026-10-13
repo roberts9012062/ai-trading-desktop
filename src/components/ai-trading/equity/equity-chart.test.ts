@@ -84,3 +84,22 @@ it("keeps observations through an unknown snapshot without sampling a false zero
   expect(html).toContain('data-task-id="held"')
   expect(html).not.toContain("浮盈领先")
 })
+
+it.each(["paused", "stopped"] as const)("identifies a %s task's remaining position without hiding its exposure", (status) => {
+  const task = { id: "icp", name: "ICP余仓", symbol: "icpusdt", timeframe: "5m", status, pause_reason: status === "paused" ? "对账失败：出现未预期持仓（long）" : null, position_qty: .004, position_direction: "long", has_open_position: true, position_unrealized: -.0001 } as AITradingTask
+  const traces = updateEquityTraces({}, [task], Date.now())
+  const html = renderToString(createElement(EquityChart, { tasks: [task], series: {}, traces }))
+  expect(html).toContain(status === "paused" ? "已暂停 · 仍有持仓" : "已停止 · 仍有持仓")
+  expect(html).toContain("任务暂停或停止不代表已经平仓")
+  expect(html).toContain('data-task-id="icp"')
+  if (status === "paused") expect(html).toContain(task.pause_reason)
+  const unknown = { ...task, position_qty: 0, has_open_position: false, position_sync_status: "reconciling" as const }
+  const unresolved = renderToString(createElement(EquityChart, { tasks: [unknown], series: {}, traces }))
+  expect(unresolved).toContain(status === "paused" ? "已暂停 · 持仓待确认" : "已停止 · 持仓待确认")
+  expect(unresolved).not.toContain("仍有持仓")
+  const flat = { ...task, position_qty: 0, position_direction: null, has_open_position: false }
+  const closed = renderToString(createElement(EquityChart, { tasks: [flat], series: {}, traces }))
+  expect(closed).not.toContain("ICP余仓")
+  expect(closed).not.toContain("仍有持仓")
+  expect(closed).not.toContain('data-task-id="icp"')
+})
