@@ -193,11 +193,11 @@ export function BacktestForm({
     const strategy_type =
       mode === "ai"
         ? "ai"
-        : (quant.quantKind === "shortline_factor"
+        : ((quant.quantKind === "shortline_factor" || quant.quantKind === "multi_factor")
             ? "factor"
             : quant.quantKind) as Exclude<
               import("@/lib/quant-strategy").QuantKind,
-              "shortline_factor"
+              "shortline_factor" | "multi_factor"
             >
     const strategy_params =
       mode === "ai" ? null : buildStrategyParams(quant)

@@ -21,9 +21,9 @@ function serverFactorTokensOf(payload: {
 }): FactorTokens | undefined {
   if (payload.strategy_type === "decision") {
     const params = payload.strategy_params as { decision_strategy?: { kind?: string; params?: { factor_tokens?: FactorTokens } } } | undefined
-    return params?.decision_strategy?.kind === "factor" ? params.decision_strategy.params?.factor_tokens : undefined
+    return ["factor", "multi_factor"].includes(params?.decision_strategy?.kind ?? "") ? params?.decision_strategy?.params?.factor_tokens : undefined
   }
-  if (payload.strategy_type !== "ai" && payload.strategy_type !== "factor") return undefined
+  if (payload.strategy_type !== "ai" && payload.strategy_type !== "factor" && payload.strategy_type !== "multi_factor") return undefined
   const params = payload.strategy_params as { factor_tokens?: unknown } | null | undefined
   return Array.isArray(params?.factor_tokens) ? (params.factor_tokens as FactorTokens) : undefined
 }

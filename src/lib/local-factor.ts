@@ -1,3 +1,4 @@
+import { restrictSeeds } from "@/lib/mining/feature-selection"
 import { gateResearchRange } from "@/lib/crypto-direct"
 import { researchFactorRangeFor } from "@/components/factor-lab/factor-range-limits"
 import { maxResearchBars, memoryTierLabel } from "@/lib/device-profile"
@@ -22,6 +23,7 @@ import { comboSuperOutcome, selectComboMembers } from "@/lib/mining/combo-super"
 import type { GenerationStep } from "@/lib/mining/backends/types"
 
 export interface LocalFactorPayload {
+  search_feature_ids?: number[]
   native_precision?: "mixed" | "f64"
   crypto_profile?: boolean
   symbol: string
@@ -225,7 +227,8 @@ export function buildSearchConfig(payload: LocalFactorPayload) {
     top_n: payload.top_n,
     seed: payload.seed,
     cost: payload.cost ?? null,
-    ...(payload.seed_tokens?.length ? { seed_tokens: payload.seed_tokens } : {}),
+    ...(payload.seed_tokens?.length ? { seed_tokens: payload.search_feature_ids ? restrictSeeds(payload.seed_tokens, payload.search_feature_ids) : payload.seed_tokens } : {}),
+    ...(payload.search_feature_ids ? {search_feature_ids: payload.search_feature_ids} : {}),
     ...(payload.seed_origin ? {seed_origin:payload.seed_origin} : {}),
     ...(payload.selection_v2 ? { selection_v2: true } : {}),
     ...(payload.evolve_v2 ? { evolve_v2: true } : {}),

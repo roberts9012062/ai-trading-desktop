@@ -4,6 +4,8 @@
  * 因子搜索表单 —— 合约/周期/种群/代数 + 教练控件
  */
 
+import { MiningFeatureSettings } from "@/components/factor-lab/mining-feature-settings"
+import { ALL_MINING_FEATURE_IDS, restrictSeeds } from "@/lib/mining/feature-selection"
 import { gateResearchRange } from "@/lib/crypto-direct"
 import { CRYPTO_RESEARCH_NOTE } from "@/lib/mining/crypto-profile"
 import { championSeedsFor } from "@/lib/mining/champion-seeds"
@@ -40,6 +42,7 @@ const TIMEFRAMES = [
 ]
 
 export interface SearchFormPayload {
+  search_feature_ids?: number[]
   symbol: string
   timeframe: string
   population: number
@@ -87,6 +90,7 @@ export function FactorSearchForm({
   onSearch,
   onSymbolChange,
 }: FactorSearchFormProps): React.JSX.Element {
+  const [searchFeatures, setSearchFeatures] = useState<number[]>([...ALL_MINING_FEATURE_IDS])
   const [symbol, setSymbol] = useState(defaultSymbol)
   const [timeframe, setTimeframe] = useState("1d")
   const [dataChannel, setDataChannel] = useState<string>(DEFAULT_KLINE_CHANNEL)
@@ -206,8 +210,10 @@ export function FactorSearchForm({
       return
     }
     setSymbolError(null)
+    if (!searchFeatures.length) {setSymbolError("至少选择一个参与挖掘的因子"); return}
     if (useCoach && !modelRowId) return
     onSearch({
+      search_feature_ids: searchFeatures,
       symbol: sym,
       timeframe,
       population: populationNum(),
@@ -222,7 +228,7 @@ export function FactorSearchForm({
       combo_super: comboSuper,
       ...(localEngine && economicSeedResearch ? { economic_seed_research: true } : {}),
       ...(localEngine && enhanced && useChampionSeeds && seedPick.seeds.length
-        ? { seed_tokens: seedPick.seeds.map((s) => s.tokens),seed_origin:"champion_library" }
+        ? { seed_tokens: restrictSeeds(seedPick.seeds.map((s) => s.tokens), searchFeatures),seed_origin:"champion_library" }
         : {}),
       ...(useLongHistory ? { start_date: rangeStart, end_date: rangeEnd } : {}),
       data_channel: dataChannel,
@@ -345,6 +351,7 @@ export function FactorSearchForm({
             {symbolError}
           </p>
         )}
+        <MiningFeatureSettings selected={searchFeatures} onChange={setSearchFeatures} disabled={loading} />
       </form>
 
       {/* LLM 教练(路线 A)依赖服务端搜索协同,服务端引擎已下线故隐藏;

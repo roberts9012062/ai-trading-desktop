@@ -7,6 +7,8 @@
 
 import { NumericInput } from "@/components/ui/numeric-input"
 import { CRYPTO_RESEARCH_NOTE } from "@/lib/mining/crypto-profile"
+import { MiningFeatureSettings } from "@/components/factor-lab/mining-feature-settings"
+import { ALL_MINING_FEATURE_IDS, restrictSeeds } from "@/lib/mining/feature-selection"
 import { useEffect, useState } from "react"
 import { Loader2, Pause, Play, Plus, Square, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -170,6 +172,7 @@ export function SuperFactorPage(): React.JSX.Element {
               try {
                 await createTask(
                   {
+                    search_feature_ids: p.searchFeatures,
                     symbol: p.symbol,
                     timeframe: p.timeframe,
                     population: p.population,
@@ -246,6 +249,7 @@ interface ConfigFormProps {
   supported: SupportedInfo | null
   disabled: boolean
   onSubmit: (p: {
+    searchFeatures: number[]
     symbol: string
     timeframe: string
     population: number
@@ -284,6 +288,7 @@ const LIVE_GATE_ENTRY = 0.3
 
 function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
   const { supported, disabled, onSubmit, startingPhase } = props
+  const [searchFeatures, setSearchFeatures] = useState<number[]>([...ALL_MINING_FEATURE_IDS])
   const [symbol, setSymbol] = useState("")
   const [dataChannel, setDataChannel] = useState<string>(DEFAULT_KLINE_CHANNEL)
   const [timeframe, setTimeframe] = useState("1d")
@@ -441,7 +446,9 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
           return
         }
       }
+      if (!searchFeatures.length) {setLlmError("至少选择一个参与挖掘的因子"); return}
       await onSubmit({
+        searchFeatures,
         symbol: symbol.trim().toLowerCase(),
         timeframe,
         population: clampInt(population, 10, 30000, 40),
@@ -454,9 +461,9 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
         device: origin === "local" ? device : "cpu",
         ...(device === "native-gpu" ? { nativePrecision } : {}),
         name: origin === "local" ? `本挖·${symbol}·${timeframe}` : `超挖·${symbol}·${timeframe}`,
-        ...(llmSeedTokens?.length ? { llmSeedTokens } : {}),
+        ...(llmSeedTokens?.length ? { llmSeedTokens: restrictSeeds(llmSeedTokens, searchFeatures) } : {}),
         ...(origin === "local" && useChampionSeeds && seedPick.seeds.length
-          ? { championSeedTokens: seedPick.seeds.map((s) => s.tokens) }
+          ? { championSeedTokens: restrictSeeds(seedPick.seeds.map((s) => s.tokens), searchFeatures) }
           : {}),
         ...(crossPeers?.length ? { crossPeers, jointTraining } : {}),
         enhanced,
@@ -891,7 +898,8 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
         先关 WF（设0）避免计算过重。
       </p>
 
-      <Button type="submit" disabled={disabled || submitting} className="w-full">
+      <MiningFeatureSettings selected={searchFeatures} onChange={setSearchFeatures} disabled={disabled || submitting} />
+      <Button type="submit" disabled={disabled || submitting || !searchFeatures.length} className="w-full">
         {submitting ? (
           <Loader2 className="w-4 h-4 mr-1 animate-spin" />
         ) : (

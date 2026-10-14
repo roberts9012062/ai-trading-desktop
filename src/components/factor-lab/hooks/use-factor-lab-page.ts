@@ -136,6 +136,7 @@ function formOfPayload(
     ...(p.train_ratio != null ? { train_ratio: p.train_ratio } : {}),
     ...(p.test_recent_bars != null ? { test_recent_bars: p.test_recent_bars } : {}),
     ...(p.walk_forward_folds != null ? { walk_forward_folds: p.walk_forward_folds } : {}),
+    ...(p.search_feature_ids ? {search_feature_ids: p.search_feature_ids} : {}),
     ...(p.selection_v2 ? { enhanced: true } : {}),
     ...(p.start_date && p.end_date ? { start_date: p.start_date, end_date: p.end_date } : {}),
     ...(p.data_channel ? { data_channel: p.data_channel } : {}),
@@ -312,6 +313,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
     try {
       await factorLabRunner.start(
         {
+          search_feature_ids: p.search_feature_ids,
           symbol: p.symbol,
           ...(engine === "native-gpu" ? { native_precision: nativePrecision } : {}),
           data_channel: p.data_channel,
@@ -357,6 +359,7 @@ export function useFactorLabPage(): FactorLabPageState & ReturnType<typeof useFa
         setLoading(true)
         await factorLabRunner.start(
           {
+            search_feature_ids: p.search_feature_ids,
             symbol: p.symbol,
             ...(engine === "native-gpu" ? { native_precision: nativePrecision } : {}),
             data_channel: p.data_channel,

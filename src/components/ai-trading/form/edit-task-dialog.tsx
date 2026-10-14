@@ -351,7 +351,8 @@ export function EditTaskDialog({
                 },
                 ...(refStrategies.length ? { ref_strategies: refStrategies } : {}),
               }
-            : withServerFactorTokens(buildStrategyParams(quantParams))
+            : withServerFactorTokens({...buildStrategyParams(quantParams),
+                ...(task.strategy_type === "multi_factor" ? {startup_bars: (task.strategy_params as Record<string, unknown> | null)?.startup_bars ?? 2} : {})})
         : refStrategies.length
           ? { ref_strategies: refStrategies }
           : undefined,

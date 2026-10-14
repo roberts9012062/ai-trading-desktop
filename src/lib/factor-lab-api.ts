@@ -339,6 +339,7 @@ export async function searchFactors(payload: {
   seed: number
   /** null = 由后端按品种推导（含 1 tick 滑点），显式数值则覆盖 */
   cost: number | null
+  search_feature_ids?: number[]
   seed_tokens?: number[][]
   use_llm_coach?: boolean
   model_row_id?: string | null
@@ -360,7 +361,7 @@ export async function searchFactors(payload: {
     "/api/factor-lab/search",
     {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({...payload, ...(payload.search_feature_ids ? {search_feature_ids: payload.search_feature_ids.map(i => i >= 36 && i < 64 ? i+21 : i)} : {})}),
     },
     timeout,
   )

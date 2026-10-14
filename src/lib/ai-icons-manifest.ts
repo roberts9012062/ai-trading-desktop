@@ -88,6 +88,7 @@ export const AI_ICONS: IconEntry[] = [
   { slug: "strategy-strength-entry", name: "强弱进场", group: "quant", src: "/strategy-icons/strength_entry.svg" },
   { slug: "strategy-strength-entry-v2", name: "强弱形态 V2", group: "quant", src: "/strategy-icons/strength_entry_v2.svg" },
   { slug: "strategy-factor", name: "因子公式", group: "quant", src: "/strategy-icons/factor.svg" },
+  { slug: "strategy-multi-factor", name: "多因子协作量化", group: "quant", src: "/strategy-icons/multi_factor.svg" },
   { slug: "strategy-shortline-factor", name: "短线因子", group: "quant", src: "/strategy-icons/shortline_factor.svg" },
 ]
 

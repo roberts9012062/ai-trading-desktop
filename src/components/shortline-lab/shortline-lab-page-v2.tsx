@@ -13,6 +13,8 @@
 import { NumericInput } from "@/components/ui/numeric-input"
 import { withNumericValidation, withNumericReset } from "@/lib/numeric-input"
 import { evolutionPortfolioRecipe } from "@/lib/factor-evolution-recipe"
+import { MiningFeatureSettings } from "@/components/factor-lab/mining-feature-settings"
+import { ALL_SHORTLINE_FEATURE_IDS, restrictSeeds } from "@/lib/mining/feature-selection"
 import { EvolutionButton } from "@/components/factor-lab/evolution/evolution-button"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ChevronDown } from "lucide-react"
@@ -182,6 +184,7 @@ export default function ShortlineLabPageV2() {
 
   // ── 高级参数（默认值 + 用户可调） ──
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [searchFeatures, setSearchFeatures] = useState<number[]>([...ALL_SHORTLINE_FEATURE_IDS])
   const [population, setPopulation] = useState(600)
   const [generations, setGenerations] = useState(40)
   const [maxDepth, setMaxDepth] = useState(5)
@@ -273,6 +276,7 @@ export default function ShortlineLabPageV2() {
   // ── 一键启动完整流程 ──
   const onStartMining = async () => {
     if (formLocked || taskBusy) return
+    if (!searchFeatures.length) {setError("至少选择一个参与挖掘的因子"); return}
     abortRef.current = new AbortController()
     setError(null)
 
@@ -330,7 +334,8 @@ export default function ShortlineLabPageV2() {
           native_precision: "mixed",
           data_channel: dataSource,
           start_date:suggestedFrom,end_date:today,
-          ...(enhanced ? enhancedShortlineSearch(Date.now() >>> 0) : {}),
+          ...(enhanced ? {...enhancedShortlineSearch(Date.now() >>> 0), seed_tokens: restrictSeeds(enhancedShortlineSearch(0).seed_tokens, searchFeatures)} : {}),
+          search_feature_ids: searchFeatures,
         },
         {
           device: engine,
@@ -627,6 +632,7 @@ export default function ShortlineLabPageV2() {
 
             {showAdvanced && (
               <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+                <MiningFeatureSettings selected={searchFeatures} onChange={setSearchFeatures} shortline disabled={formLocked} />
                 {/* 种群规模 */}
                 <div className="space-y-2">
                   <label className="text-xs text-gray-400 flex items-center justify-between">

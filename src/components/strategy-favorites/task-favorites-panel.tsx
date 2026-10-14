@@ -9,6 +9,8 @@
  * 任务被删除后按快照只读展示（详情/修改不可用，克隆仍可用）。
  */
 
+import { FavoriteFilterBar } from "./favorite-filter-bar"
+import { EMPTY_FAVORITE_FILTERS, matchesFavoriteFilters, favoriteAnnualPercent } from "@/lib/favorite-filters"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   DndContext,
@@ -195,6 +197,7 @@ function TaskCardView({
 export function TaskFavoritesPanel(): React.JSX.Element {
   const [folders, setFolders] = useState<StrategyFolderItem[]>([])
   const [items, setItems] = useState<TaskFavoriteItem[]>([])
+  const [filters, setFilters] = useState({...EMPTY_FAVORITE_FILTERS})
   const [active, setActive] = useState<FolderFilter>("all")
   const [loading, setLoading] = useState(true)
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -269,11 +272,9 @@ export function TaskFavoritesPanel(): React.JSX.Element {
     flashTimer.current = window.setTimeout(() => setFlashFolder(null), 900)
   }
 
-  const filtered = useMemo(() => {
-    if (active === "all") return items
-    if (active === "none") return items.filter((x) => !x.folder_id)
-    return items.filter((x) => x.folder_id === active)
-  }, [items, active])
+  const filtered = useMemo(() => items.filter(x =>
+    (active === "all" || (active === "none" ? !x.folder_id : x.folder_id === active))
+    && matchesFavoriteFilters(x.task?.timeframe ?? x.snapshot.timeframe, favoriteAnnualPercent(x.task?.metrics ?? (x.snapshot as Record<string, unknown>).metrics), filters)), [items, active, filters])
 
   const countsOf = useCallback(
     (folderId: string) =>
@@ -362,6 +363,7 @@ export function TaskFavoritesPanel(): React.JSX.Element {
 
         <div className="flex-1 min-w-0 overflow-y-auto p-3">
           <div className="mb-3"><FavoriteTransferToolbar kind="task" /></div>
+          <FavoriteFilterBar value={filters} onChange={setFilters} />
           {loading && items.length === 0 && (
             <p className="text-xs text-[var(--text-muted)] text-center py-10">
               加载中…

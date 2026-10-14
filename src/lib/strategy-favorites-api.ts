@@ -41,7 +41,7 @@ async function request<T>(
   }
 }
 
-export type FolderKind = "factor" | "task"
+export type FolderKind = "factor" | "task" | "shortline"
 
 export interface StrategyFolderItem {
   id: string

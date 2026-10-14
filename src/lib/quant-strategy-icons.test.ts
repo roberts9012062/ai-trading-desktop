@@ -7,7 +7,7 @@ import { resolveTaskIconSrc, strategyIconSrc } from "./quant-strategy-icons"
 describe("distinct automatic strategy avatars", () => {
   it("covers every selectable and paused strategy with a distinct shipped vector", () => {
     const sources = QUANT_KIND_OPTIONS.map(option => strategyIconSrc(option.value))
-    expect(sources).toHaveLength(12)
+    expect(sources).toHaveLength(13)
     expect(new Set(sources).size).toBe(sources.length)
     const contents = sources.map(src => readFileSync(`public${src}`, "utf8"))
     expect(new Set(contents).size).toBe(contents.length)

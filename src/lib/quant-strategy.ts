@@ -12,6 +12,7 @@ export type QuantKind =
   | "strength_entry"
   | "strength_entry_v2"
   | "factor"
+  | "multi_factor"
   | "shortline_factor"
 
 export interface QuantParamsState {
@@ -63,6 +64,7 @@ export interface QuantParamsState {
   sv2ZoneDrop: number; sv2BufMult: number; sv2AtrPeriod: number; sv2Cooldown: number
   // 因子公式（逗号分隔的 token 序列，来自因子实验室）
   factorTokensText: string
+  factorNames?: string[]
   factorRecipe?: { groups: number[][]; weights: number[] }
   // 短线因子（shortline_factor）：§4 决策参数 + cadence/预热/日亏
   slCadenceSec: number
@@ -156,6 +158,7 @@ export const QUANT_KIND_OPTIONS: Array<{
   { value: "strength_entry", label: "强弱进场" },
   { value: "strength_entry_v2", label: "强弱形态 V2（双向）" },
   { value: "factor", label: "因子公式" },
+  { value: "multi_factor", label: "多因子协作量化" },
   { value: "shortline_factor", label: "短线因子" },
 ]
 
@@ -190,6 +193,14 @@ export function paramsToQuantState(
     return typeof v === "number" && Number.isFinite(v) ? v : fb
   }
   switch (kind) {
+    case "multi_factor":
+    case "factor": {
+      const tokens = Array.isArray(p.factor_tokens) ? p.factor_tokens as number[] | number[][] : []
+      const groups = Array.isArray(tokens[0]) ? tokens as number[][] : undefined
+      return {...base, factorTokensText: groups ? groups.map(g => g.join(",")).join("\n") : tokens.join(","),
+        factorRecipe: groups ? {groups, weights: Array.isArray(p.factor_weights) ? p.factor_weights as number[] : groups.map(() => 1)} : undefined,
+        factorNames: Array.isArray(p.factor_names) ? p.factor_names as string[] : groups?.map((_, i) => `因子 ${i+1}`)}
+    }
     case "shortline_factor": {
       const champions = Array.isArray(p.champions) ? p.champions as {tokens: number[]; weight: number}[] : []
       const recipe = champions.length ? {groups: champions.map(c => c.tokens), weights: champions.map(c => c.weight)} : undefined
@@ -362,6 +373,8 @@ export function buildStrategyParams(
       return buildStrengthParams(q)
     case "strength_entry_v2":
       return buildStrengthV2Params(q)
+    case "multi_factor":
+      return {factor_tokens: q.factorRecipe?.groups ?? [], factor_names: q.factorNames ?? [], winner_metric: "open_return"}
     case "factor":
       return q.factorRecipe ? {factor_tokens: q.factorRecipe.groups, factor_weights: q.factorRecipe.weights} : { factor_tokens: parseFactorTokens(q.factorTokensText) }
     case "shortline_factor":
@@ -385,6 +398,12 @@ export function buildStrategyParams(
 
 /** 前端校验；通过返回 null，失败返回错误文案 */
 export function validateQuantParams(q: QuantParamsState): string | null {
+  if (q.quantKind === "multi_factor") {
+    const groups = q.factorRecipe?.groups ?? []
+    if (groups.length < 2 || groups.length > 5) return "多因子协作请选择 2–5 个因子"
+    if (groups.some(g => !g.length || g.some(t => !Number.isInteger(t) || t < 0))) return "因子公式无效"
+    if (new Set(groups.map(g => g.join(","))).size !== groups.length) return "请选择不同的因子公式"
+  }
   if (q.quantKind === "ma_cross" && q.fastPeriod >= q.slowPeriod) {
     return "快线须小于慢线"
   }

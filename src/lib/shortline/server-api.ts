@@ -80,6 +80,7 @@ export async function listShortlineTasks(): Promise<ShortlineServerTask[]> {
 // ── 短线因子收藏(独立于因子收藏:桌面编码,消费方只有短线挂载链路) ──
 
 export interface ShortlineFavoriteItem {
+  folder_id: string | null
   id: string
   name: string
   symbol: string
@@ -131,6 +132,10 @@ export interface ShortlineScoreStep {
 export async function getShortlineScores(taskId: string): Promise<ShortlineScoreStep[]> {
   return request<ShortlineScoreStep[]>(`/tasks/${taskId}/scores`)
 }
+export async function moveShortlineFavorite(id: string, folderId: string | null): Promise<ShortlineFavoriteItem> {
+  return request<ShortlineFavoriteItem>(`/favorites/${id}`, {method: "PATCH", body: JSON.stringify({folder_id: folderId})})
+}
+
 export async function deleteShortlineFavorite(id: string): Promise<void> {
   await request(`/favorites/${id}`, { method: "DELETE" })
 }

@@ -13,6 +13,7 @@ export const QUANT_STRATEGY_ICONS: Record<QuantKind, { color: string; detail: st
   swing_pro: { color: "#f8d483", detail: "双周期共振" },
   strength_entry: { color: "#a3e635", detail: "强弱进场" },
   strength_entry_v2: { color: "#5eead4", detail: "双向形态" },
+  multi_factor: { color: "#5eead4", detail: "因子竞争协作" },
   factor: { color: "#7dd3fc", detail: "公式信号" },
   shortline_factor: { color: "#f6a976", detail: "高频节奏" },
 }

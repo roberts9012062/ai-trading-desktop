@@ -11,6 +11,7 @@ import {
   type QuantKind,
   type QuantParamsState,
 } from "@/lib/quant-strategy"
+import { MultiFactorParams } from "./multi-factor-params"
 import { FactorKindParams } from "./factor-kind-params"
 import { ShortlineKindParams } from "./shortline-kind-params"
 import { StrategyTypePicker } from "./strategy-type-picker"
@@ -255,6 +256,7 @@ export function KindParams({
       </div>
     )
   }
+  if (quant.quantKind === "multi_factor") return <MultiFactorParams quant={quant} onQuant={onQuant} symbol={symbol} timeframe={timeframe} />
   if (quant.quantKind === "factor") {
     return (
       <FactorKindParams
@@ -413,6 +415,7 @@ function Field({
 }
 
 function hintFor(kind: QuantKind, reverseEntry = false): string {
+  if (kind === "multi_factor") return "多因子按上轮预测与本根实际涨跌幅的误差竞争，胜者当前分数用于下一轮决策。"
   if (kind === "n_breakout") {
     return "收盘突破前 N 根最高 → 买多；跌破最低 → 卖空。反向持仓先平。"
   }

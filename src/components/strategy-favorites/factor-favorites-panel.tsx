@@ -7,6 +7,8 @@
  * 松手持久化顺序；拖到左侧文件夹（悬停放大描边）归类。
  */
 
+import { FavoriteFilterBar } from "./favorite-filter-bar"
+import { EMPTY_FAVORITE_FILTERS, matchesFavoriteFilters, favoriteAnnualPercent } from "@/lib/favorite-filters"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   DndContext,
@@ -112,6 +114,7 @@ function FactorCardView({
 export function FactorFavoritesPanel(): React.JSX.Element {
   const [folders, setFolders] = useState<StrategyFolderItem[]>([])
   const [items, setItems] = useState<FactorFavoriteItem[]>([])
+  const [filters, setFilters] = useState({...EMPTY_FAVORITE_FILTERS})
   const [active, setActive] = useState<FolderFilter>("all")
   const [loading, setLoading] = useState(true)
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -152,11 +155,9 @@ export function FactorFavoritesPanel(): React.JSX.Element {
     flashTimer.current = window.setTimeout(() => setFlashFolder(null), 900)
   }
 
-  const filtered = useMemo(() => {
-    if (active === "all") return items
-    if (active === "none") return items.filter((x) => !x.folder_id)
-    return items.filter((x) => x.folder_id === active)
-  }, [items, active])
+  const filtered = useMemo(() => items.filter(x =>
+    (active === "all" || (active === "none" ? !x.folder_id : x.folder_id === active))
+    && matchesFavoriteFilters(x.timeframe, favoriteAnnualPercent(x.metrics), filters)), [items, active, filters])
 
   const countsOf = useCallback(
     (folderId: string) =>
@@ -246,6 +247,7 @@ export function FactorFavoritesPanel(): React.JSX.Element {
 
         <div className="flex-1 min-w-0 overflow-y-auto p-3">
           <div className="mb-3"><FavoriteTransferToolbar kind="factor" /></div>
+          <FavoriteFilterBar value={filters} onChange={setFilters} />
           {loading && items.length === 0 && (
             <p className="text-xs text-[var(--text-muted)] text-center py-10">
               加载中…

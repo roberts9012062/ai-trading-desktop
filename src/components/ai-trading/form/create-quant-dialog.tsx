@@ -260,7 +260,7 @@ export function CreateQuantDialog({
       return
     }
     const startupCount = Number(startupBars)
-    if (!decisionEnabled && (combo || quant.quantKind === "factor") &&
+    if (!decisionEnabled && (combo || quant.quantKind === "factor" || quant.quantKind === "multi_factor") &&
         (!startupBars.trim() || !Number.isInteger(startupCount) || startupCount < 0 || startupCount > 100)) {
       setError("启动K线须为 0–100 的整数")
       return
@@ -328,7 +328,7 @@ export function CreateQuantDialog({
               ...withServerFactorTokens(combo
                 ? { factor_tokens: combo.tokenGroups.length === 1 ? combo.tokenGroups[0] : combo.tokenGroups }
                 : buildStrategyParams(quant)),
-              ...((combo || quant.quantKind === "factor") ? { startup_bars: startupCount, entry_mode:factorEntryMode } : {}),
+              ...((combo || quant.quantKind === "factor" || quant.quantKind === "multi_factor") ? { startup_bars: startupCount, entry_mode:factorEntryMode } : {}),
             },
       decision_interval_sec: decisionEnabled ? decisionIntervalSec : undefined,
       // 量化分析间隔：等于周期（默认）发 null=按K线收盘；决策模型忽略
@@ -673,7 +673,7 @@ export function CreateQuantDialog({
             )}
           </div>
 
-          {!decisionEnabled && (combo || quant.quantKind === "factor") && (
+          {!decisionEnabled && (combo || quant.quantKind === "factor" || quant.quantKind === "multi_factor") && (
             <div className="space-y-1.5">
               <label htmlFor="factor-startup-bars" className="text-xs text-[var(--text-muted)]">启动K线（根）</label>
               <input
@@ -702,9 +702,9 @@ export function CreateQuantDialog({
             showModelExit={decisionEnabled}
             showModelStop={decisionEnabled}
             showIndicatorExits
-            showFactorExit={!decisionEnabled && quant.quantKind === "factor"}
+            showFactorExit={!decisionEnabled && (quant.quantKind === "factor" || quant.quantKind === "multi_factor")}
             factorExitHint={
-              combo ? "因子来源：组合成员等权平均。" : "因子来源：本任务的选择公式。"
+              quant.quantKind === "multi_factor" ? "因子来源：本轮胜出因子的当前分数。" : combo ? "因子来源：组合成员等权平均。" : "因子来源：本任务的选择公式。"
             }
           />
 
