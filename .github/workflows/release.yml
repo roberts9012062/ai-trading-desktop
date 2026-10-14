@@ -55,7 +55,7 @@ jobs:
           node --test src/components/ai-trading/equity/equity-data.test.mjs
 
       - name: Verify multi-factor collaboration and research feature selection
-        run: pnpm exec vitest run src/lib/multi-factor.test.ts src/lib/mining/feature-selection.test.ts src/lib/favorite-filters.test.ts src/lib/quant-strategy-icons.test.ts src/lib/strategy-transfer.test.ts
+        run: pnpm exec vitest run src/lib/multi-factor.test.ts src/lib/factor-similarity-api.test.ts src/lib/mining/feature-selection.test.ts src/lib/favorite-filters.test.ts src/lib/quant-strategy-icons.test.ts src/lib/strategy-transfer.test.ts
 
       - name: Verify real-money authorization and targeted notices
         run: pnpm exec vitest run src/lib/live-permission.test.ts src/lib/announcements.test.ts src/lib/live-api-history.test.ts

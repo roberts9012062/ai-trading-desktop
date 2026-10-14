@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react"
 import { listFactorFavorites, analyzeFactorSimilarity, type FactorFavoriteItem, type FactorSimilarityResult } from "@/lib/factor-lab-api"
 import { isSingleFactorFavorite } from "@/lib/portfolio-favorite"
+import {serverFactorFormulaKey} from "@/lib/factor-access"
 import type { QuantParamsState } from "@/lib/quant-strategy"
 
 export function MultiFactorParams({quant, onQuant, symbol, timeframe = "15m"}: {
@@ -43,7 +44,7 @@ export function MultiFactorParams({quant, onQuant, symbol, timeframe = "15m"}: {
   }, [key, symbol, timeframe])
   function toggle(f: FactorFavoriteItem) {
     const tokens = f.tokens as number[]
-    const index = groups.findIndex(g => g.join(",") === tokens.join(","))
+    const index = groups.findIndex(g => serverFactorFormulaKey(g) === serverFactorFormulaKey(tokens))
     const next = index >= 0 ? groups.filter((_, i) => i !== index) : [...groups, tokens]
     const names = index >= 0 ? (quant.factorNames ?? []).filter((_, i) => i !== index) : [...(quant.factorNames ?? []), f.name]
     onQuant({...quant, factorRecipe: {groups: next, weights: next.map(() => 1)}, factorNames: names})
@@ -54,7 +55,7 @@ export function MultiFactorParams({quant, onQuant, symbol, timeframe = "15m"}: {
     {!loading && !favorites.length && <p>请先在因子实验室收藏单因子公式。</p>}
     <div className="max-h-48 overflow-auto space-y-1">
       {favorites.map(f => {
-        const checked = groups.some(g => g.join(",") === f.tokens?.join(","))
+        const checked = groups.some(g => serverFactorFormulaKey(g) === serverFactorFormulaKey(f.tokens as number[]))
         return <label key={f.id} title={f.text || f.name} className="flex items-center gap-2 rounded border border-[var(--border)] p-2">
           <input type="checkbox" checked={checked} disabled={!checked && groups.length >= 5} onChange={() => toggle(f)} />
           <span>{f.name} · 来源周期 {f.timeframe ?? "—"}</span>

@@ -24,6 +24,11 @@ export function desktopTokensToServerV3(tokens: readonly number[]): number[] {
   return mapped
 }
 
+/** Stable identity when favorites and cloned tasks carry different supported dialects. */
+export function serverFactorFormulaKey(tokens: readonly number[]): string {
+  return desktopTokensToServerV3(tokens).join(",")
+}
+
 /** 服务器仍无数据源的桌面直连特征（本地谱系 id）：
  *  55 QUOTE_ILLIQ20 / 57 LIQUIDATION_IMBALANCE / 58 AVG_TRADE_QUOTE
  *  需要逐笔成交额/笔数与强平流，服务器 deriv 管道不采集 → 只能本地回放。

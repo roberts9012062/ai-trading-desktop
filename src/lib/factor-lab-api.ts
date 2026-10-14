@@ -1,5 +1,7 @@
 /** 因子实验室 API 客户端 */
 
+import {desktopTokensToServerV3} from "./factor-access"
+
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
 const SEARCH_TIMEOUT_MS = 180_000
 const LLM_TIMEOUT_MS = 240_000
@@ -422,7 +424,7 @@ export async function analyzeFactorSimilarity(payload: {
 }): Promise<FactorSimilarityResult> {
   return request<FactorSimilarityResult>("/api/factor-lab/similarity", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify({...payload, token_groups: payload.token_groups.map(desktopTokensToServerV3)}),
   })
 }
 

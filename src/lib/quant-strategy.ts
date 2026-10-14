@@ -1,5 +1,7 @@
 /** 量化策略类型与参数构造（回测 / 实时任务共用） */
 
+import {serverFactorFormulaKey} from "./factor-access"
+
 export type QuantKind =
   | "n_breakout"
   | "ma_cross"
@@ -402,7 +404,7 @@ export function validateQuantParams(q: QuantParamsState): string | null {
     const groups = q.factorRecipe?.groups ?? []
     if (groups.length < 2 || groups.length > 5) return "多因子协作请选择 2–5 个因子"
     if (groups.some(g => !g.length || g.some(t => !Number.isInteger(t) || t < 0))) return "因子公式无效"
-    if (new Set(groups.map(g => g.join(","))).size !== groups.length) return "请选择不同的因子公式"
+    if (new Set(groups.map(serverFactorFormulaKey)).size !== groups.length) return "请选择不同的因子公式"
   }
   if (q.quantKind === "ma_cross" && q.fastPeriod >= q.slowPeriod) {
     return "快线须小于慢线"
