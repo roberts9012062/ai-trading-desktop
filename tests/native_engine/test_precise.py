@@ -65,7 +65,10 @@ class PreciseTests(unittest.TestCase):
             session.dispose()
 
     def test_legacy_selection_robust_dedup_dsr_and_final_holdout(self):
+        # Pin the legacy profile: native enhanced mining upgrades an omitted
+        # profile to v2, so comparing that against the legacy CPU oracle is invalid.
         self.check({'symbol': 'ETHUSDT', 'timeframe': '15m', 'crypto_profile': True,
+                    'research_profile': 'crypto_ohlcv_v1',
                     'cost': .0003, 'train_ratio': .7, 'selection_v2': True,
                     'walk_forward_folds': 2, 'top_n': 3}, 2401)
 
@@ -78,6 +81,7 @@ class PreciseTests(unittest.TestCase):
 
     def test_intermediate_legacy_keeps_holdout_sealed(self):
         actual = self.check({'symbol': 'ETHUSDT', 'timeframe': '15m', 'crypto_profile': True,
+                            'research_profile': 'crypto_ohlcv_v1',
                             'cost': .0003, 'train_ratio': .7, 'selection_v2': True, 'top_n': 2}, 1001, False)
         self.assertFalse(actual['champions'])
         self.assertTrue(all('holdout_metrics' not in c['metrics'] for c in actual['research_candidates']))
@@ -114,11 +118,13 @@ class PreciseTests(unittest.TestCase):
         try:
             session.load_records(bars, {'max_bars': 100000})
             info = session.prepare_features(config)
-            self.assertEqual(len(info['feature_names']), 70)
-            # trials=0:合成 K 线的特征列带 NaN 前缀(head_trim>0)会触发既有的
-            # DSR 日历失配(与 legacy 两个存量失败同源,与封存解封无关)
-            actual = session.precise({'candidates': candidates, 'trials': 0, 'final_generation': True})
+            from factor_lab.features import FEATURE_NAMES, SHORTLINE_FEATURE_NAMES
+            self.assertEqual(len(info['feature_names']), len(FEATURE_NAMES)+len(SHORTLINE_FEATURE_NAMES))
+            # Exercise DSR with the nonzero warmup trim as well as holdout reveal.
+            self.assertGreater(session.prepared['head_trim'], 0)
+            actual = session.precise({'candidates': candidates, 'trials': 3000, 'final_generation': True})
             self.assertTrue(actual['research_candidates'])
+            self.assertTrue(all('dsr' in c['metrics'] for c in actual['research_candidates']))
             self.assertFalse(actual['pending_candidates'], '末代不应留有封存待定候选')
             graded = actual['champions'] + actual['rejected_candidates']
             revealed = [c for c in graded if 'holdout_metrics' in (c.get('metrics') or {})]

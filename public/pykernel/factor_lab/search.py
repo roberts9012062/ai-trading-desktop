@@ -1202,7 +1202,10 @@ def _dedup_top(
         if factor is not None and train_bars and trials > 0:
             from .scoring.deflated import deflated_sharpe
 
-            close = np.array([float(b.get("close") or 0) for b in train_bars], dtype=float)
+            # Match the factor's shared fitness calendar, including warmup trim.
+            close = np.array([float(b.get("close") or 0) for b in train_bars], dtype=float)[head_trim:]
+            if len(factor) != len(close):
+                raise ValueError('DSR factor/close calendar mismatch')
             pos = position_from_factor(factor)
             prev = np.roll(pos, 1)
             prev[0] = 0.0

@@ -190,11 +190,11 @@ class GpuDedup:
                     enriched['holdout_metrics'] = hm
             factor = self.factor_series(tokens)
             if factor is not None and self.train and trials>0:
-                # Preserve the oracle's training calendar for DSR. A trimmed
-                # factor with an untrimmed close calendar is an explicit error,
-                # rather than silently changing its published report formula.
-                if factor.T != len(self.train):
-                    raise ValueError('CPU DSR factor/close calendar mismatch')
+                # Factor fitness, dedup and DSR share the post-warmup calendar.
+                # training_report() applies the same trim to prices and resets
+                # the initial position to flat at the scored interval boundary.
+                if factor.T != len(self.train)-self.trim:
+                    raise ValueError('DSR factor/close calendar mismatch')
                 report = self.training_report()
                 matrix = as_factor(factor)
                 report._cashflows(matrix, 1, 0, factor.T, self.cost, 'close', .3, 1)

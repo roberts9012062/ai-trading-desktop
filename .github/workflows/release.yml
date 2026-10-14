@@ -79,6 +79,7 @@ jobs:
           .local-data/native-engine-venv/Scripts/python.exe scripts/test-realtime-factor.py
           .local-data/native-engine-venv/Scripts/python.exe -m unittest tests.native_engine.test_factor_quality_features tests.native_engine.test_factor_semantics -v
           .local-data/native-engine-venv/Scripts/python.exe -m unittest tests.native_engine.test_economic_templates -v
+          .local-data/native-engine-venv/Scripts/python.exe -m unittest tests.native_engine.test_dsr_calendar.DsrCpuCalendarTests -v
           .local-data/native-engine-venv/Scripts/python.exe -m unittest discover -s tests/native_engine -p test_wf.py -k FoldSize -v
           .local-data/native-engine-venv/Scripts/python.exe -m unittest discover -s tests/native_engine -p test_shortline_contract.py -k ShortlineCpu -v
           BASE_PREFIX="$(.local-data/native-engine-venv/Scripts/python.exe -c 'import sys; print(sys.base_prefix)')"
