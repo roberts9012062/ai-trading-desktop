@@ -122,6 +122,7 @@ export function useChartSeries(props: {
     const chart = mainApiRef.current
     if (!chart) return
 
+    chart.clearCrosshairPosition()
     lastRealtimeTime.current = null
     isNearLatest.current = true
     // 切品种/周期后强制半空，不沿用上一份 bar 计数
@@ -266,6 +267,12 @@ export function useChartSeries(props: {
     const series = seriesRef.current
     const vol = volumeRef.current
     if (!series || !vol || period === "tick") return
+
+    // setData 重排共享时间轴时，LWC 会同步重算十字线命中。此时其他
+    // 指标的 pane view 仍持有旧逻辑索引（尤其刚 applyOptions 后），会
+    // 抛 Value is null 并中断后续指标写入。整批写入前先解除旧命中；
+    // 下一次鼠标移动由图表正常恢复十字线，不改变历史视口。
+    mainApiRef.current?.clearCrosshairPosition()
 
     // 切到「无缓存/拉取中/拉取失败」的合约：必须清空旧合约残影。
     // 否则图表继续显示上一品种的 K 线，而标题/价格轴已是新合约

@@ -103,6 +103,7 @@ export function useRealtimeKline(props: {
 
   /** 组装指标更新所需的引用集合（refs 稳定，随用随组） */
   const indicatorRefs = (): IndicatorUpdateRefs => ({
+    mainApiRef,
     seriesRef,
     volumeRef,
     maSeriesRef,

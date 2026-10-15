@@ -7,6 +7,7 @@
 
 import type { MutableRefObject } from "react"
 import type {
+  IChartApi,
   ISeriesApi,
   ISeriesMarkersPluginApi,
   Time,
@@ -31,6 +32,7 @@ import {
 
 /** 指标更新所需的 series 引用集合 */
 export interface IndicatorUpdateRefs {
+  mainApiRef: MutableRefObject<IChartApi | null>
   seriesRef: MutableRefObject<ISeriesApi<"Candlestick"> | null>
   volumeRef: MutableRefObject<ISeriesApi<"Histogram"> | null>
   maSeriesRef: MutableRefObject<ISeriesApi<"Line">[]>
@@ -107,6 +109,8 @@ export function recoverSeriesData(
   if (now - lastRecoverAtRef.current < RECOVER_THROTTLE_MS) return
   lastRecoverAtRef.current = now
   try {
+    // 全量自愈同样会重排索引，解除旧十字线命中后再写整批数据。
+    refs.mainApiRef.current?.clearCrosshairPosition()
     writeMainAndSubData({
       series,
       volume: vol,
