@@ -1,9 +1,11 @@
+import { collectionMode } from "./collection-config"
 /** Direct public Snippet candles; server history/REST recovery and task feeds remain. */
 import { getKlineApi } from "@/lib/api"
 import { useMarketStore } from "@/stores/market"
 import { listActiveRtKeys, offerRtBar } from "@/components/market/kline/realtime/accumulator"
 import { getMarketWebSocket, type ChartSubscriptionKey, type WsMessage } from "./websocket"
-import { getOkxSnippetWebSocket, OKX_SNIPPET_CANDLE_STALE_MS } from "./okx-snippet-ws"
+import { getPublicMarketSocket } from "./public-market"
+import { OKX_SNIPPET_CANDLE_STALE_MS } from "./okx-snippet-ws"
 import type { KlineBar, KlinePeriod } from "@/types"
 import { isServerMode } from "./desktop-routing"
 
@@ -35,7 +37,8 @@ function validBar(bar: KlineBar): boolean {
 
 function receiveChart(message: WsMessage, server = false): void {
   if (message.type !== "chart_kline" || !Array.isArray(message.data)) return
-  if (!server && (isServerMode() || getOkxSnippetWebSocket().state !== "connected")) return
+  if (server && collectionMode()) return
+  if (!server && (isServerMode() || getPublicMarketSocket().state !== "connected")) return
   const groups = new Map<string, { symbol: string; period: string; bars: KlineBar[] }>()
   for (const frame of message.data) {
     if (!frame || typeof frame.symbol !== "string" || typeof frame.period !== "string") continue
@@ -65,14 +68,14 @@ async function pollOnce(): Promise<void> {
   activeKeys = new Set(keys.map(keyOf))
   for (const key of streamHeads.keys()) if (!activeKeys.has(key)) streamHeads.delete(key)
   for (const key of retries.keys()) if (!activeKeys.has(key)) retries.delete(key)
-  const ws = getOkxSnippetWebSocket()
+  const ws = getPublicMarketSocket()
   // Business notifications keep the server socket; redundant display candles stop.
   const serverMode=isServerMode()
   const serverKeys=serverMode ? keys : keys.filter(key => {
     const head=streamHeads.get(keyOf(key))
     return !(ws.state==='connected' && head && !head.server && Date.now()-head.at<=STREAM_STALE_MS)
   })
-  getMarketWebSocket().setChartSubscription(serverKeys)
+  getMarketWebSocket().setChartSubscription(collectionMode() ? [] : serverKeys)
   ws.setChartSubscription(serverMode ? [] : keys)
   const needed = keys.filter(key => {
     const head = streamHeads.get(keyOf(key))
@@ -119,7 +122,7 @@ function schedule(): void {
 
 export function startOkxFormingFeed(): void {
   if (typeof window === "undefined" || timer !== null) return
-  const ws = getOkxSnippetWebSocket()
+  const ws = getPublicMarketSocket()
   unsubscribe = [ws.onMessage(message => receiveChart(message)), getMarketWebSocket().onMessage(message => receiveChart(message,true)), getMarketWebSocket().onStateChange(state => {
     if (isServerMode()) useMarketStore.getState().setConnectionState(state)
   }), ws.onStateChange((state) => {
@@ -136,7 +139,7 @@ export function stopOkxFormingFeed(): void {
   unsubscribe = []
   activeKeys.clear(); streamHeads.clear(); retries.clear()
   getMarketWebSocket().setChartSubscription([])
-  getOkxSnippetWebSocket().setChartSubscription([])
+  getPublicMarketSocket().setChartSubscription([])
 }
 
 startOkxFormingFeed()

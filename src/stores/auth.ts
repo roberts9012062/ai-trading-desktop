@@ -2,7 +2,7 @@
 
 import { create } from "zustand"
 import { getMarketWebSocket } from "@/lib/websocket"
-import { getOkxSnippetWebSocket } from "@/lib/okx-snippet-ws"
+import { getPublicMarketSocket } from "@/lib/public-market"
 import { stopDesktopRouting, ensureDesktopRouting } from "@/lib/desktop-routing"
 import { disconnectDesktopExchange } from "@/lib/desktop-exchange"
 import { stopSnippetPrivate } from "@/lib/snippet-private-ws"
@@ -89,7 +89,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     rememberAccount({ user, accessToken, refreshToken })
     if (get().user && get().user?.id !== user.id) {
       try {
-      getOkxSnippetWebSocket().disconnect()
+      getPublicMarketSocket().disconnect()
       stopSnippetPrivate()
       disconnectDesktopExchange()
       stopDesktopRouting()
@@ -114,7 +114,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.removeItem(REFRESH_KEY)
     writeCachedUser(null)
     try {
-      getOkxSnippetWebSocket().disconnect()
+      getPublicMarketSocket().disconnect()
       stopSnippetPrivate()
       disconnectDesktopExchange()
       stopDesktopRouting()

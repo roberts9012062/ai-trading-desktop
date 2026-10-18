@@ -37,6 +37,9 @@ jobs:
       - name: Install deps
         run: pnpm install --frozen-lockfile
 
+      - name: Verify API Collection market integration
+        run: pnpm exec vitest run src/lib/collection-api.test.ts src/lib/collection-stream.test.ts src/lib/collection-pagination.test.ts src/stores/market-snippet.test.ts src/lib/okx-forming.test.ts
+
       - name: Verify official OKX archive validation and repair
         run: pnpm exec vitest run src/lib/okx-history.test.ts src/lib/okx-history-backup.test.ts src/lib/okx-history-source.test.ts src/lib/okx-archive-repair.test.ts src/lib/okx-local-history.integration.test.ts src/lib/snippet-rest.test.ts src/lib/snippet-pool.test.ts
 
@@ -95,6 +98,7 @@ jobs:
       - name: Verify native analytics, seconds HTTP and export files
         run: |
           cargo test --manifest-path src-tauri/Cargo.toml --lib okx_analytics
+          cargo test --manifest-path src-tauri/Cargo.toml --lib market_data
           cargo test --manifest-path src-tauri/Cargo.toml --lib realtime_http
           cargo test --manifest-path src-tauri/Cargo.toml --lib export_file
 

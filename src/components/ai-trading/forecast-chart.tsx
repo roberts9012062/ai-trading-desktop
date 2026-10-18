@@ -4,7 +4,8 @@ import {CandlestickSeries,createChart,type ISeriesApi} from 'lightweight-charts'
 import {drawForecastLines} from '@/components/market/kline/lines/use-forecast-lines'
 import {Dialog,DialogContent,DialogTitle} from '@/components/ui/dialog'
 import {getAITradingTask,type AITradingTask} from '@/lib/ai-trading-api'
-import {getForecastKlineApi} from '@/lib/api'
+import {getForecastKlineApi,getKlineApi} from '@/lib/api'
+import {collectionMode} from '@/lib/collection-config'
 import {readDisplayCandles,watchDisplayCandles} from '@/lib/display-kline'
 import {forecastConfig,forecastState,forecastLines,FORECAST_STAGES} from '@/lib/ai-forecast'
 import {dedupeBarsByChartTime,formatChartTime,makeChartOpts,sanitizeBars} from '@/components/market/kline/utils'
@@ -29,7 +30,7 @@ export function ForecastKline({task}:{task:AITradingTask}):React.JSX.Element {
    if(busy)return;busy=true
    try {
     const displayBars=await readDisplayCandles(task.symbol,task.timeframe as KlinePeriod,currentBars,async()=>{
-     const response=await getForecastKlineApi(task.id)
+     const response=collectionMode()?await getKlineApi(task.symbol,task.timeframe,{limit:count}):await getForecastKlineApi(task.id)
      return response.bars as unknown as KlineBar[]
     })
     if(!alive)return

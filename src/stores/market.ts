@@ -1,3 +1,4 @@
+import { collectionMode } from "@/lib/collection-config"
 /**
  * 行情状态管理 —— Zustand store，管理 WebSocket 连接、实时行情、盘口、成交、K 线
  */
@@ -12,7 +13,7 @@ import {
   getMarketWebSocket,
 } from "@/lib/websocket"
 import { getContractsByCodeApi, getQuotesSnapshotApi } from "@/lib/api"
-import { getOkxSnippetWebSocket } from "@/lib/okx-snippet-ws"
+import { getPublicMarketSocket } from "@/lib/public-market"
 import { ensureDesktopRouting, isServerMode, onDesktopRoutingChange } from "@/lib/desktop-routing"
 import { useNotificationsStore } from "@/stores/notifications"
 import { playNotificationSound } from "@/lib/sound"
@@ -27,8 +28,8 @@ import { speakTaskOrder } from "@/lib/speech"
 
 function syncSnippetQuoteSymbols(state: MarketState): void {
   const symbols = state.codeTree ? Object.values(state.codeTree).flatMap(group => group.contracts.map(contract => contract.symbol)) : Object.keys(state.quotes)
-  getOkxSnippetWebSocket().setQuoteSymbols(symbols)
-  getOkxSnippetWebSocket().setDepthSymbols(Object.keys(state.klineWatchSymbols))
+  getPublicMarketSocket().setQuoteSymbols(symbols)
+  getPublicMarketSocket().setDepthSymbols(Object.keys(state.klineWatchSymbols))
 }
 
 /**
@@ -46,7 +47,7 @@ async function bootstrapQuotesFromHttp(
       const symbol = String(item.symbol ?? "").trim().toLowerCase()
       const last = Number(item.last_price)
       if (!symbol || !Number.isFinite(last) || last <= 0) continue
-      if (getOkxSnippetWebSocket().hasFreshQuote(symbol)) continue
+      if (getPublicMarketSocket().hasFreshQuote(symbol)) continue
       quotes.push({
         symbol,
         name: String(item.name ?? symbol),
@@ -404,13 +405,14 @@ export const useMarketStore = create<MarketState>((set, get) => ({
 
   initWebSocket: () => {
     const ws = getMarketWebSocket()
-    const snippet = getOkxSnippetWebSocket()
+    const snippet = getPublicMarketSocket()
     syncSnippetQuoteSymbols(get())
     const applyRouting = (server: boolean) => {
       if (server) { snippet.disconnect();ws.setQuoteExclusions([]);ws.setMarketFallback(true) }
       else { syncSnippetQuoteSymbols(get());snippet.connect() }
     }
     applyRouting(isServerMode())
+    if (collectionMode()) { ws.setMarketFallback(false); ws.setKlineSubscription([]) }
     void ensureDesktopRouting()
     ws.setChartSubscription([])
 
@@ -425,7 +427,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     onDesktopRoutingChange(applyRouting)
     snippet.onQuoteFreshnessChange(symbols => {
       ws.setQuoteExclusions(isServerMode() ? [] : symbols)
-      ws.setMarketFallback(isServerMode() || symbols.length===0 || Object.keys(get().klineWatchSymbols).some(symbol => !snippet.hasFreshQuote(symbol) || !snippet.hasFreshDepth(symbol)))
+      ws.setMarketFallback(!collectionMode() && (isServerMode() || symbols.length===0 || Object.keys(get().klineWatchSymbols).some(symbol => !snippet.hasFreshQuote(symbol) || !snippet.hasFreshDepth(symbol))))
     })
     snippet.onMessage(message => {
       if (message.type === "quote" && Array.isArray(message.data)) {
@@ -448,14 +450,17 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     // 监听消息，按 type 分发
     ws.onMessage((message: WsMessage) => {
       if (message.type === "quote" && Array.isArray(message.data)) {
+        if (collectionMode()) return
         get().updateQuotes((message.data as QuoteData[]).filter(quote => isServerMode() || !snippet.hasFreshQuote(quote.symbol)))
         syncSnippetQuoteSymbols(get())
       } else if (message.type === "orderbook" && Array.isArray(message.data)) {
+        if (collectionMode()) return
         get().updateOrderbooks((message.data as OrderBook[]).filter(book => isServerMode() || !snippet.hasFreshDepth(book.symbol)))
       } else if (message.type === "trades" && message.data && typeof message.data === "object") {
+        if (collectionMode()) return
         get().updateTrades(Object.fromEntries(Object.entries(message.data as Record<string,TradeRecord[]>).filter(([symbol]) => isServerMode() || !snippet.hasFreshDepth(symbol))))
       } else if (message.type === "kline" && Array.isArray(message.data)) {
-        get().updateKlineRealtime(message.data as KlineRealtimeBar[])
+        if (!collectionMode()) get().updateKlineRealtime(message.data as KlineRealtimeBar[])
       } else if (message.type === "notification" && message.data && typeof message.data === "object") {
         // 新消息推送：后端字段为 snake_case（created_at），前端 Message 用 createdAt
         const raw = message.data as Record<string, unknown>
@@ -500,8 +505,8 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   setConnectionState: (state) => set({ connectionState: state }),
 
   setWsKlineSubscription: (symbols) => {
-    getMarketWebSocket().setKlineSubscription(symbols)
-    getOkxSnippetWebSocket().setDepthSymbols(symbols)
+    getMarketWebSocket().setKlineSubscription(collectionMode() ? [] : symbols)
+    getPublicMarketSocket().setDepthSymbols(symbols)
   },
 
   watchKlineSymbol: (symbol) => {
@@ -510,8 +515,8 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     const next = { ...get().klineWatchSymbols }
     next[sym] = (next[sym] ?? 0) + 1
     set({ klineWatchSymbols: next })
-    getMarketWebSocket().setKlineSubscription(Object.keys(next))
-    getOkxSnippetWebSocket().setDepthSymbols(Object.keys(next))
+    getMarketWebSocket().setKlineSubscription(collectionMode() ? [] : Object.keys(next))
+    getPublicMarketSocket().setDepthSymbols(Object.keys(next))
   },
 
   unwatchKlineSymbol: (symbol) => {
@@ -523,8 +528,8 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       const next = { ...prev }
       delete next[sym]
       set({ klineWatchSymbols: next })
-      getMarketWebSocket().setKlineSubscription(Object.keys(next))
-      getOkxSnippetWebSocket().setDepthSymbols(Object.keys(next))
+      getMarketWebSocket().setKlineSubscription(collectionMode() ? [] : Object.keys(next))
+      getPublicMarketSocket().setDepthSymbols(Object.keys(next))
       return
     }
     set({ klineWatchSymbols: { ...prev, [sym]: count - 1 } })

@@ -1,3 +1,4 @@
+import { collectionMode } from "@/lib/collection-config"
 "use client"
 
 /**
@@ -143,6 +144,7 @@ let _storageSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 /** 懒加载回灌持久化缓存（仅补内存中不存在的 key，不覆盖更新的数据） */
 function loadPersistedCache(): void {
+  if (collectionMode()) return
   if (_storageLoaded || typeof window === "undefined") return
   _storageLoaded = true
   try {
@@ -171,6 +173,7 @@ function loadPersistedCache(): void {
 
 /** 防抖合并写持久化；配额满等失败静默清空，不影响内存主流程 */
 function schedulePersist(): void {
+  if (collectionMode()) return
   if (typeof window === "undefined") return
   if (_storageSaveTimer) clearTimeout(_storageSaveTimer)
   _storageSaveTimer = setTimeout(() => {

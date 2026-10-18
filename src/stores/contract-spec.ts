@@ -1,3 +1,5 @@
+import { collectionMode } from "@/lib/collection-config"
+import { collectionSpec } from "@/lib/collection-api"
 "use client"
 
 /**
@@ -63,12 +65,14 @@ export const useContractSpecStore = create<ContractSpecState>((set, get) => ({
   },
 
   getTickSize: (symbol) => {
+    if (collectionMode()) {const tick=Number(collectionSpec(symbol)?.tick_size);if(Number.isFinite(tick)&&tick>0)return tick}
     const code = extractProductCode(symbol)
     const spec = get().specs.find((s) => s.code.toUpperCase() === code)
     return spec?.tick_size ?? DEFAULT_TICK_SIZE
   },
 
   getDecimalPlaces: (symbol) => {
+    if (collectionMode()) {const tick=collectionSpec(symbol)?.tick_size;if(tick&&Number(tick)>0)return Math.max(0,(tick.split(".")[1]?.replace(/0+$/, "").length??0))}
     const code = extractProductCode(symbol)
     const spec = get().specs.find((s) => s.code.toUpperCase() === code)
     return spec?.decimal_places ?? DEFAULT_DECIMAL_PLACES

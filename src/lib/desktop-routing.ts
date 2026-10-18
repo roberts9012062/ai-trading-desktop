@@ -1,3 +1,4 @@
+import { collectionMode } from "./collection-config"
 /** Global administrator policy; server mode is the safe cold-start default. */
 import { refreshSnippetPool, resetSnippetPool } from "./snippet-pool"
 let serverMode = true
@@ -6,7 +7,7 @@ let timer: ReturnType<typeof setInterval> | null = null
 let flight: Promise<void> | null = null
 let generation = 0
 const listeners = new Set<(server: boolean) => void>()
-export const isServerMode = () => serverMode
+export const isServerMode = () => collectionMode() ? false : serverMode
 export function onDesktopRoutingChange(listener: (server: boolean) => void): () => void {
   listeners.add(listener); return () => { listeners.delete(listener) }
 }
@@ -29,6 +30,7 @@ export async function refreshDesktopRouting(): Promise<void> {
   return flight
 }
 export async function ensureDesktopRouting(): Promise<void> {
+  if (collectionMode()) return
   if (timer === null && typeof window !== "undefined") timer = setInterval(() => { void refreshDesktopRouting() }, 15000)
   if (!known) await refreshDesktopRouting()
   if (!serverMode) await refreshSnippetPool()

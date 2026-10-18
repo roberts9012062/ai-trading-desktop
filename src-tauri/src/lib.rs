@@ -5,6 +5,7 @@ mod desktop_tray;
 mod window_controls;
 mod okx_analytics;
 mod realtime_http;
+mod market_data;
 mod export_file;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -32,6 +33,7 @@ pub fn run() {
         .manage(update_channels::UpdateChannels::default())
         .manage(okx_analytics::OkxAnalyticsState::default())
         .manage(realtime_http::RealtimeHttpState::default())
+        .manage(market_data::MarketDataState::default())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
@@ -43,6 +45,8 @@ pub fn run() {
             okx_analytics::okx_analytics_read,
             okx_analytics::okx_analytics_clear,
             realtime_http::realtime_http_request,
+            market_data::collection_key,
+            market_data::collection_http,
             native_engine::native_engine_spawn,
             native_engine::native_engine_status,
             native_engine::native_engine_kill,

@@ -1,3 +1,5 @@
+import { collectionMode } from "./collection-config"
+import { collectionKlines, collectionCodeTree, collectionSymbols, desktopSymbol } from "./collection-api"
 import type { AuthResponse, LoginRequest, RegisterRequest, User, NewsItem, ArticleContent, AIProvider, AIModel, PresetProvider, ProviderTestResult, AIConversationItem, AIMessagePage, MarketplaceSkillItem, MarketplaceSkillDetail, InstalledSkillItem, SkillConfig, CodeTreeMap, Message, MessageCategory, PriceAlert, NotifySetting } from "@/types"
 import type { IndicatorConfig } from "@/types/indicator"
 import type { ProfitLockTemplate } from "@/lib/profit-lock-templates"
@@ -313,17 +315,20 @@ export async function getSessionStatusApi(symbol: string): Promise<SessionStatus
 
 /** 搜索合约 */
 export async function searchContractsApi(q: string): Promise<ContractSearchResult> {
+  if (collectionMode()) {const rows=await collectionSymbols(q);return {contracts:rows.map(r=>({symbol:desktopSymbol(r.symbol),name:r.name,exchange:"OKX"})),total:rows.length}}
   return request<ContractSearchResult>(`/api/market/contracts/search?q=${encodeURIComponent(q)}`)
 }
 
 /** 获取全部合约列表 */
 export async function getContractsApi(exchange?: string): Promise<ContractItem[]> {
+  if (collectionMode()) return (await collectionSymbols()).map(r=>({symbol:desktopSymbol(r.symbol),name:r.name,exchange:"OKX"}))
   const params = exchange ? `?exchange=${encodeURIComponent(exchange)}` : ""
   return request<ContractItem[]>(`/api/market/contracts${params}`)
 }
 
 /** 按品种代码分组的合约树(含主力/次主力标记) */
 export async function getContractsByCodeApi(): Promise<CodeTreeMap> {
+  if (collectionMode()) return collectionCodeTree()
   return request<CodeTreeMap>("/api/market/contracts/by-code")
 }
 
@@ -331,6 +336,7 @@ export async function getContractsByCodeApi(): Promise<CodeTreeMap> {
 export async function getQuotesSnapshotApi(): Promise<
   Array<Record<string, unknown>>
 > {
+  if (collectionMode()) return [] // Shared batch WS supplies the initial snapshots.
   return withSnippetRead("quotes", snippetQuotes, () => request<Array<Record<string, unknown>>>("/api/market/quotes"))
 }
 
@@ -411,6 +417,7 @@ export async function getKlineBundleApi(
   symbol: string,
   limit?: number,
 ): Promise<KlineBundleResponse> {
+  if (collectionMode()) { const periods=[]; for(const period of ["1m","5m","15m","30m","60m","240m"]) periods.push(await collectionKlines(symbol,period,{limit:limit??240})); return {symbol,periods} }
   const params = new URLSearchParams({ symbol })
   if (limit) params.set("limit", String(limit))
   const fallback = () => request<KlineBundleResponse>(`/api/market/kline/bundle?${params}`)
@@ -432,6 +439,7 @@ export async function getKlineApi(
   period: string,
   options?: { limit?: number; endTime?: string },
 ): Promise<KlineResponse> {
+  if (collectionMode()) return collectionKlines(symbol,period,options)
   const params = new URLSearchParams({
     symbol,
     period,

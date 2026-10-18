@@ -1,3 +1,5 @@
+import { enableCollectionMode, loadCollectionConfig } from "./lib/collection-config"
+enableCollectionMode()
 /**
  * 桌面端(Tauri)启动前置 —— 必须是 main.tsx 的第一个 import。
  *
@@ -70,3 +72,4 @@ async function boot(): Promise<void> {
 }
 
 await boot()
+await loadCollectionConfig()

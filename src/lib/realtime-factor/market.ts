@@ -1,3 +1,5 @@
+import { collectionMode } from "../collection-config"
+import { collectionKlines } from "../collection-api"
 import type { KlineBar } from '@/types'
 import { snippetPublicGet } from '../snippet-rest'
 import { decodeOkxCandle } from '../okx-snippet-ws'
@@ -9,6 +11,7 @@ export interface MarketSnapshot {bars:KlineBar[];marketAt:number;source:'direct'
 /** A quiet candle channel is not a disconnected market. Refresh its actual
  * OHLCV snapshot, never substitute a ticker for the forming candle. */
 export async function readMarketSnapshot(id:string,symbol:string,period:string):Promise<MarketSnapshot> {
+  if (collectionMode()) { const began=Date.now(); const page=await collectionKlines(symbol,period,{limit:3}); return {bars:page.bars,marketAt:began,source:'direct'} }
   if(!/^[a-z0-9]{1,16}usdt$/.test(symbol)||!periods[period])throw new Error('不支持的实时行情品种或周期')
   const direct=async():Promise<MarketSnapshot>=>{
     const began=Date.now()

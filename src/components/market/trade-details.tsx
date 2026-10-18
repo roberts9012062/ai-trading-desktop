@@ -133,7 +133,7 @@ export function TradeDetails({ listClassName }: TradeDetailsProps): React.JSX.El
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[var(--text-muted)]">最小手数 ≥</span>
+            <span className="text-[var(--text-muted)]">最小数量 ≥</span>
             <NumericInput
               type="number"
               min={0}
@@ -161,7 +161,7 @@ export function TradeDetails({ listClassName }: TradeDetailsProps): React.JSX.El
       <div className="grid grid-cols-4 px-2 py-1 text-[var(--text-muted)] border-b border-[var(--border)] shrink-0">
         <span>时间</span>
         <span className="text-right">价格</span>
-        <span className="text-right">手数</span>
+        <span className="text-right">数量{rawList?.[0]?.volume_unit === "contracts" ? "（张）" : ""}</span>
         <span className="text-right">方向</span>
       </div>
 

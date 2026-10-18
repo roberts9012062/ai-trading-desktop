@@ -167,7 +167,7 @@ export function MarketDepthPanel({
   return (
     <section className={cn("flex h-full min-h-0 flex-col bg-[var(--bg-secondary)]", className)}>
       <div className="shrink-0 border-b border-[var(--border)] py-1">
-        <div className="flex justify-between px-2 pb-1 text-[10px] text-[var(--text-muted)]"><span>价格（USDT）</span><span>数量（{baseCoin}）</span></div>
+        <div className="flex justify-between px-2 pb-1 text-[10px] text-[var(--text-muted)]"><span>价格（USDT）</span><span>数量（{book?.volume_unit === "contracts" ? "张" : baseCoin}）</span></div>
         {[...asks].reverse().map((level, i) => <PriceRow key={`ask-${i}`} label={`卖${asks.length - i}`} side="ask" level={level} tone="text-down" />)}
         {bids.map((level, i) => <PriceRow key={`bid-${i}`} label={`买${i + 1}`} side="bid" level={level} tone="text-up" />)}
         <div className="flex items-center justify-between px-2 pt-1 text-[10px] text-[var(--text-muted)]">

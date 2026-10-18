@@ -66,6 +66,7 @@ export type MarketDepthStats = Record<string, MarketDepthField>
 
 /** 盘口数据 */
 export interface OrderBook {
+  volume_unit?: string
   symbol: string
   asks: OrderBookLevel[]  // 卖盘，索引0为卖1
   bids: OrderBookLevel[]  // 买盘，索引0为买1
@@ -83,6 +84,8 @@ export interface OrderBook {
 
 /** 成交明细 */
 export interface TradeRecord {
+  trade_id?: string
+  volume_unit?: string
   time: string
   price: number
   volume: number

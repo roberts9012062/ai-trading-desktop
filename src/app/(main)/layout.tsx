@@ -1,3 +1,4 @@
+import { DataConfigNotice } from "@/components/profile/data-config-panel"
 "use client"
 
 import { useEffect, useState } from "react"
@@ -123,6 +124,7 @@ export default function MainLayout({
   return (
     <div className="flex flex-col h-full overflow-hidden bg-[var(--bg-primary)]">
       <TopNavbar />
+      <DataConfigNotice />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main className="flex-1 overflow-auto">

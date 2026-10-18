@@ -1,3 +1,4 @@
+import { DataConfigPanel } from "@/components/profile/data-config-panel"
 "use client"
 
 import { useState } from "react"
@@ -17,7 +18,7 @@ import { VoiceBroadcastPanel } from "@/components/profile/voice-broadcast-panel"
 
 /** 个人中心页面 —— 左右分栏 + Tab 切换 */
 export default function ProfilePage(): React.JSX.Element {
-  const [activeTab, setActiveTab] = useState("info")
+  const [activeTab, setActiveTab] = useState(typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab")==="data" ? "data" : "info")
 
   return (
     <div className="flex h-full overflow-auto">
@@ -31,6 +32,7 @@ export default function ProfilePage(): React.JSX.Element {
           { value: "trading", icon: Sliders, label: "交易设置" },
           { value: "alerts", icon: Bell, label: "提醒设置" },
           { value: "voice", icon: Volume2, label: "语音播报" },
+          { value: "data", icon: Database, label: "数据配置" },
           { value: "cache", icon: Database, label: "数据缓存" },
         ].map((tab) => (
           <button
@@ -51,6 +53,7 @@ export default function ProfilePage(): React.JSX.Element {
 
       {/* 右侧内容 */}
       <div className="flex-1 p-6 overflow-auto">
+        {activeTab === "data" && <DataConfigPanel />}
         {activeTab === "info" && <PersonalInfoPanel />}
         {activeTab === "display" && <DisplaySettingsPanel />}
         {activeTab === "security" && <SecurityPanel />}

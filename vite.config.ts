@@ -36,6 +36,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
+      "/__collection__": { target: "https://lium.eu.org", changeOrigin: true, rewrite: p=>p.replace(/^\/__collection__/, "") },
       // 与 next.config.ts rewrites 对齐;timeout 放开以覆盖 factor-lab 的长耗时请求
       // (原先由 Next Route Handler 承担的 5 分钟超时代理,这里由 vite proxy 直接承担)
       "/api": {

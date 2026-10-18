@@ -55,7 +55,7 @@ it('rejects malformed direct bars when server recovery is also unavailable',asyn
 })
 
 it('honors the shared direct-route cooldown after rate limiting and continues via server snapshots',async()=>{
-  const fetcher=vi.fn().mockResolvedValue({ok:false,status:429,json:async()=>({code:'50011'})})
+  const fetcher=vi.fn().mockResolvedValue({ok:false,status:429,headers:new Headers(),json:async()=>({code:'50011'})})
   vi.stubGlobal('fetch',fetcher)
   fake.candle.mockImplementation(async()=>({bars:[bar],observed_at:Date.now(),server_ms:Date.now()}))
   const first=readMarketSnapshot('task','avaxusdt','15m')
