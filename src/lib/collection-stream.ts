@@ -80,7 +80,7 @@ export class CollectionMarketStream {
   onQuoteStateChange(handler:StateHandler){this.quoteStates.add(handler);return()=>{this.quoteStates.delete(handler)}}
   onQuoteFreshnessChange(handler:(symbols:string[])=>void){this.freshnessHandlers.add(handler);return()=>{this.freshnessHandlers.delete(handler)}}
   private emit(type:string,data:unknown){this.handlers.forEach(fn=>fn({type,data}))}
-  connect(){if(this.running)return;this.running=true;this.scope=collectionScope();this.generation=collectionGeneration();void this.prepare()}
+  connect(){if(this.running&&this.scope===collectionScope()&&this.generation===collectionGeneration())return;if(this.running)this.disconnect();this.running=true;this.scope=collectionScope();this.generation=collectionGeneration();void this.prepare()}
   private async prepare(){
     const epoch=this.epoch
     await loadCollectionConfig()
