@@ -1,5 +1,5 @@
 import { collectionMode } from "./collection-config"
-import { collectionKlines, collectionCodeTree, collectionSymbols, desktopSymbol } from "./collection-api"
+import { collectionKlines, collectionCodeTree, collectionDesktopSymbols, desktopSymbol } from "./collection-api"
 import type { AuthResponse, LoginRequest, RegisterRequest, User, NewsItem, ArticleContent, AIProvider, AIModel, PresetProvider, ProviderTestResult, AIConversationItem, AIMessagePage, MarketplaceSkillItem, MarketplaceSkillDetail, InstalledSkillItem, SkillConfig, CodeTreeMap, Message, MessageCategory, PriceAlert, NotifySetting } from "@/types"
 import type { IndicatorConfig } from "@/types/indicator"
 import type { ProfitLockTemplate } from "@/lib/profit-lock-templates"
@@ -315,13 +315,13 @@ export async function getSessionStatusApi(symbol: string): Promise<SessionStatus
 
 /** 搜索合约 */
 export async function searchContractsApi(q: string): Promise<ContractSearchResult> {
-  if (collectionMode()) {const rows=await collectionSymbols(q);return {contracts:rows.map(r=>({symbol:desktopSymbol(r.symbol),name:r.name,exchange:"OKX"})),total:rows.length}}
+  if (collectionMode()) {const rows=await collectionDesktopSymbols(q);return {contracts:rows.map(r=>({symbol:desktopSymbol(r.symbol),name:r.name,exchange:"OKX"})),total:rows.length}}
   return request<ContractSearchResult>(`/api/market/contracts/search?q=${encodeURIComponent(q)}`)
 }
 
 /** 获取全部合约列表 */
 export async function getContractsApi(exchange?: string): Promise<ContractItem[]> {
-  if (collectionMode()) return (await collectionSymbols()).map(r=>({symbol:desktopSymbol(r.symbol),name:r.name,exchange:"OKX"}))
+  if (collectionMode()) return (await collectionDesktopSymbols()).map(r=>({symbol:desktopSymbol(r.symbol),name:r.name,exchange:"OKX"}))
   const params = exchange ? `?exchange=${encodeURIComponent(exchange)}` : ""
   return request<ContractItem[]>(`/api/market/contracts${params}`)
 }

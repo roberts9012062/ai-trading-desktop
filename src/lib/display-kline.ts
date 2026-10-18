@@ -3,10 +3,12 @@ import { readRtTail, rtAccKey, mergeTailWithHistory, detectTailGap } from "@/com
 import { getPublicMarketSocket } from "./public-market"
 import { useMarketStore } from "@/stores/market"
 import "./okx-forming"
+import { retainVisibleChart } from "./visible-charts"
 
 /** Refresh on this chart's candle frames; the timer only maintains subscriptions/recovery. */
 export function watchDisplayCandles(symbol: string, period: KlinePeriod, refresh: () => Promise<void>): () => void {
   const key = symbol.trim().toLowerCase()
+  const release = retainVisibleChart(key, period)
   let alive = true, busy = false, queued = false
   const run = async (): Promise<void> => {
     if (!alive) return
@@ -24,7 +26,7 @@ export function watchDisplayCandles(symbol: string, period: KlinePeriod, refresh
   })
   void run()
   const timer = setInterval(() => void run(), 3000)
-  return () => { alive = false; queued = false; clearInterval(timer); stop() }
+  return () => { alive = false; queued = false; clearInterval(timer); stop(); release() }
 }
 
 /** Display-only charts share the same stream; task-scoped history stays on server. */

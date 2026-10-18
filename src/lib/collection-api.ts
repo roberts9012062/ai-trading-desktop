@@ -77,8 +77,20 @@ export async function collectionSymbols(text=''):Promise<CollectionSymbol[]>{
   flight=load().finally(()=>{flight=null});return flight
 }
 export function collectionSpec(symbol:string){return catalog.find(row=>row.symbol===collectionSymbol(symbol))}
+// Keep a stable, bounded desktop universe; catalog metadata remains available to
+// existing tasks without subscribing every exchange listing to the sidebar feed.
+const DESKTOP_PRIORITY = 'BTC ETH SOL XRP DOGE BNB ADA LINK AVAX LTC TRX DOT BCH TON UNI AAVE SUI NEAR APT INJ SEI ICP ATOM ETC FIL ALGO VET IMX ARB OP LDO CRV COMP SNX GRT TIA SAND MANA AXS GALA CHZ PEPE WIF BONK FLOKI ORDI WLD ENA FET RENDER JUP PYTH STX HBAR XLM XMR ZEC DASH DYDX ENS'.split(' ')
+export function selectDesktopSymbols(rows:CollectionSymbol[]):CollectionSymbol[]{
+  const rank=new Map(DESKTOP_PRIORITY.map((code,i)=>[code+'-USDT-SWAP',i]))
+  return rows.filter(row=>/^[A-Z0-9]{1,16}-USDT-SWAP$/.test(row.symbol))
+    .sort((a,b)=>(rank.get(a.symbol)??1000)-(rank.get(b.symbol)??1000)||a.symbol.localeCompare(b.symbol)).slice(0,60)
+}
+export async function collectionDesktopSymbols(text=''):Promise<CollectionSymbol[]>{
+  const rows=selectDesktopSymbols(await collectionSymbols()),query=text.trim().toLowerCase()
+  return query?rows.filter(row=>(row.symbol+' '+row.name+' '+desktopSymbol(row.symbol)).toLowerCase().includes(query)):rows
+}
 export async function collectionCodeTree():Promise<CodeTreeMap>{
-  const rows=await collectionSymbols(),tree:CodeTreeMap={}
+  const rows=await collectionDesktopSymbols(),tree:CodeTreeMap={}
   for(const row of rows){const symbol=desktopSymbol(row.symbol),code=symbol.slice(0,-4).toUpperCase();tree[code]={code,name:code+' 永续',exchange:'OKX',master:symbol,secondary:null,contracts:[{symbol,month:0,year:0,volume:0,is_master:true,is_secondary:false}]}}
   return tree
 }

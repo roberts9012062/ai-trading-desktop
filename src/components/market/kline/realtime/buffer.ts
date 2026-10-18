@@ -6,7 +6,7 @@
  * 同步累积，与本模块的渲染期消费解耦）。
  */
 
-import type { ISeriesApi } from "lightweight-charts"
+import type { ISeriesApi, Time } from "lightweight-charts"
 import type { MutableRefObject } from "react"
 import type { KlineBar, KlinePeriod } from "@/types"
 import { formatChartTime, toTimestamp } from "../utils"
@@ -103,5 +103,27 @@ export function applyBarToSeries(
           ? "rgba(239,68,68,0.3)"
           : "rgba(34,197,94,0.3)",
     })
+  }
+}
+
+function chartSeconds(time: Time): number {
+  if (typeof time === 'number') return time
+  if (typeof time === 'string') return toTimestamp(time)
+  return Date.UTC(time.year, time.month - 1, time.day) / 1000
+}
+
+/** The accumulated tail can include candles already drawn before a rollover.
+ * Replay only the current/end candles: LWC rejects updating an earlier candle
+ * and would otherwise abort the whole batch before reaching the live candle. */
+export function applyBarsToSeries(
+  series: ISeriesApi<'Candlestick'>,
+  volumeRef: MutableRefObject<ISeriesApi<'Histogram'> | null>,
+  bars: KlineBar[],
+  period: KlinePeriod,
+): void {
+  const last = series.data().at(-1)?.time
+  const minimum = last === undefined ? -Infinity : chartSeconds(last)
+  for (const bar of bars) {
+    if (chartSeconds(formatChartTime(period, bar.time)) >= minimum) applyBarToSeries(series, volumeRef, bar, period)
   }
 }

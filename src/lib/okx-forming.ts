@@ -8,6 +8,7 @@ import { getPublicMarketSocket } from "./public-market"
 import { OKX_SNIPPET_CANDLE_STALE_MS } from "./okx-snippet-ws"
 import type { KlineBar, KlinePeriod } from "@/types"
 import { isServerMode } from "./desktop-routing"
+import { visibleCharts, onVisibleChartsChange } from "./visible-charts"
 
 const POLL_MS = 3_000
 const IDLE_MS = 30_000
@@ -38,7 +39,7 @@ function validBar(bar: KlineBar): boolean {
 function receiveChart(message: WsMessage, server = false): void {
   if (message.type !== "chart_kline" || !Array.isArray(message.data)) return
   if (server && collectionMode()) return
-  if (!server && (isServerMode() || getPublicMarketSocket().state !== "connected")) return
+  if (!server && (isServerMode() || (!collectionMode() && getPublicMarketSocket().state !== "connected"))) return
   const groups = new Map<string, { symbol: string; period: string; bars: KlineBar[] }>()
   for (const frame of message.data) {
     if (!frame || typeof frame.symbol !== "string" || typeof frame.period !== "string") continue
@@ -63,7 +64,8 @@ function receiveChart(message: WsMessage, server = false): void {
 }
 
 async function pollOnce(): Promise<void> {
-  const keys = listActiveRtKeys(IDLE_MS).filter(({ symbol, period }) =>
+  const candidates = collectionMode() ? visibleCharts() : listActiveRtKeys(IDLE_MS)
+  const keys = candidates.filter(({ symbol, period }) =>
     /^[a-z0-9]{1,16}usdt$/.test(symbol) && ["1m", "5m", "15m", "30m", "60m", "240m", "1d"].includes(period))
   activeKeys = new Set(keys.map(keyOf))
   for (const key of streamHeads.keys()) if (!activeKeys.has(key)) streamHeads.delete(key)
@@ -77,6 +79,13 @@ async function pollOnce(): Promise<void> {
   })
   getMarketWebSocket().setChartSubscription(collectionMode() ? [] : serverKeys)
   ws.setChartSubscription(serverMode ? [] : keys)
+  // Allow the newly opened stream to deliver before spending HTTP quota on recovery.
+  // Mounted charts remain subscribed independently of history and React updates.
+  const now = Date.now()
+  if (collectionMode()) for (const chart of keys) {
+    const key = keyOf(chart)
+    if (!retries.has(key) && !streamHeads.has(key)) retries.set(key, { failures: 0, after: now + 10000 })
+  }
   const needed = keys.filter(key => {
     const head = streamHeads.get(keyOf(key))
     if (head?.server && getMarketWebSocket().state==='connected' && Date.now()-head.at<=5000) return false
@@ -96,7 +105,8 @@ async function pollOnce(): Promise<void> {
         if (activeKeys.has(key) && !(!isServerMode() && ws.state === "connected" && head && !head.server && Date.now() - head.at <= STREAM_STALE_MS)) {
           applyFrames(symbol, period, page.bars)
         }
-        retries.delete(key)
+        if (collectionMode()) retries.set(key, { failures: 0, after: Date.now() + 10000 })
+        else retries.delete(key)
       } catch (err) {
         const failures = (retries.get(key)?.failures ?? 0) + 1
         retries.set(key, { failures, after: Date.now() + DELAYS[Math.min(failures - 1, DELAYS.length - 1)] })
@@ -123,10 +133,10 @@ function schedule(): void {
 export function startOkxFormingFeed(): void {
   if (typeof window === "undefined" || timer !== null) return
   const ws = getPublicMarketSocket()
-  unsubscribe = [ws.onMessage(message => receiveChart(message)), getMarketWebSocket().onMessage(message => receiveChart(message,true)), getMarketWebSocket().onStateChange(state => {
+  unsubscribe = [onVisibleChartsChange(() => { if (collectionMode()) void pollOnce().catch(() => {}) }), ws.onMessage(message => receiveChart(message)), getMarketWebSocket().onMessage(message => receiveChart(message,true)), getMarketWebSocket().onStateChange(state => {
     if (isServerMode()) useMarketStore.getState().setConnectionState(state)
   }), ws.onStateChange((state) => {
-    streamHeads.clear(); retries.clear()
+    if (!collectionMode()) { streamHeads.clear(); retries.clear() }
     if (!isServerMode()) useMarketStore.getState().setConnectionState(state)
   })]
   schedule()

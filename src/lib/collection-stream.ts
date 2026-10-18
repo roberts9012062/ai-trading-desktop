@@ -107,14 +107,20 @@ export class CollectionMarketStream {
     const grants=collectionStatus().permissions?.active_packages.filter(g=>g.markets.includes('crypto'))||[]
     const entitled=(op:string)=>grants.some(g=>g.capabilities.includes(op))
     const desired=new Map<string,Record<string,unknown>>()
-    const selected=this.depths[0]||this.charts[0]?.symbol
-    const symbols=[...new Set([...(selected?[selected]:[]),...this.quotes])].slice(0,this.subscriptions)
+    const selected=this.charts[0]?.symbol||this.depths[0]
+    const symbols=[...new Set(this.quotes)].slice(0,this.subscriptions)
+    if(selected&&this.subscriptions>0&&!symbols.includes(selected)){
+      if(symbols.length>=this.subscriptions)symbols.pop()
+      symbols.push(selected)
+    }
+    // Current charts get the connection budget before background list quotes.
+    // Every period for the same symbol shares a socket. Reserve one HTTP slot
+    // whenever the package has enough connections to do so.
+    const budget=Math.max(1,this.limit-1)
+    for(const group of candleGroups(this.charts))if(desired.size<Math.max(1,budget-2)&&entitled('stream_bars'))desired.set('candles:'+group.symbol+':'+group.periods.join(','),{market_type:'crypto',exchange:'okx',symbol:collectionSymbol(group.symbol),operation:'stream_bars',resolution:COLLECTION_PERIODS[group.periods[0]],resolutions:group.periods.map(p=>COLLECTION_PERIODS[p])})
     if(entitled('stream_quotes')) for(let start=0;start<Math.min(symbols.length,200);start+=100){const batch=symbols.slice(start,start+100);desired.set('quotes:'+batch.join(','),{market_type:'crypto',exchange:'okx',operation:'stream_quotes',symbols:batch.map(collectionSymbol)})}
     if(selected&&entitled('stream_quotes')&&!entitled('stream_ticks'))desired.set('depth:'+selected,{market_type:'crypto',exchange:'okx',symbol:collectionSymbol(selected),operation:'stream_quotes',depth:true})
     if(selected&&entitled('stream_ticks'))desired.set('trades:'+selected,{market_type:'crypto',exchange:'okx',symbol:collectionSymbol(selected),operation:'stream_ticks',depth:entitled('stream_quotes')})
-    // Reserve a connection for history/HTTP. Every period for one symbol shares a WS.
-    const budget=Math.max(0,this.limit-1)
-    for(const group of candleGroups(this.charts))if(desired.size<budget&&entitled('stream_bars'))desired.set('candles:'+group.symbol+':'+group.periods.join(','),{market_type:'crypto',exchange:'okx',symbol:collectionSymbol(group.symbol),operation:'stream_bars',resolution:COLLECTION_PERIODS[group.periods[0]],resolutions:group.periods.map(p=>COLLECTION_PERIODS[p])})
     while(desired.size>budget){const last=[...desired.keys()].at(-1);if(last)desired.delete(last);else break}
     for(const [key,ch] of this.channels)if(!desired.has(key)){ch.stop();this.channels.delete(key)}
     for(const [key,query] of desired)if(!this.channels.has(key)){

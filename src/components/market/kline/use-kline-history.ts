@@ -241,7 +241,7 @@ async function fetchAndStore(
 
   // 分钟周期 + 冷却外 + 非强刷：bundle 一次拉全五周期（首开/到期对齐）
   // force（WS 重连强刷）走单周期路径：只校验当前周期，不打全量包
-  if (!force && BUNDLE_PERIODS.includes(period) && bundleGateOpen(symbol)) {
+  if (!collectionMode() && !force && BUNDLE_PERIODS.includes(period) && bundleGateOpen(symbol)) {
     const showLoading = !existing || existing.length === 0
     if (showLoading) state.setKlineLoading(key, true)
     try {
@@ -316,7 +316,7 @@ export function prefetchKlineHistory(
   symbols: string[],
   period: KlinePeriod
 ): void {
-  if (period === "tick" || symbols.length === 0) return
+  if (collectionMode() || period === "tick" || symbols.length === 0) return
   const queue = symbols
     .map((s) => s.trim())
     .filter(Boolean)
@@ -369,6 +369,7 @@ export function prefetchSiblingPeriods(
   symbol: string,
   current: KlinePeriod
 ): void {
+  if (collectionMode()) return
   const sym = symbol.trim()
   if (!sym) return
   const last = _siblingPrefetchedAt.get(sym) ?? 0
@@ -433,7 +434,7 @@ export function useKlineHistory(props: {
   useEffect(() => {
     const prev = prevConnectionStateRef.current
     prevConnectionStateRef.current = connectionState
-    if (props.period === "tick") return
+    if (props.period === "tick" || collectionMode()) return
     if (prev === "reconnecting" && connectionState === "connected") {
       void fetchAndStore(props.activeContract, props.period, true)
     }

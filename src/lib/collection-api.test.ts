@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { collectionSymbol, desktopSymbol, mapCollectionBar, mapCollectionTrade, ticketAddress } from './collection-api'
+import { collectionSymbol, desktopSymbol, mapCollectionBar, mapCollectionTrade, ticketAddress, selectDesktopSymbols } from './collection-api'
 
 describe('collection market boundary', () => {
+  it('exposes a stable 60-contract desktop universe with BTC and ETH first', () => {
+    const rows = [...Array.from({length:100},(_,i)=>({symbol:`COIN${i}-USDT-SWAP`,name:`Coin ${i}`})),{symbol:'ETH-USDT-SWAP',name:'ETH'},{symbol:'BTC-USDT-SWAP',name:'BTC'}]
+    const selected=selectDesktopSymbols(rows)
+    expect(selected).toHaveLength(60)
+    expect(selected.slice(0,2).map(row=>row.symbol)).toEqual(['BTC-USDT-SWAP','ETH-USDT-SWAP'])
+    expect(selectDesktopSymbols(rows.reverse())).toEqual(selected)
+  })
   it('only maps actual OKX USDT swaps', () => {
     expect(collectionSymbol('btcusdt')).toBe('BTC-USDT-SWAP')
     expect(desktopSymbol('ETH-USDT-SWAP')).toBe('ethusdt')

@@ -23,6 +23,7 @@ import type {
 } from "lightweight-charts"
 import { useMarketStore } from "@/stores/market"
 import { isCryptoSymbol } from "@/lib/mining/crypto-profile"
+import { retainVisibleChart } from "@/lib/visible-charts"
 import type { IndicatorConfig } from "@/types/indicator"
 import type { KlineBar, KlinePeriod } from "@/types"
 import type { BollSeriesRefs } from "./indicators/main"
@@ -38,6 +39,7 @@ import {
   patchBarWithPrice,
   realtimeBarFresh,
   applyBarToSeries,
+  applyBarsToSeries,
   isOldestDataError,
 } from "./realtime/buffer"
 import {
@@ -98,7 +100,10 @@ export function useRealtimeKline(props: {
 
   // Register the visible chart even before the first WS snapshot arrives.
   useEffect(() => {
-    if (activeContract && period !== "tick") readRtTail(rtAccKey(activeContract, period), "")
+    if (activeContract && period !== "tick") {
+      readRtTail(rtAccKey(activeContract, period), "")
+      return retainVisibleChart(activeContract, period)
+    }
   }, [activeContract, period])
 
   /** 组装指标更新所需的引用集合（refs 稳定，随用随组） */
@@ -147,7 +152,7 @@ export function useRealtimeKline(props: {
 
     try {
       // 断线恢复跳根时把 series 缺的中间根补齐（升序逐根写入）
-      for (const b of applyBars) applyBarToSeries(series, volumeRef, b, period)
+      applyBarsToSeries(series, volumeRef, applyBars, period)
       updateAllIndicators(indicatorRefs(), mergedBars, period)
 
       const isNewBar = chartBar.time !== lastRealtimeTime.current
