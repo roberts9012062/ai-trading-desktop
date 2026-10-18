@@ -133,7 +133,7 @@ export class LocalMiningRunner implements MiningRunner {
       // 可执行口径,见 factor_local.py);调用方显式指定 research_profile(如短线
       // shortline_v1)时必须尊重,不覆盖——覆盖会让短线任务的 v4 特征注入与
       // 页面任务过滤全部失效(只补默认,与原生引擎 session.py 的默认逻辑一致)
-      ...(isCrypto && !config.research_profile && (config.selection_v2 || config.evolve_v2)
+      ...(isCrypto && !config.research_profile && (config.selection_v2 || config.evolve_v2 || config.economic_seed_research)
         ? { research_profile: "crypto_local_v2" }
         : {})
     }

@@ -9,9 +9,9 @@ export function MiningFeatureSettings({selected, onChange, shortline = false, di
   const categories = [...new Set(features.map(f => f.category))]
   function toggle(id: number) {onChange(selected.includes(id) ? selected.filter(i => i !== id) : [...selected, id].sort((a,b) => a-b))}
   return <details className="rounded-lg border border-[var(--border)] p-3 text-xs col-span-full">
-    <summary className="cursor-pointer font-medium">高级设置 · 参与挖掘与组合的因子（{selected.length}/{ids.length}）</summary>
+    <summary className="cursor-pointer font-medium">高级设置 · 基础特征（{selected.length}/{ids.length}）</summary>
     <fieldset disabled={disabled} className="mt-3 space-y-3 disabled:opacity-60">
-      <p className="text-[var(--text-muted)]">默认全选。取消后，该特征不会参与新公式、种子或组合成员；已有任务保留原设置。鼠标悬停或键盘聚焦可查看作用。缺少真实数据的特征由引擎排除。</p>
+      <p className="text-[var(--text-muted)]">基础特征用于组合候选公式，论文配方另列。默认全选；取消后，该特征不会参与新公式、种子或组合成员。已有任务保留原设置。鼠标悬停或键盘聚焦可查看作用。缺少真实数据的特征由引擎排除。</p>
       <div className="flex gap-3"><button type="button" onClick={() => onChange([...ids])}>全选</button><button type="button" onClick={() => onChange([])}>清空</button><button type="button" onClick={() => onChange(ids.filter(i => !selected.includes(i)))}>反选</button></div>
       {!selected.length && <p role="alert" className="text-red-400">至少选择一个因子才能开始挖掘。</p>}
       {categories.map(category => {

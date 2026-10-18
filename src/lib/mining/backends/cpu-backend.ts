@@ -23,6 +23,7 @@ import { getBarsSnapshot } from "../data-source"
 import type { MiningConfig } from "../types"
 import { filterSearchFeatures } from "@/lib/shortline/search-profile"
 import { compatibleTrainingSeeds } from "../seed-compatibility"
+import {withEconomicResearchSeeds} from '../economic-seeds'
 import type {
   ComputeBackend,
   EvalRequest,
@@ -103,6 +104,7 @@ function buildPayload(config: MiningConfig, req: EvalRequest): Record<string, un
     cost: config.cost ?? null,
     ...(config.seed_tokens?.length ? { seed_tokens: config.seed_tokens } : {}),
     ...(config.search_feature_ids ? { search_feature_ids: config.search_feature_ids } : {}),
+    ...(config.economic_seed_research!==undefined?{economic_seed_research:config.economic_seed_research}:{}),
     ...(config.cross_peers?.length ? { cross_peers: config.cross_peers } : {}),
     ...(config.selection_v2 ? { selection_v2: true } : {}),
     ...(config.evolve_v2 ? { evolve_v2: true } : {}),
@@ -284,7 +286,8 @@ async function* runParallel(
     for (let i = 0; i < cfg.population; i++) {
       population.push(randomTreeGpuSafe(maxDepth, F, opOne, opTwo, rng, true))
     }
-    const {seeds:seedTokens,warning:seedWarning} = compatibleTrainingSeeds(cfg,active,features.feature_names)
+    const {seeds:compatibleSeeds,warning:seedWarning} = compatibleTrainingSeeds(cfg,active,features.feature_names)
+    const seedTokens=withEconomicResearchSeeds(cfg,compatibleSeeds,active,features.feature_names)
     for (let k = 0; k < seedTokens.length && k < population.length; k++) {
       const tree = tokensToTree(seedTokens[k], F)
       if (tree) population[k] = tree

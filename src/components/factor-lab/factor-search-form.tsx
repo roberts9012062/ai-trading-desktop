@@ -5,6 +5,7 @@
  */
 
 import { MiningFeatureSettings } from "@/components/factor-lab/mining-feature-settings"
+import {PaperResearchSettings} from './paper-research-settings'
 import { ALL_MINING_FEATURE_IDS, restrictSeeds } from "@/lib/mining/feature-selection"
 import { gateResearchRange } from "@/lib/crypto-direct"
 import { CRYPTO_RESEARCH_NOTE } from "@/lib/mining/crypto-profile"
@@ -368,11 +369,7 @@ export function FactorSearchForm({
       )}
 
       {localEngine && (
-        <label className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)] cursor-pointer">
-          <input type="checkbox" checked={economicSeedResearch}
-            onChange={(e) => setEconomicSeedResearch(e.target.checked)} />
-          论文与经济假设种子（流动性、尾部、订单流、资金拥挤；仅研究，需样本外检验）
-        </label>
+        <PaperResearchSettings selected={searchFeatures} enabled={economicSeedResearch} onChange={setEconomicSeedResearch} disabled={loading}/>
       )}
 
       {/* 长历史区间（默认关：不带日期 = 近期数据，与历史行为一致） */}

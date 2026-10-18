@@ -23,6 +23,15 @@ async function until(check: () => boolean | Promise<boolean>) {
 }
 beforeEach(() => { state.records.clear(); state.requests.length = 0 })
 describe("super-factor native persistence", () => {
+  it('retains paper research through task creation, native dispatch and saved state',async()=>{
+    const {LocalMiningRunner}=await import('./local-runner')
+    const runner=new LocalMiningRunner({backendFactory:()=>({device:'gpu',probe:async()=>({available:true}),dispose:async()=>{},
+      async *run(req){state.requests.push(req);yield {...progress,generation:2};return []}})})
+    const task=await runner.create({...cfg,economic_seed_research:true},{device:'native-gpu'})
+    await until(async()=>(await runner.get(task.id))?.status==='completed')
+    expect(state.requests[0].config).toMatchObject({economic_seed_research:true,research_profile:'crypto_local_v2'})
+    expect(state.records.get(task.id)).toMatchObject({config:{economic_seed_research:true,research_profile:'crypto_local_v2'}})
+  })
   it.each([false, true])("restores a passed rescued combination with zero single champions after restart (details=%s)", async detailed => {
     const { LocalMiningRunner } = await import("./local-runner")
     const portfolio: PortfolioResult = { n_factors: 2, avg_abs_corr: .366,

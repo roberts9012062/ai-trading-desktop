@@ -12,6 +12,7 @@ import { getBarsSnapshot } from "@/lib/mining/data-source"
 import type { Champion } from "@/lib/factor-lab-api"
 import { championSeedsFor } from "../champion-seeds"
 import { createShardPool } from "../gpu/shard-pool"
+import {MINING_FEATURES} from '../feature-selection'
 
 vi.mock("../gpu/shard-pool", () => ({
   createShardPool: vi.fn(async () => null),
@@ -104,6 +105,27 @@ afterEach(() => {
 })
 
 describe("CpuBackend.run", () => {
+  it('passes enabled paper research to the single-worker Python search',async()=>{
+    const f:FakePy={startPayload:null,startBars:null,steps:[{done:true}],disposed:[]};fakePy(f)
+    vi.mocked(ensurePyWorker().factorRun).mockResolvedValueOnce({feature_names:MINING_FEATURES.slice(0,64).map(r=>r.name),active_feature_ids:[0,46,48,50],train_len:50,total_len:90,periods:365,cost:.0003})
+    const {CpuBackend}=await loadBackend()
+    const gen=new CpuBackend().run({snapshotId:'snap-1',config:{...CONFIG,crypto_profile:true,research_profile:'crypto_local_v2',economic_seed_research:true},startGeneration:0},new AbortController().signal)
+    await gen.next()
+    expect(f.startPayload).toMatchObject({economic_seed_research:true})
+  })
+
+  it('evaluates the paper recipes in the parallel CPU population, not only user seeds',async()=>{
+    const f:FakePy={startPayload:null,startBars:null,steps:[],disposed:[]};fakePy(f)
+    const pool={size:2,evalShards:vi.fn(async(tokens:number[][])=>tokens.map(tokens=>({tokens,composite:.5,metrics:{sortino:1}}))),evalStrict:vi.fn(async()=>[]),dispose:vi.fn()}
+    vi.mocked(createShardPool).mockResolvedValue(pool)
+    vi.mocked(ensurePyWorker().factorRun).mockImplementation(async(payload)=>(payload as {mode:string}).mode==='mine_features'
+      ?{feature_names:MINING_FEATURES.slice(0,64).map(r=>r.name),active_feature_ids:[0,46,48,50],train_len:50,total_len:90,periods:365,cost:.0003}
+      :(payload as {mode:string}).mode==='mine_precise'?{champions:[],best_seen:[]}: {})
+    const {CpuBackend}=await loadBackend()
+    const gen=new CpuBackend().run({snapshotId:'snap-1',config:{...CONFIG,population:40,crypto_profile:true,research_profile:'crypto_local_v2',economic_seed_research:true},startGeneration:0},new AbortController().signal)
+    try{await gen.next();expect(pool.evalShards.mock.calls[0][0]).toContainEqual([0,71,48,101,66,107])}
+    finally{await gen.return([])}
+  })
   const dotConfig = () => ({ ...CONFIG, symbol: "dotusdt", crypto_profile: true,
     seed_origin: "champion_library" as const,
     seed_tokens: championSeedsFor("dotusdt", "1d").seeds.map(seed => seed.tokens) })

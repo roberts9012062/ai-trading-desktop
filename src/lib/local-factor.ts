@@ -23,6 +23,7 @@ import { comboSuperOutcome, selectComboMembers } from "@/lib/mining/combo-super"
 import type { GenerationStep } from "@/lib/mining/backends/types"
 
 export interface LocalFactorPayload {
+  economic_seed_research?: boolean
   search_feature_ids?: number[]
   native_precision?: "mixed" | "f64"
   crypto_profile?: boolean
@@ -230,6 +231,7 @@ export function buildSearchConfig(payload: LocalFactorPayload) {
     ...(payload.seed_tokens?.length ? { seed_tokens: payload.search_feature_ids ? restrictSeeds(payload.seed_tokens, payload.search_feature_ids) : payload.seed_tokens } : {}),
     ...(payload.search_feature_ids ? {search_feature_ids: payload.search_feature_ids} : {}),
     ...(payload.seed_origin ? {seed_origin:payload.seed_origin} : {}),
+    ...(payload.economic_seed_research!==undefined?{economic_seed_research:payload.economic_seed_research}:{}),
     ...(payload.selection_v2 ? { selection_v2: true } : {}),
     ...(payload.evolve_v2 ? { evolve_v2: true } : {}),
     ...(payload.live_entry_gate ? { live_entry_gate: payload.live_entry_gate } : {}),
@@ -249,7 +251,7 @@ export function buildSearchConfig(payload: LocalFactorPayload) {
  * session.prepare_features 的兜底保持同一口径。 */
 export function researchProfileFor(payload: LocalFactorPayload): string | undefined {
   if (payload.research_profile) return payload.research_profile
-  if (payload.crypto_profile && (payload.selection_v2 || payload.evolve_v2)) {
+  if (payload.crypto_profile && (payload.selection_v2 || payload.evolve_v2 || payload.economic_seed_research)) {
     return "crypto_local_v2"
   }
   return undefined

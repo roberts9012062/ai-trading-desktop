@@ -35,7 +35,7 @@ export interface MiningConfig {
   cost?: number | null
   seed_tokens?: number[][]
   seed_origin?: "champion_library" | "custom"
-  /** Unqualified economic formula hypotheses, explicit opt-in; default off. */
+  /** Explicit paper/economic research switch; omitted legacy tasks stay off. */
   economic_seed_research?: boolean
   /** Explicit feature search pool. Omitted for frozen legacy tasks. */
   search_feature_ids?: number[]

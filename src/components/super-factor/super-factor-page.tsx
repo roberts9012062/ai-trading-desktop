@@ -8,6 +8,7 @@
 import { NumericInput } from "@/components/ui/numeric-input"
 import { CRYPTO_RESEARCH_NOTE } from "@/lib/mining/crypto-profile"
 import { MiningFeatureSettings } from "@/components/factor-lab/mining-feature-settings"
+import {PaperResearchSettings} from '@/components/factor-lab/paper-research-settings'
 import { ALL_MINING_FEATURE_IDS, restrictSeeds } from "@/lib/mining/feature-selection"
 import { useEffect, useState } from "react"
 import { Loader2, Pause, Play, Plus, Square, Trash2, X } from "lucide-react"
@@ -26,7 +27,7 @@ import {
   type SupportedInfo,
   type SupportedTimeframe,
 } from "@/lib/super-factor-api"
-import type { DeviceKind, MiningTask, RunnerKind } from "@/lib/mining/types"
+import type { DeviceKind, MiningTask, RunnerKind, MiningConfig } from "@/lib/mining/types"
 import { championSeedsFor } from "@/lib/mining/champion-seeds"
 import { MiningSymbolCombobox } from "./mining-symbol-combobox"
 import { LlmSeedControls } from "./llm-seed-controls"
@@ -171,37 +172,7 @@ export function SuperFactorPage(): React.JSX.Element {
             onSubmit={async (p) => {
               try {
                 await createTask(
-                  {
-                    search_feature_ids: p.searchFeatures,
-                    symbol: p.symbol,
-                    timeframe: p.timeframe,
-                    population: p.population,
-                    generations: p.generations,
-                    max_depth: p.max_depth,
-                    train_ratio: p.train_ratio,
-                    walk_forward_folds: p.walk_forward_folds,
-                    ...(p.device === "native-gpu" ? { native_precision: p.nativePrecision } : {}),
-                    ...(p.origin === "local" && p.islands > 1 ? { islands: p.islands } : {}),
-                    ...(p.origin === "local" && (p.championSeedTokens?.length || p.llmSeedTokens?.length)
-                      ? {
-                          seed_tokens: [
-                            ...(p.championSeedTokens ?? []),
-                            ...(p.llmSeedTokens ?? []),
-                          ],
-                        }
-                      : {}),
-                    ...(p.crossPeers?.length ? { cross_peers: p.crossPeers } : {}),
-                    // 本地增强仅本地任务(服务端 CreateTaskPayload 不含这些字段)
-                    ...(p.origin === "local" && p.enhanced
-                      ? { selection_v2: true, evolve_v2: true }
-                      : {}),
-                    ...(p.origin === "local" && p.comboSuper ? { combo_super: true } : {}),
-                    ...(p.origin === "local" && p.liveGate ? { live_entry_gate: LIVE_GATE_ENTRY } : {}),
-                    ...(p.origin === "local" && p.jointTraining && p.crossPeers?.length
-                      ? { joint_training: true }
-                      : {}),
-                    data_channel: p.data_channel,
-                  },
+                  buildSuperFactorMiningConfig(p),
                   { device: p.device, name: p.name },
                   p.origin,
                 )
@@ -250,6 +221,7 @@ interface ConfigFormProps {
   disabled: boolean
   onSubmit: (p: {
     searchFeatures: number[]
+    paperResearch: boolean
     symbol: string
     timeframe: string
     population: number
@@ -286,9 +258,28 @@ interface ConfigFormProps {
 /** 实盘开仓口径门槛:与实盘因子策略默认开仓阈值一致 */
 const LIVE_GATE_ENTRY = 0.3
 
-function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
+export function buildSuperFactorMiningConfig(p:Parameters<ConfigFormProps['onSubmit']>[0]):MiningConfig {
+ return {
+   search_feature_ids:p.searchFeatures,symbol:p.symbol,timeframe:p.timeframe,population:p.population,
+   generations:p.generations,max_depth:p.max_depth,train_ratio:p.train_ratio,walk_forward_folds:p.walk_forward_folds,
+   ...(p.device==='native-gpu'?{native_precision:p.nativePrecision}:{}),
+   ...(p.origin==='local'?{economic_seed_research:p.paperResearch}:{}),
+   ...(p.origin==='local'&&p.islands>1?{islands:p.islands}:{}),
+   ...(p.origin==='local'&&(p.championSeedTokens?.length||p.llmSeedTokens?.length)
+      ?{seed_tokens:[...(p.championSeedTokens??[]),...(p.llmSeedTokens??[])]}:{}),
+   ...(p.crossPeers?.length?{cross_peers:p.crossPeers}:{}),
+   ...(p.origin==='local'&&p.enhanced?{selection_v2:true,evolve_v2:true}:{}),
+   ...(p.origin==='local'&&p.comboSuper?{combo_super:true}:{}),
+   ...(p.origin==='local'&&p.liveGate?{live_entry_gate:LIVE_GATE_ENTRY}:{}),
+   ...(p.origin==='local'&&p.jointTraining&&p.crossPeers?.length?{joint_training:true}:{}),
+   data_channel:p.data_channel,
+ }
+}
+
+export function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
   const { supported, disabled, onSubmit, startingPhase } = props
   const [searchFeatures, setSearchFeatures] = useState<number[]>([...ALL_MINING_FEATURE_IDS])
+  const [paperResearch,setPaperResearch]=useState(true)
   const [symbol, setSymbol] = useState("")
   const [dataChannel, setDataChannel] = useState<string>(DEFAULT_KLINE_CHANNEL)
   const [timeframe, setTimeframe] = useState("1d")
@@ -449,6 +440,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
       if (!searchFeatures.length) {setLlmError("至少选择一个参与挖掘的因子"); return}
       await onSubmit({
         searchFeatures,
+        paperResearch,
         symbol: symbol.trim().toLowerCase(),
         timeframe,
         population: clampInt(population, 10, 30000, 40),
@@ -898,6 +890,7 @@ function MiningConfigForm(props: ConfigFormProps): React.JSX.Element {
         先关 WF（设0）避免计算过重。
       </p>
 
+      {origin==='local'&&<PaperResearchSettings selected={searchFeatures} enabled={paperResearch} onChange={setPaperResearch} disabled={disabled||submitting}/>}
       <MiningFeatureSettings selected={searchFeatures} onChange={setSearchFeatures} disabled={disabled || submitting} />
       <Button type="submit" disabled={disabled || submitting || !searchFeatures.length} className="w-full">
         {submitting ? (

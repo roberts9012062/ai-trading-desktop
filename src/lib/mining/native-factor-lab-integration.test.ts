@@ -23,6 +23,12 @@ beforeEach(async () => {
   controlled.finalize.mockReset().mockResolvedValue({ champions: [], bars: 2, symbol: "ETHUSDT", timeframe: "15m", portfolio: null })
 })
 describe("factor lab native boundaries", () => {
+  it('forwards enabled paper research from ordinary mining into the native backend request',async()=>{
+    controlled.create.mockResolvedValue({dispose:async()=>{},async *runDirect(_bars:unknown,req:EvalRequest){controlled.requests.push(req);yield value(1);return []}})
+    const {factorLabRunner}=await import('./factor-lab-runner')
+    await factorLabRunner.start({...payload,economic_seed_research:true},'native-gpu')
+    expect(controlled.requests[0].config).toMatchObject({economic_seed_research:true,research_profile:'crypto_local_v2'})
+  })
   it("a pause during cold startup cannot become completed or reveal the sealed result", async () => {
     let proceed!: () => void
     const gate = new Promise<void>(resolve => { proceed = resolve })

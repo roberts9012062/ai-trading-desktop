@@ -49,6 +49,9 @@ jobs:
       - name: Verify AI settings model selection for super-factor LLM seeds
         run: pnpm exec vitest run src/lib/llm-factor-seed.test.ts src/lib/mining/paper-factors.test.ts
 
+      - name: Verify paper research entry points and CPU propagation
+        run: pnpm exec vitest run src/lib/mining/seed-compatibility-protocol.test.ts src/lib/mining/backends/cpu-backend.test.ts src/components/factor-lab/paper-research-settings.test.tsx src/components/super-factor/paper-research-config.test.ts src/lib/mining/native-factor-lab-integration.test.ts
+
       - name: Verify paused task residual position display
         run: |
           pnpm exec vitest run src/components/ai-trading/task-close-button.test.ts src/components/ai-trading/equity/equity-chart.test.ts src/components/ai-trading/equity/equity-wave-data.test.ts src/lib/hunter/task-visibility.test.ts
