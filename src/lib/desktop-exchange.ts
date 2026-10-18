@@ -3,7 +3,7 @@ import { resolveWsBase } from "./websocket"
 import { ensureDesktopRouting, isServerMode, onDesktopRoutingChange } from "./desktop-routing"
 import { snippetOrigin, snippetFailed, snippetSucceeded } from "./snippet-pool"
 import { collectionMode, collectionGeneration, onCollectionChange } from './collection-config'
-import { forwardCollectionExchange, requireCollectionPrivate } from './collection-exchange'
+import { forwardCollectionExchange, requireCollectionPrivate, collectionRpcSlot } from './collection-exchange'
 
 class UnavailableBeforeCall extends Error {}
 export class ExchangeOutcomeUnknown extends Error {}
@@ -145,6 +145,16 @@ async function sendDesktopRequest(path: string, options: RequestInit): Promise<R
   if(collectionOwned)await requireCollectionPrivate()
   await ensureDesktopRouting()
   if (isServerMode()) return null
+  const token=localStorage.getItem('access_token')||''
+  const dispatch=()=>{
+    if(token!==(localStorage.getItem('access_token')||''))throw new Error('账号已切换，已取消旧请求')
+    return dispatchDesktopRequest(path,options,analytics)
+  }
+  return collectionMode()?collectionRpcSlot(dispatch,collectionOwned?1:0):dispatch()
+}
+
+async function dispatchDesktopRequest(path:string,options:RequestInit,analytics:boolean):Promise<Response|null>{
+  const collectionOwned=collectionMode()&&(allowed.test(path.split('?')[0])||path.startsWith('/api/live/daily-pnl'))
   try { await connect() } catch (error) { if (error instanceof UnavailableBeforeCall) {if(collectionOwned)throw new Error('账户连接暂不可用，请稍后重试');return null}throw error }
   const target=socket
   if (!target || target.readyState!==1) {if(collectionOwned)throw new Error('账户连接已断开');return null} // no command has been dispatched

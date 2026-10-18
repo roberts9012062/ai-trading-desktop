@@ -27,13 +27,34 @@ export function signedCollectionBody(frame:Record<string,unknown>){
   const field=(name:string)=>{const value=headers.get(name);if(!value&&!publicRead)throw new Error('交易所签名不完整');return value||'public'}
   return {method,path,query,body,access_key:field('OK-ACCESS-KEY'),signature:field('OK-ACCESS-SIGN'),timestamp:field('OK-ACCESS-TIMESTAMP'),passphrase:field('OK-ACCESS-PASSPHRASE'),simulated:headers.get('x-simulated-trading')==='1'}
 }
-// Shares the HTTP slot with market history so the account WS keeps one slot and
-// the package's remaining connection is available for each individual request.
+let activeRpc:{tail:Promise<unknown>}|null=null
+// Reserve transport before requesting any business signature. Waiting after
+// signing used to consume the relay's 15s response window and expire requests.
+export async function collectionRpcSlot<T>(work:()=>Promise<T>,priority=1):Promise<T>{
+  await loadCollectionConfig()
+  const generation=collectionGeneration(),scope=collectionScope()
+  return collectionHttpSlot(async()=>{
+    if(generation!==collectionGeneration()||scope!==collectionScope())throw new Error('会话或数据配置已变化')
+    const lease={tail:Promise.resolve() as Promise<unknown>}
+    activeRpc=lease
+    try{return await work()}
+    finally{await lease.tail.catch(()=>{});if(activeRpc===lease)activeRpc=null}
+  },priority)
+}
+function signedHttpSlot<T>(work:()=>Promise<T>):Promise<T>{
+  const lease=activeRpc
+  if(!lease)return collectionHttpSlot(work,1)
+  // A single business call may request several exchange endpoints. They share
+  // its reservation instead of deadlocking on the outer HTTP queue.
+  const next=lease.tail.catch(()=>{}).then(work)
+  lease.tail=next
+  return next
+}
 export async function forwardCollectionExchange(frame:Record<string,unknown>,canSend=()=>true){
   const request=signedCollectionBody(frame),generation=collectionGeneration(),scope=collectionScope()
   const current=()=>canSend()&&generation===collectionGeneration()&&scope===collectionScope()
   await requireCollectionPrivate()
-  return collectionHttpSlot(async()=>{
+  return signedHttpSlot(async()=>{
     if(!current())throw new Error('交易所查询已取消')
     const ticket=await collectionTicket({market_type:'crypto',exchange:'okx',symbol:'BTC-USDT-SWAP',operation:'okx_private'})
     if(!current())throw new Error('交易所查询已取消')

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 const policy=vi.hoisted(()=>({server:false,collection:false,forward:vi.fn()}))
 vi.mock('./collection-config',()=>({collectionMode:()=>policy.collection,collectionGeneration:()=>0,onCollectionChange:vi.fn()}))
-vi.mock('./collection-exchange',()=>({requireCollectionPrivate:async()=>{},forwardCollectionExchange:policy.forward}))
+vi.mock('./collection-exchange',()=>({requireCollectionPrivate:async()=>{},forwardCollectionExchange:policy.forward,collectionRpcSlot:(work:()=>Promise<unknown>)=>work()}))
 vi.mock('./desktop-routing',()=>({ensureDesktopRouting:async()=>{},isServerMode:()=>policy.server,onDesktopRoutingChange:vi.fn()}))
 vi.mock('./websocket',()=>({resolveWsBase:()=> 'wss://product.example'}))
 import { disconnectDesktopExchange, ExchangeOutcomeUnknown, tryDesktopLiveRequest } from './desktop-exchange'

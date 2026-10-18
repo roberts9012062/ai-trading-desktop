@@ -41,11 +41,26 @@ export async function collectionTicket(query:Record<string,unknown>){
   })
   ticketQueue=request;return request
 }
-let dataQueue:Promise<unknown>=Promise.resolve()
-export function collectionHttpSlot<T>(work:()=>Promise<T>):Promise<T>{
-  const request=dataQueue.catch(()=>{}).then(work)
-  dataQueue=request
-  return request
+let httpBusy=false,httpUrgentRun=0
+const httpWaiting:{priority:number;run:()=>void}[]=[]
+function nextHttp(){
+  httpBusy=false
+  if(!httpWaiting.length){httpUrgentRun=0;return}
+  // Account operations go ahead of further history/analytics pages. An active
+  // request always finishes first, keeping the package's single HTTP slot.
+  let next=0
+  for(let i=1;i<httpWaiting.length;i++)if(httpWaiting[i].priority>httpWaiting[next].priority)next=i
+  const background=httpWaiting.findIndex(job=>job.priority===0)
+  if(httpUrgentRun>=4&&background>=0)next=background
+  httpUrgentRun=httpWaiting[next].priority>0?httpUrgentRun+1:0
+  httpBusy=true;httpWaiting.splice(next,1)[0].run()
+}
+export function collectionHttpSlot<T>(work:()=>Promise<T>,priority=0):Promise<T>{
+  return new Promise<T>((resolve,reject)=>{
+    const run=()=>{void Promise.resolve().then(work).then(resolve,reject).finally(nextHttp)}
+    if(httpBusy)httpWaiting.push({priority,run})
+    else {httpBusy=true;httpUrgentRun=priority>0?1:0;run()}
+  })
 }
 export async function collectionData(query:Record<string,unknown>):Promise<CollectionData>{
   const generation=collectionGeneration()
