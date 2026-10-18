@@ -13,12 +13,14 @@ describe('bounded economic research hypotheses', () => {
   it('uses existing IDs and rotates families before opposite directions', () => {
     expect(economicResearchSeeds(active, names)).toEqual([
       [61, 46, 65, 94], [61, 59, 65, 94], [60, 61, 66, 94],
+      [61, 46, 100, 79], [59, 46, 100, 71, 79],
       [61, 46, 65, 94, 71], [61, 59, 65, 94, 71], [60, 61, 66, 94, 71],
+      [61, 46, 100, 79, 71], [59, 46, 100, 71, 79, 71],
     ])
   })
   it('never substitutes absent OI or funding, and requires actual registry names', () => {
-    expect(economicResearchSeeds([46, 61], names)).toHaveLength(2)
-    expect(economicResearchSeeds([46, 59, 60], names)).toEqual([])
+    expect(economicResearchSeeds([46, 61], names)).toHaveLength(4)
+    expect(economicResearchSeeds([46, 59, 60], names)).toEqual([[59,46,100,71,79],[59,46,100,71,79,71]])
     expect(economicResearchSeeds(active, ['unknown'])).toEqual([])
   })
   it('keeps user seeds first and limits additions to a quarter, with two random slots', () => {

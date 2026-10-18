@@ -132,7 +132,7 @@ export function FactorSearchForm({
   const [comboSuper, setComboSuper] = useState(false)
   // 冠军种子库(G2 冻结证据合格冠军):本地增强搜索默认注入
   const [useChampionSeeds, setUseChampionSeeds] = useState(true)
-  const [economicSeedResearch, setEconomicSeedResearch] = useState(false)
+  const [economicSeedResearch, setEconomicSeedResearch] = useState(true)
   const seedPick = useMemo(
     () => championSeedsFor(symbol.trim().toLowerCase() || "BTCUSDT", timeframe),
     [symbol, timeframe],
@@ -371,7 +371,7 @@ export function FactorSearchForm({
         <label className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)] cursor-pointer">
           <input type="checkbox" checked={economicSeedResearch}
             onChange={(e) => setEconomicSeedResearch(e.target.checked)} />
-          实验公式种子（订单流背离、资金费率差异、持仓确认；尚未通过独立验证，默认关闭）
+          论文与经济假设种子（流动性、尾部、订单流、资金拥挤；仅研究，需样本外检验）
         </label>
       )}
 

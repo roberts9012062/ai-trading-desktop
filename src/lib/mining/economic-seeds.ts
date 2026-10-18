@@ -1,5 +1,6 @@
 import { FEAT_OFFSET, OPS } from './gpu/tokens'
 import type { MiningConfig } from './types'
+import {paperFactorSeeds} from './paper-factors'
 
 /** Mirror of factor_lab.economic_templates: hypotheses, not approved strategies. */
 export function economicResearchSeeds(active: readonly number[], names: readonly string[]): number[][] {
@@ -20,7 +21,8 @@ export function economicResearchSeeds(active: readonly number[], names: readonly
     const tokens = [a, b, op(combine), op('TS_MA_60')]
     return [[tokens, [...tokens, op('NEG')]]]
   })
-  return [0, 1].flatMap(i => pairs.map(pair => pair[i]))
+  const paper=paperFactorSeeds(active,names),half=paper.length/2
+  return [0, 1].flatMap(i => [...pairs.map(pair => pair[i]),...paper.slice(i*half,(i+1)*half)])
 }
 
 export function withEconomicResearchSeeds(config: MiningConfig, seeds: number[][],

@@ -12,7 +12,7 @@ def sha(data):
 
 
 def source_identity():
-    files = [ROOT/'public/pykernel/factor_local.py', *sorted((ROOT/'public/pykernel/factor_lab').rglob('*.py')),
+    files = [ROOT/'public/pykernel/factor_local.py', ROOT/'public/pykernel/factor_lab/paper_factor_catalog.json', *sorted((ROOT/'public/pykernel/factor_lab').rglob('*.py')),
              ROOT/'src/workers/pyodide-backtest.worker.ts', ROOT/'src/lib/mining/gpu/shard-pool.ts', ROOT/'src/lib/py-worker.ts']
     return {p.relative_to(ROOT).as_posix(): sha(p.read_bytes()) for p in files}
 

@@ -47,7 +47,7 @@ jobs:
         run: pnpm exec vitest run src/lib/factor-evolution.test.ts src/lib/factor-evolution-runner.test.ts src/lib/factor-evolution-samples.test.ts src/lib/factor-task-review.test.ts src/components/factor-lab/evolution/task-factor-review.test.tsx src/components/factor-lab/evolution/evolution-page.test.ts src/components/factor-lab/evolution/evolution-progress.test.tsx src/components/factor-lab/evolution/evolution-research-report.test.tsx src/lib/binance-local-history.test.ts
 
       - name: Verify AI settings model selection for super-factor LLM seeds
-        run: pnpm exec vitest run src/lib/llm-factor-seed.test.ts
+        run: pnpm exec vitest run src/lib/llm-factor-seed.test.ts src/lib/mining/paper-factors.test.ts
 
       - name: Verify paused task residual position display
         run: |

@@ -6,7 +6,7 @@ const root = resolve(import.meta.dirname, "..")
 const dir = join(root, "public/pykernel")
 const walk = (d) =>
   readdirSync(d, { withFileTypes: true }).flatMap((e) =>
-    e.isDirectory() ? walk(join(d, e.name)) : e.name.endsWith(".py") ? [relative(dir, join(d, e.name)).replace(/\\/g, "/")] : []
+    e.isDirectory() ? walk(join(d, e.name)) : (e.name.endsWith(".py") || e.name === "paper_factor_catalog.json") ? [relative(dir, join(d, e.name)).replace(/\\/g, "/")] : []
   )
 const files = walk(dir).sort()
 const factorFiles = files.filter(f =>

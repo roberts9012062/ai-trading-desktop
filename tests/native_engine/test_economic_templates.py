@@ -9,6 +9,24 @@ from factor_lab.seed_templates import seed_fraction, templates_for
 
 
 class EconomicTemplatesTests(unittest.TestCase):
+    def test_paper_manifest_is_used_by_native_research_seeding(self):
+        rows=economic_templates()
+        self.assertEqual(len(rows),18)
+        self.assertEqual(len({tuple(t['tokens']) for t in rows}),18)
+        self.assertEqual(len([r for r in rows if r.get('sources')]),12)
+
+    def test_all_paper_recipes_execute_causally_in_the_bundled_kernel(self):
+        import numpy as np
+        from factor_lab.vm import execute
+        time=np.arange(900,dtype=float)
+        matrix=np.array([np.sin(time/(7+i))+np.cos(time/(19+i)) for i in range(64)])
+        for row in economic_templates():
+            if not row.get('sources'):continue
+            full=execute(row['tokens'],matrix,normalization='causal_v2')
+            prefix=execute(row['tokens'],matrix[:,:700],normalization='causal_v2')
+            self.assertIsNotNone(full,row['family'])
+            np.testing.assert_allclose(full[:700],prefix,atol=1e-10)
+
     def test_unsampled_prefix_does_not_poison_valid_direct_formula(self):
         import numpy as np
         from factor_lab.vm import execute
@@ -25,7 +43,7 @@ class EconomicTemplatesTests(unittest.TestCase):
         self.assertIsNone(execute(tokens, matrix, normalization='causal_v2'))
 
     def test_frozen_economic_hypotheses_match_frontend_contract(self):
-        self.assertEqual([t['tokens'] for t in economic_templates()], [
+        self.assertEqual([t['tokens'] for t in economic_templates()[:6]], [
             [61, 46, 65, 94], [61, 46, 65, 94, 71],
             [61, 59, 65, 94], [61, 59, 65, 94, 71],
             [60, 61, 66, 94], [60, 61, 66, 94, 71],
@@ -45,5 +63,5 @@ class EconomicTemplatesTests(unittest.TestCase):
         expanded = templates_for(list(range(62)), economic=True)
         baseline = templates_for(list(range(62)), economic=False)
         self.assertTrue(set(map(tuple, baseline)).issubset(set(map(tuple, expanded))))
-        self.assertEqual(len(expanded) - len(baseline), 6)
+        self.assertEqual(len(expanded) - len(baseline), 18)
         self.assertEqual(templates_for(list(range(62))), baseline)

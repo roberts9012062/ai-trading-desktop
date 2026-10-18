@@ -1,4 +1,6 @@
-"""Six bounded research hypotheses using existing inputs, never live approval."""
+"""Bounded economic and paper-inspired hypotheses, never live approval."""
+import json
+from pathlib import Path
 from .features import FEATURE_NAMES
 from .ops import OP_INDEX
 from .token_encoding import FEAT_OFFSET
@@ -17,4 +19,10 @@ def economic_templates():
         tokens = [f[left], f[right], op[combine], op['TS_MA_60']]
         out.extend([{'family': family, 'tokens': tokens},
                     {'family': family, 'tokens': [*tokens, op['NEG']]}])
+    registry=json.loads(Path(__file__).with_name('paper_factor_catalog.json').read_text(encoding='utf8'))
+    vocabulary={**f,**op}
+    for row in registry['factors']:
+        tokens=[vocabulary[name] for name in row['rpn']]
+        out.extend([{'family':row['id'],'tokens':tokens,'sources':row['sources']},
+                    {'family':row['id'],'tokens':[*tokens,op['NEG']],'sources':row['sources']}])
     return out

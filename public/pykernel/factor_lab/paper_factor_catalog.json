@@ -1,0 +1,303 @@
+{
+  "version": "paper-factor-catalog-2026-10-18.1",
+  "as_of": "2026-10-18",
+  "representation": "Existing causal normalized features; windows are bars. Adapted hypotheses, not paper replications or raw economic quantities.",
+  "papers": [
+    {
+      "id": "liquidity_2025",
+      "title": "Returns from liquidity provision in cryptocurrency markets",
+      "authors": "Hisham Farag; Di Luo; Larisa Yarovaya; Damian Zieba",
+      "available_date": "2025-02-01",
+      "date_precision": "month",
+      "publication": "Journal of Banking & Finance 175 (2025), 107411",
+      "status": "peer_reviewed",
+      "url": "https://doi.org/10.1016/j.jbankfin.2025.107411",
+      "open_url": "https://eprints.soton.ac.uk/501151/2/1-s2.0-S0378426625000317-main.pdf",
+      "finding": "Reversal-based liquidity provision returns vary with volatility, tail risk and liquidity conditions.",
+      "limitation": "Cross-sectional liquidity provision is not the same as a single-coin directional swap strategy."
+    },
+    {
+      "id": "orderflow_2026",
+      "title": "Order flow and cryptocurrency returns",
+      "authors": "Alexia Anastasopoulos; Nikola Gradojevic; Fred Liu; Alex Maynard; Ilias Tsiakas",
+      "available_date": "2026-06-01",
+      "date_precision": "issue_month",
+      "publication": "Journal of Financial Markets 79 (2026), 101047",
+      "status": "peer_reviewed",
+      "url": "https://doi.org/10.1016/j.finmar.2026.101047",
+      "open_url": "https://www.efmaefm.org/0EFMAMEETINGS/EFMA%20ANNUAL%20MEETINGS/2025-Greece/papers/OrderFlowpaper.pdf",
+      "finding": "International order flows across eleven currency denominations predict cross-sectional cryptocurrency returns.",
+      "limitation": "One-venue taker imbalance is only a local proxy, not the paper's world order flow; original data on request."
+    },
+    {
+      "id": "carry_2026",
+      "title": "Crypto Carry",
+      "authors": "Maik Schmeling; Andreas Schrimpf; Karamfil Todorov",
+      "available_date": "2026-05-06",
+      "date_precision": "day",
+      "publication": "Management Science, published online 6 May 2026",
+      "status": "peer_reviewed",
+      "url": "https://doi.org/10.1287/mnsc.2024.05069",
+      "open_url": "https://www.bis.org/publ/work1087.pdf",
+      "finding": "Futures-spot carry reflects leverage demand and limits to arbitrage and is related to crash risk.",
+      "limitation": "The BIS working-paper version predates the journal version. Funding deviations are not futures-spot carry or a hedged cash-and-carry return."
+    },
+    {
+      "id": "reversion_2026",
+      "title": "Short-horizon mean reversion in cryptocurrency markets: a matched cross-market measurement",
+      "authors": "Nadav A. Kitron; Jonathan M. Wengrowicz",
+      "available_date": "2026-08-22",
+      "date_precision": "day",
+      "publication": "arXiv:2608.21888 v1",
+      "status": "preprint",
+      "url": "https://arxiv.org/abs/2608.21888",
+      "open_url": "https://arxiv.org/html/2608.21888v1",
+      "finding": "Directional short-horizon reversal is measurable and conditioned by aggressive flow; gross edges remain below benchmark spot transaction costs.",
+      "limitation": "Negative tradability evidence: approximately 1.3 bp gross versus 5 bp round-trip benchmark. It does not establish a profitable strategy."
+    },
+    {
+      "id": "fundamentals_2026",
+      "title": "Predictive sorting of cryptocurrencies based on fundamentals and sentiment",
+      "authors": "Massimo Guidolin; Serena Ionta",
+      "available_date": "2026-03-01",
+      "date_precision": "issue_month",
+      "publication": "Journal of International Financial Markets, Institutions and Money 107 (2026), 102285",
+      "status": "peer_reviewed",
+      "url": "https://doi.org/10.1016/j.intfin.2026.102285",
+      "open_url": "https://iris.unibocconi.it/retrieve/ca0d5636-301d-4177-b28c-1e88a6b6cdb1/Guidolin%20and%20Ionta%20JIFMIM%202026.pdf",
+      "finding": "Weekly blockchain activity and search-based sentiment portfolios have out-of-sample predictive evidence.",
+      "limitation": "Requires a point-in-time cross-sectional blockchain and search history; OHLCV cannot stand in for these observations."
+    },
+    {
+      "id": "ml_fundamentals_2026",
+      "title": "Predicting cryptocurrency returns with machine learning: Evidence from high-dimensional factor modeling",
+      "authors": "Xingyi Li; Zhuang Liu; Yujun Liu; Shushang Zhu; Jingzhou Yan",
+      "available_date": "2026-02-01",
+      "date_precision": "issue_month",
+      "publication": "Pacific-Basin Finance Journal 96 (2026), 103033",
+      "status": "peer_reviewed",
+      "url": "https://doi.org/10.1016/j.pacfin.2025.103033",
+      "finding": "MVRV, new addresses and active addresses are influential predictors in the authors' models.",
+      "limitation": "Requires asset-level point-in-time chain histories; feature importance is not a portable trading rule."
+    },
+    {
+      "id": "session_2026",
+      "title": "On the Performance of Lagged Momentum and Reversal Strategies Across Daytime and Overnight Sessions in Bitcoin and Ethereum Cryptocurrencies",
+      "authors": "Zhefan Wu; Eugene Pinsky",
+      "available_date": "2026-09-06",
+      "date_precision": "day",
+      "publication": "Journal of Risk and Financial Management 19(9), 692",
+      "status": "peer_reviewed",
+      "url": "https://doi.org/10.3390/jrfm19090692",
+      "open_url": "https://github.com/wzf01195010-png/Crypto-day-night-effects",
+      "finding": "Studies hourly Kraken BTC/ETH data and paired twelve-hour sessions.",
+      "limitation": "Full-sample choice of session boundary and strategy is exploratory; exact session replication is deferred, not equated to a generic momentum template."
+    }
+  ],
+  "factors": [
+    {
+      "id": "liquidity_reversal",
+      "name": "流动性冲击反转",
+      "sources": [
+        "liquidity_2025"
+      ],
+      "features": [
+        "RET",
+        "CRYPTO_ILLIQ20"
+      ],
+      "rpn": [
+        "RET",
+        "NEG",
+        "CRYPTO_ILLIQ20",
+        "STEP",
+        "MUL",
+        "DECAY_LINEAR_20"
+      ],
+      "inputs": [
+        "ohlcv"
+      ],
+      "hypothesis": "标准化收益反向信号在非流动性高于自身历史均值时是否更有效；再取相反方向作为对照。",
+      "limitation": "STEP gates normalized illiquidity, not a raw liquidity threshold; single-coin adaptation.",
+      "evidence": "paper_inspired_proxy",
+      "promotion_eligible": false
+    },
+    {
+      "id": "downside_reversal",
+      "name": "下行风险状态反转",
+      "sources": [
+        "liquidity_2025"
+      ],
+      "features": [
+        "RET",
+        "CRYPTO_TAIL20"
+      ],
+      "rpn": [
+        "RET",
+        "NEG",
+        "CRYPTO_TAIL20",
+        "STEP",
+        "MUL",
+        "TS_MA_20"
+      ],
+      "inputs": [
+        "ohlcv"
+      ],
+      "hypothesis": "下行半方差占比偏高时，反转信号的净额是否变化。",
+      "limitation": "Local rolling downside-variance share is not the paper's market tail-risk index.",
+      "evidence": "paper_inspired_proxy",
+      "promotion_eligible": false
+    },
+    {
+      "id": "liquid_momentum",
+      "name": "低冲击状态动量",
+      "sources": [
+        "liquidity_2025"
+      ],
+      "features": [
+        "CRYPTO_MOM24",
+        "CRYPTO_ILLIQ20"
+      ],
+      "rpn": [
+        "CRYPTO_MOM24",
+        "CRYPTO_ILLIQ20",
+        "NEG",
+        "STEP",
+        "MUL",
+        "TS_MA_20"
+      ],
+      "inputs": [
+        "ohlcv"
+      ],
+      "hypothesis": "检验价格冲击低于自身历史均值时的动量，作为高冲击反转的竞争假设。",
+      "limitation": "Our competing directional hypothesis; the paper does not establish this exact formula.",
+      "evidence": "paper_inspired_proxy",
+      "promotion_eligible": false
+    },
+    {
+      "id": "orderflow_residual",
+      "name": "订单流价格残差",
+      "sources": [
+        "orderflow_2026"
+      ],
+      "features": [
+        "TAKER_IMB24",
+        "CRYPTO_MOM24"
+      ],
+      "rpn": [
+        "TAKER_IMB24",
+        "CRYPTO_MOM24",
+        "RESID_20",
+        "TS_MA_20"
+      ],
+      "inputs": [
+        "taker"
+      ],
+      "hypothesis": "真实主动成交不平衡中，滚动剔除价格动量关系后的残差是否仍有预测力。",
+      "limitation": "Normalized local taker flow and rolling residuals are an adaptation, not international world order flow.",
+      "evidence": "paper_inspired_proxy",
+      "promotion_eligible": false
+    },
+    {
+      "id": "funding_residual",
+      "name": "资金拥挤价格残差",
+      "sources": [
+        "carry_2026"
+      ],
+      "features": [
+        "FUNDING_MEAN24",
+        "CRYPTO_MOM24"
+      ],
+      "rpn": [
+        "FUNDING_MEAN24",
+        "CRYPTO_MOM24",
+        "RESID_20",
+        "NEG",
+        "TS_MA_20"
+      ],
+      "inputs": [
+        "funding"
+      ],
+      "hypothesis": "真实已公布资金费率中不能由近期价格动量解释的相对拥挤是否预示回撤。",
+      "limitation": "Standardized funding residuals are not a raw funding-sign carry signal and do not create a hedged carry trade.",
+      "evidence": "paper_inspired_proxy",
+      "promotion_eligible": false
+    },
+    {
+      "id": "flow_reversal",
+      "name": "主动成交冲击反转对照",
+      "sources": [
+        "reversion_2026"
+      ],
+      "features": [
+        "RET",
+        "TAKER_IMBALANCE"
+      ],
+      "rpn": [
+        "RET",
+        "TAKER_IMBALANCE",
+        "MUL",
+        "STEP",
+        "RET",
+        "NEG",
+        "MUL",
+        "DECAY_LINEAR_20"
+      ],
+      "inputs": [
+        "taker"
+      ],
+      "hypothesis": "标准化收益与真实主动成交不平衡同向时的反向信号，仅作成本敏感诊断对照。",
+      "limitation": "Preprint reports a gross edge below costs. Standardized signs differ from raw candle/taker signs; no tradability claim.",
+      "evidence": "paper_inspired_proxy",
+      "promotion_eligible": false
+    }
+  ],
+  "deferred": [
+    {
+      "id": "world_orderflow",
+      "sources": [
+        "orderflow_2026"
+      ],
+      "missing": [
+        "synchronized multi-currency multi-venue buy/sell volume"
+      ],
+      "reason": "One-venue flow cannot replicate the original cross-sectional predictor."
+    },
+    {
+      "id": "chain_sentiment",
+      "sources": [
+        "fundamentals_2026",
+        "ml_fundamentals_2026"
+      ],
+      "missing": [
+        "point-in-time active/new addresses",
+        "MVRV",
+        "historical Google Trends vintages",
+        "cross-sectional universe"
+      ],
+      "reason": "Require publication times and revisions, not present-day historical backfills."
+    },
+    {
+      "id": "basis_carry",
+      "sources": [
+        "carry_2026"
+      ],
+      "missing": [
+        "synchronized spot/futures basis",
+        "contract expiry",
+        "two-leg execution and margin model"
+      ],
+      "reason": "Single-leg directional swaps cannot replicate cash-and-carry."
+    },
+    {
+      "id": "session_signal",
+      "sources": [
+        "session_2026"
+      ],
+      "missing": [
+        "exact twelve-hour UTC session aggregator",
+        "untouched cutoff-selection validation"
+      ],
+      "reason": "Do not turn in-sample selected session boundaries into presumed out-of-sample alpha."
+    }
+  ]
+}
