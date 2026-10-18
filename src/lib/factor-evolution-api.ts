@@ -26,10 +26,10 @@ export interface EvolutionSettings {
   train_ratio: number; test_recent_bars: number; walk_forward_folds: number
   fee_rate: number; slippage_bps: number; execution_model: "spot_long_flat" | "perp_next_open"
 }
-export interface EvolutionMetrics { bars: number; ann_ret: number; sortino: number; calmar: number; net_return: number; stress_ann_ret: number; stress_sortino: number; discrete_ann_ret?: number; discrete_sortino?: number; discrete_stress_ann_ret?: number }
+export interface EvolutionMetrics { bars: number; ann_ret: number; sortino: number; calmar: number; net_return: number; stress_ann_ret: number; stress_sortino: number; discrete_ann_ret?: number; discrete_sortino?: number; discrete_stress_ann_ret?: number;task_rule_net?:number;task_rule_stress_net?:number;task_rule_rounds?:number }
 export interface EvolutionValidation {
   passed: boolean; train?: EvolutionMetrics; validation?: EvolutionMetrics; folds?: EvolutionMetrics[]
-  holdout?: EvolutionMetrics; reasons?: string[]; funding_complete: boolean; wf_consistency?: number
+  holdout?: EvolutionMetrics; reasons?: string[]; funding_complete: boolean; wf_consistency?: number;version?:string
 }
 export interface EvolutionProgress {
   phase: string; message: string; round: number; completed_rounds: number; current: number; total: number; updated_at?: string
@@ -49,10 +49,11 @@ export interface EvolutionAudit {
   tests?: Array<{name: string; passed: boolean}>
   causal_prefix?: {passed: boolean; max_error: number; prefix_bars: number}
   comparison?: {passed: boolean; baseline_available?: boolean; changes?: Record<string, number>}
+  task_comparison?:{passed:boolean;changes?:Record<string,number>;model:string;exact:false}|null
 }
 export interface ResearchReport {
   decision: "accepted" | "awaiting_seal" | "rejected"; hypothesis: string
-  facts: {validation_net_return?: number; validation_stress_ann_ret?: number; wf_consistency?: number; holdout_passed?: boolean | null; comparison?: EvolutionAudit["comparison"]}
+  facts: {validation_net_return?: number; validation_stress_ann_ret?: number; wf_consistency?: number; holdout_passed?: boolean | null; comparison?: EvolutionAudit["comparison"];task_rule_net?:number;task_rule_stress_net?:number}
   reasons: string[]; next_steps: string[]; limitations: string[]
 }
 export interface EvolutionReport { round: number; recipe?: EvolutionRecipe; text?: string; validation?: EvolutionValidation; sealed?: EvolutionValidation; error?: string; format_repairs?: number; proposal?: unknown;
@@ -70,6 +71,11 @@ export interface EvolutionJob {
   progress?: EvolutionProgress
 }
 const root = "/api/factor-lab/evolution"
+export function canReplaceTaskEvolution(job:EvolutionJob):boolean {
+  if(job.source.kind!=='task'||job.source.shortline)return true
+  const last=job.reports.at(-1)
+  return !!job.settings.task_policy&&last?.validation?.version==='factor-evolution-2026-10-18.1'&&last?.audit?.task_comparison?.passed===true
+}
 export const getEvolutionTargets = () => factorLabRequest<{ items: EvolutionSource[] }>(`${root}/targets`).then(r => r.items)
 export const getEvolutionJob = (id: string) => factorLabRequest<EvolutionJob>(`${root}/jobs/${id}`)
 export const getEvolutionProgress = (id: string) => factorLabRequest<Pick<EvolutionJob, "id" | "status" | "round" | "max_rounds" | "progress" | "coverage" | "error">>(`${root}/jobs/${id}/progress`, undefined, 5_000)

@@ -36,6 +36,7 @@ export function EvolutionResearchReport({report}: {report:EvolutionReport}) {
     <div className="rounded-lg bg-[var(--bg-primary)] p-3 space-y-1"><p className="text-[var(--text-muted)]">AI 研究判断（待实测的经济假设）</p><p className="whitespace-pre-wrap leading-relaxed">{review?.hypothesis||report.recipe?.rationale||'模型未提供经济假设'}</p></div>
     {audit?.tests&&<ul className="grid sm:grid-cols-2 gap-2">{audit.tests.map(test=><li key={test.name} className={test.passed?'text-up':'text-down'}>{test.passed?'✓':'✕'} {test.name}</li>)}</ul>}
     {review&&<><p>服务器实测：验证累计净收益 <strong>{pct(review.facts.validation_net_return)}</strong> · 双倍成本年化 {pct(review.facts.validation_stress_ann_ret)} · WF 正收益比例 {pct(review.facts.wf_consistency)}</p>
+      {review.facts.task_rule_net!=null&&<p>任务规则预筛：验证已实现净额 {review.facts.task_rule_net.toFixed(2)} U · 双倍交易成本 {review.facts.task_rule_stress_net?.toFixed(2)??'—'} U。采用周期 OHLC 路径近似，请另做分钟规则回放；不代表实际成交。</p>}
       {Object.entries(review.facts.comparison?.changes||{}).length>0&&<p className="text-[var(--text-muted)]">相对原配方：普通年化变化 {pct(review.facts.comparison?.changes?.ann_ret)} · 双倍成本年化变化 {pct(review.facts.comparison?.changes?.stress_ann_ret)} · 离散双倍成本变化 {pct(review.facts.comparison?.changes?.discrete_stress_ann_ret)}</p>}
       {review.reasons.map((reason,i)=><p key={i} className="text-down">{reason}</p>)}
       <div><p className="font-medium mb-1">解决方案与下一步</p><ol className="list-decimal pl-5 space-y-1">{review.next_steps.map((step,i)=><li key={i}>{step}</li>)}</ol></div>

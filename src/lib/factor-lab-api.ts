@@ -272,15 +272,17 @@ export interface FactorFavoriteItem {
   note: string | null
   /** 所属收藏文件夹（空=未分类） */
   folder_id?: string | null
-  /** 衰减监控（IC 口径）：250 根滚动 IC ≤0 → decay（E10b 验证前瞻差 -0.31） */
+  /** 版本化观察指标；过期或无法计算时不能当作健康。 */
   health?: {
-    trailing_ic: number
-    ic_window: number
-    live_sortino: number
-    live_ann: number
-    window: number
-    bars: number
-    decay: boolean
+    status?: 'ok'|'insufficient'|'unavailable'|'stale'
+    reason?: string|null
+    trailing_ic: number|null
+    ic_window?: number
+    live_sortino?: number
+    live_ann?: number
+    window?: number
+    bars?: number
+    decay: boolean|null
     checked_at?: string
   } | null
   created_at: string | null
