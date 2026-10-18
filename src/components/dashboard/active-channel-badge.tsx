@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import {collectionMode} from '@/lib/collection-config'
+import {CollectionServiceStatus} from '@/components/common/collection-service-status'
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
 
@@ -16,6 +18,9 @@ interface HealthResp {
 
 /** 工作台顶部 —— 显示当前生效行情渠道（主 / 备） */
 export function ActiveChannelBadge(): React.JSX.Element {
+  return collectionMode()?<CollectionServiceStatus account/>:<LegacyChannelBadge/>
+}
+function LegacyChannelBadge(): React.JSX.Element {
   const [active, setActive] = useState<string>("")
 
   useEffect(() => {

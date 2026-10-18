@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { onDailyPnlProgress, type DailyPnlResult } from "@/lib/desktop-daily-pnl"
+import { netDailyPnlView } from '@/lib/daily-net-pnl'
 
 /** 工作台·收益分析 —— 盈亏比汇总 + 日历九宫格日收益 + 累计盈亏曲线
  *
@@ -526,7 +527,7 @@ export function DailyPnlPanel(): React.JSX.Element {
       try {
         const res = await getDailyPnlApi("okx", 90)
         if (alive) {
-          setData(res)
+          setData(netDailyPnlView(res))
           setError("")
         }
       } catch (error) {
@@ -569,7 +570,7 @@ export function DailyPnlPanel(): React.JSX.Element {
       <CardHeader className="pb-2">
         <CardTitle className="text-sm">收益分析 · OKX 实账户口径</CardTitle>
         {data?.source && <p className="text-[10px] text-[var(--text-muted)]">
-          {data.source === "desktop-snippet" ? "桌面直连 · 本地计算" : data.source === "server-fallback" ? "服务器兜底" : "服务器模式"}
+          {data.source === "api-collection" ? "API VALUE COLLECTION · 账户账单" : data.source === "desktop-snippet" ? "桌面直连 · 本地计算" : data.source === "server-fallback" ? "服务器兜底" : "服务器模式"}
         </p>}
       </CardHeader>
       <CardContent className="space-y-4">

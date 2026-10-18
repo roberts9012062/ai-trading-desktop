@@ -16,6 +16,8 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { canConnectExchange, isRealTradingProtection, REAL_TRADING_PROTECTION_MESSAGE } from "@/lib/live-permission"
 import { Loader2, ShieldCheck, ShieldAlert } from "lucide-react"
+import {collectionMode,collectionGeneration,onCollectionChange} from '@/lib/collection-config'
+import {CollectionServiceStatus} from '@/components/common/collection-service-status'
 import {
   VENUES,
   deleteCredentialApi,
@@ -59,6 +61,12 @@ function VenueCard({
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
   const [protectionOpen, setProtectionOpen] = useState(false)
+  const [collectionCheck,setCollectionCheck]=useState<boolean|null>(null)
+  useEffect(()=>{
+    setCollectionCheck(null)
+    let generation=collectionGeneration()
+    return onCollectionChange(()=>{if(generation!==collectionGeneration()){generation=collectionGeneration();setCollectionCheck(null)}})
+  },[credential?.updated_at])
 
   useEffect(() => {
     if (credential) {
@@ -114,6 +122,7 @@ function VenueCard({
     setTesting(true)
     try {
       const res = await testCredentialApi(venue)
+      if(collectionMode())setCollectionCheck(res.ok)
       if (res.ok) {
         setMessage(`连通正常 · 权益 ${Number(res.equity ?? 0).toFixed(2)} USDT${res.demo ? "（模拟盘）" : ""}`)
       } else {
@@ -151,16 +160,16 @@ function VenueCard({
             暂未开放
           </span>
         ) : configured ? (
-          credential!.last_check_ok === true ? (
+          (collectionMode()?collectionCheck:credential!.last_check_ok) === true ? (
             <span className="inline-flex items-center gap-1 text-[10px] text-[var(--accent-up)]">
               <ShieldCheck className="w-3 h-3" /> 已连通
             </span>
-          ) : credential!.last_check_ok === false ? (
+          ) : (collectionMode()?collectionCheck:credential!.last_check_ok) === false ? (
             <span className="inline-flex items-center gap-1 text-[10px] text-[var(--accent-danger)]">
               <ShieldAlert className="w-3 h-3" /> 连通异常
             </span>
           ) : (
-            <span className="text-[10px] text-[var(--text-muted)]">已配置</span>
+            <span className="text-[10px] text-[var(--text-muted)]">{collectionMode()?'已配置 · 待验证新通道':'已配置'}</span>
           )
         ) : (
           <span className="text-[10px] text-[var(--text-muted)]">未配置</span>
@@ -267,7 +276,7 @@ function VenueCard({
       )}
 
       {error && <p className="text-[11px] text-[var(--accent-danger)] break-all">{error}</p>}
-      {credential?.last_error && !error && (
+      {!collectionMode() && credential?.last_error && !error && (
         <p className="text-[10px] text-[var(--text-muted)] break-all">{credential.last_error}</p>
       )}
       {message && <p className="text-[11px] text-[var(--accent-up)]">{message}</p>}
@@ -285,12 +294,15 @@ export function ExchangeCredentialsPanel(): React.JSX.Element {
   const [credentials, setCredentials] = useState<VenueCredential[]>([])
   const [loaded, setLoaded] = useState(false)
   const [realTradingEnabled, setRealTradingEnabled] = useState(false)
+  const [loadError,setLoadError]=useState('')
 
   const load = async () => {
     try {
       const [rows, permission] = await Promise.all([getCredentialsApi(), getLivePermissionApi()])
       setCredentials(rows); setRealTradingEnabled(permission.enabled)
-    } catch {
+      setLoadError('')
+    } catch(error) {
+      setLoadError(error instanceof Error?error.message:'交易所配置读取失败')
       setCredentials([])
       setRealTradingEnabled(false)
     } finally {
@@ -310,7 +322,8 @@ export function ExchangeCredentialsPanel(): React.JSX.Element {
           当前开放 OKX 模拟盘 · 真实资金接入须经管理员授权 · 凭证加密存储
         </p>
       </div>
-      {loaded ? (
+      {collectionMode()&&<><CollectionServiceStatus account/><p className="text-xs text-[var(--text-muted)]">测试连通通过 API VALUE COLLECTION 查询 OKX 账户。此 Key 需开通私有账户接口；OKX Secret 用于签名，不发送至接口中心。</p></>}
+      {loadError?<p role="alert" className="text-xs text-[var(--accent-danger)]">{loadError}<button className="ml-2 underline" onClick={()=>void load()}>重试</button></p>:loaded ? (
         <div className="grid gap-3 md:grid-cols-3">
           {VENUES.map((v) => (
             <VenueCard

@@ -31,6 +31,7 @@ function fmtPx(p: number): string {
 export function RecentTrades(): React.JSX.Element {
   const loaded = usePaperTradingStore((s) => s.loaded)
   const orders = usePaperTradingStore((s) => s.orders)
+  const error = usePaperTradingStore((s) => s.historyError || s.error)
 
   const trades = orders
     .filter((o) => o.status === "filled")
@@ -52,7 +53,7 @@ export function RecentTrades(): React.JSX.Element {
   if (trades.length === 0) {
     return (
       <div className="py-6 text-center text-sm text-[var(--text-muted)]">
-        暂无成交
+        {error?'成交数据暂不可用，请检查账户接口连接':'暂无成交'}
       </div>
     )
   }

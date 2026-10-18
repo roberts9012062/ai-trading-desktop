@@ -42,9 +42,14 @@ export async function collectionTicket(query:Record<string,unknown>){
   ticketQueue=request;return request
 }
 let dataQueue:Promise<unknown>=Promise.resolve()
+export function collectionHttpSlot<T>(work:()=>Promise<T>):Promise<T>{
+  const request=dataQueue.catch(()=>{}).then(work)
+  dataQueue=request
+  return request
+}
 export async function collectionData(query:Record<string,unknown>):Promise<CollectionData>{
   const generation=collectionGeneration()
-  const request=dataQueue.catch(()=>{}).then(async()=>{
+  return collectionHttpSlot(async()=>{
     if(generation!==collectionGeneration())throw new Error('行情配置已变化')
     for(let attempt=0;;attempt++){
       try {const ticket=await collectionTicket(query),url=new URL(ticketAddress(ticket.url,false));return await collectionRequest<CollectionData>(url.pathname+url.search)}
@@ -55,7 +60,7 @@ export async function collectionData(query:Record<string,unknown>):Promise<Colle
         if(generation!==collectionGeneration())throw new Error('行情配置已变化')
       }
     }
-  });dataQueue=request;return request
+  })
 }
 let catalog:CollectionSymbol[]=[],catalogVersion=-1,flight:Promise<CollectionSymbol[]>|null=null
 export async function collectionSymbols(text=''):Promise<CollectionSymbol[]>{

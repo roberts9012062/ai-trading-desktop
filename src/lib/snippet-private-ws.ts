@@ -2,6 +2,8 @@
 import { ensureDesktopRouting, isServerMode, onDesktopRoutingChange } from "./desktop-routing"
 import type { MessageHandler } from "./websocket"
 import { snippetOrigin, snippetFailed, snippetSucceeded } from "./snippet-pool"
+import { collectionMode, collectionGeneration, onCollectionChange } from './collection-config'
+import { collectionPrivateSocketAddress } from './collection-exchange'
 
 let nextDial = 0
 
@@ -38,23 +40,31 @@ class PrivateChannel {
   private retry(): void {
     this.release();this.connected=false;this.event([])
     const delay=Math.min(30000,2000*2**Math.min(this.attempt++,4))+Math.floor(Math.random()*1000)
-    if (this.attempt>=2 && this.activeOrigin) void snippetFailed("private_ws",this.activeOrigin).finally(()=>this.schedule(delay))
+    if (!collectionMode() && this.attempt>=2 && this.activeOrigin) void snippetFailed("private_ws",this.activeOrigin).finally(()=>this.schedule(delay))
     else this.schedule(delay)
   }
   private async open(): Promise<void> {
     if (!this.active || isServerMode()) return
     this.token=localStorage.getItem("access_token") || ""
+    const epoch=collectionGeneration()
     if (!this.token) return
     const controller=new AbortController();this.controller=controller
-    const deadline=setTimeout(() => controller.abort(),5000)
+    const deadline=setTimeout(() => controller.abort(),collectionMode()?12000:5000)
     try {
       const base=(process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/,"")
-      const response=await fetch(base+"/api/live/desktop-ws-login",{method:"POST",headers:{Authorization:`Bearer ${this.token}`},signal:controller.signal,cache:"no-store"})
-      if (!response.ok) throw new Error("login proof unavailable")
-      const proof=await response.json()
-      if (controller.signal.aborted || !this.active || isServerMode()) return
-      this.activeOrigin=snippetOrigin("private_ws")
-      const target=new WebSocket(`${this.activeOrigin}${proof.demo ? '/demo' : ''}/ws/v5/${this.business ? 'business' : 'private'}`)
+      const getProof=async()=>{
+        const response=await fetch(base+"/api/live/desktop-ws-login",{method:"POST",headers:{Authorization:`Bearer ${this.token}`},signal:controller.signal,cache:"no-store"})
+        if(!response.ok)throw new Error('login proof unavailable')
+        return response.json()
+      }
+      let proof=await getProof()
+      const signedAt=Date.now(),demo=!!proof.demo
+      const address=collectionMode()?await collectionPrivateSocketAddress(demo):null
+      if(address&&Date.now()-signedAt>4000)proof=await getProof()
+      if(address&&!!proof.demo!==demo)throw new Error('exchange credential environment changed')
+      if (controller.signal.aborted || !this.active || isServerMode() || (collectionMode()&&epoch!==collectionGeneration())) return
+      this.activeOrigin=address?'API VALUE COLLECTION':snippetOrigin("private_ws")
+      const target=new WebSocket(address??`${this.activeOrigin}${proof.demo ? '/demo' : ''}/ws/v5/${this.business ? 'business' : 'private'}`)
       this.socket=target;this.rx=Date.now()
       const born = Date.now()
       const channels=this.business ? ['orders-algo','algo-advance'] : ['account','positions','orders']
@@ -70,7 +80,7 @@ class PrivateChannel {
         if (event.data==='pong') return
         let frame: Record<string,unknown>
         try {frame=JSON.parse(event.data)} catch{return}
-        if (frame.event==='error') {this.retry();return}
+        if (frame.event==='error'||frame.kind==='error') {this.retry();return}
         if (frame.event==='login') {
           if (frame.code!=='0') {this.retry();return}
           target.send(JSON.stringify({op:'subscribe',args:channels.map(channel => channel==='account' ? {channel,ccy:'USDT'} : {channel,instType:'SWAP'})}))
@@ -78,14 +88,14 @@ class PrivateChannel {
         const channel=(frame.arg as {channel?:string}|undefined)?.channel
         if (frame.event==='subscribe' && channel) {
           waiting.delete(channel)
-          if (!waiting.size) {this.connected=true;this.attempt=0;this.event(channels);snippetSucceeded("private_ws",this.activeOrigin)}
+          if (!waiting.size) {this.connected=true;this.attempt=0;this.event(channels);if(!collectionMode())snippetSucceeded("private_ws",this.activeOrigin)}
         }
         if (Array.isArray(frame.data) && channel) this.event([channel])
       }
       target.onerror=target.onclose=() => {if (target===this.socket) this.retry()}
       this.heartbeat=setInterval(() => {
         if (target!==this.socket) return
-        try { if (snippetOrigin("private_ws")!==this.activeOrigin) {this.release();this.connected=false;this.schedule(500+Math.random()*3000);return} }
+        try { if (!collectionMode() && snippetOrigin("private_ws")!==this.activeOrigin) {this.release();this.connected=false;this.schedule(500+Math.random()*3000);return} }
         catch {this.release();this.connected=false;this.schedule(5000);return}
         if (localStorage.getItem('access_token')!==this.token || Date.now()-this.rx>35000 || (!this.connected && Date.now()-born>12000)) {this.retry();return}
         if (target.readyState===1) target.send('ping')
@@ -108,11 +118,17 @@ export function subscribeSnippetPrivate(handler: MessageHandler): () => void {ha
 export async function startSnippetPrivate(): Promise<void> {
   running=true;await ensureDesktopRouting()
   if (!running || isServerMode()) return
-  privateChannel.start();businessChannel.start()
+  privateChannel.start();if(!collectionMode())businessChannel.start()
 }
 export function stopSnippetPrivate(): void {running=false;privateChannel.stop();businessChannel.stop()}
 onDesktopRoutingChange(server => {
   privateChannel.stop();businessChannel.stop()
-  if (!server && running) {privateChannel.start();businessChannel.start()}
+  if (!server && running) {privateChannel.start();if(!collectionMode())businessChannel.start()}
+})
+let collectionEpoch=collectionGeneration()
+onCollectionChange(()=>{
+  if(collectionEpoch===collectionGeneration())return
+  collectionEpoch=collectionGeneration();privateChannel.stop();businessChannel.stop()
+  if(running&&collectionMode())privateChannel.start()
 })
 if (typeof window!=='undefined') window.addEventListener('pagehide',stopSnippetPrivate)

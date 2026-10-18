@@ -54,7 +54,7 @@ export async function collectionRequest<T>(path:string,body?:unknown):Promise<T>
   let reply:{code:number;msg:string;data:T}
   if(nativeCollection())reply=await invoke('collection_http',{scope,path,body:body??null})
   else {
-    const response=await fetch('/__collection__'+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json',...(!path.startsWith('/edge/')?{'X-API-Key':browserKey}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(30000)})
+    const response=await fetch('/__collection__'+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json',...(!path.startsWith('/edge/')?{'X-API-Key':browserKey}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(path.startsWith('/edge/okx?')?8000:30000)})
     reply=await response.json()
   }
   if(scope!==collectionScope()||version!==generation)throw new Error('行情配置已变化，已取消旧请求')

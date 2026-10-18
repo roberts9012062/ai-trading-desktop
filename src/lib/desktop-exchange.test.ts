@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-const policy=vi.hoisted(()=>({server:false}))
+const policy=vi.hoisted(()=>({server:false,collection:false,forward:vi.fn()}))
+vi.mock('./collection-config',()=>({collectionMode:()=>policy.collection,collectionGeneration:()=>0,onCollectionChange:vi.fn()}))
+vi.mock('./collection-exchange',()=>({requireCollectionPrivate:async()=>{},forwardCollectionExchange:policy.forward}))
 vi.mock('./desktop-routing',()=>({ensureDesktopRouting:async()=>{},isServerMode:()=>policy.server,onDesktopRoutingChange:vi.fn()}))
 vi.mock('./websocket',()=>({resolveWsBase:()=> 'wss://product.example'}))
 import { disconnectDesktopExchange, ExchangeOutcomeUnknown, tryDesktopLiveRequest } from './desktop-exchange'
@@ -17,7 +19,7 @@ class Socket {
   frame(frame:unknown){this.onmessage?.({data:JSON.stringify(frame)})}
 }
 beforeEach(()=>{
-  policy.server=false;Socket.all=[];vi.useFakeTimers()
+  policy.server=false;policy.collection=false;policy.forward.mockReset();Socket.all=[];vi.useFakeTimers()
   vi.stubGlobal('WebSocket',Socket);vi.stubGlobal('localStorage',{getItem:()=> 'test-jwt'})
   vi.stubGlobal('window',{location:{}})
 })
@@ -74,4 +76,22 @@ it('keeps analytics on HTTP in forced server mode',async()=>{
   expect(await tryDesktopLiveRequest('/api/live/daily-pnl?venue=okx&days=90')).toBeNull()
   expect(await tryDesktopLiveRequest('/api/ai-trading/tasks')).toBeNull()
   expect(Socket.all).toHaveLength(0)
+})
+it('routes signed account requests through the center and returns explicit errors without the old exchange fallback',async()=>{
+  policy.collection=true;policy.forward.mockRejectedValue(new Error('center denied'))
+  const read=tryDesktopLiveRequest('/api/live/account?venue=okx');await settle();const socket=Socket.all[0];socket.ready();await settle()
+  const call=socket.send.mock.calls.map(([raw])=>JSON.parse(raw)).find(f=>f.type==='call')
+  socket.frame({type:'exchange',id:'signed-one',method:'GET',path:'/api/v5/account/balance',headers:{}})
+  await settle()
+  const result=socket.send.mock.calls.map(([raw])=>JSON.parse(raw)).find(f=>f.type==='exchange_result')
+  expect(policy.forward).toHaveBeenCalledTimes(1)
+  expect(result).toMatchObject({status:200,data:{code:'COLLECTION_UNAVAILABLE',msg:'center denied'}})
+  socket.frame({type:'result',id:call.id,status:400,data:{detail:'center denied'}})
+  expect((await read)!.status).toBe(400)
+})
+it('does not fall back to business HTTP when a center-mode account connection fails',async()=>{
+  policy.collection=true
+  const read=tryDesktopLiveRequest('/api/live/account?venue=okx')
+  const rejected=expect(read).rejects.toThrow('账户连接暂不可用')
+  await settle();Socket.all[0].onerror?.();await rejected
 })

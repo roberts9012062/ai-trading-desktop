@@ -23,6 +23,7 @@ function fmtQty(q: number): string {
 export function PositionOverview(): React.JSX.Element {
   const positions = usePaperTradingStore((s) => s.positions)
   const loaded = usePaperTradingStore((s) => s.loaded)
+  const error = usePaperTradingStore((s) => s.error)
   const mode = usePaperTradingStore((s) => s.mode)
   const quotes = useMarketStore((s) => s.quotes)
   const initWebSocket = useMarketStore((s) => s.initWebSocket)
@@ -42,7 +43,7 @@ export function PositionOverview(): React.JSX.Element {
   if (positions.length === 0) {
     return (
       <div className="py-8 text-center text-sm text-[var(--text-muted)]">
-        暂无持仓
+        {error?'持仓数据暂不可用，请检查账户接口连接':'暂无持仓'}
       </div>
     )
   }

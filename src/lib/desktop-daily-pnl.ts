@@ -2,8 +2,11 @@
 import { invoke, isTauri } from "@tauri-apps/api/core"
 import { ensureDesktopRouting, isServerMode, onDesktopRoutingChange } from "./desktop-routing"
 import type { DailyPnlRow, DailyPnlSummary } from "./live-api"
+import { collectionMode, collectionScope, collectionGeneration, onCollectionChange } from './collection-config'
+import { collectionHttpSlot } from './collection-api'
+import { requireCollectionPrivate } from './collection-exchange'
 
-export type DailyPnlSource = "desktop-snippet" | "server-mode" | "server-fallback"
+export type DailyPnlSource = "desktop-snippet" | "server-mode" | "server-fallback" | "api-collection"
 export interface DailyPnlResult { days: DailyPnlRow[]; summary: DailyPnlSummary | null; source?: DailyPnlSource }
 type Raw = Record<string, unknown>
 type Read = (path: string) => Promise<{ rows: Raw[]; demo: boolean; account_id?: string }>
@@ -33,6 +36,8 @@ export function resetDesktopDailyPnl(): void {
   if (isTauri()) void invoke("okx_analytics_clear").catch(() => {})
 }
 onDesktopRoutingChange(() => resetDesktopDailyPnl())
+let collectionEpoch=collectionGeneration()
+onCollectionChange(()=>{if(collectionEpoch!==collectionGeneration()){collectionEpoch=collectionGeneration();resetDesktopDailyPnl()}})
 
 export function aggregateDailyPnl(entries: Entry[]): DailyPnlResult {
   const grouped = new Map<string, { pnl: number; fee: number; feeCost: number; funding: number; trades: number; win: number; loss: number }>()
@@ -152,11 +157,13 @@ export async function queryDailyPnl(read: Read, days: number, now = Date.now(), 
 }
 
 export async function loadDesktopDailyPnl(days: number, fallback: () => Promise<DailyPnlResult>): Promise<DailyPnlResult> {
+  if(collectionMode())await requireCollectionPrivate()
   await ensureDesktopRouting()
-  if (!isTauri() || isServerMode()) return { ...await fallback(), source: "server-mode" }
+  if (!isTauri() || isServerMode()) return { ...await fallback(), source: collectionMode()?'api-collection':"server-mode" }
   const token = localStorage.getItem("access_token") ?? ""
   const base = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
-  const identity = `${base}\0${token}\0${days}`
+  const scope=collectionScope(),epoch=collectionGeneration()
+  const identity = `${base}\0${token}\0${days}${collectionMode()?'\0'+scope+'\0'+epoch:''}`
   if (!token) throw new Error("请先登录")
   if (cache?.identity === identity && Date.now() < cache.until) return cache.data
   let flight = flights.get(identity)
@@ -164,17 +171,22 @@ export async function loadDesktopDailyPnl(days: number, fallback: () => Promise<
     const started = generation
     if (snapshot?.identity !== identity) snapshot = { identity, history: createDailyPnlHistory() }
     const history = snapshot.history
-    const active = () => started === generation && localStorage.getItem("access_token") === token && !isServerMode()
+    const active = () => started === generation && localStorage.getItem("access_token") === token && !isServerMode() && (!collectionMode()||epoch===collectionGeneration())
     flight = (async () => {
       let data: DailyPnlResult
       try {
         reportProgress(0)
         data = { ...await queryDailyPnl(async path => {
           if (!active()) throw new Error("会话已改变")
+          if(collectionMode())return collectionHttpSlot(async()=>{
+            await new Promise(resolve=>setTimeout(resolve,750))
+            if(!active())throw new Error('会话或数据配置已改变')
+            return invoke('collection_analytics_read',{scope,base,token,path})
+          })
           return invoke("okx_analytics_read", { base, token, path })
-        }, days, Date.now(), undefined, history, records => { if (active()) reportProgress(records) }), source: "desktop-snippet" }
+        }, days, Date.now(), undefined, history, records => { if (active()) reportProgress(records) }), source: collectionMode()?'api-collection':"desktop-snippet" }
       } catch (error) {
-        if (!active() || error instanceof IncompletePnlHistory) throw error
+        if (collectionMode() || !active() || error instanceof IncompletePnlHistory) throw error
         if (error instanceof PnlAccountChanged && snapshot?.identity === identity) snapshot = null
         data = { ...await fallback(), source: "server-fallback" }
       }

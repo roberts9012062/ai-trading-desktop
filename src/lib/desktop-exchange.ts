@@ -2,6 +2,8 @@
 import { resolveWsBase } from "./websocket"
 import { ensureDesktopRouting, isServerMode, onDesktopRoutingChange } from "./desktop-routing"
 import { snippetOrigin, snippetFailed, snippetSucceeded } from "./snippet-pool"
+import { collectionMode, collectionGeneration, onCollectionChange } from './collection-config'
+import { forwardCollectionExchange, requireCollectionPrivate } from './collection-exchange'
 
 class UnavailableBeforeCall extends Error {}
 export class ExchangeOutcomeUnknown extends Error {}
@@ -33,10 +35,28 @@ export function disconnectDesktopExchange(): void {
   pending.clear()
 }
 onDesktopRoutingChange(server => { if (server) disconnectDesktopExchange() })
+let collectionEpoch=collectionGeneration()
+onCollectionChange(()=>{if(collectionEpoch!==collectionGeneration()){collectionEpoch=collectionGeneration();readCalls.clear();disconnectDesktopExchange()}})
 
 async function forward(frame: Record<string, unknown>, target: WebSocket): Promise<void> {
   const method = frame.method, path = frame.path
   if (!['GET','POST'].includes(String(method)) || typeof path !== "string" || !/^\/api\/v5\/(account|trade|public)\/[a-z-]+(?:\?[^#]*)?$/.test(path)) return
+  if(collectionMode()){
+    let finished=false,timer:ReturnType<typeof setTimeout>|undefined
+    const deadline=Date.now()+11000
+    let result:{status:number;data:unknown}
+    try{
+      result=await Promise.race([forwardCollectionExchange(frame,()=>!finished&&target===socket&&Date.now()<deadline),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('接口中心响应超时')),11000)})])
+      const data=result.data as {code?:string;msg?:string}
+      if(data.code==='50011')result={status:200,data:{code:'COLLECTION_RATE_LIMITED',msg:'API VALUE COLLECTION 交易所账户请求限流，请稍后重试',data:[]}}
+    }catch(error){
+      // A definitive business error prevents the legacy server transport from
+      // silently falling back to its old exchange network on HTTP/IO failures.
+      result={status:200,data:{code:'COLLECTION_UNAVAILABLE',msg:error instanceof Error?error.message:'API VALUE COLLECTION 暂不可用',data:[]}}
+    }finally{finished=true;if(timer)clearTimeout(timer)}
+    if(target===socket&&target.readyState===1)target.send(JSON.stringify({type:'exchange_result',id:frame.id,...result}))
+    return
+  }
   const controller = new AbortController(); controllers.add(controller)
   const timeout = setTimeout(() => controller.abort(),8000)
   let result: { status: number; data: unknown } = { status:0,data:null }
@@ -117,15 +137,17 @@ export async function tryDesktopLiveRequest(path: string, options: RequestInit =
 async function sendDesktopRequest(path: string, options: RequestInit): Promise<Response | null> {
   const route = path.split('?')[0]
   const analytics = analyticsRead.test(route)
+  const collectionOwned=collectionMode()&&(allowed.test(route)||route.startsWith('/api/live/daily-pnl'))
   if ((!allowed.test(route) && !analytics) || (analytics && options.method !== undefined && options.method !== 'GET')) return null
   const payload = typeof options.body==='string' ? JSON.parse(options.body || '{}') : {}
   const venue = new URLSearchParams(path.split('?')[1] || '').get('venue') || payload.venue || 'okx'
-  if (venue!=='okx') return null
+  if (venue!=='okx') {if(collectionOwned)throw new Error('API VALUE COLLECTION 当前仅支持 OKX 账户');return null}
+  if(collectionOwned)await requireCollectionPrivate()
   await ensureDesktopRouting()
   if (isServerMode()) return null
-  try { await connect() } catch (error) { if (error instanceof UnavailableBeforeCall) return null;throw error }
+  try { await connect() } catch (error) { if (error instanceof UnavailableBeforeCall) {if(collectionOwned)throw new Error('账户连接暂不可用，请稍后重试');return null}throw error }
   const target=socket
-  if (!target || target.readyState!==1) return null // no command has been dispatched
+  if (!target || target.readyState!==1) {if(collectionOwned)throw new Error('账户连接已断开');return null} // no command has been dispatched
   const write=options.method!==undefined && options.method!=='GET'
   const id=crypto.randomUUID()
   const response=await new Promise<Response>((resolve,reject) => {
@@ -136,7 +158,7 @@ async function sendDesktopRequest(path: string, options: RequestInit): Promise<R
     pending.set(id,{resolve,reject,write,timer})
     try { target.send(JSON.stringify({type:'call',id,path,method:options.method || 'GET',body:options.body || ''})) }
     catch { clearTimeout(timer);pending.delete(id);reject(write ? new ExchangeOutcomeUnknown('交易结果未知，请先查询订单') : new Error('连接中断')) }
-  }).catch(error => { if (!write) return null;throw error })
+  }).catch(error => { if (!write&&!collectionOwned) return null;throw error })
   return response
 }
 

@@ -5,6 +5,8 @@ import { useAITradingStore } from '@/stores/ai-trading'
 import { useAuthStore } from '@/stores/auth'
 import type { User } from '@/types'
 import type { MessageHandler, OpenHandler, StateHandler } from './websocket'
+import * as collection from './collection-config'
+import * as privateFeed from './snippet-private-ws'
 
 beforeEach(()=>{
  vi.useFakeTimers();useAuthStore.setState({user:{id:'a',trading_mode:'live'} as User})
@@ -41,5 +43,14 @@ it('ignores other venues, modes and an obsolete account; reconnect clears push r
  current=true;s.open();await vi.advanceTimersByTimeAsync(250)
  expect(usePaperTradingStore.getState().refresh).toHaveBeenCalledTimes(1)
  expect(hasFreshLiveSync()).toBe(false)
+ stop()
+})
+it('marks the center single account/positions/orders stream ready without a second business socket',()=>{
+ vi.spyOn(collection,'collectionMode').mockReturnValue(true)
+ let receive!:MessageHandler
+ vi.spyOn(privateFeed,'subscribeSnippetPrivate').mockImplementation(handler=>{receive=handler;return()=>{}})
+ const s=socket(),stop=subscribeLiveTradingSync(s.ws,()=>true)
+ receive({type:'live_account_tick',data:{...tick,business_connected:false}})
+ expect(hasFreshLiveSync()).toBe(true)
  stop()
 })

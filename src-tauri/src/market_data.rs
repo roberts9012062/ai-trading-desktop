@@ -34,6 +34,7 @@ fn target(path: &str) -> Result<Url, String> {
         "/v1/symbols",
         "/api/tickets",
         "/edge/data",
+        "/edge/okx",
     ]
     .contains(&url.path())
         || url.query_pairs().any(|(k, _)| {
@@ -160,6 +161,12 @@ async fn request(
             .client
             .post(url)
             .json(&body.ok_or("缺少行情请求参数")?)
+    } else if url.path() == "/edge/okx" {
+        state
+            .client
+            .post(url)
+            .timeout(Duration::from_secs(8))
+            .json(&body.ok_or("缺少交易所签名请求")?)
     } else {
         state.client.get(url)
     };
@@ -172,6 +179,55 @@ async fn request(
         .map_err(|_| "行情网络连接失败，请稍后重试")?;
     let value: Value = response.json().await.map_err(|_| "行情响应格式异常")?;
     Ok(value)
+}
+
+pub(crate) async fn private_request(
+    app: &tauri::AppHandle,
+    state: &MarketDataState,
+    scope: &str,
+    body: Value,
+) -> Result<Value, String> {
+    let key = read_key(app, scope)?;
+    let ticket=request(state,&key,"/api/tickets",Some(json!({"market_type":"crypto","exchange":"okx","symbol":"BTC-USDT-SWAP","operation":"okx_private"}))).await?;
+    if ticket["code"] != 200 {
+        return Err(ticket["msg"].as_str().unwrap_or("账户接口未授权").into());
+    }
+    let address = private_target(ticket["data"]["url"].as_str().ok_or("无效账户票据")?)?;
+    let path = format!(
+        "{}?{}",
+        address.path(),
+        address.query().ok_or("缺少账户票据")?
+    );
+    let reply = request(state, &key, &path, Some(body)).await?;
+    if reply["code"] != 200 {
+        return Err(reply["msg"].as_str().unwrap_or("账户接口读取失败").into());
+    }
+    serde_json::from_str(
+        reply["data"]["raw"]
+            .as_str()
+            .ok_or("账户接口响应格式错误")?,
+    )
+    .map_err(|_| "账户接口响应格式错误".into())
+}
+
+fn private_target(raw: &str) -> Result<Url, String> {
+    let address = Url::parse(BASE)
+        .map_err(|_| "无效接口地址")?
+        .join(raw)
+        .map_err(|_| "无效账户票据")?;
+    if address.origin().ascii_serialization() != BASE
+        || address.path() != "/edge/okx"
+        || !address.username().is_empty()
+        || address.password().is_some()
+        || address.fragment().is_some()
+        || address.query_pairs().count() != 1
+        || address
+            .query_pairs()
+            .any(|(key, value)| key != "ticket" || value.is_empty())
+    {
+        return Err("无效账户票据地址".into());
+    }
+    Ok(address)
 }
 
 #[tauri::command]
@@ -253,6 +309,16 @@ mod tests {
             "/v1/../api/live/orders",
         ] {
             assert!(target(path).is_err());
+        }
+        assert!(private_target("/edge/okx?ticket=one-use").is_ok());
+        assert!(private_target("https://lium.eu.org/edge/okx?ticket=one-use").is_ok());
+        for raw in [
+            "https://other.example/edge/okx?ticket=x",
+            "https://user@lium.eu.org/edge/okx?ticket=x",
+            "/edge/okx?ticket=x&key=x",
+            "/edge/data?ticket=x",
+        ] {
+            assert!(private_target(raw).is_err());
         }
     }
     #[cfg(windows)]

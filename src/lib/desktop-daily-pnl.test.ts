@@ -1,7 +1,10 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest"
 import { aggregateDailyPnl, queryDailyPnl, IncompletePnlHistory, loadDesktopDailyPnl, resetDesktopDailyPnl, createDailyPnlHistory } from "./desktop-daily-pnl"
 import type { DailyPnlResult } from "./desktop-daily-pnl"
-const mocks = vi.hoisted(() => ({ invoke: vi.fn(), server: false, native: true, token: "alice", policy: (() => {}) as () => void }))
+const mocks = vi.hoisted(() => ({ invoke: vi.fn(), collection:false, server: false, native: true, token: "alice", policy: (() => {}) as () => void }))
+vi.mock('./collection-config',()=>({collectionMode:()=>mocks.collection,collectionScope:()=> 'alice',collectionGeneration:()=>0,onCollectionChange:vi.fn()}))
+vi.mock('./collection-api',()=>({collectionHttpSlot:(work:()=>Promise<unknown>)=>work()}))
+vi.mock('./collection-exchange',()=>({requireCollectionPrivate:async()=>{}}))
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke, isTauri: () => mocks.native }))
 vi.mock("./desktop-routing", () => ({ ensureDesktopRouting: async () => {}, isServerMode: () => mocks.server, onDesktopRoutingChange: (f: () => void) => { mocks.policy = f } }))
 const now = Date.parse("2026-10-10T12:00:00Z")
@@ -9,7 +12,7 @@ const noPause = async () => {}
 const bill = (id: number, extra = {}) => ({ billId: String(id), ccy: "USDT", type: "2", ts: String(now - 1000), pnl: "10", fee: "-1", ...extra })
 const empty: DailyPnlResult = { days: [], summary: null }
 beforeEach(() => {
-  mocks.server = false; mocks.native = true; mocks.token = "alice"
+  mocks.server = false; mocks.native = true; mocks.token = "alice";mocks.collection=false
   mocks.invoke.mockReset().mockResolvedValue(undefined)
   vi.stubGlobal("localStorage", { getItem: () => mocks.token })
   resetDesktopDailyPnl()
@@ -130,4 +133,22 @@ it("never merges cached earnings with a newly bound OKX account or demo mode", a
   await expect(queryDailyPnl(async () => ({ demo: false, account_id: "new", rows: [bill(2)] }), 7, now + 60000, noPause, history)).rejects.toThrow("凭证已变化")
   expect(history.accountId).toBe("old")
   expect(history.bills.size).toBe(1)
+})
+it('queries complete center bills natively and never uses the legacy analytics command or fallback',async()=>{
+  mocks.collection=true;vi.useFakeTimers();vi.setSystemTime(now)
+  mocks.invoke.mockImplementation(async command=>command==='collection_analytics_read'?{demo:true,account_id:'one',rows:[bill(1)]}:undefined)
+  const fallback=vi.fn()
+  const read=loadDesktopDailyPnl(90,fallback)
+  await vi.advanceTimersByTimeAsync(2000)
+  expect((await read).source).toBe('api-collection')
+  expect(mocks.invoke.mock.calls.filter(([name])=>name==='okx_analytics_read')).toHaveLength(0)
+  expect(mocks.invoke.mock.calls.filter(([name])=>name==='collection_analytics_read')).toHaveLength(2)
+  expect(fallback).not.toHaveBeenCalled()
+})
+it('surfaces center analytics failure without substituting old-route financial data',async()=>{
+  mocks.collection=true;vi.useFakeTimers();mocks.invoke.mockRejectedValue(new Error('center denied'))
+  const fallback=vi.fn(),read=loadDesktopDailyPnl(90,fallback)
+  const rejected=expect(read).rejects.toThrow('center denied')
+  await vi.advanceTimersByTimeAsync(2000);await rejected
+  expect(fallback).not.toHaveBeenCalled()
 })

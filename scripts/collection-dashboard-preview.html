@@ -1,0 +1,58 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>工作台接入联调预览</title></head><body style="margin:0"><div style="padding:8px;color:#d4d4d8;background:#27272a">API VALUE COLLECTION 工作台联调 · 以下为自动化测试示例数据</div><div id="root"></div><script type="module">
+import React from 'react';import {createRoot} from 'react-dom/client';import {BrowserRouter} from 'react-router-dom';import '/src/app/globals.css';
+import {enableCollectionMode,loadCollectionConfig,collectionKeyAction} from '/src/lib/collection-config.ts';
+enableCollectionMode();localStorage.setItem('access_token','preview-session');localStorage.setItem('qihuo_auth_user',JSON.stringify({id:'preview',trading_mode:'live'}));
+const day=new Date(Date.now()+28800000).toISOString().slice(0,10),now=new Date().toISOString();
+const grants=privateAllowed=>({active_packages:[{markets:['crypto'],capabilities:['history','quotes','ticks','stream_bars','stream_quotes','stream_ticks',...(privateAllowed?['okx_private','okx_private_ws']:[])],connections:5,rpm:120,expires_at:'2027-01-01',market_subscriptions:{crypto:200}}]});
+const symbols=['BTC','ETH',...Array.from({length:58},(_,i)=>'COIN'+i)].map(code=>({symbol:code+'-USDT-SWAP',name:code,tick_size:'0.1',lot_size:'1',min_size:'1',contract_value:'0.01'}));
+const paths=[],business=[],ticketKinds=new Map();window.centerPaths=paths;window.businessPaths=business;
+const response=data=>new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}});
+window.fetch=async(input,options={})=>{
+ const url=new URL(String(input),location.origin),path=url.pathname;business.push(path);
+ if(path==='/__collection__/v1/my/permissions')return response({code:200,data:grants(!new Headers(options.headers).get('X-API-Key')?.includes('no_private'))});
+ if(path==='/__collection__/v1/symbols')return response({code:200,data:symbols});
+ if(path==='/__collection__/api/tickets'){
+  const query=JSON.parse(options.body),ticket=crypto.randomUUID();ticketKinds.set(ticket,query);
+  return response({code:200,data:{url:'/edge/'+(query.operation==='okx_private'?'okx':query.operation==='okx_private_ws'?'okx-ws':'ws')+'?ticket='+ticket,expires_in:30}});
+ }
+ if(path==='/__collection__/edge/okx'){
+  const req=JSON.parse(options.body);paths.push(req.path);
+  const data=req.path.endsWith('balance')?[{totalEq:'25000',details:[{ccy:'USDT',eq:'25000',availEq:'24900',upl:'5'}]}]:req.path.includes('positions')?[{instId:'BTC-USDT-SWAP',pos:'1',avgPx:'100',markPx:'105',upl:'5'}]:req.path.includes('bills')?[{billId:'bill1',pnl:'10',fee:'-1',ccy:'USDT'}]:[{ordId:'o1',instId:'BTC-USDT-SWAP',state:'filled',avgPx:'105',sz:'1'}];
+  return response({code:200,data:{exchange:'okx',raw:JSON.stringify({code:'0',data})}});
+ }
+ if(path==='/api/live/credentials')return response({credentials:[{venue:'okx',api_key_masked:'preview…',demo:true,status:'configured',updated_at:now,last_check_ok:true,last_error:''}]});
+ if(path==='/api/live/permission')return response({enabled:false,message:'preview'});
+ if(path==='/api/live/desktop-ws-login')return response({demo:true,expires_in:15,args:[{apiKey:'preview',passphrase:'preview',timestamp:String(Date.now()/1000),sign:'preview-signature'}]});
+ if(path==='/api/watchlist')return response([{id:'watch1',contract_symbol:'btcusdt',contract_name:'BTC 永续'}]);
+ if(path.startsWith('/api/ai-trading/'))return response({items:[],total:0});
+ throw new Error('Unexpected legacy/network endpoint: '+path);
+};
+class FixtureSocket{
+ static OPEN=1;readyState=0;pending=new Map();interval=null;
+ constructor(url){this.url=String(url);setTimeout(()=>{this.readyState=1;this.onopen?.({});const kind=ticketKinds.get(new URL(this.url,location.href).searchParams.get('ticket'));if(kind?.operation==='stream_quotes'){const emit=()=>this.frame({kind:'quote_update_not_trade',symbol:'BTC-USDT-SWAP',payload:{records:[],ticks:[],quote:{price:105,timestamp:Date.now()/1000,bid:104.9,ask:105.1,reference_price:100,change_percent:5,high_24h:110,low_24h:99,base_volume_24h:1234}}});emit();this.interval=setInterval(emit,1000)}if(kind?.operation==='okx_private_ws')this.frame({kind:'proxy_ready',account_verified:false})},30)}
+ frame(data){this.onmessage?.({data:typeof data==='string'?data:JSON.stringify(data)})}
+ close(){this.readyState=3;if(this.interval)clearInterval(this.interval)}
+ send(raw){if(raw==='ping'){this.frame('pong');return}const frame=JSON.parse(raw);
+  if(frame.token){this.frame({type:'ready'});return}
+  if(frame.op==='login'){this.frame({event:'login',code:'0'});return}
+  if(frame.op==='subscribe'){for(const arg of frame.args)this.frame({event:'subscribe',arg});return}
+  if(frame.type==='call'){
+   if(frame.path.startsWith('/api/ai-trading')){this.frame({type:'result',id:frame.id,status:200,data:{items:[],total:0}});return}
+   const route=frame.path.includes('daily-pnl')?'/api/v5/account/bills':frame.path.includes('positions')?'/api/v5/account/positions':frame.path.includes('orders')?'/api/v5/trade/orders-history':'/api/v5/account/balance';
+   const id=crypto.randomUUID();this.pending.set(id,frame);this.frame({type:'exchange',id,method:'GET',path:route,headers:{'OK-ACCESS-KEY':'preview','OK-ACCESS-SIGN':'preview-signature','OK-ACCESS-TIMESTAMP':now,'OK-ACCESS-PASSPHRASE':'preview','x-simulated-trading':'1'}});return
+  }
+  if(frame.type==='exchange_result'){
+   const call=this.pending.get(frame.id);if(!call)return;this.pending.delete(frame.id);
+   if(frame.data.code!=='0'){this.frame({type:'result',id:call.id,status:400,data:{detail:frame.data.msg}});return}
+   const data=call.path.includes('daily-pnl')?{days:[{date:day,pnl:10,net:10,fee:1,fee_cost:1,funding:0,net_after_costs:9,win_pnl:10,loss_pnl:0,cumulative:10,trades:1}],summary:{total_profit:10,total_loss:0,profit_ratio:null,net:10,trade_days:1,total_trades:1}}:call.path.includes('positions')?{positions:[{symbol:'btcusdt',symbol_name:'BTC 永续',direction:'long',quantity:1,avg_price:100,mark_price:105,margin:100,unrealized_pnl:5,leverage:10}]}:call.path.includes('orders')?{orders:[{id:'o1',symbol:'btcusdt',direction:'sell',offset:'close',order_type:'market',quantity:1,filled_qty:1,status:'filled',avg_price:105,realized_pnl:10,fee:1,created_at:now,filled_at:now}]}:{equity:25000,available:24900,unrealized_pnl:5,currency:'USDT',venue:'okx',venue_name:'OKX',demo:true};
+   this.frame({type:'result',id:call.id,status:200,data});
+  }
+ }
+}
+window.WebSocket=FixtureSocket;
+await loadCollectionConfig();await collectionKeyAction('save','ac_preview_private_integration_key');
+const [{default:Dashboard},{ExchangeCredentialsPanel},{LiveTradingRuntime},{useAuthStore}]=await Promise.all([import('/src/app/(main)/dashboard/page.tsx'),import('/src/components/trading/exchange-credentials-panel.tsx'),import('/src/components/trading/live-trading-runtime.tsx'),import('/src/stores/auth.ts')]);
+useAuthStore.setState({user:{id:'preview',trading_mode:'live'}});
+createRoot(document.getElementById('root')).render(React.createElement(BrowserRouter,null,React.createElement(React.Fragment,null,React.createElement(LiveTradingRuntime),React.createElement('div',{style:{height:'1000px'}},React.createElement(Dashboard)),React.createElement('div',{style:{padding:'20px'}},React.createElement(ExchangeCredentialsPanel)))));
+window.previewReady=true;window.disablePrivate=()=>collectionKeyAction('save','ac_preview_no_private_integration_key');
+</script></body></html>

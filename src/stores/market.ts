@@ -404,6 +404,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   newsViewerOpen: false,
 
   initWebSocket: () => {
+    if(collectionMode()&&!get().codeTree&&!get().codeTreeLoading)void get().fetchCodeTree()
     const ws = getMarketWebSocket()
     const snippet = getPublicMarketSocket()
     syncSnippetQuoteSymbols(get())

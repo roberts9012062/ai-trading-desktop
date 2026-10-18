@@ -7,6 +7,7 @@
 import type { PaperAccountSummary, PaperOrderItem, PaperPositionItem } from "@/lib/paper-api"
 import { tryDesktopLiveRequest } from "./desktop-exchange"
 import { loadDesktopDailyPnl, resetDesktopDailyPnl, type DailyPnlResult } from "./desktop-daily-pnl"
+import { collectionMode } from './collection-config'
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
 
@@ -130,6 +131,10 @@ export async function deleteCredentialApi(venue: string): Promise<void> {
 export async function testCredentialApi(
   venue: string
 ): Promise<{ ok: boolean; equity?: number; available?: number; demo?: boolean; error?: string }> {
+  if(collectionMode()){
+    try{const account=await getLiveAccountApi(venue);return {ok:true,equity:account.total_equity,available:account.available_margin,demo:account.demo}}
+    catch(error){return {ok:false,error:liveErrorMessage(error,'API VALUE COLLECTION 账户验证失败')}}
+  }
   return liveRequest(`/api/live/credentials/${venue}/test`, { method: "POST" })
 }
 
@@ -457,7 +462,7 @@ export async function getDailyPnlApi(
   days = 90
 ): Promise<DailyPnlResult> {
   const range = Math.max(1, Math.min(90, Math.trunc(days) || 90))
-  const fallback = () => liveRequest<DailyPnlResult>(`/api/live/daily-pnl?venue=${venue}&days=${range}`, {}, true)
+  const fallback = () => liveRequest<DailyPnlResult>(`/api/live/daily-pnl?venue=${venue}&days=${range}`, {}, !collectionMode())
   return venue === "okx" ? loadDesktopDailyPnl(range, fallback) : fallback()
 }
 

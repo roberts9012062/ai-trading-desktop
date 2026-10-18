@@ -6,7 +6,7 @@ import {Button} from '@/components/ui/button'
 import {Card,CardContent} from '@/components/ui/card'
 import {collectionStatus,onCollectionChange,loadCollectionConfig,collectionKeyAction,refreshCollectionPermissions,nativeCollection,COLLECTION_BASE,type CollectionStatus} from '@/lib/collection-config'
 
-const labels:Record<string,string>={history:'历史K线',quotes:'报价快照',ticks:'最近成交',stream_bars:'实时K线',stream_quotes:'实时报价与盘口',stream_ticks:'逐笔成交'}
+const labels:Record<string,string>={history:'历史K线',quotes:'报价快照',ticks:'最近成交',stream_bars:'实时K线',stream_quotes:'实时报价与盘口',stream_ticks:'逐笔成交',okx_private:'账户、持仓、成交与收益',okx_private_ws:'私有账户实时推送'}
 
 export function DataConfigPanel(){
   const saved=useSyncExternalStore(onCollectionChange,collectionStatus,collectionStatus)
@@ -24,7 +24,7 @@ export function DataConfigPanel(){
   }
   const grants=(checked?.permissions??saved.permissions)?.active_packages.filter(g=>g.markets.includes('crypto'))||[]
   return <div className="max-w-2xl space-y-5">
-    <div><h2 className="text-lg font-semibold">数据配置</h2><p className="mt-1 text-sm text-[var(--text-muted)]">接入你的加密货币行情服务，统一获取 K 线、实时报价、盘口和成交。</p></div>
+    <div><h2 className="text-lg font-semibold">数据配置</h2><p className="mt-1 text-sm text-[var(--text-muted)]">统一接入加密货币行情、工作台账户数据与交易所私有接口。</p></div>
     <Card><CardContent className="p-5 space-y-5">
       <div className="flex items-center justify-between"><div className="flex gap-3 items-center"><KeyRound className="w-5 h-5 text-[var(--primary)]"/><div><p className="font-medium">API Value Collection</p><p className="text-xs text-[var(--text-muted)]">OKX USDT 永续 · {COLLECTION_BASE}</p></div></div><span className="text-xs text-[var(--text-muted)]">{saved.configured?'已配置':'待配置'}</span></div>
       <div className="flex gap-4 text-sm"><a className="text-[var(--primary)] inline-flex gap-1 items-center" href={COLLECTION_BASE} target="_blank" rel="noreferrer">获取 API Key<ExternalLink className="w-3 h-3"/></a><a className="text-[var(--primary)]" href={COLLECTION_BASE+'/#docs'} target="_blank" rel="noreferrer">接口帮助文档</a></div>

@@ -43,6 +43,7 @@ pub fn run() {
             window_controls::desktop_toggle_maximize,
             window_controls::desktop_close_window,
             okx_analytics::okx_analytics_read,
+            okx_analytics::collection_analytics_read,
             okx_analytics::okx_analytics_clear,
             realtime_http::realtime_http_request,
             market_data::collection_key,

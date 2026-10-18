@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { usePaperTradingStore } from '@/stores/paper-trading'
 import { useAITradingStore } from '@/stores/ai-trading'
 import { getStoredVenue } from '@/lib/live-api'
+import { collectionMode } from './collection-config'
 
 export function hasFreshLiveSync(): boolean {
   const state = usePaperTradingStore.getState()
@@ -35,7 +36,7 @@ export function subscribeLiveTradingSync(ws: Pick<MarketWebSocket, 'onMessage' |
     const data = message.data as Record<string, unknown>
     if (data.trading_mode !== 'live' || data.venue !== getStoredVenue()) return
     const previous = usePaperTradingStore.getState().liveSyncConnected
-    const connected = data.connected === true && data.business_connected === true
+    const connected = data.connected === true && (collectionMode() || data.business_connected === true)
     usePaperTradingStore.setState({ liveSyncConnected: connected, liveSyncAt: Date.now() })
     if (Array.isArray(data.channels)) {
       const sections = data.channels.filter((c): c is 'account' | 'positions' | 'orders' => ['account', 'positions', 'orders'].includes(c))

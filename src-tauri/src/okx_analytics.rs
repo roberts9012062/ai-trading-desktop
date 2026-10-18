@@ -287,6 +287,98 @@ pub async fn okx_analytics_read(
     read_analytics(base, token, path, &state).await
 }
 
+/// Center-only analytics. The sealed exchange Secret stays in native memory;
+/// only signed requests leave this process. No legacy pool or fallback is used.
+#[tauri::command]
+pub async fn collection_analytics_read(
+    app: tauri::AppHandle,
+    market: tauri::State<'_, crate::market_data::MarketDataState>,
+    state: tauri::State<'_, OkxAnalyticsState>,
+    scope: String,
+    base: String,
+    token: String,
+    path: String,
+) -> Result<Value, String> {
+    if !allowed_path(&path) || token.is_empty() {
+        return Err("不支持的账户收益查询".into());
+    }
+    let base = server_base(&base)?;
+    let identity = ring::digest::digest(
+        &ring::digest::SHA256,
+        format!("collection\0{scope}\0{base}\0{token}").as_bytes(),
+    )
+    .as_ref()
+    .to_vec();
+    let credentials = {
+        let mut guard = state.lease.lock().await;
+        if !guard
+            .as_ref()
+            .is_some_and(|lease| lease.identity == identity && Instant::now() < lease.until)
+        {
+            *guard = None;
+            let private = agreement::EphemeralPrivateKey::generate(
+                &agreement::X25519,
+                &rand::SystemRandom::new(),
+            )
+            .map_err(|_| "桌面密钥生成失败")?;
+            let public = private
+                .compute_public_key()
+                .map_err(|_| "桌面密钥生成失败")?;
+            let response = state
+                .client
+                .post(format!("{base}/api/live/desktop-read-credentials"))
+                .bearer_auth(&token)
+                .json(&json!({"public_key":STANDARD.encode(public.as_ref())}))
+                .send()
+                .await
+                .map_err(|_| "桌面凭证同步失败")?;
+            let envelope: Envelope = serde_json::from_value(read_json(response).await?)
+                .map_err(|_| "凭证响应格式错误")?;
+            let credentials = decrypt_envelope(private, public.as_ref(), envelope)?;
+            let until = Instant::now() + Duration::from_secs(300);
+            *guard = Some(Lease {
+                identity,
+                credentials,
+                clock_offset: 0,
+                until,
+            });
+            let storage = Arc::clone(&state.lease);
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(Duration::from_secs(300)).await;
+                let mut guard = storage.lock().await;
+                if guard.as_ref().is_some_and(|lease| lease.until == until) {
+                    *guard = None;
+                }
+            });
+        }
+        guard.as_ref().ok_or("本地凭证不可用")?.credentials.clone()
+    };
+    let timestamp = time::OffsetDateTime::now_utc()
+        .format(
+            &time::format_description::parse_borrowed::<2>(
+                "[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]Z",
+            )
+            .map_err(|_| "时间格式错误")?,
+        )
+        .map_err(|_| "系统时间错误")?;
+    let (route, query) = path.split_once('?').ok_or("缺少收益查询参数")?;
+    let response=crate::market_data::private_request(&app,&market,&scope,json!({"method":"GET","path":route,"query":query,"body":"","access_key":credentials.api_key,"signature":sign(&credentials.secret,&timestamp,&path),"timestamp":timestamp,"passphrase":credentials.passphrase,"simulated":credentials.demo})).await?;
+    if response["code"] != "0" || !response["data"].is_array() {
+        return Err(format!(
+            "API VALUE COLLECTION 账户查询失败：{}",
+            response["code"].as_str().unwrap_or("unknown")
+        ));
+    }
+    let account_id = STANDARD.encode(
+        ring::digest::digest(
+            &ring::digest::SHA256,
+            format!("{}:{}", credentials.api_key, credentials.demo).as_bytes(),
+        )
+        .as_ref(),
+    );
+    Ok(json!({"rows":response["data"],"demo":credentials.demo,"account_id":account_id}))
+}
+
 async fn read_analytics(
     base: String,
     token: String,

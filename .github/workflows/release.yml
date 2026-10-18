@@ -40,6 +40,9 @@ jobs:
       - name: Verify API Collection market integration
         run: pnpm exec vitest run src/lib/collection-api.test.ts src/lib/collection-stream.test.ts src/lib/collection-pagination.test.ts src/lib/visible-charts.test.ts src/components/market/kline/realtime/buffer.test.ts src/lib/display-kline.test.ts src/stores/market-snippet.test.ts src/lib/okx-forming.test.ts
 
+      - name: Verify API Collection dashboard and private exchange integration
+        run: pnpm exec vitest run src/lib/collection-exchange.test.ts src/lib/desktop-exchange.test.ts src/lib/desktop-daily-pnl.test.ts src/lib/snippet-private-ws.test.ts src/lib/live-trading-sync.test.ts src/lib/daily-net-pnl.test.ts src/lib/live-api-history.test.ts
+
       - name: Verify official OKX archive validation and repair
         run: pnpm exec vitest run src/lib/okx-history.test.ts src/lib/okx-history-backup.test.ts src/lib/okx-history-source.test.ts src/lib/okx-archive-repair.test.ts src/lib/okx-local-history.integration.test.ts src/lib/snippet-rest.test.ts src/lib/snippet-pool.test.ts
 

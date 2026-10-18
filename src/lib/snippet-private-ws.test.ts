@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-const policy=vi.hoisted(()=>({server:false,change:null as null|((server:boolean)=>void)}))
+const policy=vi.hoisted(()=>({server:false,collection:false,ticket:vi.fn(),change:null as null|((server:boolean)=>void)}))
+vi.mock('./collection-config',()=>({collectionMode:()=>policy.collection,collectionGeneration:()=>0,onCollectionChange:vi.fn()}))
+vi.mock('./collection-exchange',()=>({collectionPrivateSocketAddress:policy.ticket}))
 vi.mock('./desktop-routing',()=>({ensureDesktopRouting:async()=>{},isServerMode:()=>policy.server,onDesktopRoutingChange:(callback:(server:boolean)=>void)=>{policy.change=callback}}))
 import { startSnippetPrivate, stopSnippetPrivate } from './snippet-private-ws'
 class Socket {
@@ -13,7 +15,7 @@ class Socket {
   open(){this.readyState=1;this.onopen?.()}
 }
 beforeEach(()=>{
-  vi.useFakeTimers();policy.server=false;Socket.all=[]
+  vi.useFakeTimers();policy.server=false;policy.collection=false;policy.ticket.mockReset().mockResolvedValue('wss://lium.eu.org/edge/okx-ws?ticket=ephemeral');Socket.all=[]
   vi.stubGlobal('WebSocket',Socket);vi.stubGlobal('localStorage',{getItem:()=> 'test-token'})
   vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({demo:true,expires_in:15,args:[{sign:'short-proof'}]}))))
 })
@@ -32,4 +34,18 @@ it('pong traffic cannot keep an unauthenticated or unsubscribed connection alive
   expect(sockets.every(s=>s.close.mock.calls.length===1)).toBe(true)
   policy.server=true;policy.change?.(true);const count=Socket.all.length
   await vi.advanceTimersByTimeAsync(60000);expect(Socket.all).toHaveLength(count)
+})
+it('uses one center account socket with the demo flag and subscribes only after real login success',async()=>{
+  policy.collection=true
+  await startSnippetPrivate();await vi.advanceTimersByTimeAsync(10000)
+  expect(Socket.all).toHaveLength(1)
+  const socket=Socket.all[0]
+  expect(socket.url).toBe('wss://lium.eu.org/edge/okx-ws?ticket=ephemeral')
+  expect(policy.ticket).toHaveBeenCalledWith(true)
+  socket.open();socket.frame({kind:'proxy_ready',account_verified:false})
+  expect(socket.send.mock.calls.map(([s])=>JSON.parse(s)).some(f=>f.op==='subscribe')).toBe(false)
+  socket.frame({event:'login',code:'0'})
+  expect(socket.send.mock.calls.map(([s])=>JSON.parse(s)).find(f=>f.op==='subscribe').args).toHaveLength(3)
+  socket.onclose?.();await vi.advanceTimersByTimeAsync(10000)
+  expect(policy.ticket.mock.calls.length).toBeGreaterThan(1)
 })
