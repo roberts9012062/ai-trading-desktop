@@ -1,13 +1,14 @@
 # 独立执行器分发
 
 执行器在私有业务项目中编译，桌面公开项目只接收校验后的 Windows
-原生分发目录。编译 C 文件、Python 源码、字节码、环境文件和运行数据库
-不得加入桌面仓库或安装包。
+原生分发目录。编译 C 文件、独立 Python 源码或字节码文件、环境文件和
+运行数据库不得加入桌面仓库或安装包。私有 `app.*` 模块必须原生编译；
+公开第三方依赖可冻结在可执行文件内部，仍受完整清单与原生自检约束。
 
 ## 私有构建
 
 在私有项目安装 `backend/requirements-executor-build.txt` 后运行
-`backend/.venv/Scripts/python.exe backend/scripts/build_executor.py --jobs 1`。
+`backend/.venv/Scripts/python.exe backend/scripts/build_executor.py --jobs 1 --low-memory --freeze-public-dependencies`。
 低并发避免当前构建机资源不足。仅在验证过编译器语言环境后，才能选择
 `--compiler-cache`；`--reuse-build` 只接受私有 `.executor-build` 中的目录名。
 当前构建工具固定为 Nuitka 4.3.1。构建器拒绝与锁定要求不同的版本；
@@ -49,6 +50,12 @@
 CI 使用桌面仓库自身的 `GITHUB_TOKEN` 读取自己的资产；不需要、也不应
 给公开工作流配置读取私有策略仓库的令牌。尚未生成并验证当前产物前，
 不要填写虚假的锁定文件或触发客户端发布。
+
+发布工作流已加入固定资产下载。`make-update.mjs` 在读取签名密钥前检查
+锁定文件、Tauri 的 `execution-worker` 资源映射以及实际目录中的每个文件；
+任何一项缺失或摘要不匹配都会中止发布。签名打包前还必须运行下面的
+真实原生进程检查，失败时不进入安装包构建。当前锁定文件与资源映射仍
+等待完整执行器产物验收后填写，不以临时探针或中间二进制代替。
 
 ## 原生验收与退出
 

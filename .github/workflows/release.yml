@@ -47,7 +47,12 @@ jobs:
         run: pnpm exec vitest run src/lib/local-records.test.ts src/lib/local-desktop.test.ts src/lib/local-order-intent.test.ts src/lib/execution-runtime.test.ts src/lib/live-api-native.test.ts src/lib/server-task.test.ts src/lib/session-recovery.test.ts src/lib/auth-refresh-race.test.ts src/lib/collection-standby.test.ts src/stores/paper-trading-sync.test.ts src/lib/hunter/admin-access.test.ts src/components/hunter/hosting-access.test.ts src/lib/manual-content.test.ts
 
       - name: Verify compiled execution artifact boundary
-        run: node --test scripts/execution-worker.test.mjs scripts/fetch-execution-worker.test.mjs scripts/desktop-build-guard.test.mjs
+        run: node --test scripts/execution-worker.test.mjs scripts/fetch-execution-worker.test.mjs scripts/execution-release.test.mjs scripts/desktop-build-guard.test.mjs
+
+      - name: Fetch pinned compiled account executor from desktop release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/fetch-execution-worker.mjs
 
       - name: Verify official OKX archive validation and repair
         run: pnpm exec vitest run src/lib/okx-history.test.ts src/lib/okx-history-backup.test.ts src/lib/okx-history-source.test.ts src/lib/okx-archive-repair.test.ts src/lib/okx-local-history.integration.test.ts src/lib/snippet-rest.test.ts src/lib/snippet-pool.test.ts

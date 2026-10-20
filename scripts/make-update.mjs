@@ -13,6 +13,7 @@ import { execSync } from "node:child_process"
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { assertDesktopStopped } from "./desktop-build-guard.mjs"
+import { verifyReleaseExecutionArtifact } from "./fetch-execution-worker.mjs"
 
 const root = resolve(import.meta.dirname, "..")
 const confPath = join(root, "src-tauri/tauri.conf.json")
@@ -26,6 +27,11 @@ const KEY_PATH =
   join(root, "证书", "ai-trading-desktop-updater.key")
 const notes = process.argv[2] ?? `ai-trading-desktop ${version}`
 
+// A web bundle alone cannot deliver automatic account takeover. Verify the
+// exact pinned native resource before accessing the updater signing key.
+const executor = await verifyReleaseExecutionArtifact(root)
+console.log(`独立执行器 ${executor.build_id} 的锁定清单与安装资源校验通过。`)
+
 // 私钥来源:CI 用环境变量 TAURI_SIGNING_PRIVATE_KEY;本地默认密钥文件
 const hasKeyEnv = Boolean(process.env.TAURI_SIGNING_PRIVATE_KEY)
 if (!hasKeyEnv && !existsSync(KEY_PATH)) {
@@ -35,6 +41,10 @@ if (!hasKeyEnv && !existsSync(KEY_PATH)) {
 
 assertDesktopStopped()
 console.log(`版本 ${version}，客户端退出检查通过。`)
+
+// Exercise the real native process with an OS-only environment and reject an
+// invalid bootstrap. This ignored test is required for every signed installer.
+execSync("cargo test --manifest-path src-tauri/Cargo.toml --lib compiled_distribution_self_test_and_rejected_bootstrap_use_native_process_contract -- --ignored --nocapture", { cwd: root, stdio: "inherit" })
 
 console.log("开始签名构建(本地约 2-4 分钟,CI 约 8-15 分钟)...")
 const buildEnv = { ...process.env, TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "" }

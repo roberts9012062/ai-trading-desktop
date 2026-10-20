@@ -457,3 +457,20 @@ absence of business HTTP before moving on to worker packaging.
   remaining offline detail/sync flows and complete outage/recovery acceptance.
   Hunter remains hidden/deferred. Version remains 0.2.205; no release tag or
   production execution flag was changed.
+
+### 2026-10-20: mandatory native delivery before installer signing
+
+- The local full native build failed with MSVC C1002 in public SciPy's large
+  quadrature module. Private compiler policy now freezes public SciPy Python
+  alongside existing public dependencies; all private app modules retain the
+  required C compilation and independent report guard. A native scientific
+  dependency probe is being built before retrying the full worker.
+- Public release CI now downloads the exact pinned compiled asset from its own
+  repository. The signing script rejects missing/oversized/non-file pins,
+  missing Tauri resource mapping and any changed manifest/file before signing.
+  It also requires the actual compiled self-test and rejected-bootstrap native
+  process check before building an installer.
+- Delivery checks: 12 Node tests pass, including real Windows ZIP rejection and
+  the new installer release gate cases. Private executor regression: 106 pass.
+  The final artifact pin/resource mapping and all activation acceptance remain
+  pending. Version remains 0.2.205 without an application release tag.

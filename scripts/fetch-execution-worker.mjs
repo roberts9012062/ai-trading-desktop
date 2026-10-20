@@ -31,12 +31,23 @@ export async function verifyPinnedExecutionArtifact(lock,directory=DESTINATION){
   if(manifest.build_id!==lock.build_id)throw Error('执行器构建编号与分发锁定文件不一致')
   return manifest
 }
+async function readArtifactLock(root){
+  const lockPath=path.join(root,'execution-worker.lock.json')
+  let info
+  try{info=await fs.lstat(lockPath)}catch(error){if(error.code==='ENOENT')throw Error('缺少执行器分发锁定文件，已停止发布');throw error}
+  if(!info.isFile()||info.isSymbolicLink()||info.size>4096)throw Error('执行器分发锁定文件类型或大小无效')
+  return artifactLock(JSON.parse(await fs.readFile(lockPath,'utf8')))
+}
+export async function verifyReleaseExecutionArtifact(root=ROOT){
+  const lock=await readArtifactLock(root)
+  const conf=JSON.parse(await fs.readFile(path.join(root,'src-tauri','tauri.conf.json'),'utf8'))
+  if(conf.bundle?.resources?.['../resources/execution-worker']!=='execution-worker')throw Error('独立执行器尚未配置为安装包资源，已停止发布')
+  return verifyPinnedExecutionArtifact(lock,path.join(root,'resources','execution-worker'))
+}
 export async function fetchExecutionArtifact(){
   if(process.platform!=='win32')throw Error('执行器分发目标为 Windows x64')
   if(process.env.GITHUB_REPOSITORY&&process.env.GITHUB_REPOSITORY!==REPOSITORY)throw Error('执行器只能从当前桌面仓库获取')
-  const lockPath=path.join(ROOT,'execution-worker.lock.json')
-  if((await fs.stat(lockPath)).size>4096)throw Error('执行器分发锁定文件过大')
-  const lock=artifactLock(JSON.parse(await fs.readFile(lockPath,'utf8')))
+  const lock=await readArtifactLock(ROOT)
   const directory=path.join(ROOT,'.local-data',`execution-fetch-${randomUUID()}`)
   await fs.mkdir(directory,{recursive:true})
   execFileSync('gh',['release','download',lock.tag,'--repo',REPOSITORY,'--pattern',lock.asset,'--dir',directory],{cwd:ROOT,stdio:'inherit',windowsHide:true})
