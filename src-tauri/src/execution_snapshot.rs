@@ -102,8 +102,11 @@ pub(crate) fn read_history(path:&Path,subject:&str,account:&str,task:&str,kind:&
 mod tests {
     use super::*;
     const USER:&str="11111111-1111-1111-1111-111111111111";
+    static FIXTURE_SEQUENCE:std::sync::atomic::AtomicU64=std::sync::atomic::AtomicU64::new(0);
     fn fixture(run:impl FnOnce(&Path,&Connection)){
-        let path=std::env::temp_dir().join(format!("executor-snapshot-{}-{}.db",std::process::id(),time::OffsetDateTime::now_utc().unix_timestamp_nanos()));
+        // Windows wall-clock resolution can repeat across parallel tests.
+        let sequence=FIXTURE_SEQUENCE.fetch_add(1,std::sync::atomic::Ordering::Relaxed);
+        let path=std::env::temp_dir().join(format!("executor-snapshot-{}-{}-{sequence}.db",std::process::id(),time::OffsetDateTime::now_utc().unix_timestamp_nanos()));
         let db=Connection::open(&path).unwrap();
         db.execute_batch("PRAGMA journal_mode=WAL;PRAGMA user_version=1;
           CREATE TABLE executor_meta(key TEXT PRIMARY KEY,value JSON NOT NULL);

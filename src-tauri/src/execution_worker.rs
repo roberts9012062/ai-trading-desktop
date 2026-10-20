@@ -66,6 +66,9 @@ struct ArtifactFile { path:String, sha256:String, size:u64 }
 #[serde(deny_unknown_fields)]
 struct ArtifactManifest { protocol:u32, entry:String, build_id:String, files:Vec<ArtifactFile> }
 
+#[derive(Deserialize)]
+struct ArtifactPin { protocol:u32, build_id:String, manifest_sha256:String }
+
 fn regular(path:&Path, directory:bool) -> Result<()> {
     let meta=std::fs::symlink_metadata(path).map_err(|_|"执行器文件缺失")?;
     #[cfg(windows)] {
@@ -91,13 +94,22 @@ fn actual_files(root:&Path, directory:&Path, found:&mut BTreeSet<String>) -> Res
     Ok(())
 }
 
-/// Installer signatures protect this manifest; verify every DLL before launch.
+/// The trusted pin is compiled into the desktop, never read from runtime files.
 pub(crate) fn verified_artifact(root:&Path) -> Result<PathBuf> {
+    let pin:ArtifactPin=serde_json::from_str(include_str!("../../execution-worker.lock.json")).map_err(|_|"客户端执行器固定版本无效")?;
+    verify_artifact_with_pin(root,&pin)
+}
+
+fn verify_artifact_with_pin(root:&Path,pin:&ArtifactPin) -> Result<PathBuf> {
     regular(root,true)?;
     let manifest_path=root.join("manifest.json"); regular(&manifest_path,false)?;
     if std::fs::metadata(&manifest_path).map_err(|_|"执行器清单缺失")?.len()>2*1024*1024 {return Err("执行器清单过大".into());}
-    let manifest:ArtifactManifest=serde_json::from_slice(&std::fs::read(&manifest_path).map_err(|_|"执行器清单缺失")?).map_err(|_|"执行器清单无效")?;
+    let raw=std::fs::read(&manifest_path).map_err(|_|"执行器清单缺失")?;
+    let hash:String=digest::digest(&digest::SHA256,&raw).as_ref().iter().map(|b|format!("{b:02x}")).collect();
+    if pin.protocol!=PROTOCOL || pin.build_id.is_empty() || pin.build_id.len()>128 || hash!=pin.manifest_sha256 {return Err("执行器清单不属于本客户端固定版本，请重新安装客户端".into());}
+    let manifest:ArtifactManifest=serde_json::from_slice(&raw).map_err(|_|"执行器清单无效")?;
     if manifest.protocol!=PROTOCOL || manifest.entry!="execution-worker.exe" || manifest.build_id.is_empty() || manifest.build_id.len()>128 || manifest.files.is_empty() || manifest.files.len()>9999 {return Err("执行器版本不兼容".into());}
+    if manifest.build_id!=pin.build_id {return Err("执行器构建编号与客户端固定版本不一致".into());}
     let mut expected=BTreeSet::from(["manifest.json".into()]);
     for item in manifest.files {
         let path=artifact_path(root,&item.path)?;
@@ -264,16 +276,34 @@ mod tests {
         let binary=b"synthetic native artifact";
         let hash:String=digest::digest(&digest::SHA256,binary).as_ref().iter().map(|b|format!("{b:02x}")).collect();
         std::fs::write(root.join("execution-worker.exe"),binary).unwrap();
-        std::fs::write(root.join("manifest.json"),serde_json::json!({"protocol":1,"entry":"execution-worker.exe","build_id":"test","files":[{"path":"execution-worker.exe","size":binary.len(),"sha256":hash}]}).to_string()).unwrap();
-        assert!(verified_artifact(&root).is_ok());
+        let document=serde_json::json!({"protocol":1,"entry":"execution-worker.exe","build_id":"test","files":[{"path":"execution-worker.exe","size":binary.len(),"sha256":hash}]}).to_string();
+        std::fs::write(root.join("manifest.json"),&document).unwrap();
+        let pin=ArtifactPin{protocol:1,build_id:"test".into(),manifest_sha256:digest::digest(&digest::SHA256,document.as_bytes()).as_ref().iter().map(|b|format!("{b:02x}")).collect()};
+        assert!(verify_artifact_with_pin(&root,&pin).is_ok());
         std::fs::write(root.join("rogue.dll"),b"unlisted").unwrap();
-        assert!(verified_artifact(&root).is_err());
+        assert!(verify_artifact_with_pin(&root,&pin).is_err());
         std::fs::remove_file(root.join("rogue.dll")).unwrap();
         std::fs::write(root.join("execution-worker.exe"),b"modified").unwrap();
-        assert!(verified_artifact(&root).is_err());
+        assert!(verify_artifact_with_pin(&root,&pin).is_err());
         // Only remove individually named files from this test-owned directory.
         std::fs::remove_file(root.join("execution-worker.exe")).unwrap();
         std::fs::remove_file(root.join("manifest.json")).unwrap();std::fs::remove_dir(root).unwrap();
+    }
+
+    #[test]
+    fn self_consistent_but_unpinned_runtime_cannot_receive_a_preparation(){
+        let root=std::env::temp_dir().join(format!("executor-unpinned-test-{}",std::process::id()));
+        std::fs::create_dir(&root).unwrap();
+        let binary=b"self consistent but not this desktops fixed native runtime";
+        let fixed:Value=serde_json::from_str(include_str!("../../execution-worker.lock.json")).unwrap();
+        let hash:String=digest::digest(&digest::SHA256,binary).as_ref().iter().map(|b|format!("{b:02x}")).collect();
+        std::fs::write(root.join("execution-worker.exe"),binary).unwrap();
+        // Even copying the correct build ID cannot authorize different bytes.
+        std::fs::write(root.join("manifest.json"),serde_json::json!({"protocol":1,"entry":"execution-worker.exe","build_id":fixed["build_id"],"files":[{"path":"execution-worker.exe","size":binary.len(),"sha256":hash}]}).to_string()).unwrap();
+        let result=verified_artifact(&root);
+        std::fs::remove_file(root.join("execution-worker.exe")).unwrap();
+        std::fs::remove_file(root.join("manifest.json")).unwrap();std::fs::remove_dir(root).unwrap();
+        assert!(result.is_err(),"An internally consistent manifest cannot replace the compiled distribution pin");
     }
 
     #[cfg(windows)]
