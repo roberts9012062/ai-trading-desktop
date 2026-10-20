@@ -5,6 +5,7 @@ import type { IndicatorConfig } from "@/types/indicator"
 import type { ProfitLockTemplate } from "@/lib/profit-lock-templates"
 import type { ProfitLockConfig } from "@/lib/ai-trading-api"
 import { snippetQuotes, snippetKlines, withSnippetRead } from "./snippet-rest"
+import {tryLocalRecordRequest} from './local-records'
 
 export function listProfitLockTemplates(): Promise<ProfitLockTemplate[]> {
   return request("/api/profit-lock-templates")
@@ -55,7 +56,7 @@ async function request<T>(
     headers["Authorization"] = `Bearer ${token}`
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await tryLocalRecordRequest(path,options) ?? await fetch(`${API_BASE}${path}`, {
     ...options,
     headers,
   })
@@ -72,7 +73,7 @@ async function request<T>(
         typeof error?.detail === "string"
           ? error.detail
           : `请求失败: ${response.status}`
-      throw new Error(detail)
+      throw Object.assign(new Error(detail), {status:response.status})
     }
     // Token 过期，尝试刷新
     const refreshed = await tryRefreshToken()
@@ -81,7 +82,7 @@ async function request<T>(
       headers["Authorization"] = `Bearer ${localStorage.getItem("access_token")}`
       const retryResponse = await fetch(`${API_BASE}${path}`, { ...options, headers })
       if (identity !== activeIdentity()) throw new Error("会话已切换，请重试")
-      if (!retryResponse.ok) throw new Error(`请求失败: ${retryResponse.status}`)
+      if (!retryResponse.ok) throw Object.assign(new Error(`请求失败: ${retryResponse.status}`), {status:retryResponse.status})
       return retryResponse.json()
     }
     // 刷新失败，跳转登录
@@ -90,7 +91,7 @@ async function request<T>(
       localStorage.removeItem("refresh_token")
       window.location.href = "/login"
     }
-    throw new Error("认证过期")
+    throw Object.assign(new Error("认证过期"), {status:401})
   }
 
   if (!response.ok) {
@@ -119,7 +120,7 @@ async function request<T>(
   return response.json()
 }
 
-/** 尝试刷新 access token（HTTP 401 / WS 4401 共用） */
+/** false 表示凭据已拒绝或会话已切换；临时故障抛错并保留原会话。 */
 export async function tryRefreshToken(): Promise<boolean> {
   const refreshToken = localStorage.getItem("refresh_token")
   const previousAccess = localStorage.getItem("access_token")
@@ -130,15 +131,17 @@ export async function tryRefreshToken(): Promise<boolean> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refreshToken }),
+      signal: AbortSignal.timeout(8000),
     })
-    if (!response.ok) return false
+    if (response.status===401||response.status===403) return false
+    if (!response.ok) throw Object.assign(new Error('服务器暂时无法验证会话，请稍后重试'),{status:response.status})
 
     const data = await response.json() as {
       access_token?: string
       refresh_token?: string
     }
-    if (!data.access_token) {
-      return false
+    if (typeof data.access_token!=='string'||!data.access_token||data.refresh_token!==undefined&&typeof data.refresh_token!=='string') {
+      throw Object.assign(new Error('服务器会话响应不完整，请稍后重试'),{status:503})
     }
     if (localStorage.getItem("refresh_token") !== refreshToken || localStorage.getItem("access_token") !== previousAccess) return false
     // 同步写入 access/refresh，会话最长保持 7 天
@@ -155,8 +158,10 @@ export async function tryRefreshToken(): Promise<boolean> {
       // store 未就绪时忽略
     }
     return true
-  } catch {
-    return false
+  } catch (error) {
+    if (localStorage.getItem('refresh_token')!==refreshToken||localStorage.getItem('access_token')!==previousAccess) return false
+    if (error instanceof Error&&typeof (error as {status?:unknown}).status==='number') throw error
+    throw Object.assign(new Error('服务器连接中断，已保留本机会话'),{status:503})
   }
 }
 
@@ -227,7 +232,7 @@ export function normalizeUser(raw: Record<string, unknown>): User {
 
 /** 获取当前用户 */
 export async function getMeApi(): Promise<User> {
-  const raw = await request<Record<string, unknown>>("/api/auth/me")
+  const raw = await request<Record<string, unknown>>("/api/auth/me",{signal:AbortSignal.timeout(8000)})
   return normalizeUser(raw)
 }
 

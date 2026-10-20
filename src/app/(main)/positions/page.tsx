@@ -28,6 +28,7 @@ const SOURCE_CFG: Record<string, { label: string; cls: string }> = {
   manual: { label: "手动", cls: "bg-white/5 text-[var(--text-muted)]" },
   ai: { label: "AI", cls: "bg-sky-500/15 text-sky-300" },
   quant: { label: "量化", cls: "bg-amber-500/15 text-amber-300" },
+  exchange: { label: "交易所汇总", cls: "bg-white/5 text-[var(--text-muted)]" },
 }
 
 function mmLabel(mode: string | null | undefined): string {
@@ -109,7 +110,7 @@ export default function PositionsPage(): React.JSX.Element {
         return
       }
       // 平仓成功，ai/quant 仓继续停止对应 running 任务
-      if (src !== "manual") {
+      if (src === "ai" || src === "quant") {
         const match = p.task_id ? tasks.find(t => t.id === p.task_id && t.status === "running") : findRunningTask(tasks, p.symbol, src)
         if (match) {
           try {
@@ -220,7 +221,7 @@ export default function PositionsPage(): React.JSX.Element {
                     <TableCell>
                       <span
                         className={cn("text-[10px] px-1.5 py-0.5 rounded", cfg.cls)}
-                        title={p.task_name ? `任务：${p.task_name}` : undefined}
+                        title={p.task_name ? `任务：${p.task_name}` : src==='exchange'?'按账户汇总，任务归属需在 AI 交易中核对':undefined}
                       >
                         {cfg.label}
                         {p.task_name ? `·${p.task_name}` : ""}

@@ -43,6 +43,12 @@ jobs:
       - name: Verify API Collection dashboard and private exchange integration
         run: pnpm exec vitest run src/lib/collection-exchange.test.ts src/lib/collection-account-scheduling.test.ts src/lib/desktop-exchange.test.ts src/lib/desktop-daily-pnl.test.ts src/lib/snippet-private-ws.test.ts src/lib/live-trading-sync.test.ts src/lib/daily-net-pnl.test.ts src/lib/live-api-history.test.ts
 
+      - name: Verify local SQL continuity and server-only task authorization
+        run: pnpm exec vitest run src/lib/local-records.test.ts src/lib/local-desktop.test.ts src/lib/local-order-intent.test.ts src/lib/execution-runtime.test.ts src/lib/live-api-native.test.ts src/lib/server-task.test.ts src/lib/session-recovery.test.ts src/lib/auth-refresh-race.test.ts src/lib/collection-standby.test.ts src/stores/paper-trading-sync.test.ts src/lib/hunter/admin-access.test.ts src/components/hunter/hosting-access.test.ts src/lib/manual-content.test.ts
+
+      - name: Verify compiled execution artifact boundary
+        run: node --test scripts/execution-worker.test.mjs scripts/fetch-execution-worker.test.mjs scripts/desktop-build-guard.test.mjs
+
       - name: Verify official OKX archive validation and repair
         run: pnpm exec vitest run src/lib/okx-history.test.ts src/lib/okx-history-backup.test.ts src/lib/okx-history-source.test.ts src/lib/okx-archive-repair.test.ts src/lib/okx-local-history.integration.test.ts src/lib/snippet-rest.test.ts src/lib/snippet-pool.test.ts
 
@@ -104,6 +110,10 @@ jobs:
           cargo test --manifest-path src-tauri/Cargo.toml --lib market_data
           cargo test --manifest-path src-tauri/Cargo.toml --lib realtime_http
           cargo test --manifest-path src-tauri/Cargo.toml --lib export_file
+          cargo test --manifest-path src-tauri/Cargo.toml --lib local_store
+          cargo test --manifest-path src-tauri/Cargo.toml --lib local_exchange
+          cargo test --manifest-path src-tauri/Cargo.toml --lib execution_
+          cargo test --manifest-path src-tauri/Cargo.toml --lib native_engine::win_job
 
       - name: Build signed bundle
         shell: bash

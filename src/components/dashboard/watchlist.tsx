@@ -10,6 +10,7 @@ import { perpSymbol } from "@/lib/perp-symbol"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { useAppStore } from "@/stores/app"
 import { X } from "lucide-react"
+import {useAuthStore} from '@/stores/auth'
 
 /** 自选行情列表（工作台版）—— 接入真实 API 和 WebSocket 实时行情 */
 export function WatchlistTable(): React.JSX.Element {
@@ -17,6 +18,7 @@ export function WatchlistTable(): React.JSX.Element {
   const { setActiveContract } = useAppStore()
   const { quotes, initWebSocket } = useMarketStore()
   const watchlistVersion = useAppStore((s) => s.watchlistVersion)
+  const owner=useAuthStore(s=>`${s.user?.id??''}:${s.user?.trading_mode??''}`)
 
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -38,20 +40,24 @@ export function WatchlistTable(): React.JSX.Element {
 
   // 加载自选列表
   useEffect(() => {
+    let active=true
+    setWatchlist([])
     async function loadWatchlist() {
       try {
         const items = await getWatchlistApi()
-        setWatchlist(items)
-        setLoadError(null)
+        if(active){setWatchlist(items);setLoadError(null)}
       } catch (e) {
         // 未登录或服务不可达:区分"空列表"与"加载失败",便于排查环境问题
-        setLoadError(e instanceof Error ? e.message : "自选服务不可达")
+        if(active)setLoadError(e instanceof Error ? e.message : "自选服务不可达")
       } finally {
-        setLoading(false)
+        if(active)setLoading(false)
       }
     }
     loadWatchlist()
-  }, [watchlistVersion])
+    const synced=()=>{void loadWatchlist()}
+    window.addEventListener('desktop-record-sync',synced)
+    return()=>{active=false;window.removeEventListener('desktop-record-sync',synced)}
+  }, [watchlistVersion,owner])
 
   function handleDoubleClick(symbol: string): void {
     setActiveContract(symbol)

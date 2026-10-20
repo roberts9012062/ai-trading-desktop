@@ -16,10 +16,11 @@ use tauri_plugin_shell::{
 // 全部句柄时都会自动终结 job 内的引擎进程,根治"孤儿 python 进程锁住
 // native-engine DLL 导致更新安装失败"的问题。
 #[cfg(windows)]
-mod win_job {
+pub(crate) mod win_job {
     use std::os::windows::io::RawHandle;
 
     const PROCESS_SET_QUOTA: u32 = 0x0100;
+    const PROCESS_TERMINATE: u32 = 0x0001;
     const JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE: u32 = 0x2000;
     const JOB_OBJECT_EXTENDED_LIMIT_INFORMATION: u32 = 9;
 
@@ -41,10 +42,10 @@ mod win_job {
     struct JobBasicLimit {
         per_process_user_time: u64,
         per_job_user_time: u64,
-        min_working_set: u32,
-        max_working_set: u32,
-        active_process_limit: u32,
         limit_flags: u32,
+        min_working_set: usize,
+        max_working_set: usize,
+        active_process_limit: u32,
         affinity: usize,
         priority_class: u32,
         scheduling_class: u32,
@@ -93,7 +94,7 @@ mod win_job {
             }
             let mut info = JobExtendedLimit::default();
             info.basic.limit_flags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-            let process = OpenProcess(PROCESS_SET_QUOTA, 0, pid);
+            let process = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid);
             let ok = !process.is_null()
                 && SetInformationJobObject(
                     job,
@@ -118,6 +119,35 @@ mod win_job {
     pub fn close(handle: JobHandle) {
         unsafe {
             CloseHandle(handle.0);
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        #[test]
+        fn job_layout_matches_windows_abi() {
+            assert_eq!(std::mem::size_of::<JobBasicLimit>(), 64);
+            assert_eq!(std::mem::offset_of!(JobBasicLimit, limit_flags), 16);
+            assert_eq!(std::mem::offset_of!(JobBasicLimit, min_working_set), 24);
+            assert_eq!(std::mem::size_of::<JobExtendedLimit>(), 144);
+        }
+        #[test]
+        fn closing_job_terminates_real_harmless_child() {
+            use std::os::windows::process::CommandExt;
+            let mut child=std::process::Command::new("powershell.exe")
+                .args(["-NoProfile","-NonInteractive","-Command","Start-Sleep -Seconds 30"])
+                .creation_flags(0x08000000).spawn().unwrap();
+            let job=attach_kill_on_close(child.id());
+            if job.is_none(){let _=child.kill();let _=child.wait();}
+            let job=job.expect("must attach child before supplying financial preparation");
+            assert!(child.try_wait().unwrap().is_none());
+            let start=std::time::Instant::now();
+            close(job);
+            while child.try_wait().unwrap().is_none(){
+                assert!(start.elapsed()<std::time::Duration::from_secs(3),"job close must terminate the child");
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
         }
     }
 }

@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useCallback } from "react"
 import { searchContractsApi, getContractsApi, getWatchlistApi, addWatchlistApi, deleteWatchlistApi } from "@/lib/api"
 import type { ContractItem, WatchlistItem } from "@/lib/api"
 import { useMarketStore } from "@/stores/market"
+import {useAuthStore} from '@/stores/auth'
 import { cn, formatPrice } from "@/lib/utils"
 import { useAppStore, migrateStaleContract, readMarketViewContract } from "@/stores/app"
 import { broadcastContractChange } from "@/hooks/sync"
@@ -18,6 +19,7 @@ type ViewMode = "flat" | "tree"
 
 /** 合约列表组件（左侧栏）—— 接入真实 API 和 WebSocket 实时行情 */
 export function ContractList(): React.JSX.Element {
+  const owner=useAuthStore(s=>`${s.user?.id??''}:${s.user?.trading_mode??''}`)
   const { activeContract, setActiveContract } = useAppStore()
   const quotes = useMarketStore((s) => s.quotes)
   const flashMap = useMarketStore((s) => s.flashMap)
@@ -83,16 +85,21 @@ export function ContractList(): React.JSX.Element {
 
   // 加载自选列表
   useEffect(() => {
+    let active=true
+    setWatchlistIds(new Map())
     async function loadWatchlist() {
       try {
         const items: WatchlistItem[] = await getWatchlistApi()
-        setWatchlistIds(new Map(items.map((item) => [item.contract_symbol, item.id])))
+        if(active)setWatchlistIds(new Map(items.map((item) => [item.contract_symbol, item.id])))
       } catch {
         // 未登录或 API 不可用
       }
     }
     loadWatchlist()
-  }, [])
+    const synced=()=>{void loadWatchlist()}
+    window.addEventListener('desktop-record-sync',synced)
+    return()=>{active=false;window.removeEventListener('desktop-record-sync',synced)}
+  }, [owner])
 
   const toggleStar = useCallback(async (e: React.MouseEvent, symbol: string, name: string) => {
     e.stopPropagation()

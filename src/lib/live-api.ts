@@ -6,8 +6,10 @@
 
 import type { PaperAccountSummary, PaperOrderItem, PaperPositionItem } from "@/lib/paper-api"
 import { tryDesktopLiveRequest } from "./desktop-exchange"
+import { tryPreparedLocalLiveRequest, localLiveBinding, clearLocalExchangeAccount, localExchangeGeneration } from './local-desktop'
 import { loadDesktopDailyPnl, resetDesktopDailyPnl, type DailyPnlResult } from "./desktop-daily-pnl"
-import { collectionMode } from './collection-config'
+import { collectionMode, collectionGeneration, collectionScope, nativeCollection, loadCollectionConfig } from './collection-config'
+import {withLocalOrderIntent} from './local-order-intent'
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
 
@@ -23,9 +25,14 @@ class LiveRequestError extends Error {
 }
 
 /** 带鉴权的 JSON 请求（与 paper-api 同款） */
-async function liveRequest<T>(path: string, options: RequestInit = {}, serverOnly = false): Promise<T> {
+async function liveRequest<T>(path: string, options: RequestInit = {}, serverOnly = false, expectedBinding?:string): Promise<T> {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+  const ownerScope=collectionScope()
+  const accountEpoch=localExchangeGeneration()
+  const current=()=>{
+    if(ownerScope!==collectionScope() || accountEpoch!==localExchangeGeneration() || token!==(typeof window!=='undefined'?localStorage.getItem('access_token'):null))throw new LiveRequestError('账号已切换，请在原账号核对请求结果')
+  }
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...((options.headers as Record<string, string>) ?? {}),
@@ -34,7 +41,18 @@ async function liveRequest<T>(path: string, options: RequestInit = {}, serverOnl
     headers["Authorization"] = `Bearer ${token}`
   }
   try {
-    const response = (!serverOnly ? await tryDesktopLiveRequest(path, options) : null) ?? await fetch(`${API_BASE}${path}`, { ...options, headers })
+    let response = !serverOnly ? await tryPreparedLocalLiveRequest(path, options, expectedBinding, current) : null
+    if (!response) {
+      const method=(options.method||'GET').toUpperCase()
+      if(!serverOnly&&method!=='GET'&&path.startsWith('/api/live/')&&!path.startsWith('/api/live/credentials')){
+        const binding=await localLiveBinding()
+        if(binding)headers['X-Desktop-Account']=binding
+      }
+      const requestOptions={...options,headers}
+      current()
+      response = (!serverOnly ? await tryDesktopLiveRequest(path, requestOptions) : null) ?? await fetch(`${API_BASE}${path}`, requestOptions)
+    }
+    current()
     if (response.status === 401 && typeof window !== "undefined") {
       window.location.href = "/login"
       throw new LiveRequestError("认证过期")
@@ -47,7 +65,9 @@ async function liveRequest<T>(path: string, options: RequestInit = {}, serverOnl
       }
       throw new LiveRequestError(detailText, [408, 500, 502, 503, 504].includes(response.status))
     }
-    return await response.json() as T
+    const result=await response.json() as T
+    current()
+    return result
   } catch (error) {
     if (error instanceof LiveRequestError) throw error
     const message = liveErrorMessage(error)
@@ -115,16 +135,19 @@ export async function saveCredentialApi(payload: {
   demo?: boolean
   label?: string
 }): Promise<{ ok: boolean; error?: string }> {
+  const scope=collectionScope()
   const result = await liveRequest<{ ok: boolean; error?: string }>("/api/live/credentials", {
     method: "PUT",
     body: JSON.stringify(payload),
   })
-  if (result.ok !== false) resetDesktopDailyPnl()
+  if (result.ok !== false) { if(payload.venue==='okx')await clearLocalExchangeAccount(scope);resetDesktopDailyPnl() }
   return result
 }
 
 export async function deleteCredentialApi(venue: string): Promise<void> {
+  const scope=collectionScope()
   await liveRequest(`/api/live/credentials/${venue}`, { method: "DELETE" })
+  if(venue==='okx')await clearLocalExchangeAccount(scope)
   resetDesktopDailyPnl()
 }
 
@@ -187,7 +210,8 @@ export async function getLivePositionsApi(venue: string): Promise<PaperPositionI
     // 来源归属：后端按未配对开仓镜像判定 ai/quant，无任务归属=manual
     source: (p.source as string | undefined) ?? "manual",
     quantity: Number(p.quantity),
-    available_quantity: Number(p.quantity),
+    available_quantity: p.available_quantity == null ? Number(p.quantity) :
+      Number.isFinite(Number(p.available_quantity)) ? Math.max(0, Math.min(Number(p.quantity), Number(p.available_quantity))) : 0,
     avg_price: Number(p.avg_price),
     margin: Number(p.margin),
     realized_pnl: 0,
@@ -220,24 +244,59 @@ function normalizeLiveStatus(raw: string): string {
 
 export async function getLiveOrdersApi(
   venue: string,
-  history = false
+  history = false,
+  onPage?: (orders: PaperOrderItem[]) => void,
 ): Promise<PaperOrderItem[]> {
-  const read = async () => {
-    const response = await liveRequest<{ orders: Array<Record<string, unknown>> }>(
-      `/api/live/orders?venue=${venue}&history=${history ? "true" : "false"}`
+  if(nativeCollection()&&collectionMode())await loadCollectionConfig()
+  const identity = () => JSON.stringify([collectionGeneration(),localExchangeGeneration(),
+    typeof localStorage === 'undefined' ? '' : localStorage.getItem('access_token'),
+    typeof localStorage === 'undefined' ? '' : localStorage.getItem('qihuo_auth_user'),
+    typeof window === 'undefined' ? '' : window.__QH_API_BASE__])
+  const owner = identity()
+  const current = () => { if (identity() !== owner) throw new LiveRequestError('账号或数据配置已切换，已取消历史分页') }
+  const read = async (cursor: string) => {
+    current()
+    const response = await liveRequest<{ orders: Array<Record<string, unknown>>; has_more?: boolean; cursor?: string | null }>(
+      `/api/live/orders?venue=${encodeURIComponent(venue)}&history=${history ? "true" : "false"}${cursor ? '&cursor=' + encodeURIComponent(cursor) : ''}`
     )
+    current()
     if (!Array.isArray(response.orders)) throw new LiveRequestError('委托查询响应格式错误')
     return response
   }
-  let res: Awaited<ReturnType<typeof read>>
-  try { res = await read() } catch (error) {
-    // Read-only history can recover from a transient Rust transport/body error.
-    // Submission, cancellation and authorization failures are never retried.
-    if (!history || !(error instanceof LiveRequestError) || !error.retryable) throw error
-    await new Promise(resolve => setTimeout(resolve, 250))
-    res = await read()
+  const orders = new Map<string, PaperOrderItem>()
+  const cursors = new Set<string>()
+  let cursor = ''
+  for (let page = 0; page < 200; page++) {
+    let res: Awaited<ReturnType<typeof read>>
+    try { res = await read(cursor) } catch (error) {
+      // Retry only this read page. Never replay financial commands or pages
+      // from a previous account after the session changes during the delay.
+      if (!history || !(error instanceof LiveRequestError) || !error.retryable) throw error
+      await new Promise(resolve => setTimeout(resolve, 250))
+      res = await read(cursor)
+    }
+    const more = res.has_more === true
+    const next = res.cursor
+    const validCursor=typeof next==='string'&&(history?/^\d{1,100}$/:/^(?:\d{1,100}|r:\d{1,100}|a:[0-7]:\d{0,100})$/).test(next)
+    const emptyStage=!history&&typeof next==='string'&&/^a:[0-7]:$/.test(next)
+    if (more && (!validCursor || cursors.has(next!) || !res.orders.length&&!emptyStage)) {
+      throw new LiveRequestError('委托分页游标无效或未前进，请稍后重新查询')
+    }
+    for (const row of normalizeLiveOrders(res.orders, venue)) {
+      const key = `${row.order_kind}:${row.exchange_order_id || row.algo_id || row.id}`
+      if (!orders.has(key)) orders.set(key, row)
+    }
+    const snapshot = [...orders.values()]
+    onPage?.(snapshot)
+    if (!more) return snapshot
+    cursor = next!
+    cursors.add(cursor)
   }
-  return res.orders.map((o, i) => ({
+  throw new LiveRequestError('委托数量超出单次读取上限，已加载记录保留；更多记录请在交易所查询')
+}
+
+function normalizeLiveOrders(orders: Array<Record<string, unknown>>, venue: string): PaperOrderItem[] {
+  return orders.map((o, i) => ({
     id: o.order_kind === "algo" ? `algo:${o.algo_id ?? o.order_id ?? o.id}` : String(o.id ?? o.order_id ?? `${venue}-${i}`),
     symbol: String(o.symbol),
     symbol_name: String(o.symbol_name ?? o.symbol),
@@ -249,7 +308,7 @@ export async function getLiveOrdersApi(
     quantity: Number(o.quantity),
     filled_qty: Number(o.filled_qty ?? 0),
     status: normalizeLiveStatus(String(o.status ?? "")),
-    source: "manual",
+    source: typeof o.source === 'string' ? o.source : "manual",
     frozen_margin: 0,
     fee: Number(o.fee ?? 0),
     realized_pnl: Number(o.realized_pnl ?? 0),
@@ -290,6 +349,13 @@ export interface PlaceLiveOrderRequest {
 export async function placeLiveOrderApi(
   payload: PlaceLiveOrderRequest
 ): Promise<Record<string, unknown>> {
+  if(nativeCollection()&&collectionMode()){
+    const binding=await localLiveBinding()
+    if(binding){
+      const result=await withLocalOrderIntent<Record<string,unknown>>(binding,payload,value=>liveRequest('/api/live/orders',{method:'POST',body:JSON.stringify(value)},false,binding))
+      return {...result,status:normalizeLiveStatus(String(result.status??''))}
+    }
+  }
   return liveRequest("/api/live/orders", {
     method: "POST",
     body: JSON.stringify(payload),

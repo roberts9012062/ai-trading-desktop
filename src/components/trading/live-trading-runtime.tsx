@@ -5,6 +5,7 @@ import { hasFreshLiveSync, subscribeLiveTradingSync } from '@/lib/live-trading-s
 import { useAuthStore } from '@/stores/auth'
 import { usePaperTradingStore } from '@/stores/paper-trading'
 import { startSnippetPrivate, stopSnippetPrivate } from '@/lib/snippet-private-ws'
+import { resetDesktopDailyPnl } from '@/lib/desktop-daily-pnl'
 
 export function LiveTradingRuntime(): null {
   const user = useAuthStore(s => s.user)
@@ -17,6 +18,13 @@ export function LiveTradingRuntime(): null {
       return current?.id === identity && current.trading_mode === 'live'
     }
     const off = subscribeLiveTradingSync(getMarketWebSocket(), isCurrent)
+    const accountChanged=()=>{
+      if(!isCurrent())return
+      usePaperTradingStore.getState().reset()
+      resetDesktopDailyPnl()
+      void usePaperTradingStore.getState().refresh()
+    }
+    window.addEventListener('local-exchange-changed',accountChanged)
     if (venue === 'okx') void startSnippetPrivate()
     void usePaperTradingStore.getState().refresh()
     // A low-rate audit also supports older servers and lost local events.
@@ -25,7 +33,7 @@ export function LiveTradingRuntime(): null {
       const state = usePaperTradingStore.getState()
       if (!hasFreshLiveSync() || Date.now()-state.lastRefreshAt >= 30_000) void state.refresh()
     }, 10_000)
-    return () => { off();stopSnippetPrivate();clearInterval(timer) }
+    return () => { off();stopSnippetPrivate();clearInterval(timer);window.removeEventListener('local-exchange-changed',accountChanged) }
   }, [user?.id, user?.trading_mode, venue])
   return null
 }

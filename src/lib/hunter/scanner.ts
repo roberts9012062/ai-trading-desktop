@@ -5,6 +5,7 @@ import { hunterApi, type Hunter, type HunterData } from "./api"
 import { CYCLES, findSignal, trend, validateLeverage, type Direction } from "./rules"
 import { useHunterStore } from "@/stores/hunter"
 import { useAuthStore } from "@/stores/auth"
+import { hunterFeatureAvailable } from "../deferred-features"
 import { useAITradingStore } from "@/stores/ai-trading"
 import { BalancedDiscovery, nextCycleScan } from "./discovery"
 import { BALANCED_VERSION, ADAPTIVE_VERSION, SWING_VERSION, type Cycle } from "./rules"
@@ -94,7 +95,7 @@ export async function scanHunter(group: Hunter, abort: AbortSignal): Promise<voi
 /** One desktop owner across navigation/windows; logout/mode change aborts work. */
 export function startHunterRuntime(): () => void {
   stopRuntime?.()
-  if (useAuthStore.getState().user?.role !== "admin") {
+  if (!hunterFeatureAvailable()) {
     useHunterStore.getState().reset()
     return () => {}
   }

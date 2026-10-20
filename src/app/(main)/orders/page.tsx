@@ -161,7 +161,7 @@ export default function OrdersPage(): React.JSX.Element {
         <TabsContent value="pending" className="flex-1 overflow-auto mt-3">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs text-[var(--text-muted)]">
-              普通委托与条件单同步显示；条件单请在所属任务或交易所管理
+              普通委托与条件单同步显示；支持本机撤销的策略单可直接操作，其余请在所属任务或交易所管理
             </p>
             <Button
               variant="destructive"
@@ -169,7 +169,7 @@ export default function OrdersPage(): React.JSX.Element {
               disabled={submitting || !pending.some(o => mode !== "live" || canCancelLiveOrder(o))}
               onClick={() => void cancelAllPending()}
             >
-              {mode === "live" ? "全撤普通委托" : "一键全撤"}
+              {mode === "live" ? pending.some(o=>o.order_kind==='algo'&&canCancelLiveOrder(o))?'全撤（含策略单）':'全撤普通委托' : "一键全撤"}
             </Button>
           </div>
           <OrderTable
@@ -403,18 +403,17 @@ function OrderTable(props: {
               </TableCell>
               {props.showCancel && (
                 <TableCell>
-                  {o.order_kind === "algo" ? <span className="text-xs text-[var(--text-muted)]">条件单保护</span> : <Button
+                  {o.order_kind === "algo"&&!canCancelLiveOrder(o) ? <span className="text-xs text-[var(--text-muted)]">条件单保护</span> : <Button
                     variant="ghost"
                     size="sm"
                     className="text-xs h-6 text-[var(--accent-danger)]"
                     disabled={
                       props.submitting ||
-                      o.can_cancel === false ||
-                      (o.status !== "pending" && o.status !== "partially_filled")
+                      !canCancelLiveOrder(o)
                     }
                     onClick={() => props.onCancel?.(o.id)}
                   >
-                    撤单
+                    {o.order_kind==='algo'?'撤销策略单':'撤单'}
                   </Button>}
                 </TableCell>
               )}

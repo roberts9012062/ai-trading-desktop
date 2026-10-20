@@ -4,7 +4,9 @@ import {KeyRound,ExternalLink,CheckCircle2,RefreshCw,Trash2} from 'lucide-react'
 import {Input} from '@/components/ui/input'
 import {Button} from '@/components/ui/button'
 import {Card,CardContent} from '@/components/ui/card'
-import {collectionStatus,onCollectionChange,loadCollectionConfig,collectionKeyAction,refreshCollectionPermissions,nativeCollection,COLLECTION_BASE,type CollectionStatus} from '@/lib/collection-config'
+import {ServerSyncPanel} from './server-sync-panel'
+import {ExecutionPanel} from './execution-panel'
+import {collectionStatus,onCollectionChange,loadCollectionConfig,collectionKeyAction,refreshCollectionPermissions,collectionStandbyEntitled,nativeCollection,COLLECTION_BASE,type CollectionStatus} from '@/lib/collection-config'
 
 const labels:Record<string,string>={history:'历史K线',quotes:'报价快照',ticks:'最近成交',stream_bars:'实时K线',stream_quotes:'实时报价与盘口',stream_ticks:'逐笔成交',okx_private:'账户、持仓、成交与收益',okx_private_ws:'私有账户实时推送'}
 
@@ -33,7 +35,9 @@ export function DataConfigPanel(){
       {saved.lastMarketAt&&<p className="text-xs text-[var(--text-muted)]">最近行情：{new Date(saved.lastMarketAt).toLocaleTimeString('zh-CN',{hour12:false})}</p>}
       {(message||saved.error)&&<p role="status" className="text-sm text-[var(--text-secondary)] break-words">{message||saved.error}</p>}
     </CardContent></Card>
-    {grants.map((grant,i)=><Card key={i}><CardContent className="p-5 text-sm space-y-3"><div className="flex justify-between"><span className="font-medium">加密货币行情授权</span><span>到期：{new Date(grant.expires_at).toLocaleString('zh-CN',{hour12:false})}</span></div><p className="text-[var(--text-secondary)]">{grant.rpm} 次/分钟 · 最多 {grant.connections} 个连接 · {grant.market_subscriptions?.crypto??'—'} 个合约</p><p className="text-xs text-[var(--text-muted)] break-words">可用能力：{grant.capabilities.map(c=>labels[c]||c).join(' / ')}</p></CardContent></Card>)}
+    <ServerSyncPanel/>
+    <ExecutionPanel/>
+    {grants.map((grant,i)=><Card key={i}><CardContent className="p-5 text-sm space-y-3"><div className="flex justify-between"><span className="font-medium">加密货币行情授权</span><span>到期：{new Date(grant.expires_at).toLocaleString('zh-CN',{hour12:false})}</span></div><p className="text-[var(--text-secondary)]">{grant.rpm} 次/分钟 · 最多 {grant.connections} 个连接 · {grant.market_subscriptions?.crypto??'—'} 个合约</p><p className="text-[var(--text-secondary)]">常驻备用执行器套餐权益：{collectionStandbyEntitled([grant])?'已开通':'未开通'}</p><p className="text-xs text-[var(--text-muted)]">{collectionStandbyEntitled([grant])?'套餐允许使用常驻备用执行器；任务完成同步且执行器就绪后才能接管。':'业务服务器与客户端都停止后，任务全部停止；手动平仓并确认后，才能手动重新启动。'}</p><p className="text-xs text-[var(--text-muted)] break-words">可用能力：{grant.capabilities.map(c=>labels[c]||c).join(' / ')}</p></CardContent></Card>)}
     <p className="text-xs leading-6 text-[var(--text-muted)]">行情 Key 与交易所下单凭证独立。可用数据以套餐权限为准；网络重连可能造成逐笔缺口。长期研究与回测历史使用独立研究渠道。</p>
   </div>
 }

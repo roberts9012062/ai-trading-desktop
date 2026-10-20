@@ -1,4 +1,5 @@
 import { DEFAULT_HUNTER_VERSION, HUNTER_STRATEGIES } from "@/lib/hunter/profiles"
+import { hunterFeatureAvailable } from "@/lib/deferred-features"
 import { MACD_PERIODS, REBOUND_VERSION, hunterCycleLabel, type MacdPeriod } from "@/lib/hunter/macd-ma20"
 import { MarginLeverageFields } from "@/components/ai-trading/form/margin-leverage-fields"
 import { CreateTaskRules, EMPTY_RULE_FORM, buildBottomPayload } from "@/components/ai-trading/form/create-task-rules"
@@ -29,7 +30,11 @@ const initial: HunterConfig = {
   pool_size: 50, max_positions: 4, scan_seconds: 60, strategy_version: DEFAULT_HUNTER_VERSION,
 }
 
-export function CreateHunterDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function CreateHunterDialog(props: { open: boolean; onClose: () => void }) {
+  return hunterFeatureAvailable() ? <HunterDialog {...props}/> : null
+}
+
+function HunterDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const isAdmin = useAuthStore(s => s.user?.role === "admin")
   const [config, setConfig] = useState<HunterConfig>(() => ({ ...initial, max_positions: hunterPositionLimit(isAdmin, initial.strategy_version) }))
   const [bottomRules, setBottomRules] = useState(EMPTY_RULE_FORM)

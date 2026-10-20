@@ -4,6 +4,8 @@ import { useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuthStore } from "@/stores/auth"
 import { getMeApi } from "@/lib/api"
+import { nativeCollection } from '@/lib/collection-config'
+import { keepLocalSession } from '@/lib/session-recovery'
 
 /** 需要认证才能访问的路径前缀 */
 const PROTECTED_PREFIXES = [
@@ -34,9 +36,9 @@ export function useAuthGuard(): void {
   const router = useRouter()
   const pathname = usePathname()
   const accessToken = useAuthStore((s) => s.accessToken)
+  const hasAccessToken = !!accessToken
   const user = useAuthStore((s) => s.user)
   const loaded = useAuthStore((s) => s.loaded)
-  const hydrating = useAuthStore((s) => s.hydrating)
   const login = useAuthStore((s) => s.login)
   const logout = useAuthStore((s) => s.logout)
   const setLoaded = useAuthStore((s) => s.setLoaded)
@@ -45,6 +47,7 @@ export function useAuthGuard(): void {
   // 会话恢复：token 在、需要确认用户时拉 /me
   useEffect(() => {
     let cancelled = false
+    let ownsHydration = false
 
     async function hydrate(): Promise<void> {
       const token =
@@ -66,7 +69,8 @@ export function useAuthGuard(): void {
         return
       }
 
-      if (hydrating) return
+      if (useAuthStore.getState().hydrating) return
+      ownsHydration = true
       setHydrating(true)
       try {
         const me = await getMeApi()
@@ -75,11 +79,10 @@ export function useAuthGuard(): void {
           typeof window !== "undefined"
             ? (localStorage.getItem("refresh_token") ?? "")
             : ""
-        login(me, token, refresh)
-      } catch {
+        login(me, localStorage.getItem('access_token') ?? token, refresh)
+      } catch (error) {
         if (cancelled) return
-        // token 无效
-        logout()
+        if (!keepLocalSession(error,!!user,nativeCollection())) logout()
       } finally {
         if (!cancelled) {
           setHydrating(false)
@@ -91,12 +94,12 @@ export function useAuthGuard(): void {
     void hydrate()
     return () => {
       cancelled = true
+      if (ownsHydration) setHydrating(false)
     }
   }, [
-    accessToken,
+    hasAccessToken,
     user,
     loaded,
-    hydrating,
     login,
     logout,
     setLoaded,

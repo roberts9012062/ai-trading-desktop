@@ -1,7 +1,10 @@
 import { invoke } from '@tauri-apps/api/core'
 
 export const COLLECTION_BASE='https://lium.eu.org'
-export interface CollectionGrant { markets:string[]; capabilities:string[]; expires_at:string; connections:number; rpm:number; market_subscriptions?:Record<string,number> }
+export interface CollectionGrant { markets:string[]; capabilities:string[]; expires_at:string; connections:number; rpm:number; market_subscriptions?:Record<string,number>; standby_executor?:boolean }
+export function collectionStandbyEntitled(grants:CollectionGrant[],now=Date.now()):boolean {
+  return grants.some(grant=>grant.standby_executor===true&&grant.markets.includes('crypto')&&grant.capabilities.includes('okx_private')&&Date.parse(grant.expires_at)>now)
+}
 export interface CollectionStatus { configured:boolean; lastMarketAt?:number; masked?:string; permissions?:{active_packages:CollectionGrant[]}; error?:string }
 let status:CollectionStatus={configured:false}
 let loadedScope='', generation=0, browserKey=''

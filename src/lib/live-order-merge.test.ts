@@ -22,4 +22,9 @@ describe('live order truth', () => {
     expect(canCancelLiveOrder(rows[1])).toBe(false)
     expect(canCancelLiveOrder(rows[0])).toBe(true)
   })
+  it('allows algorithm cancellation only when the account transport explicitly supports it',()=>{
+    expect(canCancelLiveOrder(order({order_kind:'algo',can_cancel:true}))).toBe(true)
+    expect(canCancelLiveOrder(order({order_kind:'algo',can_cancel:false}))).toBe(false)
+    expect(canCancelLiveOrder(order({order_kind:'algo',can_cancel:true,status:'filled'}))).toBe(false)
+  })
 })

@@ -4,6 +4,7 @@ import type { MessageHandler } from "./websocket"
 import { snippetOrigin, snippetFailed, snippetSucceeded } from "./snippet-pool"
 import { collectionMode, collectionGeneration, onCollectionChange } from './collection-config'
 import { collectionPrivateSocketAddress } from './collection-exchange'
+import { tryPreparedLocalLiveRequest } from './local-desktop'
 
 let nextDial = 0
 
@@ -53,7 +54,8 @@ class PrivateChannel {
     try {
       const base=(process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/,"")
       const getProof=async()=>{
-        const response=await fetch(base+"/api/live/desktop-ws-login",{method:"POST",headers:{Authorization:`Bearer ${this.token}`},signal:controller.signal,cache:"no-store"})
+        const options={method:"POST",headers:{Authorization:`Bearer ${this.token}`},signal:controller.signal,cache:"no-store" as const}
+        const response=await tryPreparedLocalLiveRequest('/api/live/desktop-ws-login',options)??await fetch(base+"/api/live/desktop-ws-login",options)
         if(!response.ok)throw new Error('login proof unavailable')
         return response.json()
       }
@@ -131,4 +133,11 @@ onCollectionChange(()=>{
   collectionEpoch=collectionGeneration();privateChannel.stop();businessChannel.stop()
   if(running&&collectionMode())privateChannel.start()
 })
-if (typeof window!=='undefined') window.addEventListener('pagehide',stopSnippetPrivate)
+if (typeof window!=='undefined') {
+  window.addEventListener('pagehide',stopSnippetPrivate)
+  window.addEventListener('local-exchange-changed',()=>{
+    privateChannel.stop();businessChannel.stop()
+    emit(['account','positions','orders'])
+    if(running&&!isServerMode())privateChannel.start()
+  })
+}

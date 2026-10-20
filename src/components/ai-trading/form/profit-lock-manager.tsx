@@ -7,17 +7,13 @@ import { ProfitLockSettings } from "./profit-lock-settings"
 import { liveProfitLockConfig, liveProfitLockDraft } from "@/lib/profit-lock"
 import { profitLockTargets } from "@/lib/profit-lock-targets"
 import { useAITradingStore } from "@/stores/ai-trading"
-import { useHunterStore } from "@/stores/hunter"
 import { useAuthStore } from "@/stores/auth"
 
 /** Page-level entry; all saves use the existing narrow profit-lock endpoints. */
 export function ProfitLockManager() {
-  const isAdmin = useAuthStore(s => s.user?.role === "admin")
   const allTasks = useAITradingStore(s => s.tasks)
-  const allGroups = useHunterStore(s => s.groups)
-  const tasks = useMemo(() => isAdmin ? allTasks : allTasks.filter(t => t.strategy_type !== "multi_cycle_hunter"), [allTasks, isAdmin])
-  const groups = useMemo(() => isAdmin ? allGroups : [], [allGroups, isAdmin])
-  const targets = useMemo(() => profitLockTargets(tasks, groups), [tasks, groups])
+  const tasks = useMemo(() => allTasks.filter(t => t.strategy_type !== "multi_cycle_hunter"), [allTasks])
+  const targets = useMemo(() => profitLockTargets(tasks, []), [tasks])
   const owner = useAuthStore(s => `${s.user?.id ?? ""}:${s.user?.trading_mode ?? ""}`)
   const [open, setOpen] = useState(false)
   const [key, setKey] = useState("")
@@ -38,15 +34,14 @@ export function ProfitLockManager() {
   async function save() {
     if (busy) return
     // Check the latest store snapshot, including removals during polling.
-    const current = profitLockTargets(useAITradingStore.getState().tasks, useHunterStore.getState().groups).find(t => t.key === key)
+    const current = profitLockTargets(useAITradingStore.getState().tasks.filter(t => t.strategy_type !== 'multi_cycle_hunter'), []).find(t => t.key === key)
     if (!current) { setError("所选任务已结束或移除，请重新选择。"); return }
     setBusy(true); setError("")
     const started = generation.current
     const active = () => mounted.current && started === generation.current
     try {
       const config = liveProfitLockConfig(draft)
-      if (current.kind === "hunter") await useHunterStore.getState().setProfitLock(current.id, config)
-      else await useAITradingStore.getState().setProfitLock(current.id, config)
+      await useAITradingStore.getState().setProfitLock(current.id, config)
       if (active()) setOpen(false)
     } catch (e) { if (active()) setError(e instanceof Error ? e.message : "锁利设置保存失败") }
     finally { if (active()) setBusy(false) }
@@ -71,9 +66,9 @@ export function ProfitLockManager() {
             </div>
             {target && <fieldset disabled={busy} className="min-w-0" key={key}>
               <ProfitLockSettings value={draft} onChange={setDraft} />
-              <p className="mt-3 text-xs text-[var(--text-muted)]">{target.kind === "hunter" ? "应用到该猎手当前未结束的交易任务及后续新机会。" : "仅应用到所选任务，运行状态保持不变。"}首次开启从当前净盈利开始追踪；已锁住的利润线不会降低。已提交的平仓委托不会因关闭锁利而撤销。</p>
+              <p className="mt-3 text-xs text-[var(--text-muted)]">仅应用到所选任务，运行状态保持不变。首次开启从当前净盈利开始追踪；已锁住的利润线不会降低。已提交的平仓委托不会因关闭锁利而撤销。</p>
             </fieldset>}
-          </> : <p className="text-sm text-[var(--text-muted)]">当前没有可设置的任务。创建 AI、量化交易或多周期猎手后，可在这里设置锁利；创建时也可直接选择锁利模板。</p>}
+          </> : <p className="text-sm text-[var(--text-muted)]">当前没有可设置的任务。创建 AI 或量化交易后，可在这里设置锁利；创建时也可直接选择锁利模板。</p>}
           {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
         </div>
         <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border)]">

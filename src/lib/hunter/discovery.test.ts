@@ -94,24 +94,18 @@ it("adaptive ranking continues with one isolated failure at 80% coverage and rep
   expect(useHunterStore.getState().progress[g.id]).toContain("行情失败")
 })
 
-it("runs the short cycle again while the long cycle is still reading", async () => {
+it("does not schedule any deferred cycle even when cached groups are running", async () => {
   vi.useFakeTimers(); vi.setSystemTime(100000)
   vi.stubGlobal("navigator", { locks: { request: vi.fn((_name, _options, callback) => callback()) } })
   const g = group(); useHunterStore.setState({ groups: [g], refresh: vi.fn().mockResolvedValue(undefined) })
-  let finishLong!: () => void
-  const scan = vi.spyOn(BalancedDiscovery.prototype, "scan").mockImplementation(async (_g, cycle) => {
-    if (cycle === "long") await new Promise<void>(resolve => { finishLong = resolve })
-  })
+  const scan = vi.spyOn(BalancedDiscovery.prototype, "scan").mockResolvedValue(undefined)
   const stop = startHunterRuntime()
   try {
     await vi.advanceTimersByTimeAsync(0)
-    expect(scan.mock.calls.map(c => c[1])).toEqual(["short", "medium", "long"])
-    await vi.advanceTimersByTimeAsync(65000)
-    expect(scan.mock.calls.filter(c => c[1] === "short")).toHaveLength(2)
-    expect(scan.mock.calls.filter(c => c[1] === "long")).toHaveLength(1)
-    stop(); finishLong(); await vi.advanceTimersByTimeAsync(0)
-    await vi.advanceTimersByTimeAsync(65000)
-    expect(scan.mock.calls.filter(c => c[1] === "short")).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(130000)
+    expect(scan).not.toHaveBeenCalled()
+    expect(navigator.locks.request).not.toHaveBeenCalled()
+    expect(useHunterStore.getState().groups).toEqual([])
   } finally { stop() }
 })
 

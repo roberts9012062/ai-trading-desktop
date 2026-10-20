@@ -12,6 +12,7 @@
 import { execSync } from "node:child_process"
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs"
 import { join, resolve } from "node:path"
+import { assertDesktopStopped } from "./desktop-build-guard.mjs"
 
 const root = resolve(import.meta.dirname, "..")
 const confPath = join(root, "src-tauri/tauri.conf.json")
@@ -32,12 +33,8 @@ if (!hasKeyEnv && !existsSync(KEY_PATH)) {
   process.exit(1)
 }
 
-console.log(`版本 ${version},签名私钥 ${KEY_PATH}\n先结束正在运行的应用实例(否则 exe 被锁,链接失败)...`)
-try {
-  execSync("taskkill /IM ai-trading-desktop.exe /F", { stdio: "ignore" })
-} catch {
-  // 没有运行实例,忽略
-}
+assertDesktopStopped()
+console.log(`版本 ${version}，客户端退出检查通过。`)
 
 console.log("开始签名构建(本地约 2-4 分钟,CI 约 8-15 分钟)...")
 const buildEnv = { ...process.env, TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "" }

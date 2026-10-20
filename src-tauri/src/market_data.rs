@@ -8,10 +8,14 @@ use zeroize::Zeroizing;
 const BASE: &str = "https://lium.eu.org";
 pub struct MarketDataState {
     client: Client,
+    private_slot:tokio::sync::Mutex<Option<std::time::Instant>>,
+    pub(crate) manual_slot:tokio::sync::Mutex<()>,
 }
 impl Default for MarketDataState {
     fn default() -> Self {
         Self {
+            private_slot:tokio::sync::Mutex::new(None),
+            manual_slot:tokio::sync::Mutex::new(()),
             client: Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
                 .connect_timeout(Duration::from_secs(8))
@@ -35,6 +39,9 @@ fn target(path: &str) -> Result<Url, String> {
         "/api/tickets",
         "/edge/data",
         "/edge/okx",
+        "/v1/execution/acquire", "/v1/execution/renew", "/v1/execution/release", "/v1/execution/intents",
+        "/v1/execution/unresolved", "/v1/execution/confirm-flat",
+        "/v1/execution/authority-keys", "/v1/execution/accounts",
     ]
     .contains(&url.path())
         || url.query_pairs().any(|(k, _)| {
@@ -61,7 +68,7 @@ fn key_path(app: &tauri::AppHandle, scope: &str) -> Result<PathBuf, String> {
 }
 
 #[cfg(windows)]
-fn protect(input: &[u8], entropy: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
+pub(crate) fn protect(input: &[u8], entropy: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
     #[repr(C)]
     struct Blob {
         len: u32,
@@ -137,11 +144,11 @@ fn protect(input: &[u8], entropy: &[u8], encrypt: bool) -> Result<Vec<u8>, Strin
     }
 }
 #[cfg(not(windows))]
-fn protect(_: &[u8], _: &[u8], _: bool) -> Result<Vec<u8>, String> {
+pub(crate) fn protect(_: &[u8], _: &[u8], _: bool) -> Result<Vec<u8>, String> {
     Err("此版本仅支持 Windows 安全保存行情 Key".into())
 }
 
-fn read_key(app: &tauri::AppHandle, scope: &str) -> Result<Zeroizing<String>, String> {
+pub(crate) fn read_key(app: &tauri::AppHandle, scope: &str) -> Result<Zeroizing<String>, String> {
     let sealed = std::fs::read(key_path(app, scope)?).map_err(|_| "请在个人中心配置数据 Key")?;
     let plain = Zeroizing::new(protect(&sealed, scope.as_bytes(), false)?);
     Ok(Zeroizing::new(
@@ -167,6 +174,8 @@ async fn request(
             .post(url)
             .timeout(Duration::from_secs(8))
             .json(&body.ok_or("缺少交易所签名请求")?)
+    } else if url.path().starts_with("/v1/execution/") && body.is_some() {
+        state.client.post(url).json(&body.ok_or("缺少执行权参数")?)
     } else {
         state.client.get(url)
     };
@@ -181,12 +190,45 @@ async fn request(
     Ok(value)
 }
 
-pub(crate) async fn private_request(
+pub(crate) async fn private_request<F>(
     app: &tauri::AppHandle,
     state: &MarketDataState,
     scope: &str,
-    body: Value,
-) -> Result<Value, String> {
+    sign:F,
+) -> Result<Value, String> where F:FnOnce()->Result<Value,String> {
+    private_command(app,state,scope,sign,||Ok(())).await
+}
+
+pub(crate) async fn execution_request(app:&tauri::AppHandle,state:&MarketDataState,scope:&str,path:&str,body:Option<Value>)->Result<Value,String>{
+    if !path.starts_with("/v1/execution/"){return Err("无效的执行权地址".into())}
+    let key=read_key(app,scope)?;
+    let reply=request(state,&key,path,body).await?;
+    if reply["code"]!=200{
+        let code=reply["msg"].as_str().or_else(||reply["detail"].as_str()).unwrap_or("执行通道未启用");
+        let message=match code{
+            "execution_not_enabled"=>"接口中心尚未启用本机交易执行通道",
+            "execution_busy"=>"账户正由另一执行器管理，请等待执行权释放后重试",
+            "unresolved_commands"=>"上一笔交易结果尚未确认，已阻止重复操作",
+            "reconciliation_required"=>"账户状态已变化，请刷新后重新核对",
+            "enrollment_draining"=>"账户正在交接，请稍后重新核对",
+            "manual_flatten_required"=>"账户已停机锁定，请先撤单、手动平仓并核对平仓状态",
+            "execution_fenced"=>"执行权已失效，请重新核对账户后操作",
+            _=>code,
+        };
+        return Err(format!("接口中心执行权校验失败：{message}"))
+    }
+    Ok(reply["data"].clone())
+}
+
+pub(crate) async fn private_command<F,B>(app:&tauri::AppHandle,state:&MarketDataState,scope:&str,sign:F,before_send:B)->Result<Value,String>
+where F:FnOnce()->Result<Value,String>, B:FnOnce()->Result<(),String>{
+    let mut slot=state.private_slot.lock().await;
+    if let Some(previous)=*slot{
+        let wait=Duration::from_millis(750).saturating_sub(previous.elapsed());
+        if !wait.is_zero(){tokio::time::sleep(wait).await;}
+    }
+    *slot=Some(std::time::Instant::now());
+    // Sign after queueing so another card's slow query cannot expire this proof.
     let key = read_key(app, scope)?;
     let ticket=request(state,&key,"/api/tickets",Some(json!({"market_type":"crypto","exchange":"okx","symbol":"BTC-USDT-SWAP","operation":"okx_private"}))).await?;
     if ticket["code"] != 200 {
@@ -198,6 +240,9 @@ pub(crate) async fn private_request(
         address.path(),
         address.query().ok_or("缺少账户票据")?
     );
+    let body=sign()?;
+    // Commit the immutable command before it can leave the process.
+    before_send()?;
     let reply = request(state, &key, &path, Some(body)).await?;
     if reply["code"] != 200 {
         return Err(reply["msg"].as_str().unwrap_or("账户接口读取失败").into());
@@ -241,9 +286,11 @@ pub async fn collection_key(
     let path = key_path(&app, &scope)?;
     match action.as_str() {
         "clear" => {
+            crate::execution_runtime::invalidate_account(&app,&scope);
             if path.exists() {
                 std::fs::remove_file(path).map_err(|_| "清除行情 Key 失败")?;
             }
+            crate::execution_runtime::invalidate_account(&app,&scope);
             Ok(json!({"configured":false}))
         }
         "status" => {
@@ -274,7 +321,9 @@ pub async fn collection_key(
                 let encrypted = protect(key.as_bytes(), scope.as_bytes(), true)?;
                 let temp = path.with_extension("tmp");
                 std::fs::write(&temp, encrypted).map_err(|_| "无法保存行情 Key")?;
+                crate::execution_runtime::invalidate_account(&app,&scope);
                 std::fs::rename(temp, path).map_err(|_| "无法保存行情 Key")?;
+                crate::execution_runtime::invalidate_account(&app,&scope);
             }
             Ok(
                 json!({"configured":action=="save","masked":format!("{}…",key.chars().take(10).collect::<String>()),"permissions":permissions["data"]}),

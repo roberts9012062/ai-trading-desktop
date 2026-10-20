@@ -44,6 +44,16 @@ it('never replays a dispatched write after connection loss; reads can fall back'
   disconnectDesktopExchange();await rejected;expect(await read).toBeNull()
   expect(Socket.all).toHaveLength(1)
 })
+
+it('preserves the displayed native account binding in financial RPC calls',async()=>{
+  const binding='a'.repeat(64)
+  const response=tryDesktopLiveRequest('/api/live/orders',{method:'POST',body:'{}',headers:{'X-Desktop-Account':binding}})
+  await settle();const socket=Socket.all[0];socket.ready();await settle()
+  const call=socket.send.mock.calls.map(([raw])=>JSON.parse(raw)).find(frame=>frame.type==='call')
+  expect(call.account_binding).toBe(binding)
+  socket.frame({type:'result',id:call.id,status:409,data:{detail:'account changed'}})
+  expect((await response)!.status).toBe(409)
+})
 it('returns to HTTP before dispatch if the global switch is enabled',async()=>{
   policy.server=true;expect(await tryDesktopLiveRequest('/api/live/account')).toBeNull()
   expect(Socket.all).toHaveLength(0)

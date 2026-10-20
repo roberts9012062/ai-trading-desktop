@@ -7,7 +7,7 @@ function identity(o: PaperOrderItem): string {
 }
 
 export function canCancelLiveOrder(o: PaperOrderItem): boolean {
-  return o.order_kind !== 'algo' && o.can_cancel !== false &&
+  return (o.order_kind === 'algo' ? o.can_cancel === true : o.can_cancel !== false) &&
     (o.status === 'pending' || o.status === 'partially_filled')
 }
 

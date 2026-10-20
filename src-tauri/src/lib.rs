@@ -7,6 +7,12 @@ mod okx_analytics;
 mod realtime_http;
 mod market_data;
 mod export_file;
+mod local_store;
+mod local_exchange;
+mod execution_worker;
+mod execution_preparation;
+mod execution_runtime;
+mod execution_snapshot;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -34,6 +40,8 @@ pub fn run() {
         .manage(okx_analytics::OkxAnalyticsState::default())
         .manage(realtime_http::RealtimeHttpState::default())
         .manage(market_data::MarketDataState::default())
+        .manage(local_store::LocalStoreState::default())
+        .manage(execution_runtime::ExecutionRuntime::default())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
@@ -48,6 +56,15 @@ pub fn run() {
             realtime_http::realtime_http_request,
             market_data::collection_key,
             market_data::collection_http,
+            local_store::desktop_db,
+            local_exchange::desktop_local_exchange,
+            local_exchange::desktop_credential_import,
+            execution_runtime::desktop_executor_context,
+            execution_runtime::desktop_executor_prepare,
+            execution_runtime::desktop_executor_start,
+            execution_runtime::desktop_executor_status,
+            execution_runtime::desktop_executor_snapshot,
+            execution_runtime::desktop_executor_stop,
             native_engine::native_engine_spawn,
             native_engine::native_engine_status,
             native_engine::native_engine_kill,
@@ -75,6 +92,23 @@ pub fn run() {
                 .level(tauri_plugin_log::log::LevelFilter::Info)
                 .build(),
         )
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application")
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app,event| {
+            if let tauri::RunEvent::ExitRequested {api,..}=event {
+                let state=app.state::<execution_runtime::ExecutionRuntime>();
+                if !state.exit_ready.load(std::sync::atomic::Ordering::SeqCst) {
+                    api.prevent_exit();
+                    if state.exit_draining.swap(true,std::sync::atomic::Ordering::SeqCst){return;}
+                    let app=app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        if execution_runtime::shutdown(&app).await.is_err(){
+                            tauri_plugin_log::log::warn!("独立执行器退出未确认，已保留待对账状态");
+                        }
+                        app.state::<execution_runtime::ExecutionRuntime>().exit_ready.store(true,std::sync::atomic::Ordering::SeqCst);
+                        app.exit(0);
+                    });
+                }
+            }
+        })
 }

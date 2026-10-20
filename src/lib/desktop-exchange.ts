@@ -166,7 +166,7 @@ async function dispatchDesktopRequest(path:string,options:RequestInit,analytics:
       reject(write ? new ExchangeOutcomeUnknown('交易响应超时，请查询订单后再操作；不会自动重发') : new Error('查询超时'))
     },analytics ? 120000 : 60000)
     pending.set(id,{resolve,reject,write,timer})
-    try { target.send(JSON.stringify({type:'call',id,path,method:options.method || 'GET',body:options.body || ''})) }
+    try { target.send(JSON.stringify({type:'call',id,path,method:options.method || 'GET',body:options.body || '',account_binding:new Headers(options.headers).get('X-Desktop-Account') ?? undefined})) }
     catch { clearTimeout(timer);pending.delete(id);reject(write ? new ExchangeOutcomeUnknown('交易结果未知，请先查询订单') : new Error('连接中断')) }
   }).catch(error => { if (!write&&!collectionOwned) return null;throw error })
   return response

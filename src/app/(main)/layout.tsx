@@ -1,6 +1,6 @@
-import { DataConfigNotice } from "@/components/profile/data-config-panel"
 "use client"
 
+import { DataConfigNotice } from "@/components/profile/data-config-panel"
 import { useEffect, useState } from "react"
 import { TopNavbar } from "@/components/layout/top-navbar"
 import { Sidebar } from "@/components/layout/sidebar"
@@ -12,7 +12,6 @@ import { BigOrderToastPopup } from "@/components/notifications/big-order-toast"
 import { startVoiceBroadcastEngine } from "@/lib/voice-broadcast-engine"
 import { TaskAlertToastPopup } from "@/components/notifications/task-alert-toast"
 import { GlobalDialog } from "@/components/global-dialog"
-import { HunterRuntime } from "@/components/hunter/runtime"
 import { LiveTradingRuntime } from '@/components/trading/live-trading-runtime'
 import { useKeyboardShortcuts } from "@/hooks/keyboard"
 import { useTabSync } from "@/hooks/sync"
@@ -36,25 +35,46 @@ export default function MainLayout({
   children: React.ReactNode
 }): React.JSX.Element {
   const [mounted, setMounted] = useState(false)
+  const userId = useAuthStore((s) => s.user?.id)
+  const tradingMode = useAuthStore((s) => s.user?.trading_mode)
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // 拉取通知设置 → 初始化提示音开关；同时拉未读数；加载大单预警/任务预警设置
+  // Synchronization and local notification edits take effect without a restart.
+  useEffect(() => {
+    let cancelled = false
+    let revision = 0
+    const refresh = async () => {
+      const current = ++revision
+      try {
+        const settings = await getNotifySettingsApi()
+        if (!cancelled && current === revision) setNotifySoundSettings({ notify_sound_enabled: settings.notify_sound_enabled })
+      } catch { /* Keep the current local setting during a server outage. */ }
+    }
+    void refresh()
+    window.addEventListener('desktop-record-sync', refresh)
+    window.addEventListener('desktop-records-changed', refresh)
+    return () => {
+      cancelled = true
+      window.removeEventListener('desktop-record-sync', refresh)
+      window.removeEventListener('desktop-records-changed', refresh)
+    }
+  }, [userId, tradingMode])
+
+  // 拉未读数；加载大单预警/任务预警设置
   useEffect(() => {
     let cancelled = false
     void (async () => {
       try {
-        const [s] = await Promise.all([
-          getNotifySettingsApi(),
+        await Promise.all([
           useNotificationsStore.getState().fetchUnread(),
           useBigOrderStore.getState().loadFromServer(),
           useTaskAlertStore.getState().loadFromServer(),
           ensureContractNames(),
         ])
         if (!cancelled) {
-          setNotifySoundSettings({ notify_sound_enabled: s.notify_sound_enabled })
           setSpeechSettings({
             voice_enabled: useBigOrderStore.getState().settings.voice_enabled,
           })
@@ -143,7 +163,6 @@ export default function MainLayout({
       <TaskAlertToastPopup />
       {/* 全局美化弹窗：showAlert / showConfirm 的渲染器 */}
       <GlobalDialog />
-      <HunterRuntime />
       <LiveTradingRuntime />
     </div>
   )

@@ -16,7 +16,10 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { canConnectExchange, isRealTradingProtection, REAL_TRADING_PROTECTION_MESSAGE } from "@/lib/live-permission"
 import { Loader2, ShieldCheck, ShieldAlert } from "lucide-react"
-import {collectionMode,collectionGeneration,onCollectionChange} from '@/lib/collection-config'
+import {collectionMode,collectionGeneration,onCollectionChange,collectionScope,nativeCollection} from '@/lib/collection-config'
+import { importLocalExchangeAccount, confirmLocalExchangeFlat, localExchangeGeneration } from '@/lib/local-desktop'
+import {checkPendingLocalOrder} from '@/lib/local-order-intent'
+import { useAuthStore } from '@/stores/auth'
 import {CollectionServiceStatus} from '@/components/common/collection-service-status'
 import {
   VENUES,
@@ -291,28 +294,65 @@ function VenueCard({
 }
 
 export function ExchangeCredentialsPanel(): React.JSX.Element {
+  const owner=useAuthStore(state=>state.user?`${state.user.id}:${state.user.trading_mode}`:'')
   const [credentials, setCredentials] = useState<VenueCredential[]>([])
   const [loaded, setLoaded] = useState(false)
   const [realTradingEnabled, setRealTradingEnabled] = useState(false)
   const [loadError,setLoadError]=useState('')
+  const [syncing,setSyncing]=useState(false),[syncMessage,setSyncMessage]=useState('')
+  const [confirming,setConfirming]=useState(false)
 
   const load = async () => {
+    const scope=collectionScope()
     try {
       const [rows, permission] = await Promise.all([getCredentialsApi(), getLivePermissionApi()])
+      if(scope!==collectionScope())return
       setCredentials(rows); setRealTradingEnabled(permission.enabled)
       setLoadError('')
     } catch(error) {
+      if(scope!==collectionScope())return
       setLoadError(error instanceof Error?error.message:'交易所配置读取失败')
       setCredentials([])
       setRealTradingEnabled(false)
     } finally {
-      setLoaded(true)
+      if(scope===collectionScope())setLoaded(true)
     }
   }
 
   useEffect(() => {
+    setCredentials([]);setRealTradingEnabled(false);setLoaded(false);setLoadError('');setSyncMessage('');setSyncing(false);setConfirming(false)
     void load()
-  }, [])
+  }, [owner])
+
+  const syncAccount=async()=>{
+    const scope=collectionScope()
+    setSyncing(true);setSyncMessage('')
+    try{
+      const result=await importLocalExchangeAccount()
+      if(scope!==collectionScope())return
+      setSyncMessage(result.imported?'本机账户已同步。业务服务器断开后，仍可通过接口中心查询账户数据。':result.reason||'服务器尚未配置 OKX 账户')
+      await load()
+    }catch(error){if(scope===collectionScope())setSyncMessage(error instanceof Error?error.message:'账户同步失败，本机账户未更改')}
+    finally{if(scope===collectionScope())setSyncing(false)}
+  }
+
+  const confirmFlat=async()=>{
+    const scope=collectionScope(),generation=collectionGeneration(),epoch=localExchangeGeneration()
+    const current=()=>scope===collectionScope()&&generation===collectionGeneration()&&epoch===localExchangeGeneration()
+    setConfirming(true);setSyncMessage('正在核对交易所持仓、普通挂单和策略委托…')
+    try{const result=await confirmLocalExchangeFlat();if(current())setSyncMessage(result.message)}
+    catch(error){if(current())setSyncMessage(error instanceof Error?error.message:'平仓状态核对失败')}
+    finally{if(scope===collectionScope())setConfirming(false)}
+  }
+
+  const checkOrder=async()=>{
+    const scope=collectionScope(),generation=collectionGeneration(),epoch=localExchangeGeneration()
+    const current=()=>scope===collectionScope()&&generation===collectionGeneration()&&epoch===localExchangeGeneration()
+    setConfirming(true);setSyncMessage('正在核对上次下单，核对过程中不会发送订单…')
+    try{const result=await checkPendingLocalOrder();if(current())setSyncMessage(result.message)}
+    catch(error){if(current())setSyncMessage(error instanceof Error?error.message:'下单结果核对失败')}
+    finally{if(scope===collectionScope())setConfirming(false)}
+  }
 
   return (
     <div className="space-y-3">
@@ -323,6 +363,13 @@ export function ExchangeCredentialsPanel(): React.JSX.Element {
         </p>
       </div>
       {collectionMode()&&<><CollectionServiceStatus account/><p className="text-xs text-[var(--text-muted)]">测试连通通过 API VALUE COLLECTION 查询 OKX 账户。此 Key 需开通私有账户接口；OKX Secret 用于签名，不发送至接口中心。</p></>}
+      {nativeCollection()&&collectionMode()&&<div className="rounded-lg border border-[var(--border)] p-3 space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-medium">本机账户数据</span><Button size="sm" variant="outline" disabled={syncing||confirming||!owner} onClick={()=>void syncAccount()}>{syncing&&<Loader2 className="w-3 h-3 animate-spin mr-1"/>}{syncing?'同步中…':'同步交易所账户'}</Button></div>
+        <p className="text-xs text-[var(--text-muted)]">连接业务服务器，将当前 OKX 账户同步到本机。同步后，账户查询、下单、撤单和平仓可通过 API VALUE COLLECTION 进行；操作前校验执行权，结果未知时先核对。创建或重新启动任务仍需登录业务服务器。</p>
+        <div className="flex flex-wrap items-center gap-2"><Button size="sm" variant="outline" disabled={confirming||syncing||!owner} onClick={()=>void checkOrder()}>核对上次下单</Button><span className="text-xs text-[var(--text-muted)]">确认上一笔请求的结果，不会发送新订单。</span></div>
+        <div className="flex flex-wrap items-center gap-2"><Button size="sm" variant="outline" disabled={confirming||syncing||!owner} onClick={()=>void confirmFlat()}>{confirming&&<Loader2 className="w-3 h-3 animate-spin mr-1"/>}{confirming?'核对中…':'核对平仓状态'}</Button><span className="text-xs text-[var(--text-muted)]">需先手动平仓并撤销全部委托；核对通过不会自动重启任务。</span></div>
+        {syncMessage&&<p role="status" className="text-xs break-words">{syncMessage}</p>}
+      </div>}
       {loadError?<p role="alert" className="text-xs text-[var(--accent-danger)]">{loadError}<button className="ml-2 underline" onClick={()=>void load()}>重试</button></p>:loaded ? (
         <div className="grid gap-3 md:grid-cols-3">
           {VENUES.map((v) => (
@@ -343,7 +390,7 @@ export function ExchangeCredentialsPanel(): React.JSX.Element {
         </div>
       )}
       <p className={cn("text-[10px] text-[var(--text-muted)]")}>
-        安全提示：API Key 仅开启「合约交易」权限，禁止提币权限；Secret 使用 AES-256-GCM 加密存储，可随时在交易所侧吊销。
+        API Key 仅开启合约交易权限。凭证加密保存，界面只显示掩码；可随时在交易所撤销。
       </p>
     </div>
   )

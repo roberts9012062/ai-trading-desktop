@@ -12,11 +12,13 @@ const PROXY: &str = "https://okx-rest-test.kins.eu.org";
 const CONTEXT: &[u8] = b"cyclepilot/desktop-okx-read/v1";
 
 #[derive(Clone, Deserialize)]
-struct Credentials {
-    api_key: String,
-    secret: String,
-    passphrase: String,
-    demo: bool,
+pub(crate) struct Credentials {
+    pub(crate) api_key: String,
+    pub(crate) secret: String,
+    pub(crate) passphrase: String,
+    pub(crate) demo: bool,
+    #[serde(default)]
+    pub(crate) subject: Option<String>,
 }
 impl Drop for Credentials {
     fn drop(&mut self) {
@@ -26,7 +28,7 @@ impl Drop for Credentials {
     }
 }
 #[derive(Deserialize)]
-struct Envelope {
+pub(crate) struct Envelope {
     version: u32,
     public_key: String,
     nonce: String,
@@ -64,7 +66,7 @@ impl Default for OkxAnalyticsState {
     }
 }
 
-fn server_base(raw: &str) -> Result<String, String> {
+pub(crate) fn server_base(raw: &str) -> Result<String, String> {
     let url = reqwest::Url::parse(raw).map_err(|_| "无效的服务器地址")?;
     if url.scheme() != "https"
         || url.host_str().is_none()
@@ -104,7 +106,7 @@ fn allowed_path(path: &str) -> bool {
         })
 }
 
-fn decrypt_envelope(
+pub(crate) fn decrypt_envelope(
     private: agreement::EphemeralPrivateKey,
     client_public: &[u8],
     envelope: Envelope,
@@ -293,6 +295,7 @@ pub async fn okx_analytics_read(
 pub async fn collection_analytics_read(
     app: tauri::AppHandle,
     market: tauri::State<'_, crate::market_data::MarketDataState>,
+    local: tauri::State<'_, crate::local_store::LocalStoreState>,
     state: tauri::State<'_, OkxAnalyticsState>,
     scope: String,
     base: String,
@@ -301,6 +304,10 @@ pub async fn collection_analytics_read(
 ) -> Result<Value, String> {
     if !allowed_path(&path) || token.is_empty() {
         return Err("不支持的账户收益查询".into());
+    }
+    if let Some(credential)=crate::local_exchange::credentials(&app,&local,&scope)?.filter(|credential|credential.server_bound){
+        let rows=crate::local_exchange::private_read(&app,&market,&scope,&credential,&path).await?;
+        return Ok(json!({"rows":rows,"demo":credential.demo,"account_id":crate::local_exchange::account_identity(&credential.api_key,credential.demo)}))
     }
     let base = server_base(&base)?;
     let identity = ring::digest::digest(
@@ -353,6 +360,7 @@ pub async fn collection_analytics_read(
         }
         guard.as_ref().ok_or("本地凭证不可用")?.credentials.clone()
     };
+    let response=crate::market_data::private_request(&app,&market,&scope,||{
     let timestamp = time::OffsetDateTime::now_utc()
         .format(
             &time::format_description::parse_borrowed::<2>(
@@ -362,7 +370,8 @@ pub async fn collection_analytics_read(
         )
         .map_err(|_| "系统时间错误")?;
     let (route, query) = path.split_once('?').ok_or("缺少收益查询参数")?;
-    let response=crate::market_data::private_request(&app,&market,&scope,json!({"method":"GET","path":route,"query":query,"body":"","access_key":credentials.api_key,"signature":sign(&credentials.secret,&timestamp,&path),"timestamp":timestamp,"passphrase":credentials.passphrase,"simulated":credentials.demo})).await?;
+    Ok(json!({"method":"GET","path":route,"query":query,"body":"","access_key":credentials.api_key,"signature":sign(&credentials.secret,&timestamp,&path),"timestamp":timestamp,"passphrase":credentials.passphrase,"simulated":credentials.demo}))
+    }).await?;
     if response["code"] != "0" || !response["data"].is_array() {
         return Err(format!(
             "API VALUE COLLECTION 账户查询失败：{}",

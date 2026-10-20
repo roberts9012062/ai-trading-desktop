@@ -5,7 +5,7 @@ import * as api from '@/lib/live-api'
 import type { User } from '@/types'
 import type { PaperPositionItem, PaperOrderItem } from '@/lib/paper-api'
 
-vi.mock('@/lib/live-api', async original => ({...await original<typeof import('@/lib/live-api')>(), getLiveAccountApi:vi.fn(),getLiveOrdersApi:vi.fn(),getLivePositionsApi:vi.fn(),placeLiveOrderApi:vi.fn()}))
+vi.mock('@/lib/live-api', async original => ({...await original<typeof import('@/lib/live-api')>(), getLiveAccountApi:vi.fn(),getLiveOrdersApi:vi.fn(),getLivePositionsApi:vi.fn(),placeLiveOrderApi:vi.fn(),cancelLiveOrderApi:vi.fn(),closeLivePositionApi:vi.fn()}))
 const refresh=usePaperTradingStore.getState().refresh
 const position={id:'new',symbol:'btcusdt',quantity:1} as PaperPositionItem
 function deferred<T>() {let resolve!:(value:T)=>void;const promise=new Promise<T>(r=>{resolve=r});return {promise,resolve}}
@@ -16,6 +16,8 @@ beforeEach(()=>{
  vi.mocked(api.getLiveAccountApi).mockResolvedValue({} as Awaited<ReturnType<typeof api.getLiveAccountApi>>)
  vi.mocked(api.getLiveOrdersApi).mockResolvedValue([])
  vi.mocked(api.getLivePositionsApi).mockResolvedValue([position])
+ vi.mocked(api.cancelLiveOrderApi).mockReset().mockResolvedValue(undefined)
+ vi.mocked(api.closeLivePositionApi).mockReset().mockResolvedValue(undefined)
 })
 afterEach(()=>vi.restoreAllMocks())
 it('shows positions while a slow order history is still loading',async()=>{
@@ -89,4 +91,48 @@ it('keeps same-account history on a failed update and isolates its error from tr
  await refresh({sections:['orders']})
  expect(usePaperTradingStore.getState().historyError).toBeNull()
  expect(usePaperTradingStore.getState().orders).toEqual([])
+})
+
+it('paints completed history pages while older records load and ignores stale account progress',async()=>{
+ const slow=deferred<PaperOrderItem[]>(),past={id:'first-page',exchange_order_id:'first-page',symbol:'btcusdt',status:'filled'} as PaperOrderItem
+ let progress!:(rows:PaperOrderItem[])=>void
+ vi.mocked(api.getLiveOrdersApi).mockImplementation((_venue,history,onPage)=>{
+  if(!history)return Promise.resolve([])
+  progress=onPage!;return slow.promise
+ })
+ const reading=refresh();await flush()
+ progress([past]);await flush()
+ expect(usePaperTradingStore.getState().orders.map(row=>row.id)).toEqual(['first-page'])
+ useAuthStore.setState({user:{id:'other',trading_mode:'live'} as User})
+ progress([past]);slow.resolve([past]);await reading
+ expect(usePaperTradingStore.getState().orders).toEqual([])
+})
+
+it('halts bulk cancellation on an uncertain command instead of hiding it and sending the rest',async()=>{
+ usePaperTradingStore.setState({mode:'live',orders:[{id:'1',exchange_order_id:'1',symbol:'btcusdt',status:'pending'},{id:'2',exchange_order_id:'2',symbol:'ethusdt',status:'pending'}] as PaperOrderItem[]})
+ vi.mocked(api.cancelLiveOrderApi).mockRejectedValue(new Error('上一笔交易结果尚未确认'))
+ await usePaperTradingStore.getState().cancelAllPending()
+ expect(api.cancelLiveOrderApi).toHaveBeenCalledOnce()
+ expect(usePaperTradingStore.getState().error).toContain('尚未确认')
+ expect(usePaperTradingStore.getState().lastMessage).toContain('暂停后续撤单')
+})
+
+it('never sends remaining old-account cancellations after a login switch',async()=>{
+ const slow=deferred<void>()
+ usePaperTradingStore.setState({mode:'live',orders:[{id:'1',symbol:'btcusdt',status:'pending'},{id:'2',symbol:'ethusdt',status:'pending'}] as PaperOrderItem[]})
+ vi.mocked(api.cancelLiveOrderApi).mockReturnValue(slow.promise)
+ const action=usePaperTradingStore.getState().cancelAllPending();await flush()
+ useAuthStore.setState({user:{id:'other',trading_mode:'live'} as User})
+ slow.resolve();await action
+ expect(api.cancelLiveOrderApi).toHaveBeenCalledOnce()
+ expect(usePaperTradingStore.getState().lastMessage).toBeNull()
+})
+
+it('does not paint an old-account close confirmation into a new login',async()=>{
+ const slow=deferred<void>();vi.mocked(api.closeLivePositionApi).mockReturnValue(slow.promise)
+ usePaperTradingStore.setState({mode:'live'})
+ const action=usePaperTradingStore.getState().closePosition({...position,direction:'long'},0,'market',1);await flush()
+ useAuthStore.setState({user:{id:'other',trading_mode:'live'} as User})
+ slow.resolve();await action
+ expect(usePaperTradingStore.getState().lastMessage).toBeNull()
 })

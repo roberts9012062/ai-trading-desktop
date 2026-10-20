@@ -164,7 +164,7 @@ pub async fn update_channel_download(
 }
 
 #[tauri::command]
-pub fn update_channel_install(state: State<'_, UpdateChannels>, rid: u32) -> Result<(), String> {
+pub async fn update_channel_install(app:tauri::AppHandle,state: State<'_, UpdateChannels>, rid: u32) -> Result<(), String> {
     let update = state
         .updates
         .lock()
@@ -172,13 +172,20 @@ pub fn update_channel_install(state: State<'_, UpdateChannels>, rid: u32) -> Res
         .get(&rid)
         .cloned()
         .ok_or("更新资源已关闭")?;
-    let bytes = state
-        .bytes
-        .lock()
-        .map_err(|e| e.to_string())?
-        .remove(&rid)
-        .ok_or("请先下载并验证更新包")?;
-    update.install(bytes).map_err(|e| e.to_string())
+    // Validate the package exists before stopping an account. No mutex guard is
+    // held during the financial worker's checkpoint/lease drain.
+    if !state.bytes.lock().map_err(|e|e.to_string())?.contains_key(&rid){return Err("请先下载并验证更新包".into());}
+    if crate::execution_runtime::shutdown(&app).await.is_err(){
+        crate::execution_runtime::allow_resume_after_failed_update(&app);
+        return Err("执行器退出未确认，更新已暂停，请先核对账户状态".into());
+    }
+    let bytes = state.bytes.lock().map_err(|e|e.to_string()).and_then(|mut cache|cache.remove(&rid).ok_or("请先下载并验证更新包".into()));
+    let bytes=match bytes {Ok(bytes)=>bytes,Err(error)=>{crate::execution_runtime::allow_resume_after_failed_update(&app);return Err(error);}};
+    let result=update.install(bytes).map_err(|e| e.to_string());
+    // A successful installer may terminate/relaunch us. Keep starts fenced
+    // until that happens; a failed installation can be retried explicitly.
+    if result.is_err(){crate::execution_runtime::allow_resume_after_failed_update(&app);}
+    result
 }
 
 #[tauri::command]

@@ -197,17 +197,24 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
           liveReadErrors.set(part, error instanceof Error ? error.message : '交易状态查询失败')
           set(part === 'account' ? { account: null } : part === 'positions' ? { positions: [] } : { orders: [] })
         }
+        let openSnapshot: PaperOrderItem[] | undefined
         // Each section paints as soon as it arrives. Slow order history must
         // not hide already received positions or account information.
         await Promise.all([
           sections.has('account') ? getLiveAccountApi(venue).then(account => { if (currentPart('account')) { liveReadErrors.delete('account');set({ account }) } }).catch(e => failed('account', e)) : Promise.resolve(),
           sections.has('positions') ? getLivePositionsApi(venue).then(positions => { if (currentPart('positions')) { liveReadErrors.delete('positions');set({ positions }) } }).catch(e => failed('positions', e)) : Promise.resolve(),
           sections.has('orders') ? Promise.all([
-            getLiveOrdersApi(venue, false).then(open => {
+            getLiveOrdersApi(venue, false, open => {
+              openSnapshot=open
+              if(currentPart('orders'))set({orders:mergeLiveOrders(open,get().orders)})
+            }).then(open => {
+              openSnapshot = open
               if (currentPart('orders')) { liveReadErrors.delete('orders');set({ orders: mergeLiveOrders(open, get().orders) }) }
               return open
             }),
-            getLiveOrdersApi(venue, true).then(history => { if (currentPart('orders')) liveReadErrors.delete('history');return history }).catch(e => {
+            getLiveOrdersApi(venue, true, history => {
+              if (currentPart('orders')) set({orders:mergeLiveOrders(openSnapshot ?? [],mergeLiveOrders(history,get().orders))})
+            }).then(history => { if (currentPart('orders')) liveReadErrors.delete('history');return history }).catch(e => {
               if (!currentPart('orders')) return [] as PaperOrderItem[]
               liveReadErrors.set('history', `历史委托更新失败：${liveErrorMessage(e, '网络连接异常')}`)
               return get().orders
@@ -393,12 +400,14 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
   },
 
   cancel: async (orderId) => {
+    const owner=refreshOwner()
     set({ submitting: true, error: null })
     try {
       if (get().mode === "live") {
         const order = get().orders.find((o) => o.id === orderId)
         if (!order || !canCancelLiveOrder(order)) throw new Error("该委托不能通过普通撤单接口撤销，请在所属任务或交易所管理条件单")
         await cancelLiveOrderApi(getStoredVenue(), order.exchange_order_id || orderId, order.symbol)
+        if(owner!==refreshOwner())return
         set({ submitting: false, lastMessage: "撤单请求已发送" })
       } else {
         await cancelPaperOrder(orderId)
@@ -406,6 +415,7 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
       }
       await get().refresh()
     } catch (err) {
+      if(owner!==refreshOwner())return
       set({
         submitting: false,
         error: err instanceof Error ? err.message : "撤单失败",
@@ -414,6 +424,7 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
   },
 
   cancelAllPending: async () => {
+    const owner=refreshOwner()
     const pending = get().orders.filter(
       (o) => get().mode === "live" ? canCancelLiveOrder(o) : (o.status === "pending" || o.status === "partially_filled")
     )
@@ -426,11 +437,15 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
       if (get().mode === "live") {
         let ok = 0
         for (const order of pending) {
+          if(owner!==refreshOwner())return
           try {
             await cancelLiveOrderApi(getStoredVenue(), order.exchange_order_id || order.id, order.symbol)
+            if(owner!==refreshOwner())return
             ok += 1
-          } catch {
-            // 单笔失败继续撤其余
+          } catch(error) {
+            if(owner!==refreshOwner())return
+            set({submitting:false,error:error instanceof Error?error.message:String(error),lastMessage:`已请求撤销 ${ok}/${pending.length} 笔委托；已暂停后续撤单，请先核对结果`})
+            return
           }
         }
         set({
@@ -448,6 +463,7 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
       }
       await get().refresh()
     } catch (err) {
+      if(owner!==refreshOwner())return
       set({
         submitting: false,
         error: err instanceof Error ? err.message : "全撤失败",
@@ -457,6 +473,7 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
   },
 
   closePosition: async (position, price, orderType, quantity) => {
+    const owner=refreshOwner()
     if (get().mode === "live") {
       // 实盘：直接走交易所市价全平
       set({ submitting: true, error: null, lastMessage: null })
@@ -466,12 +483,14 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
           position.symbol,
           position.direction === "short" ? "short" : "long"
         )
+        if(owner!==refreshOwner())return
         set({
           submitting: false,
           lastMessage: `市价全平请求已发送（${getStoredVenue().toUpperCase()}）`,
         })
         await get().refresh()
       } catch (err) {
+        if(owner!==refreshOwner())return
         set({
           submitting: false,
           error: err instanceof Error ? err.message : "平仓失败",

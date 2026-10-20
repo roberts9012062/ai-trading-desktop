@@ -9,6 +9,7 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
 import type { ShortlineTaskPayload } from "./mount"
 import { desktopTokensToServerV3 } from "../factor-access"
 import type { ExecutionSettings, ExecutionReview, ExecutionObservation } from "./execution-review"
+import { createServerTask } from '../server-task'
 
 /** The desktop and server diverged after feature 35. Convert only at submission. */
 export function serverShortlinePayload(payload: ShortlineTaskPayload): ShortlineTaskPayload {
@@ -57,10 +58,7 @@ export async function createShortlineTask(
   name = `短线·${payload.symbol}·${payload.timeframe}`,
   execution?: ExecutionSettings,
 ): Promise<ShortlineServerTask> {
-  return request<ShortlineServerTask>("/tasks", {
-    method: "POST",
-    body: JSON.stringify({ name, payload: serverShortlinePayload(payload), ...(execution ? { execution } : {}) }),
-  })
+  return createServerTask(API_BASE, '/api/shortline/tasks', { name, payload: serverShortlinePayload(payload), ...(execution ? { execution } : {}) })
 }
 
 export function reviewShortlineExecution(args: {

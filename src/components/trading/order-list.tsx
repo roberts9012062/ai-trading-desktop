@@ -90,7 +90,7 @@ export function OrderList(): React.JSX.Element {
             disabled={submitting || !pending.some(o => mode !== "live" || canCancelLiveOrder(o))}
             onClick={() => void cancelAllPending()}
           >
-            {mode === "live" ? "全撤普通委托" : "一键全撤"}
+            {mode === "live" ? pending.some(o=>o.order_kind==='algo'&&canCancelLiveOrder(o))?'全撤（含策略单）':'全撤普通委托' : "一键全撤"}
           </Button>
         </div>
       </div>
@@ -162,7 +162,7 @@ export function OrderList(): React.JSX.Element {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {order.order_kind === "algo" ? <span className="text-[10px] text-[var(--text-muted)]">条件单保护</span> : (mode === "live" ? canCancelLiveOrder(order) : ACTIVE.has(order.status)) ? (
+                    {(mode === "live" ? canCancelLiveOrder(order) : ACTIVE.has(order.status)) ? (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -173,11 +173,11 @@ export function OrderList(): React.JSX.Element {
                           void cancel(order.id)
                         }}
                       >
-                        撤单
+                        {order.order_kind === 'algo'?'撤销策略单':'撤单'}
                       </Button>
                     ) : (
                       <span className="text-[10px] text-[var(--text-muted)]">
-                        —
+                        {order.order_kind === 'algo'?'条件单保护':'—'}
                       </span>
                     )}
                   </TableCell>

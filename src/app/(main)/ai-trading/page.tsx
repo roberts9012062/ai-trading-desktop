@@ -5,8 +5,6 @@ import { BrandLogo } from "@/components/common/brand-logo"
 import { TradingActionButton } from "@/components/ai-trading/trading-action-button"
 import { CreateTaskDialog } from "@/components/ai-trading/form/create-task-dialog"
 import { ProfitLockManager } from "@/components/ai-trading/form/profit-lock-manager"
-import { CreateHunterDialog } from "@/components/hunter/create-hunter-dialog"
-import { HunterPanel } from "@/components/hunter/hunter-panel"
 import { CreateQuantDialog } from "@/components/ai-trading/form/create-quant-dialog"
 import { EditTaskDialog } from "@/components/ai-trading/form/edit-task-dialog"
 import { EditRulesDialog } from "@/components/ai-trading/form/edit-rules-dialog"
@@ -21,26 +19,22 @@ import {
 } from "@/lib/strategy-favorites-api"
 import { TaskList } from "@/components/ai-trading/task-list"
 import { TaskSlotSummary } from "@/components/ai-trading/task-slot-summary"
+import { ExecutionSnapshotPanel } from "@/components/ai-trading/execution-snapshot-panel"
 import type { AITradingTask } from "@/lib/ai-trading-api"
 import { useAITradingStore } from "@/stores/ai-trading"
 import { useMarketStore } from "@/stores/market"
-import { useHunterStore } from "@/stores/hunter"
 import { useAuthStore } from "@/stores/auth"
-import { hunterNeedsTaskPoll } from "@/lib/hunter/task-visibility"
 import { StrategyImportDialog } from "@/components/strategy-favorites/transfer-controls"
 
 /** AI 交易主页面 */
 export default function AITradingPage(): React.JSX.Element {
-  const isAdmin = useAuthStore(s => s.user?.role === "admin")
   const accountKey = useAuthStore(s => s.user ? JSON.stringify([s.user.id, s.user.trading_mode]) : null)
   const allTasks = useAITradingStore((s) => s.tasks)
-  const tasks = useMemo(() => isAdmin ? allTasks : allTasks.filter(t => t.strategy_type !== "multi_cycle_hunter"), [allTasks, isAdmin])
+  const tasks = useMemo(() => allTasks.filter(t => t.strategy_type !== "multi_cycle_hunter"), [allTasks])
   const equitySeries = useAITradingStore((s) => s.equitySeries)
   const equityTraces = useAITradingStore((s) => s.equityTraces)
-  const allHunterGroups = useHunterStore(s => s.groups)
-  const hunterGroups = useMemo(() => isAdmin ? allHunterGroups : [], [allHunterGroups, isAdmin])
   const allProfitBars = useAITradingStore((s) => s.profitBars)
-  const profitBars = useMemo(() => isAdmin ? allProfitBars : allProfitBars.filter(b => b.strategy_type !== "multi_cycle_hunter"), [allProfitBars, isAdmin])
+  const profitBars = useMemo(() => allProfitBars.filter(b => b.strategy_type !== "multi_cycle_hunter"), [allProfitBars])
   const profitTotalRealized = useAITradingStore((s) => s.profitTotalRealized)
   const profitTotalUnrealized = useAITradingStore((s) => s.profitTotalUnrealized)
   const profitTotalPnl = useAITradingStore((s) => s.profitTotalPnl)
@@ -69,8 +63,6 @@ export default function AITradingPage(): React.JSX.Element {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
-  const [hunterOpen, setHunterOpen] = useState(false)
-  const hunterExists = useHunterStore(s => s.groups.some(g => g.status !== "stopped"))
   const [quantOpen, setQuantOpen] = useState(false)
   // 任务收藏：星标弹窗 + 创建优秀任务
   const [favTask, setFavTask] = useState<AITradingTask | null>(null)
@@ -96,7 +88,7 @@ export default function AITradingPage(): React.JSX.Element {
     })
   }, [accountKey, loadTasks, loadEquity, loadProfitBars])
 
-  const shouldPoll = hunterNeedsTaskPoll(hunterGroups) || tasks.some(t => t.status === "running" || (t.position_qty ?? 0) > 0 || t.has_open_position)
+  const shouldPoll = tasks.some(t => t.status === "running" || (t.position_qty ?? 0) > 0 || t.has_open_position)
   // Refreshes must not restart the slower timer every time tasks changes.
   useEffect(() => {
     if (!shouldPoll) return
@@ -162,19 +154,18 @@ export default function AITradingPage(): React.JSX.Element {
             onClick={() => setQuantOpen(true)}
           />
           <TradingActionButton action="ai" onClick={() => setCreateOpen(true)} />
-          {isAdmin && <TradingActionButton action="hunter" disabled={hunterExists} title={hunterExists ? "请先停止当前猎手后再创建" : undefined} onClick={() => setHunterOpen(true)} />}
         </div>
       </div>
 
       <TaskSlotSummary slots={taskSlots} />
+      <ExecutionSnapshotPanel />
       {error && (
         <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">
           {error}
         </div>
       )}
 
-      <EquityChart tasks={tasks} series={equitySeries} traces={equityTraces} profitBars={profitBars} hunters={hunterGroups} />
-      {isAdmin && <HunterPanel onSelectTask={id => void selectTask(id)} />}
+      <EquityChart tasks={tasks} series={equitySeries} traces={equityTraces} profitBars={profitBars} />
 
       <ProfitBarChart
         items={profitBars}
@@ -183,7 +174,6 @@ export default function AITradingPage(): React.JSX.Element {
         totalPnl={profitTotalPnl}
         openPositionCount={profitOpenCount}
         loading={profitLoading}
-        hunters={hunterGroups}
         tasks={tasks}
       />
 
@@ -210,7 +200,6 @@ export default function AITradingPage(): React.JSX.Element {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
       />
-      {isAdmin && <CreateHunterDialog open={hunterOpen} onClose={() => setHunterOpen(false)} />}
       <StrategyImportDialog open={importOpen} mode="tasks" onClose={() => setImportOpen(false)} onImported={() => { void loadTasks(); void loadTaskFavs() }} />
 
       <CreateQuantDialog

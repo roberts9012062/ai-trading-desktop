@@ -1,9 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { addFactorFavorite } from "./factor-lab-api"
 import { createAITradingTask, updateAITradingTask, type CreateTaskPayload } from "./ai-trading-api"
 import { desktopTokensToServerV3, isResearchOnlyFactor, requiresLocalFactorEngine, serverFactorBlockReason } from "./factor-access"
 
 afterEach(() => vi.unstubAllGlobals())
+beforeEach(() => vi.stubGlobal('localStorage', { getItem: (key: string) => key === 'access_token' ? 'server-session' : null }))
 const reply = (body: unknown) => new Response(JSON.stringify(body), { status: 200 })
 const payload: CreateTaskPayload = { close_rules: { pnl_pct: null, total_pnl_pct: null, session_close: false, ai_auto: false }, stop_rules: { loss_pct: null, loss_amount: null, ai_auto: false }, close_on_stop: true, auto_start: false, name: "test", symbol: "btcusdt", symbol_name: "BTC", timeframe: "60m", side_mode: "both", position_mode: "fixed_qty", strategy_type: "ai", strategy_params: { factor_tokens: [0, 71] } }
 

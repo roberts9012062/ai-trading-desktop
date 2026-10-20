@@ -1,4 +1,5 @@
 import { MACD_MA20_VERSION, MACD_MA20_NAME, REBOUND_VERSION, hunterCycleLabel, macdDirectionLabel } from "@/lib/hunter/macd-ma20"
+import { hunterFeatureAvailable } from "@/lib/deferred-features"
 import { useEffect, useState } from "react"
 import { Crosshair, CandlestickChart } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -25,7 +26,11 @@ function stopLabel(opportunity: Opportunity): string {
   return typeof value === "number" && value > 0 ? value.toPrecision(7) : "兜底止损关闭"
 }
 
-export function HunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => void } = {}) {
+export function HunterPanel(props: { onSelectTask?: (id: string) => void } = {}) {
+  return hunterFeatureAvailable() ? <EnabledHunterPanel {...props}/> : null
+}
+
+function EnabledHunterPanel({ onSelectTask }: { onSelectTask?: (id: string) => void }) {
   const isAdmin = useAuthStore(s => s.user?.role === "admin")
   const groups = useHunterStore(s => s.groups)
   const tasks = useAITradingStore(s => s.tasks)

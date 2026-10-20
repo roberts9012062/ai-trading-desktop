@@ -3,6 +3,7 @@
 import { desktopTokensToServerV3, isResearchOnlyFactor, RESEARCH_FACTOR_MESSAGE } from "@/lib/factor-access"
 import { tryDesktopLiveRequest } from "./desktop-exchange"
 import { tryRealtimeRequest } from "./realtime-factor/transport"
+import { createServerTask } from './server-task'
 
 type FactorTokens = number[] | number[][]
 
@@ -433,10 +434,7 @@ export async function createAITradingTask(
   if (payload.strategy_type === "ai" && Array.isArray(params?.factor_tokens)) {
     params.factor_tokens = aiServerTokens(params.factor_tokens)
   }
-  return request("/api/ai-trading/tasks", {
-    method: "POST",
-    body: JSON.stringify({ ...payload, allocated_capital: 0 }),
-  })
+  return createServerTask(API_BASE, "/api/ai-trading/tasks", { ...payload, allocated_capital: 0 })
 }
 
 export interface EstimateCapitalResult {
