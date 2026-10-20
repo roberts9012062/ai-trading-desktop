@@ -40,7 +40,7 @@ fn target(path: &str) -> Result<Url, String> {
         "/edge/data",
         "/edge/okx",
         "/v1/execution/acquire", "/v1/execution/renew", "/v1/execution/release", "/v1/execution/intents",
-        "/v1/execution/unresolved", "/v1/execution/confirm-flat",
+        "/v1/execution/unresolved", "/v1/execution/confirm-flat", "/v1/execution/stop-account", "/v1/execution/account-for-key",
         "/v1/execution/authority-keys", "/v1/execution/accounts",
     ]
     .contains(&url.path())
@@ -213,6 +213,9 @@ pub(crate) async fn execution_request(app:&tauri::AppHandle,state:&MarketDataSta
             "enrollment_draining"=>"账户正在交接，请稍后重新核对",
             "manual_flatten_required"=>"账户已停机锁定，请先撤单、手动平仓并核对平仓状态",
             "execution_fenced"=>"执行权已失效，请重新核对账户后操作",
+            "execution_state_changed"=>"账户执行状态已变化，本次停止未执行；请刷新后重新确认",
+            "executor_process_stopped"=>"旧执行器进程已停止，不能恢复旧心跳",
+            "server_registration_required"=>"当前账户尚未登记服务器任务",
             _=>code,
         };
         return Err(format!("接口中心执行权校验失败：{message}"))

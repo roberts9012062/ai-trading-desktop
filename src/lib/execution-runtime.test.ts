@@ -1,8 +1,8 @@
 import {beforeEach,expect,it,vi} from 'vitest'
-const fixture=vi.hoisted(()=>({invoke:vi.fn(),scope:'https://business:user-a',generation:0,account:0,configured:true,user:{id:'user-a',trading_mode:'live'} as {id:string;trading_mode:string}|null,loaded:true}))
+const fixture=vi.hoisted(()=>({invoke:vi.fn(),stop:vi.fn(),scope:'https://business:user-a',generation:0,account:0,configured:true,user:{id:'user-a',trading_mode:'live'} as {id:string;trading_mode:string}|null,loaded:true}))
 vi.mock('@tauri-apps/api/core',()=>({invoke:fixture.invoke,isTauri:()=>true}))
 vi.mock('./collection-config',()=>({collectionMode:()=>true,collectionScope:()=>fixture.scope,collectionGeneration:()=>fixture.generation,collectionStatus:()=>({configured:fixture.configured}),onCollectionChange:()=>()=>{}}))
-vi.mock('./local-desktop',()=>({localExchangeGeneration:()=>fixture.account}))
+vi.mock('./local-desktop',()=>({localExchangeGeneration:()=>fixture.account,stopLocalAccountTasks:()=>fixture.stop()}))
 vi.mock('@/stores/auth',()=>({useAuthStore:{getState:()=>({user:fixture.user,loaded:fixture.loaded}),subscribe:()=>()=>{}}}))
 import {syncExecutionContext,executionAction,executionStatus,readExecutionSnapshot} from './execution-runtime'
 beforeEach(()=>{
@@ -10,6 +10,28 @@ beforeEach(()=>{
   vi.stubGlobal('localStorage',{getItem:(key:string)=>key==='access_token'?'server-jwt':null})
   vi.stubGlobal('window',{__QH_API_BASE__:'https://business'})
   fixture.invoke.mockReset().mockImplementation(async(command:string)=>command==='desktop_executor_context'?fixture.generation:command==='desktop_executor_status'?{prepared:true,runtime_installed:true,enabled:true,worker:{state:'waiting_executor'}}:{prepared:true})
+  fixture.stop.mockReset().mockResolvedValue({message:'已停止账户任务',unresolved_commands:false})
+})
+
+it('explicitly stops account tasks through center control even without a business session token',async()=>{
+  vi.stubGlobal('fetch',vi.fn())
+  vi.stubGlobal('localStorage',{getItem:()=>null})
+  const result=await executionAction('stop-account')
+  expect(result).toEqual({message:'已停止账户任务',unresolved_commands:false})
+  expect(fixture.stop).toHaveBeenCalledTimes(1)
+  expect(fixture.invoke.mock.calls.some(([command])=>command==='desktop_executor_start'||command==='desktop_executor_prepare')).toBe(false)
+  expect(fetch).not.toHaveBeenCalled()
+})
+
+it('does not lose a confirmed stop when the subsequent local status refresh fails',async()=>{
+  fixture.invoke.mockImplementation(async(command:string)=>{
+    if(command==='desktop_executor_context')return fixture.generation
+    if(command==='desktop_executor_status'&&fixture.stop.mock.calls.length)throw new Error('local status unavailable')
+    return {prepared:true,runtime_installed:true,worker:{state:'waiting_executor'}}
+  })
+  expect(await executionAction('stop-account')).toEqual({message:'已停止账户任务',unresolved_commands:false})
+  expect(executionStatus().error).toContain('已确认')
+  expect(fixture.stop).toHaveBeenCalledTimes(1)
 })
 it('restores only existing signed preparation through native IPC without business HTTP',async()=>{
   vi.stubGlobal('fetch',vi.fn())

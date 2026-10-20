@@ -7,8 +7,8 @@ import { collectionHttpSlot } from './collection-api'
 const reads = new Map<string, Promise<Response>>()
 let localEpoch = 0
 export const localExchangeGeneration=()=>localEpoch
-const routes = /^\/api\/live\/(?:permission|credentials(?:\/okx)?|desktop-ws-login|account|positions(?:\/close)?|orders(?:\/[^/]+)?|local-order|bills|account-mode|fee-rates|local-execution\/confirm-flat)$/
-const manualWrite=(route:string,method:string)=>method==='POST'&&['/api/live/orders','/api/live/positions/close','/api/live/local-execution/confirm-flat'].includes(route)||method==='DELETE'&&/^\/api\/live\/orders\/[^/]+$/.test(route)
+const routes = /^\/api\/live\/(?:permission|credentials(?:\/okx)?|desktop-ws-login|account|positions(?:\/close)?|orders(?:\/[^/]+)?|local-order|bills|account-mode|fee-rates|local-execution\/(?:confirm-flat|stop-account))$/
+const manualWrite=(route:string,method:string)=>method==='POST'&&['/api/live/orders','/api/live/positions/close','/api/live/local-execution/confirm-flat','/api/live/local-execution/stop-account'].includes(route)||method==='DELETE'&&/^\/api\/live\/orders\/[^/]+$/.test(route)
 
 export async function tryLocalLiveRequest(path: string, options: RequestInit = {}, expectedBinding?: string, originCurrent?:()=>void): Promise<Response | null> {
   if (!isTauri() || !collectionMode() || !routes.test(path.split('?')[0])) return null
@@ -33,7 +33,7 @@ export async function tryLocalLiveRequest(path: string, options: RequestInit = {
       return new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } })
     }
     const priority=route==='/api/live/orders'&&new URLSearchParams(path.split('?')[1]||'').get('history')==='true'?0:1
-    return local || route === '/api/live/desktop-ws-login' ? execute() : collectionHttpSlot(execute, priority)
+    return local || route === '/api/live/desktop-ws-login' || route === '/api/live/local-execution/stop-account' ? execute() : collectionHttpSlot(execute, priority)
   }
   if (method !== 'GET' || options.signal) return run()
   const key = `${scope}\0${epoch}\0${accountEpoch}\0${expectedBinding ?? ''}\0${path}`
@@ -73,6 +73,14 @@ export async function confirmLocalExchangeFlat():Promise<{message:string}>{
   const response=await tryPreparedLocalLiveRequest('/api/live/local-execution/confirm-flat',{method:'POST',body:'{}'},undefined,current)
   if(!response)throw new Error('请先在桌面端同步交易所账户并配置数据 Key')
   return response.json() as Promise<{message:string}>
+}
+
+export async function stopLocalAccountTasks():Promise<{message:string;unresolved_commands:boolean}>{
+  const scope=collectionScope(),epoch=localEpoch,generation=collectionGeneration()
+  const current=()=>{if(scope!==collectionScope()||epoch!==localEpoch||generation!==collectionGeneration())throw new Error('会话或账户已变化，请在原账号核对停止结果')}
+  const response=await tryPreparedLocalLiveRequest('/api/live/local-execution/stop-account',{method:'POST',body:'{}'},undefined,current)
+  if(!response)throw new Error('请先在桌面端同步交易所账户并配置数据 Key')
+  return response.json() as Promise<{message:string;unresolved_commands:boolean}>
 }
 
 function changed(){localEpoch++;reads.clear();if(typeof window!=='undefined')window.dispatchEvent(new Event('local-exchange-changed'))}

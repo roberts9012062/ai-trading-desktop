@@ -17,6 +17,17 @@ fn center_account(uid:&str,demo:bool)->Result<String>{
     Ok(digest::digest(&digest::SHA256,format!("okx-account:{demo}:{uid}").as_bytes()).as_ref().iter().map(|b|format!("{b:02x}")).collect())
 }
 fn claim(account:&str,owner:&str,epoch:u64)->Value{json!({"account_id":account,"owner":owner,"epoch":epoch,"role":"manual"})}
+fn stop_target(value:&Value)->Result<(String,u64)>{
+    if value["enrolled"]!=true{return Err("当前账户尚未登记服务器任务".into())}
+    let account=value["account_id"].as_str().filter(|s|s.len()==64&&s.bytes().all(|b|b.is_ascii_hexdigit()&&!b.is_ascii_uppercase())).ok_or("接口中心账户绑定格式异常")?;
+    let epoch=value["epoch"].as_u64().ok_or("接口中心账户执行状态不完整")?;
+    Ok((account.into(),epoch))
+}
+fn stop_response(account:&str,value:&Value)->Result<Value>{
+    if value["account_id"].as_str()!=Some(account)||value["recovery_required"]!=true||value["epoch"].as_u64().is_none_or(|epoch|epoch==0)||!value["unresolved_commands"].is_boolean(){return Err("接口中心未确认账户停止，请重新核对账户状态".into())}
+    let pending=value["unresolved_commands"]==true;
+    Ok(json!({"ok":true,"recovery_required":true,"unresolved_commands":pending,"message":if pending{"接口中心已停止当前 OKX 账户全部自动任务，仍有交易结果待核对；本次操作未撤单或平仓，请先核对原指令。"}else{"接口中心已停止当前 OKX 账户全部自动任务。本次操作未撤单或平仓，请手动处理持仓与委托，确认账户清空后再通过服务器手动启动任务。"}}))
+}
 fn rows(value:Value)->Result<Vec<Value>>{value.as_array().cloned().ok_or("接口中心执行状态格式异常".into())}
 async fn read(app:&tauri::AppHandle,market:&MarketDataState,scope:&str,credential:&NativeCredentials,path:&str,owner:&str)->Result<Vec<Value>>{
     let value=crate::market_data::private_request(app,market,scope,||{let mut request=signed(credential,"GET",path,"")?;request["execution_owner"]=json!(owner);Ok(request)}).await?;
@@ -207,6 +218,9 @@ async fn receipt(app:&tauri::AppHandle,market:&MarketDataState,store:&LocalStore
 
 pub(super) async fn execute(app:&tauri::AppHandle,market:&MarketDataState,store:&LocalStoreState,scope:&str,credential:&NativeCredentials,route:&str,query:&HashMap<String,String>,body:&Value)->Result<Value>{
     let generation=app.state::<crate::execution_runtime::ExecutionRuntime>().action_generation(scope)?;
+    // This explicit control request can stop new scheduling while an earlier
+    // financial request is being reconciled. It never submits an exchange write.
+    if route=="/api/live/local-execution/stop-account"{return run(app,market,store,scope,credential,route,query,body,generation).await}
     // Reject overlapping actions instead of leaving a second financial command
     // queued in native code after the UI/account has already changed.
     let _guard=market.manual_slot.try_lock().map_err(|_|"另一笔手动操作正在核对或发送，请等待结果")?;
@@ -225,7 +239,20 @@ pub(super) async fn execute(app:&tauri::AppHandle,market:&MarketDataState,store:
 
 async fn run(app:&tauri::AppHandle,market:&MarketDataState,store:&LocalStoreState,scope:&str,credential:&NativeCredentials,route:&str,query:&HashMap<String,String>,body:&Value,generation:u64)->Result<Value>{
     if !credential.server_bound{return Err("请先同步服务器交易所账户".into())}
-    if !credential.demo&&permission(app,store,scope)?["enabled"]!=true{return Err("实盘账户未授权".into())}
+    if route!="/api/live/local-execution/stop-account"&&!credential.demo&&permission(app,store,scope)?["enabled"]!=true{return Err("实盘账户未授权".into())}
+    if route=="/api/live/local-execution/stop-account"{
+        // Existing center binding was verified by an exchange config response.
+        // No exchange request or private-order queue can delay this control.
+        let binding=account_identity(&credential.api_key,credential.demo);
+        let target=execution_request(app,market,scope,"/v1/execution/account-for-key",Some(json!({"key_fingerprint":binding}))).await?;
+        let (account,epoch)=stop_target(&target)?;
+        let state=app.state::<crate::execution_runtime::ExecutionRuntime>();
+        state.check_action(scope,generation)?;
+        let response=execution_request(app,market,scope,"/v1/execution/stop-account",Some(json!({"account_id":account,"expected_epoch":epoch}))).await?;
+        let result=stop_response(&account,&response)?;
+        state.interrupt_context(scope,generation)?;
+        return Ok(result)
+    }
     let owner=format!("manual_{}",unique()?);
     let config=read(app,market,scope,credential,"/api/v5/account/config",&owner).await?;
     let account=center_account(config.first().and_then(|c|c["uid"].as_str()).ok_or("交易所账户身份缺失")?,credential.demo)?;
@@ -311,6 +338,23 @@ async fn run(app:&tauri::AppHandle,market:&MarketDataState,store:&LocalStoreStat
 #[cfg(test)]
 mod tests{
     use super::*;
+    #[test]fn account_stop_requires_a_confirmed_matching_center_response(){
+        let response=json!({"account_id":"account","epoch":4,"recovery_required":true,"unresolved_commands":false});
+        assert_eq!(stop_response("account",&response).unwrap()["ok"],true);
+        assert!(stop_response("other",&response).is_err());
+        assert!(stop_response("account",&json!({"account_id":"account","epoch":4,"recovery_required":false})).is_err());
+        assert!(stop_response("account",&json!({"account_id":"account","epoch":4,"recovery_required":true})).is_err());
+        let pending=json!({"account_id":"account","epoch":5,"recovery_required":true,"unresolved_commands":true});
+        assert_eq!(stop_response("account",&pending).unwrap()["unresolved_commands"],true);
+    }
+    #[test]fn account_stop_target_requires_verified_enrollment_and_typed_epoch(){
+        let account="a".repeat(64);
+        let value=json!({"account_id":account,"epoch":4,"enrolled":true});
+        assert_eq!(stop_target(&value).unwrap(),("a".repeat(64),4));
+        assert!(stop_target(&json!({"account_id":account,"epoch":4,"enrolled":false})).is_err());
+        assert!(stop_target(&json!({"account_id":"bad","epoch":4,"enrolled":true})).is_err());
+        assert!(stop_target(&json!({"account_id":account,"epoch":"4","enrolled":true})).is_err());
+    }
     #[test]fn close_uses_actual_mode_and_requires_a_unique_nonzero_position(){
         let body=json!({"symbol":"btcusdt","pos_side":null});
         let rows=vec![json!({"instId":"BTC-USDT-SWAP","pos":"-3","posSide":"net","mgnMode":"isolated"})];

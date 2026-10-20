@@ -52,7 +52,7 @@ impl ExecutionRuntime {
         self.check(scope,generation)
     }
     fn interrupt(&self){if let Ok(slot)=self.interrupt.lock(){if let Some(stop)=slot.as_ref(){let _=stop.try_send(());}}}
-    fn interrupt_context(&self,scope:&str,generation:u64)->Result<()> {
+    pub(crate) fn interrupt_context(&self,scope:&str,generation:u64)->Result<()> {
         let current=self.context.lock().map_err(|_|"执行器状态不可用")?;
         if self.closing.load(Ordering::SeqCst) || self.generation.load(Ordering::SeqCst)!=generation
             || current.as_ref().map(|c|c.scope.as_str())!=Some(scope){return Err("账号已切换，旧停止操作已取消".into());}

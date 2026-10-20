@@ -2,7 +2,7 @@
 import {invoke,isTauri} from '@tauri-apps/api/core'
 import {useAuthStore} from '@/stores/auth'
 import {collectionMode,collectionScope,collectionGeneration,collectionStatus,onCollectionChange} from './collection-config'
-import {localExchangeGeneration} from './local-desktop'
+import {localExchangeGeneration,stopLocalAccountTasks} from './local-desktop'
 
 export interface ExecutionStatus {prepared:boolean;runtime_installed:boolean;enabled?:boolean;worker:{state:string;account_id?:string;error?:string};error?:string}
 export interface ExecutionSnapshot {available:boolean;checkpoint_seq:number;pending_checkpoint:boolean;truncated:boolean;tasks:{id:string;name:string;symbol:string;timeframe:string;strategy_type:string;recorded_status:string;last_run_at:string|null;updated_at:string|null}[]}
@@ -72,13 +72,20 @@ async function refreshAndRestore(captured:Context,restore:boolean){
     await refreshExecutionStatus(captured)
   }
 }
-export async function executionAction(action:'prepare'|'start'|'stop'){
+export async function executionAction(action:'prepare'|'start'|'stop'|'stop-account'){
   const owner=identity()
   const token=localStorage.getItem('access_token')||''
   if(action==='prepare'&&!token)throw new Error('请先完成服务器登录，再同步任务准备数据')
   const captured=await syncExecutionContext()
   if(!captured)throw new Error('请在实盘服务器账号中配置数据 Key，并同步交易所账户')
   current(owner)
+  if(action==='stop-account'){
+    const result=await stopLocalAccountTasks()
+    current(owner)
+    try{await refreshExecutionStatus(captured)}
+    catch{current(owner);publish({...status,worker:{state:'waiting_reconciliation'},error:'账户停止已确认，本机退出状态待核对'})}
+    return result
+  }
   const args={scope:captured.scope,generation:captured.generation}
   if(action==='prepare'){
     const base=localStorage.getItem('atd_desktop_server')||window.__QH_API_BASE__||''

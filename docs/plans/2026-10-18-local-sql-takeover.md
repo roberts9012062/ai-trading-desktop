@@ -425,3 +425,35 @@ absence of business HTTP before moving on to worker packaging.
   shortline execution, business runtime projection, paid standby deployment,
   full outage/recovery acceptance and a current compiled artifact. Hunter stays
   hidden/deferred, and the desktop remains 0.2.205 without a new release tag.
+
+### 2026-10-20: account stop control and authenticated demo acceptance
+
+- Added explicit "停止 OKX 账户任务（不平仓）" control for the current
+  server-bound OKX account. It calls center control directly, bypassing the
+  financial read queue and business HTTP server. It works without an installed
+  worker or a current business JWT; private entitlement and native account
+  binding remain mandatory. Logout/account changes discard stale results.
+- Center lookup accepts only an existing verified credential fingerprint.
+  Stop requires the observed ownership epoch, fences old writes and persists
+  all registered tasks stopped. Pending trades still require reconciliation.
+  Stop does not cancel orders or close positions, and never auto-restarts.
+- Real browser fixtures verify explicit click only, business offline, missing
+  worker, account binding, no financial requests, logout clearing and mobile
+  layout. Full frontend: 1262 passed/6 skipped. Typecheck and production build
+  pass; native library: 74 passed/3 ignored. Center: 286 non-integration tests,
+  mypy 123 files and seven isolated PostgreSQL tests pass.
+- Demo credentials were stored only in Windows-user-encrypted ignored runtime
+  storage. Through the public collection origin, 19 REST reads succeed, private
+  WS login and account/positions/orders subscriptions succeed, and an account
+  data push plus heartbeat are received. No exchange mutations were submitted.
+  Authentication errors are being clarified in center source; not deployed.
+- Private source 6d2a9ee passes 106 executor checks. Parent presence bridging,
+  durable closed-owner tombstones and supervisor crash retirement now cover
+  normal worker replacement and final exit. Earlier full native CI attempts
+  failed; the new local and private CI builds remain in C compilation. No
+  verified native distribution or installer is available yet.
+- Still required before activation: current verified compiled artifact and
+  resource pin, business runtime projection, paid standby deployment, shortline,
+  remaining offline detail/sync flows and complete outage/recovery acceptance.
+  Hunter remains hidden/deferred. Version remains 0.2.205; no release tag or
+  production execution flag was changed.
