@@ -526,3 +526,10 @@ absence of business HTTP before moving on to worker packaging.
 - Full native compilation and its private CI remain in progress on bd00fa0.
   No verified worker artifact, installer, version bump, production activation,
   package changes or trading writes were produced by this stage.
+
+- Final timing review: observation starts before the center status request.
+  History pagination/import cannot extend the displayed lease, and a late
+  observation cannot replace a newer timestamp even within the same epoch.
+  The final private executor suite is 118 passed/1 skipped; the updated real
+  PostgreSQL race/rollback check passes again. The compiling checkout remains
+  unchanged; these server changes are still isolated pending integration.
