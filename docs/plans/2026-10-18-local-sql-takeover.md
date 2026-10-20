@@ -395,3 +395,33 @@ absence of business HTTP before moving on to worker packaging.
   The public workflow still needs the successful artifact pin/resource mapping
   before it can build an installer containing the worker. Production flags stay
   off, and the desktop version is still 0.2.205.
+
+### 2026-10-20: explicit shutdown, crash restart and financial receipts
+
+- Center validation now covers automatic server/desktop/standby writes as well
+  as manual writes. An empty or mismatched success remains unknown, persists
+  the account barrier, and is returned to the SDK as unresolved_commands.
+  Batches require a complete unique receipt for every instruction, including
+  aggregate partial failures. Unsupported amendments reject before sending.
+- Closing a passive primary worker now withdraws its presence. Explicit offline
+  also fences that owner's remaining lease without losing unknown intents or
+  invalidating a newer owner. Other live primaries and existing paid coverage
+  retain their intended handover behavior.
+- A non-replicated local SQL process record survives crashes. After authenticated
+  preparation and the database OS lock, a replacement retires the dead owner
+  before announcing online. Failed retirement blocks preparation. Only confirmed
+  final checkpoint/release/withdrawal marks a session stopped. Internal expired
+  lease cleanup keeps the still-running process present.
+- The OKX adapter supplies missing creation IDs from the durable step before
+  signing or journal preparation; existing IDs and financial fields remain
+  unchanged. A transport test verifies identical signed, stored and sent bytes.
+- Latest checks: center 270 non-integration tests and strict mypy 123 files pass;
+  five isolated real PostgreSQL race tests pass. Private executor suite: 95 pass.
+  No production grants, flags, strategies or orders were changed. The Windows
+  full native build remains in progress; it predates these new worker changes
+  and is insufficient as a release artifact for the new source.
+- Still required before activation: parent presence during server worker vault
+  replacement, manual requests while an automatic worker owns the lease,
+  shortline execution, business runtime projection, paid standby deployment,
+  full outage/recovery acceptance and a current compiled artifact. Hunter stays
+  hidden/deferred, and the desktop remains 0.2.205 without a new release tag.
