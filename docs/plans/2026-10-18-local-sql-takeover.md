@@ -474,3 +474,30 @@ absence of business HTTP before moving on to worker packaging.
   the new installer release gate cases. Private executor regression: 106 pass.
   The final artifact pin/resource mapping and all activation acceptance remain
   pending. Version remains 0.2.205 without an application release tag.
+
+### 2026-10-20: paginated local task history and verified SciPy isolation
+
+- AI trading's local task panel now opens stored decisions, run logs and equity
+  records through native read-only SQLite. Each page contains at most 50 rows;
+  table names, exported fields and maximum offset are fixed. The same committed
+  vault/account/subject validation guards snapshot and history reads.
+- History verifies task ownership and live mode, hides deferred Hunter tasks,
+  excludes raw model/context payloads and never creates, resumes or edits a task.
+  Missing records remain visibly unavailable. Account/key generation changes
+  discard late results, and logout unmounts selected history immediately.
+- Actual browser fixtures verify native-only reads with business HTTP blocked,
+  explicit selection, pagination, a failed log read, stored equity, mobile layout
+  and logout while an old response is pending. Screenshots inspected. Native
+  regression: 77 passed/3 ignored. Frontend: 1264 passed/6 skipped. Typecheck and
+  production build pass; delivery checks remain 12 passed.
+- The independent SciPy native probe now passes quadrature, native integration
+  and statistics with Windows-only PATH and empty stderr. Its report confirms
+  the former C1002 quadrature table is frozen, rather than compiled into a giant
+  C module. Private commit bd00fa0 retains all private-module compilation guards
+  and passes 106 executor tests. The full local build and latest private CI are
+  running again; no verified worker distribution exists yet.
+- This completes the local history viewer for already stored records. Remaining
+  offline task detail/configuration sync, business runtime projection, paid
+  standby, manual coordination, shortline and full outage acceptance still need
+  completion. Hunter remains hidden. No production flags, orders, version or
+  application release tags were changed.

@@ -216,21 +216,34 @@ pub async fn desktop_executor_status(app:tauri::AppHandle,scope:String,generatio
     Ok(json!({"prepared":prepared,"runtime_installed":installed,"enabled":enabled,"worker":status}))
 }
 
-#[tauri::command]
-pub async fn desktop_executor_snapshot(app:tauri::AppHandle,scope:String,generation:u64)->Result<Value>{
+fn snapshot_location(app:&tauri::AppHandle,scope:&str,generation:u64)->Result<Option<(PathBuf,String,String)>>{
     let state=app.state::<ExecutionRuntime>();state.current_binding(&app,&scope,generation)?;
     let binding=context(&app,&scope)?;
     let location=app.state::<LocalStoreState>().with(&app,|db|db.secret(&scope,"executor-location"))?;
-    let Some(location)=location else{return Ok(json!(crate::execution_snapshot::Snapshot::absent()));};
+    let Some(location)=location else{return Ok(None);};
     let raw=Zeroizing::new(market_data::protect(&location,location_entropy(&scope).as_bytes(),false)?);
     let location:Value=serde_json::from_slice(&raw).map_err(|_|"本机任务快照位置无效")?;
     if location["binding"]!=binding.binding || location["key_hash"]!=binding.key_hash{return Err("本机任务快照与当前交易账户配置不匹配，请同步准备数据".into());}
     let account=location["account_id"].as_str().filter(|v|v.len()==64 && v.bytes().all(|c|c.is_ascii_hexdigit() && !c.is_ascii_uppercase())).ok_or("本机任务快照账户编号无效")?.to_owned();
     let subject=scope.rsplit_once(':').map(|(_,subject)|subject.to_owned()).ok_or("请先登录服务器账号")?;
     let database=database_path(&app,&scope,&account)?;
+    Ok(Some((database,subject,account)))
+}
+
+#[tauri::command]
+pub async fn desktop_executor_snapshot(app:tauri::AppHandle,scope:String,generation:u64)->Result<Value>{
+    let Some((database,subject,account))=snapshot_location(&app,&scope,generation)? else{return Ok(json!(crate::execution_snapshot::Snapshot::absent()));};
     let snapshot=tauri::async_runtime::spawn_blocking(move||crate::execution_snapshot::read(&database,&subject,&account)).await.map_err(|_|"本机任务快照读取失败")??;
-    state.current_binding(&app,&scope,generation)?;
+    app.state::<ExecutionRuntime>().current_binding(&app,&scope,generation)?;
     Ok(json!(snapshot))
+}
+
+#[tauri::command]
+pub async fn desktop_executor_history(app:tauri::AppHandle,scope:String,generation:u64,task_id:String,kind:String,offset:u32)->Result<Value>{
+    let (database,subject,account)=snapshot_location(&app,&scope,generation)?.ok_or("尚无本机任务历史，请先同步准备数据")?;
+    let history=tauri::async_runtime::spawn_blocking(move||crate::execution_snapshot::read_history(&database,&subject,&account,&task_id,&kind,offset)).await.map_err(|_|"本机任务历史读取失败")??;
+    app.state::<ExecutionRuntime>().current_binding(&app,&scope,generation)?;
+    Ok(json!(history))
 }
 
 #[tauri::command]

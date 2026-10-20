@@ -64,6 +64,7 @@ pub fn run() {
             execution_runtime::desktop_executor_start,
             execution_runtime::desktop_executor_status,
             execution_runtime::desktop_executor_snapshot,
+            execution_runtime::desktop_executor_history,
             execution_runtime::desktop_executor_stop,
             native_engine::native_engine_spawn,
             native_engine::native_engine_status,

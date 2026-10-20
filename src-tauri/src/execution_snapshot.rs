@@ -25,10 +25,11 @@ fn subject_hex(value:&str)->Result<String>{
 }
 fn canonical(value:&str)->Result<String>{let raw=subject_hex(value)?;Ok(format!("{}-{}-{}-{}-{}",&raw[..8],&raw[8..12],&raw[12..16],&raw[16..20],&raw[20..]))}
 
-pub(crate) fn read(path:&Path,subject:&str,account:&str)->Result<Snapshot>{
+struct Vault {db:Connection,owner:String,checkpoint_seq:i64,pending_checkpoint:bool}
+fn open_vault(path:&Path,subject:&str,account:&str)->Result<Option<Vault>>{
     let owner=subject_hex(subject)?;
     if account.len()!=64 || !account.bytes().all(|c|c.is_ascii_hexdigit() && !c.is_ascii_uppercase()){return Err("本机任务账户编号无效".into());}
-    let meta=match std::fs::symlink_metadata(path){Ok(meta)=>meta,Err(error) if error.kind()==std::io::ErrorKind::NotFound=>return Ok(Snapshot::absent()),Err(_)=>return Err("本机任务快照无法读取".into())};
+    let meta=match std::fs::symlink_metadata(path){Ok(meta)=>meta,Err(error) if error.kind()==std::io::ErrorKind::NotFound=>return Ok(None),Err(_)=>return Err("本机任务快照无法读取".into())};
     if !meta.is_file() || meta.file_type().is_symlink(){return Err("本机任务快照文件类型无效".into());}
     #[cfg(windows)] {use std::os::windows::fs::MetadataExt;if meta.file_attributes()&0x400!=0{return Err("本机任务快照不能使用重解析点".into());}}
     let db=Connection::open_with_flags(path,OpenFlags::SQLITE_OPEN_READ_ONLY|OpenFlags::SQLITE_OPEN_NO_MUTEX).map_err(|_|"本机任务数据库无法只读打开")?;
@@ -44,6 +45,12 @@ pub(crate) fn read(path:&Path,subject:&str,account:&str)->Result<Snapshot>{
         if subject_hex(&replica_owner)?!=owner || replica_account!=account || seq<0{return Err("本机检查点属于其他账户".into());}
         (seq,pending.is_some_and(|value|value!="null"))
     }else{(0,false)};
+    Ok(Some(Vault{db,owner,checkpoint_seq,pending_checkpoint}))
+}
+
+pub(crate) fn read(path:&Path,subject:&str,account:&str)->Result<Snapshot>{
+    let Some(vault)=open_vault(path,subject,account)? else{return Ok(Snapshot::absent())};
+    let Vault{db,owner,checkpoint_seq,pending_checkpoint}=vault;
     let mut statement=db.prepare("SELECT id,substr(name,1,120),substr(symbol,1,20),substr(timeframe,1,8),substr(strategy_type,1,32),substr(status,1,16),substr(last_run_at,1,64),substr(updated_at,1,64) FROM ai_trading_tasks WHERE (user_id=?1 OR user_id=?2) AND trading_mode='live' AND strategy_type<>'multi_cycle_hunter' ORDER BY updated_at DESC,id LIMIT 501").map_err(|_|"本机任务表不可读")?;
     let rows=statement.query_map(params![owner,canonical(subject)?],|row|Ok((row.get::<_,String>(0)?,row.get::<_,String>(1)?,row.get::<_,String>(2)?,row.get::<_,String>(3)?,row.get::<_,String>(4)?,row.get::<_,String>(5)?,row.get::<_,Option<String>>(6)?,row.get::<_,Option<String>>(7)?))).map_err(|_|"本机任务读取失败")?;
     let mut tasks=Vec::new();let mut truncated=false;
@@ -54,6 +61,41 @@ pub(crate) fn read(path:&Path,subject:&str,account:&str)->Result<Snapshot>{
         tasks.push(TaskRecord{id:canonical(&id)?,name,symbol,timeframe,strategy_type,recorded_status,last_run_at,updated_at});
     }
     Ok(Snapshot{available:true,tasks,checkpoint_seq,pending_checkpoint,truncated})
+}
+
+#[derive(Debug,Serialize)]
+pub(crate) struct History {pub task_id:String,pub kind:String,pub offset:u32,pub has_more:bool,pub records:Vec<Value>}
+
+pub(crate) fn read_history(path:&Path,subject:&str,account:&str,task:&str,kind:&str,offset:u32)->Result<History>{
+    if offset>10000{return Err("本机历史页码超出范围".into())}
+    // Table/column names are fixed in code; no client-provided SQL is accepted.
+    let (table,fields,time)=match kind {
+        "decisions"=>("ai_trading_decisions",vec!["id","created_at","trigger_type","action","reason"],"created_at"),
+        "logs"=>("ai_trading_run_logs",vec!["id","created_at","event","action","reason"],"created_at"),
+        "equity"=>("ai_trading_equity_points",vec!["id","ts","equity","realized_pnl","unrealized_pnl"],"ts"),
+        _=>return Err("不支持的本机历史类型".into()),
+    };
+    let task_id=canonical(task)?;let task_hex=subject_hex(task)?;
+    let vault=open_vault(path,subject,account)?.ok_or("尚无本机任务历史，请先同步准备数据")?;
+    let db=&vault.db;
+    let owned:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM ai_trading_tasks WHERE (id=?1 OR id=?2) AND (user_id=?3 OR user_id=?4) AND trading_mode='live' AND strategy_type<>'multi_cycle_hunter')",params![task_hex,task_id,vault.owner,canonical(subject)?],|row|row.get(0)).map_err(|_|"本机历史任务不可读")?;
+    if !owned{return Err("本机历史任务不存在或不属于当前账号".into())}
+    let columns=fields.iter().map(|field|format!("substr(CAST({field} AS TEXT),1,{})",if *field=="reason"{2000}else{128})).collect::<Vec<_>>().join(",");
+    let sql=format!("SELECT {columns} FROM {table} WHERE (task_id=?1 OR task_id=?2) AND (user_id=?3 OR user_id=?4) ORDER BY {time} DESC,id DESC LIMIT 51 OFFSET ?5");
+    let mut statement=db.prepare(&sql).map_err(|_|"本机历史记录尚不可读，请完成首次同步")?;
+    let rows=statement.query_map(params![task_hex,task_id,vault.owner,canonical(subject)?,offset],|row|{
+        let mut record=serde_json::Map::new();
+        for (index,name) in fields.iter().enumerate(){record.insert((*name).into(),serde_json::json!(row.get::<_,Option<String>>(index)?));}
+        Ok(Value::Object(record))
+    }).map_err(|_|"本机历史读取失败")?;
+    let mut records=Vec::new();let mut has_more=false;
+    for row in rows{
+        let mut row=row.map_err(|_|"本机历史记录格式无效")?;
+        if records.len()==50{has_more=true;break}
+        row["id"]=serde_json::json!(canonical(row["id"].as_str().ok_or("本机历史编号无效")?)?);
+        records.push(row);
+    }
+    Ok(History{task_id,kind:kind.into(),offset,has_more,records})
 }
 
 #[cfg(test)]
@@ -112,5 +154,41 @@ mod tests {
         assert!(snapshot.truncated);assert_eq!(snapshot.tasks.len(),500);
         db.execute("UPDATE executor_meta SET value=json_set(value,'$.subject',?1) WHERE key='replication'",["99999999-9999-9999-9999-999999999999"]).unwrap();
         assert!(read(path,USER,&"a".repeat(64)).is_err());
+    });}
+
+    #[test]
+    fn history_is_task_scoped_bounded_and_never_exports_raw_model_context(){fixture(|path,db|{
+        db.execute_batch("CREATE TABLE ai_trading_decisions(id TEXT,task_id TEXT,user_id TEXT,created_at TEXT,trigger_type TEXT,action TEXT,reason TEXT,model_output TEXT);
+          WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<52) INSERT INTO ai_trading_decisions SELECT printf('%032x',x),'22222222222222222222222222222222','11111111111111111111111111111111','2026-10-20','bar','hold','recorded reason','private model context' FROM n;").unwrap();
+        let page=read_history(path,USER,&"a".repeat(64),"22222222-2222-2222-2222-222222222222","decisions",0).unwrap();
+        assert_eq!(page.records.len(),50);assert!(page.has_more);
+        let raw=serde_json::to_string(&page).unwrap();assert!(!raw.contains("model_output"));assert!(!raw.contains("private model context"));
+        let next=read_history(path,USER,&"a".repeat(64),"22222222-2222-2222-2222-222222222222","decisions",50).unwrap();
+        assert_eq!(next.records.len(),2);assert!(!next.has_more);
+        assert!(read_history(path,USER,&"a".repeat(64),"22222222-2222-2222-2222-222222222222","other_table",0).is_err());
+        assert!(read_history(path,USER,&"a".repeat(64),"22222222-2222-2222-2222-222222222222","decisions",10001).is_err());
+        db.execute("UPDATE ai_trading_tasks SET user_id='99999999999999999999999999999999'",[]).unwrap();
+        assert!(read_history(path,USER,&"a".repeat(64),"22222222-2222-2222-2222-222222222222","decisions",0).is_err());
+    });}
+
+    #[test]
+    fn history_rejects_foreign_rows_hidden_tasks_and_uncommitted_changes(){fixture(|path,db|{
+        db.execute_batch("CREATE TABLE ai_trading_run_logs(id TEXT,task_id TEXT,user_id TEXT,created_at TEXT,event TEXT,action TEXT,reason TEXT);
+          INSERT INTO ai_trading_run_logs VALUES('33333333333333333333333333333333','22222222222222222222222222222222','99999999999999999999999999999999','2026-10-20','error','','foreign');
+          INSERT INTO ai_trading_run_logs VALUES('44444444444444444444444444444444','22222222222222222222222222222222','11111111111111111111111111111111','2026-10-20','signal','hold','committed');").unwrap();
+        db.execute_batch("BEGIN IMMEDIATE;UPDATE ai_trading_run_logs SET reason='uncommitted';").unwrap();
+        let page=read_history(path,USER,&"a".repeat(64),"22222222-2222-2222-2222-222222222222","logs",0).unwrap();
+        assert_eq!(page.records.len(),1);assert_eq!(page.records[0]["reason"],"committed");
+        db.execute_batch("ROLLBACK;UPDATE ai_trading_tasks SET strategy_type='multi_cycle_hunter';").unwrap();
+        assert!(read_history(path,USER,&"a".repeat(64),"22222222-2222-2222-2222-222222222222","logs",0).is_err());
+    });}
+    #[test]
+    fn local_equity_keeps_stored_numbers_and_a_bad_binding_cannot_read_history(){fixture(|path,db|{
+        db.execute_batch("CREATE TABLE ai_trading_equity_points(id TEXT,task_id TEXT,user_id TEXT,ts TEXT,equity NUMERIC,realized_pnl NUMERIC,unrealized_pnl NUMERIC);
+          INSERT INTO ai_trading_equity_points VALUES('33333333333333333333333333333333','22222222222222222222222222222222','11111111111111111111111111111111','2026-10-20',123.45,-2.5,3.75);").unwrap();
+        let page=read_history(path,USER,&"a".repeat(64),"22222222-2222-2222-2222-222222222222","equity",0).unwrap();
+        assert_eq!(page.records[0]["equity"],"123.45");assert_eq!(page.records[0]["realized_pnl"],"-2.5");
+        assert!(read_history(path,USER,&"b".repeat(64),"22222222-2222-2222-2222-222222222222","equity",0).is_err());
+        assert!(read_history(path,USER,&"a".repeat(64),"' OR 1=1 --","equity",0).is_err());
     });}
 }

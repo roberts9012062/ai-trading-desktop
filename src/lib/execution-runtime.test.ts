@@ -4,7 +4,7 @@ vi.mock('@tauri-apps/api/core',()=>({invoke:fixture.invoke,isTauri:()=>true}))
 vi.mock('./collection-config',()=>({collectionMode:()=>true,collectionScope:()=>fixture.scope,collectionGeneration:()=>fixture.generation,collectionStatus:()=>({configured:fixture.configured}),onCollectionChange:()=>()=>{}}))
 vi.mock('./local-desktop',()=>({localExchangeGeneration:()=>fixture.account,stopLocalAccountTasks:()=>fixture.stop()}))
 vi.mock('@/stores/auth',()=>({useAuthStore:{getState:()=>({user:fixture.user,loaded:fixture.loaded}),subscribe:()=>()=>{}}}))
-import {syncExecutionContext,executionAction,executionStatus,readExecutionSnapshot} from './execution-runtime'
+import {syncExecutionContext,executionAction,executionStatus,readExecutionSnapshot,readExecutionHistory} from './execution-runtime'
 beforeEach(()=>{
   fixture.generation++;fixture.account++;fixture.scope='https://business:user-a';fixture.configured=true;fixture.user={id:'user-a',trading_mode:'live'};fixture.loaded=true
   vi.stubGlobal('localStorage',{getItem:(key:string)=>key==='access_token'?'server-jwt':null})
@@ -110,6 +110,24 @@ it('discards a task snapshot arriving after an account switch',async()=>{
     return original(command,...args)
   })
   await expect(readExecutionSnapshot()).rejects.toThrow('账号')
+})
+it('reads paginated local history without HTTP or automatic restoration',async()=>{
+  vi.stubGlobal('fetch',vi.fn())
+  const original=fixture.invoke.getMockImplementation()!
+  const page={task_id:'22222222-2222-2222-2222-222222222222',kind:'decisions',offset:50,has_more:false,records:[]}
+  fixture.invoke.mockImplementation(async(command:string,...args:unknown[])=>command==='desktop_executor_history'?page:original(command,...args))
+  expect(await readExecutionHistory(page.task_id,'decisions',50)).toEqual(page)
+  expect(fixture.invoke).toHaveBeenCalledWith('desktop_executor_history',expect.objectContaining({scope:fixture.scope,taskId:page.task_id,kind:'decisions',offset:50}))
+  expect(fetch).not.toHaveBeenCalled()
+  expect(fixture.invoke.mock.calls.some(([command])=>['desktop_executor_start','desktop_executor_prepare'].includes(command))).toBe(false)
+})
+it('discards local history arriving after a credential change',async()=>{
+  const original=fixture.invoke.getMockImplementation()!
+  fixture.invoke.mockImplementation(async(command:string,...args:unknown[])=>{
+    if(command==='desktop_executor_history'){fixture.account++;return {records:[{reason:'old account'}]}}
+    return original(command,...args)
+  })
+  await expect(readExecutionHistory('22222222-2222-2222-2222-222222222222','logs',0)).rejects.toThrow('账号')
 })
 it('a snapshot reader mounting first cannot suppress the opted-in boot restore',async()=>{
   let release:((generation:number)=>void)|undefined

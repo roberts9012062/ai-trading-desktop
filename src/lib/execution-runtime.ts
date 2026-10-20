@@ -6,6 +6,8 @@ import {localExchangeGeneration,stopLocalAccountTasks} from './local-desktop'
 
 export interface ExecutionStatus {prepared:boolean;runtime_installed:boolean;enabled?:boolean;worker:{state:string;account_id?:string;error?:string};error?:string}
 export interface ExecutionSnapshot {available:boolean;checkpoint_seq:number;pending_checkpoint:boolean;truncated:boolean;tasks:{id:string;name:string;symbol:string;timeframe:string;strategy_type:string;recorded_status:string;last_run_at:string|null;updated_at:string|null}[]}
+export type ExecutionHistoryKind='decisions'|'logs'|'equity'
+export interface ExecutionHistory {task_id:string;kind:ExecutionHistoryKind;offset:number;has_more:boolean;records:({id:string}&Record<string,string|null>)[]}
 const stateLabels:Record<string,string>={not_prepared:'待同步任务准备数据',prepared:'准备数据已保存',preparing:'正在验证与恢复',running:'本机持有执行权',stopping:'正在保存状态并交接',stopped:'本机执行器已停止',waiting_executor:'等待账户执行权',waiting_reconciliation:'待核对交易结果',manual_flatten_required:'任务已锁定，请手动平仓并确认',server_sync_required:'需要重新同步服务器',startup_failed:'启动失败，请重新同步准备数据'}
 export const executionStateLabel=(state:string)=>stateLabels[state]||'状态待确认'
 let status:ExecutionStatus={prepared:false,runtime_installed:false,worker:{state:'not_prepared'}}
@@ -100,6 +102,14 @@ export async function readExecutionSnapshot():Promise<ExecutionSnapshot>{
   current(owner)
   const snapshot=await invoke<ExecutionSnapshot>('desktop_executor_snapshot',{scope:captured.scope,generation:captured.generation})
   current(owner);return snapshot
+}
+
+export async function readExecutionHistory(taskId:string,kind:ExecutionHistoryKind,offset=0):Promise<ExecutionHistory>{
+  const owner=identity(),captured=await syncExecutionContext()
+  if(!captured)throw new Error('请在实盘服务器账号中配置数据 Key，并同步交易所账户')
+  current(owner)
+  const history=await invoke<ExecutionHistory>('desktop_executor_history',{scope:captured.scope,generation:captured.generation,taskId,kind,offset})
+  current(owner);return history
 }
 
 /** Hiding a window and React unmount/reload are not application shutdown. The

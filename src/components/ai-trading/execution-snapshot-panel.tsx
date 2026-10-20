@@ -4,6 +4,7 @@ import {useAuthStore} from '@/stores/auth'
 import {collectionScope,collectionGeneration,collectionStatus,onCollectionChange,nativeCollection} from '@/lib/collection-config'
 import {localExchangeGeneration} from '@/lib/local-desktop'
 import {executionStatus,onExecutionChange,executionStateLabel,readExecutionSnapshot,type ExecutionSnapshot} from '@/lib/execution-runtime'
+import {ExecutionHistoryPanel} from './execution-history-panel'
 
 const subscribeAccount=(callback:()=>void)=>{window.addEventListener('local-exchange-changed',callback);return()=>window.removeEventListener('local-exchange-changed',callback)}
 const recordedLabels:Record<string,string>={running:'记录为运行',paused:'记录为暂停',stopped:'记录为停止'}
@@ -19,6 +20,7 @@ export function ExecutionSnapshotPanel(){
   const owner=`${collectionScope()}:${user?.id||''}:${account}:${collectionGeneration()}`
   const [loaded,setLoaded]=useState<{owner:string;snapshot:ExecutionSnapshot}|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(false)
   const snapshot=loaded?.owner===owner?loaded.snapshot:null
+  const [selected,setSelected]=useState<{owner:string;id:string;name:string}|null>(null)
   const refresh=useRef<(()=>void)|null>(null)
   useEffect(()=>{
     setLoaded(null);setError('');setLoading(false)
@@ -35,7 +37,7 @@ export function ExecutionSnapshotPanel(){
     return()=>{active=false;refresh.current=null;clearInterval(timer)}
   },[enabled,owner])
   if(!enabled)return null
-  return <section aria-label="本机任务记录" className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4 space-y-3">
+  return <section aria-label="本机任务记录" className="min-w-0 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4 space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h2 className="text-sm font-medium text-[var(--text-primary)]">本机任务记录</h2><p className="mt-1 text-xs text-[var(--text-muted)]">{executionStateLabel(runtime.worker.state)}</p></div>
       <Button size="sm" variant="outline" disabled={loading} onClick={()=>refresh.current?.()}>刷新本机记录</Button>
@@ -45,6 +47,8 @@ export function ExecutionSnapshotPanel(){
       <div className="flex flex-wrap gap-3 text-xs text-[var(--text-secondary)]"><span>本机记录 {snapshot.tasks.length} 个</span><span>已确认检查点 {snapshot.checkpoint_seq}</span>{snapshot.pending_checkpoint&&<span className="text-amber-400">有待确认的检查点</span>}</div>
       {snapshot.tasks.length?<div className="max-h-64 overflow-auto"><table className="w-full text-left text-xs"><thead className="text-[var(--text-muted)]"><tr><th className="py-2 font-normal">任务</th><th className="py-2 font-normal">品种 / 周期</th><th className="py-2 font-normal">记录状态</th><th className="py-2 font-normal">最近评估（UTC）</th></tr></thead><tbody>{snapshot.tasks.map(task=><tr key={task.id} className="border-t border-white/5"><td className="py-2 pr-3 max-w-48 truncate" title={task.name}>{task.name||'未命名任务'}</td><td className="py-2 pr-3 whitespace-nowrap">{task.symbol.toUpperCase()} / {task.timeframe}</td><td className="py-2 pr-3 whitespace-nowrap">{recordedLabels[task.recorded_status]||'状态待确认'}</td><td className="py-2 whitespace-nowrap text-[var(--text-muted)]">{task.last_run_at?.replace('T',' ').replace(/\.\d+$/,'')||'尚无评估记录'}</td></tr>)}</tbody></table></div>:<p className="text-xs text-[var(--text-secondary)]">当前快照没有可显示的任务。</p>}
       {snapshot.truncated&&<p className="text-xs text-amber-400">仅显示最近更新的 500 个任务。</p>}
+      {snapshot.tasks.length>0&&<label className="block space-y-2 text-xs"><span>查看任务历史</span><select aria-label="本机历史任务" className="block w-full min-w-0 rounded border border-[var(--border)] bg-[var(--bg-secondary)] p-2" value={selected?.owner===owner?selected.id:''} onChange={event=>{const task=snapshot.tasks.find(task=>task.id===event.target.value);setSelected(task?{owner,id:task.id,name:task.name}:null)}}><option value="">选择本机任务</option>{snapshot.tasks.map(task=><option key={task.id} value={task.id}>{task.name||'未命名任务'} · {task.symbol.toUpperCase()}</option>)}</select></label>}
+      {selected?.owner===owner&&snapshot.tasks.some(task=>task.id===selected.id)&&<ExecutionHistoryPanel key={`${owner}:${selected.id}`} taskId={selected.id} name={selected.name} onClose={()=>setSelected(null)}/>}
     </>}
   </section>
 }
