@@ -112,7 +112,11 @@ export function updateTaskFactorEntryMode(id:string,mode:FactorEntryMode):Promis
   return request(`/api/ai-trading/tasks/${encodeURIComponent(id)}/factor-entry-mode`,{method:"PATCH",body:JSON.stringify({mode})})
 }
 
+export interface TaskExecutionProjection {
+  state:string;role:string;stale:boolean;checkpoint_seq:number;checked_at:string;lease_until:string;recorded_status:string
+}
 export interface AITradingTask {
+  execution?:TaskExecutionProjection
   factor_entry?: FactorEntryState | null
   slot_source?: string
   slot_index?: number

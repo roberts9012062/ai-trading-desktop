@@ -14,6 +14,7 @@ import { DecisionList } from "@/components/ai-trading/detail/decision-list"
 import { ShortlineScoreStream } from "./shortline-score-stream"
 import { RealtimeAnalysis } from './realtime-analysis'
 import { RealtimeModeControl } from '../realtime-mode-control'
+import {TaskExecutionStatus} from '../task-execution-status'
 import { TradeList } from "@/components/ai-trading/detail/trade-list"
 import {
   STATUS_LABEL,
@@ -231,7 +232,8 @@ export function TaskDetailDrawer({
                 {task.symbol_name || task.symbol} · {task.timeframe}
               </span>
               <span>{task.model_display_name}</span>
-              <span>状态 {STATUS_LABEL[statusKey(task)] ?? task.status}</span>
+              <span>{task.execution?'设定状态':'状态'} {STATUS_LABEL[statusKey(task)] ?? task.status}</span>
+              <TaskExecutionStatus execution={task.execution}/>
               {!readOnly&&<RealtimeModeControl task={task}/>}
               {task.max_hold_days ? (
                 <span

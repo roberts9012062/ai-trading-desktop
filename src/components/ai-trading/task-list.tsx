@@ -15,6 +15,7 @@ import { useMarketStore } from "@/stores/market"
 import { useRealtimeFactorStore } from '@/stores/realtime-factor'
 import { FactorEntryModeControl } from "./factor-entry-mode-control"
 import { RealtimeModeControl } from './realtime-mode-control'
+import {TaskExecutionStatus} from './task-execution-status'
 import {
   taskPnlFromQuotes,
   runtimeLabel,
@@ -125,7 +126,7 @@ export function TaskList({
                       STATUS_STYLE[sk] ?? STATUS_STYLE.stopped,
                     )}
                   >
-                    {STATUS_LABEL[sk] ?? task.status}
+                    {task.execution?'设定：':''}{STATUS_LABEL[sk] ?? task.status}
                   </span>
                   {onFavorite && (
                     <button
@@ -192,6 +193,7 @@ export function TaskList({
             </div>
 
             <RealtimeModeControl task={task}/>
+            <TaskExecutionStatus execution={task.execution}/>
             {/* 统计条：累计盈亏 / 浮动盈亏 / 胜率 */}
             <div className="mt-2.5 grid grid-cols-3 gap-1 rounded-lg bg-[var(--bg-tertiary)]/50 px-2 py-1.5">
               <div

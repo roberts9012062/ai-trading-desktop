@@ -501,3 +501,28 @@ absence of business HTTP before moving on to worker packaging.
   standby, manual coordination, shortline and full outage acceptance still need
   completion. Hunter remains hidden. No production flags, orders, version or
   application release tags were changed.
+
+### 2026-10-20: business runtime reports and ownership freshness display
+
+- Added business-server checkpoint projection in the isolated private branch
+  `codex/executor-runtime-projection`, based on bd00fa0. The active native build
+  checkout is unchanged. The new display-cache table and history import are not
+  deployed or merged into the compiling branch yet.
+- Projection verifies account/user/task ownership and acknowledged server task
+  versions. It imports decisions, run logs, equity and OKX order mirrors under
+  the original IDs and base-coin units. All pages commit atomically with a
+  monotonic cursor; runtime data never creates tasks, changes server task
+  configurations/desires, signs certificates or submits exchange commands.
+- Task list/detail responses gain optional execution metadata and validated
+  runtime statistics without mutating the task's server configuration. The
+  desktop labels managed-task settings separately from recent execution
+  location/state. A shared clock expires cached ownership without needing a
+  business response; durable stop/unresolved barriers remain visible.
+- Private executor checks: 117 passed/1 PostgreSQL check skipped locally. The
+  actual disposable PostgreSQL test passes 20 concurrent imports plus atomic
+  rollback, and its database is deleted. Desktop: 1267 passed/6 skipped,
+  typecheck and production build pass. A real browser fixture verifies ownership
+  expiry without HTTP/parent refresh, retained stop barrier and mobile layout.
+- Full native compilation and its private CI remain in progress on bd00fa0.
+  No verified worker artifact, installer, version bump, production activation,
+  package changes or trading writes were produced by this stage.
