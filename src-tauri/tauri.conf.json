@@ -39,6 +39,7 @@
     ],
     "resources": {
       "../resources/native-engine": "native-engine",
+      "../resources/execution-worker": "execution-worker",
       "../resources/public": "public"
     }
   },

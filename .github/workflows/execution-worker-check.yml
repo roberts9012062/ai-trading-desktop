@@ -1,0 +1,57 @@
+name: execution-worker-integration
+
+on:
+  push:
+    branches: [codex/lium-crypto]
+    paths:
+      - execution-worker.lock.json
+      - scripts/*execution-worker*
+      - scripts/execution-release.test.mjs
+      - src-tauri/src/execution_*.rs
+      - src-tauri/tauri.conf.json
+      - .github/workflows/execution-worker-check.yml
+  workflow_dispatch:
+
+# Draft dependency assets require repository write access, as in release.yml.
+# No production credential or private strategy repository token is provided.
+permissions:
+  contents: write
+
+concurrency:
+  group: executor-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-native-worker:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Verify fixed artifact and extraction boundaries
+        run: node --test scripts/execution-worker.test.mjs scripts/fetch-execution-worker.test.mjs scripts/execution-release.test.mjs scripts/desktop-build-guard.test.mjs
+      - name: Fetch fixed native runtime from this repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/fetch-execution-worker.mjs
+      - name: Verify the actual installer mapping and all runtime files
+        run: node --input-type=module -e "import {verifyReleaseExecutionArtifact} from './scripts/fetch-execution-worker.mjs';const m=await verifyReleaseExecutionArtifact();console.log(JSON.stringify({build_id:m.build_id,files:m.files.length,verified:true}));"
+      - name: Verify native lifecycle without a desktop release or trading credentials
+        # This builds only the Rust test executable. Full GPU/public resources
+        # belong to the installer job; its actual mapping was checked above.
+        env:
+          TAURI_CONFIG: '{"bundle":{"resources":[]}}'
+        run: |
+          $ErrorActionPreference='Stop'
+          cargo test --manifest-path src-tauri/Cargo.toml --lib execution_
+          if ($LASTEXITCODE -ne 0) { throw 'Native worker checks failed' }
+          cargo test --manifest-path src-tauri/Cargo.toml --lib compiled_distribution_self_test_and_rejected_bootstrap_use_native_process_contract -- --ignored --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Compiled worker process contract failed' }
