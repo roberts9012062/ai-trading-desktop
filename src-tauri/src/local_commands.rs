@@ -6,6 +6,8 @@ use crate::market_data::{execution_request,private_command};
 use std::collections::HashMap;
 #[path="local_orders.rs"]
 mod orders;
+#[path="local_controls.rs"]
+mod controls;
 
 fn unique()->Result<String>{
     use ring::rand::{SecureRandom,SystemRandom};
@@ -225,6 +227,7 @@ pub(super) async fn execute(app:&tauri::AppHandle,market:&MarketDataState,store:
     // queued in native code after the UI/account has already changed.
     let _guard=market.manual_slot.try_lock().map_err(|_|"另一笔手动操作正在核对或发送，请等待结果")?;
     if route=="/api/live/local-order"{return receipt(app,market,store,scope,credential,query.get("client_request_id").map(String::as_str).unwrap_or("")).await}
+    if route=="/api/live/local-control"{return controls::check(app,market,store,scope,credential,query.get("client_request_id").map(String::as_str).unwrap_or("")).await}
     let result=run(app,market,store,scope,credential,route,query,body,generation).await;
     if route=="/api/live/orders"{
         if let Err(error)=result{
@@ -299,7 +302,8 @@ async fn run(app:&tauri::AppHandle,market:&MarketDataState,store:&LocalStoreStat
             return Err("上一笔下单尚未取得可验证结果，请先核对交易所，不会重复发送".into())
         }
         id
-    }else{unique()?};
+    }else{body["client_request_id"].as_str().or_else(||query.get("client_request_id").map(String::as_str)).filter(|s|s.len()==32&&s.bytes().all(|b|b.is_ascii_hexdigit()&&!b.is_ascii_uppercase())).map(String::from).map(Ok).unwrap_or_else(unique)?};
+    if let Some(value)=controls::route(app,market,store,scope,credential,&account,&owner,route,query,body,&id,generation).await?{return Ok(value)}
     reconcile_remote(app,market,scope,credential,&account,&owner).await?;
     let order_inputs=if route=="/api/live/orders"{Some(orders::load(app,market,store,scope,credential,body,config.first().ok_or("缺少账户配置")?,&owner).await?)}else{None};
     let positions=read(app,market,scope,credential,"/api/v5/account/positions",&owner).await?;

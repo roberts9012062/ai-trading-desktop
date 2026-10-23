@@ -19,10 +19,11 @@ dependencies = [
 
 [[package]]
 name = "ai-trading-desktop"
-version = "0.1.0"
+version = "0.2.206"
 dependencies = [
  "base64 0.22.1",
  "flate2",
+ "minisign-verify",
  "reqwest 0.12.28",
  "ring",
  "rusqlite",

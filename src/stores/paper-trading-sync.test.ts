@@ -4,6 +4,7 @@ import { useAuthStore } from './auth'
 import * as api from '@/lib/live-api'
 import type { User } from '@/types'
 import type { PaperPositionItem, PaperOrderItem } from '@/lib/paper-api'
+import {PendingManualControlError} from '@/lib/local-control-intent'
 
 vi.mock('@/lib/live-api', async original => ({...await original<typeof import('@/lib/live-api')>(), getLiveAccountApi:vi.fn(),getLiveOrdersApi:vi.fn(),getLivePositionsApi:vi.fn(),placeLiveOrderApi:vi.fn(),cancelLiveOrderApi:vi.fn(),closeLivePositionApi:vi.fn()}))
 const refresh=usePaperTradingStore.getState().refresh
@@ -115,6 +116,15 @@ it('halts bulk cancellation on an uncertain command instead of hiding it and sen
  expect(api.cancelLiveOrderApi).toHaveBeenCalledOnce()
  expect(usePaperTradingStore.getState().error).toContain('尚未确认')
  expect(usePaperTradingStore.getState().lastMessage).toContain('暂停后续撤单')
+})
+
+it('shows queued manual closing as pending without claiming a completed close',async()=>{
+ usePaperTradingStore.setState({mode:'live',positions:[position]})
+ vi.mocked(api.closeLivePositionApi).mockRejectedValue(new PendingManualControlError('人工请求排队中'))
+ await usePaperTradingStore.getState().closePosition({...position,direction:'long'},0,'market',1)
+ expect(usePaperTradingStore.getState().error).toBeNull()
+ expect(usePaperTradingStore.getState().lastMessage).toBe('人工请求排队中')
+ expect(usePaperTradingStore.getState().positions).toEqual([position])
 })
 
 it('never sends remaining old-account cancellations after a login switch',async()=>{

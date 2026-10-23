@@ -13,6 +13,8 @@ mod execution_worker;
 mod execution_preparation;
 mod execution_runtime;
 mod execution_snapshot;
+#[cfg(test)]
+mod updater_acceptance;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

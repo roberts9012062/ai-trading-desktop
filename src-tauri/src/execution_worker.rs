@@ -318,7 +318,10 @@ mod tests {
             let script=format!("[Console]::ReadLine() | Out-Null; [Console]::WriteLine('{{\"type\":\"executor-status\",\"role\":\"desktop\",\"account_id\":\"a\",\"state\":\"running\",\"error\":\"\"}}'); {ending}");
             let mut command=tokio::process::Command::new(PathBuf::from(std::env::var_os("SYSTEMROOT").unwrap()).join("System32/WindowsPowerShell/v1.0/powershell.exe"));
             command.args(["-NoProfile","-NonInteractive","-Command",&script]);
-            let mut worker=Worker::launch_command(command,"a",Zeroizing::new(b"{\"synthetic\":true}\n".to_vec()),Duration::from_millis(100)).unwrap();
+            // A normal PowerShell shutdown may take over 100ms under parallel
+            // CI load. Keep the short forced-kill budget only for the hung case.
+            let grace=if ending.starts_with("Start-Sleep") {Duration::from_millis(100)} else {Duration::from_secs(3)};
+            let mut worker=Worker::launch_command(command,"a",Zeroizing::new(b"{\"synthetic\":true}\n".to_vec()),grace).unwrap();
             tokio::time::timeout(Duration::from_secs(10),async {
                 loop {if worker.status().unwrap().state=="running"{break;}assert!(!worker.finished(),"child exited before test readiness");tokio::time::sleep(Duration::from_millis(10)).await;}
             }).await.unwrap();

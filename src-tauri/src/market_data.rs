@@ -42,6 +42,7 @@ fn target(path: &str) -> Result<Url, String> {
         "/v1/execution/acquire", "/v1/execution/renew", "/v1/execution/release", "/v1/execution/intents",
         "/v1/execution/unresolved", "/v1/execution/confirm-flat", "/v1/execution/stop-account", "/v1/execution/account-for-key",
         "/v1/execution/authority-keys", "/v1/execution/accounts",
+        "/v1/execution/manual/submit", "/v1/execution/manual/state", "/v1/execution/manual/cancel",
     ]
     .contains(&url.path())
         || url.query_pairs().any(|(k, _)| {
@@ -208,6 +209,8 @@ pub(crate) async fn execution_request(app:&tauri::AppHandle,state:&MarketDataSta
         let message=match code{
             "execution_not_enabled"=>"接口中心尚未启用本机交易执行通道",
             "execution_busy"=>"账户正由另一执行器管理，请等待执行权释放后重试",
+            "manual_legacy_intent_exists"=>"该请求已有原始金融指令，只能核对原委托，不能改成队列重新发送",
+            "manual_control_pending"=>"账户已有人工请求待核对，请先核对上一笔人工操作",
             "unresolved_commands"=>"上一笔交易结果尚未确认，已阻止重复操作",
             "reconciliation_required"=>"账户状态已变化，请刷新后重新核对",
             "enrollment_draining"=>"账户正在交接，请稍后重新核对",

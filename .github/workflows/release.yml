@@ -44,7 +44,7 @@ jobs:
         run: pnpm exec vitest run src/lib/collection-exchange.test.ts src/lib/collection-account-scheduling.test.ts src/lib/desktop-exchange.test.ts src/lib/desktop-daily-pnl.test.ts src/lib/snippet-private-ws.test.ts src/lib/live-trading-sync.test.ts src/lib/daily-net-pnl.test.ts src/lib/live-api-history.test.ts
 
       - name: Verify local SQL continuity and server-only task authorization
-        run: pnpm exec vitest run src/lib/local-records.test.ts src/lib/local-desktop.test.ts src/lib/local-order-intent.test.ts src/lib/execution-runtime.test.ts src/lib/live-api-native.test.ts src/lib/server-task.test.ts src/lib/session-recovery.test.ts src/lib/auth-refresh-race.test.ts src/lib/collection-standby.test.ts src/stores/paper-trading-sync.test.ts src/lib/hunter/admin-access.test.ts src/components/hunter/hosting-access.test.ts src/lib/manual-content.test.ts
+        run: pnpm exec vitest run src/lib/local-records.test.ts src/lib/local-desktop.test.ts src/lib/local-order-intent.test.ts src/lib/local-control-intent.test.ts src/lib/execution-runtime.test.ts src/lib/live-api-native.test.ts src/lib/server-task.test.ts src/lib/session-recovery.test.ts src/lib/auth-refresh-race.test.ts src/lib/collection-standby.test.ts src/stores/paper-trading-sync.test.ts src/lib/hunter/admin-access.test.ts src/components/hunter/hosting-access.test.ts src/lib/manual-content.test.ts
 
       - name: Verify compiled execution artifact boundary
         run: node --test scripts/execution-worker.test.mjs scripts/fetch-execution-worker.test.mjs scripts/execution-release.test.mjs scripts/desktop-build-guard.test.mjs
@@ -128,7 +128,25 @@ jobs:
           # 更新说明经环境变量传入:提交信息里的引号/换行若直接内插进
           # run 命令会截断 shell 脚本(v0.1.33 首次构建即因此 127)
           RELEASE_NOTES: ${{ github.event.head_commit.message }}
-        run: node scripts/make-update.mjs "$RELEASE_NOTES"
+        run: |
+          NOTES_FILE="releases/${GITHUB_REF_NAME}.md"
+          if [[ -f "$NOTES_FILE" ]]; then
+            node scripts/make-update.mjs "$(cat "$NOTES_FILE")"
+          else
+            node scripts/make-update.mjs "$RELEASE_NOTES"
+          fi
+
+      - name: Verify updater signature, clean installation and upgrade
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $version=(Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $env:ATD_ACCEPTANCE_INSTALLER=(Resolve-Path "update-dist/ai-trading-desktop_${version}_x64-setup.exe").Path
+          $env:ATD_ACCEPTANCE_MANIFEST=(Resolve-Path 'update-dist/latest.json').Path
+          cargo test --manifest-path src-tauri/Cargo.toml --lib signed_installer_matches_updater_key_and_manifest_and_rejects_tampering -- --ignored --nocapture
+          if($LASTEXITCODE -ne 0){throw 'Updater signature acceptance failed'}
+          & ./scripts/test-installer.ps1 -Installer $env:ATD_ACCEPTANCE_INSTALLER
 
       - name: Create release (exe + sig)
         shell: bash

@@ -7,7 +7,7 @@ import { collectionHttpSlot } from './collection-api'
 const reads = new Map<string, Promise<Response>>()
 let localEpoch = 0
 export const localExchangeGeneration=()=>localEpoch
-const routes = /^\/api\/live\/(?:permission|credentials(?:\/okx)?|desktop-ws-login|account|positions(?:\/close)?|orders(?:\/[^/]+)?|local-order|bills|account-mode|fee-rates|local-execution\/(?:confirm-flat|stop-account))$/
+const routes = /^\/api\/live\/(?:permission|credentials(?:\/okx)?|desktop-ws-login|account|positions(?:\/close)?|orders(?:\/[^/]+)?|local-order|local-control|bills|account-mode|fee-rates|local-execution\/(?:confirm-flat|stop-account))$/
 const manualWrite=(route:string,method:string)=>method==='POST'&&['/api/live/orders','/api/live/positions/close','/api/live/local-execution/confirm-flat','/api/live/local-execution/stop-account'].includes(route)||method==='DELETE'&&/^\/api\/live\/orders\/[^/]+$/.test(route)
 
 export async function tryLocalLiveRequest(path: string, options: RequestInit = {}, expectedBinding?: string, originCurrent?:()=>void): Promise<Response | null> {

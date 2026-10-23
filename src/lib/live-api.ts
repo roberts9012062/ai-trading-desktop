@@ -10,6 +10,7 @@ import { tryPreparedLocalLiveRequest, localLiveBinding, clearLocalExchangeAccoun
 import { loadDesktopDailyPnl, resetDesktopDailyPnl, type DailyPnlResult } from "./desktop-daily-pnl"
 import { collectionMode, collectionGeneration, collectionScope, nativeCollection, loadCollectionConfig } from './collection-config'
 import {withLocalOrderIntent} from './local-order-intent'
+import {withLocalControlIntent} from './local-control-intent'
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
 
@@ -367,6 +368,11 @@ export async function cancelLiveOrderApi(
   orderId: string,
   symbol: string
 ): Promise<void> {
+  if(nativeCollection()&&collectionMode()){
+    const binding=await controlBinding()
+    if(binding)return withLocalControlIntent(binding,{venue,symbol,order_id:orderId,action:'cancel_order'},value=>
+      liveRequest(`/api/live/orders/${encodeURIComponent(orderId)}?venue=${venue}&symbol=${encodeURIComponent(symbol)}&client_request_id=${value.client_request_id}`,{method:'DELETE'},false,binding))
+  }
   await liveRequest(
     `/api/live/orders/${encodeURIComponent(orderId)}?venue=${venue}&symbol=${encodeURIComponent(symbol)}`,
     { method: "DELETE" }
@@ -378,10 +384,22 @@ export async function closeLivePositionApi(
   symbol: string,
   posSide: "long" | "short" | null
 ): Promise<void> {
+  if(nativeCollection()&&collectionMode()){
+    const binding=await controlBinding()
+    if(binding)return withLocalControlIntent(binding,{venue,symbol,pos_side:posSide,action:'close_position'},value=>
+      liveRequest('/api/live/positions/close',{method:'POST',body:JSON.stringify(value)},false,binding))
+  }
   await liveRequest("/api/live/positions/close", {
     method: "POST",
     body: JSON.stringify({ venue, symbol, pos_side: posSide }),
   })
+}
+
+async function controlBinding():Promise<string|null>{
+  const token=localStorage.getItem('access_token'),scope=collectionScope(),epoch=localExchangeGeneration(),generation=collectionGeneration()
+  const binding=await localLiveBinding()
+  if(token!==localStorage.getItem('access_token')||scope!==collectionScope()||epoch!==localExchangeGeneration()||generation!==collectionGeneration())throw new Error('账号已切换，请在原账号核对请求')
+  return binding
 }
 
 export async function setLiveLeverageApi(

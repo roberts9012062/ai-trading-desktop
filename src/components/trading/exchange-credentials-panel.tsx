@@ -19,6 +19,7 @@ import { Loader2, ShieldCheck, ShieldAlert } from "lucide-react"
 import {collectionMode,collectionGeneration,onCollectionChange,collectionScope,nativeCollection} from '@/lib/collection-config'
 import { importLocalExchangeAccount, confirmLocalExchangeFlat, localExchangeGeneration } from '@/lib/local-desktop'
 import {checkPendingLocalOrder} from '@/lib/local-order-intent'
+import {checkPendingLocalControl} from '@/lib/local-control-intent'
 import { useAuthStore } from '@/stores/auth'
 import {CollectionServiceStatus} from '@/components/common/collection-service-status'
 import {
@@ -354,6 +355,15 @@ export function ExchangeCredentialsPanel(): React.JSX.Element {
     finally{if(scope===collectionScope())setConfirming(false)}
   }
 
+  const checkControl=async()=>{
+    const scope=collectionScope(),generation=collectionGeneration(),epoch=localExchangeGeneration()
+    const current=()=>scope===collectionScope()&&generation===collectionGeneration()&&epoch===localExchangeGeneration()
+    setConfirming(true);setSyncMessage('正在核对人工撤单或平仓，仅查询原请求…')
+    try{const result=await checkPendingLocalControl();if(current())setSyncMessage(result.message)}
+    catch(error){if(current())setSyncMessage(error instanceof Error?error.message:'人工操作核对失败')}
+    finally{if(scope===collectionScope())setConfirming(false)}
+  }
+
   return (
     <div className="space-y-3">
       <div>
@@ -367,6 +377,7 @@ export function ExchangeCredentialsPanel(): React.JSX.Element {
         <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-medium">本机账户数据</span><Button size="sm" variant="outline" disabled={syncing||confirming||!owner} onClick={()=>void syncAccount()}>{syncing&&<Loader2 className="w-3 h-3 animate-spin mr-1"/>}{syncing?'同步中…':'同步交易所账户'}</Button></div>
         <p className="text-xs text-[var(--text-muted)]">连接业务服务器，将当前 OKX 账户同步到本机。同步后，账户查询、下单、撤单和平仓可通过 API VALUE COLLECTION 进行；操作前校验执行权，结果未知时先核对。创建或重新启动任务仍需登录业务服务器。</p>
         <div className="flex flex-wrap items-center gap-2"><Button size="sm" variant="outline" disabled={confirming||syncing||!owner} onClick={()=>void checkOrder()}>核对上次下单</Button><span className="text-xs text-[var(--text-muted)]">确认上一笔请求的结果，不会发送新订单。</span></div>
+        <div className="flex flex-wrap items-center gap-2"><Button size="sm" variant="outline" disabled={confirming||syncing||!owner} onClick={()=>void checkControl()}>核对人工操作</Button><span className="text-xs text-[var(--text-muted)]">查看撤单或平仓的排队与核对结果，不会再次提交。</span></div>
         <div className="flex flex-wrap items-center gap-2"><Button size="sm" variant="outline" disabled={confirming||syncing||!owner} onClick={()=>void confirmFlat()}>{confirming&&<Loader2 className="w-3 h-3 animate-spin mr-1"/>}{confirming?'核对中…':'核对平仓状态'}</Button><span className="text-xs text-[var(--text-muted)]">需先手动平仓并撤销全部委托；核对通过不会自动重启任务。</span></div>
         {syncMessage&&<p role="status" className="text-xs break-words">{syncMessage}</p>}
       </div>}

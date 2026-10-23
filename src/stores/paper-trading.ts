@@ -11,6 +11,7 @@
 
 import { create } from "zustand"
 import { mergeLiveOrders, canCancelLiveOrder } from "@/lib/live-order-merge"
+import {PendingManualControlError} from '@/lib/local-control-intent'
 import { getSessionStatusApi } from "@/lib/api"
 import {
   cancelLiveOrderApi,
@@ -416,6 +417,7 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
       await get().refresh()
     } catch (err) {
       if(owner!==refreshOwner())return
+      if(err instanceof PendingManualControlError){set({submitting:false,error:null,lastMessage:err.message});return}
       set({
         submitting: false,
         error: err instanceof Error ? err.message : "撤单失败",
@@ -444,7 +446,7 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
             ok += 1
           } catch(error) {
             if(owner!==refreshOwner())return
-            set({submitting:false,error:error instanceof Error?error.message:String(error),lastMessage:`已请求撤销 ${ok}/${pending.length} 笔委托；已暂停后续撤单，请先核对结果`})
+            set({submitting:false,error:error instanceof PendingManualControlError?null:error instanceof Error?error.message:String(error),lastMessage:error instanceof PendingManualControlError?error.message:`已请求撤销 ${ok}/${pending.length} 笔委托；已暂停后续撤单，请先核对结果`})
             return
           }
         }
@@ -491,6 +493,7 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
         await get().refresh()
       } catch (err) {
         if(owner!==refreshOwner())return
+        if(err instanceof PendingManualControlError){set({submitting:false,error:null,lastMessage:err.message});return}
         set({
           submitting: false,
           error: err instanceof Error ? err.message : "平仓失败",

@@ -196,7 +196,7 @@ pub async fn desktop_local_exchange(app:tauri::AppHandle,store:tauri::State<'_,L
     if let Some(expected)=expected_binding.as_ref(){if !credential.server_bound||*expected!=account_identity(&credential.api_key,credential.demo){return Err("本机交易账户已变化，请重新读取账户后操作".into())}}
     let namespace=account_scope(&scope,&credential);
     if route=="/api/live/desktop-ws-login"&&method=="POST"{return Ok(ws_proof(&credential))}
-    if method=="GET"&&route=="/api/live/local-order"||method=="POST"&&matches!(route.as_str(),"/api/live/orders"|"/api/live/positions/close"|"/api/live/local-execution/confirm-flat"|"/api/live/local-execution/stop-account")||method=="DELETE"&&route.starts_with("/api/live/orders/"){
+    if method=="GET"&&matches!(route.as_str(),"/api/live/local-order"|"/api/live/local-control")||method=="POST"&&matches!(route.as_str(),"/api/live/orders"|"/api/live/positions/close"|"/api/live/local-execution/confirm-flat"|"/api/live/local-execution/stop-account")||method=="DELETE"&&route.starts_with("/api/live/orders/"){
         if expected_binding.is_none(){return Err("本机交易操作缺少账户绑定校验".into())}
         return commands::execute(&app,&market,&store,&scope,&credential,&route,&query,&body).await
     }
