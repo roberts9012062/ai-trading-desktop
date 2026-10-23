@@ -1,6 +1,6 @@
 [package]
 name = "ai-trading-desktop"
-version = "0.2.206"
+version = "0.2.207"
 description = "AI Trading Desktop桌面客户端"
 authors = ["roberts9012062"]
 edition = "2021"

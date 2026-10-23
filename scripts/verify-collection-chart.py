@@ -37,7 +37,10 @@ with sync_playwright() as p:
  page.screenshot(path='.local-data/chart-live-renewed.png')
  print('History requests:',json.dumps([r for r in page.evaluate('chartQA.requests') if r['operation']=='history']),flush=True)
  assert not errors,errors
- assert len([r for r in page.evaluate('chartQA.requests') if r['operation']=='history' and r.get('count')==240])==4,'Unexpected background history fan-out'
+ histories=[r for r in page.evaluate('chartQA.requests') if r['operation']=='history']
+ assert all(1<=r['count']<=500 for r in histories),'Unbounded history request'
+ assert {(r['symbol'],r['resolution']) for r in histories}=={('BTC-USDT-SWAP','1D'),('ETH-USDT-SWAP','1D'),('SOL-USDT-SWAP','1D'),('BTC-USDT-SWAP','1')},'Unexpected background history fan-out'
+ assert len(page.evaluate('chartQA.snapshot().bars.btcusdt["1m"]'))>=4321,'Three-day minute cache was not verified'
  assert not [m for m in warnings if 'K线实时更新失败' in m],warnings
- print('PASS actual chart: 60 contracts, 240 bars, repeated dynamic updates, 3 symbol switches, period switch, ticket renewal, no page errors',flush=True)
+ print('PASS actual chart: 60 contracts, three-day minute cache, repeated dynamic updates, 3 symbol switches, period switch, ticket renewal, no page errors',flush=True)
  browser.close()

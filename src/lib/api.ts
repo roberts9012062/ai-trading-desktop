@@ -1,5 +1,6 @@
 import { collectionMode } from "./collection-config"
 import { collectionKlines, collectionCodeTree, collectionDesktopSymbols, desktopSymbol } from "./collection-api"
+import { collectionChartKlines } from "./collection-chart-cache"
 import type { AuthResponse, LoginRequest, RegisterRequest, User, NewsItem, ArticleContent, AIProvider, AIModel, PresetProvider, ProviderTestResult, AIConversationItem, AIMessagePage, MarketplaceSkillItem, MarketplaceSkillDetail, InstalledSkillItem, SkillConfig, CodeTreeMap, Message, MessageCategory, PriceAlert, NotifySetting } from "@/types"
 import type { IndicatorConfig } from "@/types/indicator"
 import type { ProfitLockTemplate } from "@/lib/profit-lock-templates"
@@ -444,7 +445,7 @@ export async function getKlineApi(
   period: string,
   options?: { limit?: number; endTime?: string },
 ): Promise<KlineResponse> {
-  if (collectionMode()) return collectionKlines(symbol,period,options)
+  if (collectionMode()) return collectionChartKlines(symbol,period,options)
   const params = new URLSearchParams({
     symbol,
     period,

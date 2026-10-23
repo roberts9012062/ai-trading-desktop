@@ -2,6 +2,7 @@ import type {KlineBar,TradeRecord,OrderBook} from '@/types'
 import type {ChartSubscriptionKey,ConnectionState,MessageHandler,StateHandler} from './websocket'
 import {collectionStatus,collectionGeneration,collectionScope,loadCollectionConfig,onCollectionChange,refreshCollectionPermissions,collectionIssue,collectionReceived} from './collection-config'
 import {COLLECTION_PERIODS,collectionTicket,ticketAddress,collectionSymbol,desktopSymbol,mapCollectionBar,mapCollectionQuote,mapCollectionTrade,collectionData,collectionSpec,type CollectionTick,type CollectionBar,type CollectionQuote} from './collection-api'
+import {cacheCollectionCandle} from './collection-chart-cache'
 
 export function mergeCollectionTrades(previous:TradeRecord[],incoming:TradeRecord[]):TradeRecord[]{
   const rows=new Map([...previous,...incoming].map(row=>[row.trade_id,row]))
@@ -141,7 +142,7 @@ export class CollectionMarketStream {
     if(payload.quote){const quote=mapCollectionQuote(symbol,payload.quote);this.quoteAt.set(symbol,Date.now());this.emit('quote',[quote]);this.freshnessHandlers.forEach(fn=>fn([...this.quoteAt.keys()].filter(s=>this.hasFreshQuote(s))))}
     if(payload.order_book){const book=payload.order_book;this.depthAt.set(symbol,Date.now());this.emit('orderbook',[{symbol,asks:book.asks,bids:book.bids,asof:book.timestamp,volume_unit:book.volume_unit,source:'lium-okx',stale:false} satisfies OrderBook])}
     if(payload.ticks?.length){const rows=payload.ticks.map(mapCollectionTrade);const merged=mergeCollectionTrades(this.recent.get(symbol)||[],rows);this.recent.set(symbol,merged);this.emit('trades',{[symbol]:merged})}
-    if(payload.records?.length&&frame.resolution){const period=Object.keys(COLLECTION_PERIODS).find(p=>COLLECTION_PERIODS[p]===frame.resolution);if(period){this.candleAt.set(symbol+':'+period,Date.now());this.emit('chart_kline',payload.records.map(row=>({symbol,period,bar:mapCollectionBar(row,period)})))}}
+    if(payload.records?.length&&frame.resolution){const period=Object.keys(COLLECTION_PERIODS).find(p=>COLLECTION_PERIODS[p]===frame.resolution);if(period){this.candleAt.set(symbol+':'+period,Date.now());this.emit('chart_kline',payload.records.map(row=>{const bar=mapCollectionBar(row,period);void cacheCollectionCandle(symbol,period,bar);return {symbol,period,bar}}))}}
   }
 }
 let singleton:CollectionMarketStream|undefined

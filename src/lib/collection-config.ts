@@ -8,6 +8,7 @@ export function collectionStandbyEntitled(grants:CollectionGrant[],now=Date.now(
 export interface CollectionStatus { configured:boolean; lastMarketAt?:number; masked?:string; permissions?:{active_packages:CollectionGrant[]}; error?:string }
 let status:CollectionStatus={configured:false}
 let loadedScope='', generation=0, browserKey=''
+let configLoad:{scope:string;promise:Promise<CollectionStatus>}|null=null
 const listeners=new Set<()=>void>()
 let enabled=false
 export const collectionMode=()=>enabled
@@ -23,13 +24,22 @@ export function onCollectionChange(fn:()=>void){listeners.add(fn);return()=>{lis
 function publish(next:CollectionStatus){status=next;generation++;listeners.forEach(fn=>fn())}
 export async function loadCollectionConfig():Promise<CollectionStatus>{
   const scope=collectionScope()
+  if(configLoad?.scope===scope)return configLoad.promise
   if(loadedScope===scope)return status
-  loadedScope=scope;browserKey='';publish({configured:false})
-  if(nativeCollection()){
-    try {const next=await invoke<CollectionStatus>('collection_key',{scope,action:'status',key:null});if(scope===collectionScope())publish(next)}
-    catch{if(scope===collectionScope())publish({configured:false,error:'行情 Key 读取失败，请重新配置'})}
-  }
-  return status
+  loadedScope=scope
+  // Register before publishing: stream/chart startup listeners can reenter this
+  // function while native DPAPI storage is still being read.
+  const promise=Promise.resolve().then(async()=>{
+    browserKey='';publish({configured:false})
+    const version=generation
+    if(nativeCollection()){
+      try {const next=await invoke<CollectionStatus>('collection_key',{scope,action:'status',key:null});if(scope===collectionScope()&&version===generation)publish(next)}
+      catch{if(scope===collectionScope()&&version===generation)publish({configured:false,error:'行情 Key 读取失败，请重新配置'})}
+    }
+    return status
+  })
+  configLoad={scope,promise}
+  try{return await promise}finally{if(configLoad?.promise===promise)configLoad=null}
 }
 export async function collectionKeyAction(action:'test'|'save'|'clear',key=''):Promise<CollectionStatus>{
   const scope=collectionScope()

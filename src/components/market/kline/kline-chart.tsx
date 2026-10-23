@@ -14,6 +14,7 @@ import {
   type Time,
 } from "lightweight-charts"
 import { cn } from "@/lib/utils"
+import { collectionMode } from "@/lib/collection-config"
 import { useAppStore } from "@/stores/app"
 import { useIndicatorStore } from "@/stores/indicator"
 import { useBacktestIndicatorStore } from "@/stores/backtest-indicator"
@@ -161,7 +162,7 @@ export function KlineChart({
     forceRefetchKline(activeContract, period)
   }, [activeContract, period])
 
-  const { loadMoreHistory, isLoading, hasMore, currentBars } = useKlineHistory({
+  const { retryHistory, loadMoreHistory, isLoading, hasMore, currentBars, historyError } = useKlineHistory({
     activeContract,
     period,
     mainApiRef,
@@ -507,7 +508,13 @@ export function KlineChart({
         {intradayStatus && <div role="status" className="absolute top-1 left-2 z-10 text-xs text-[var(--text-muted)]">{intradayStatus}</div>}
         {isLoading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#1a1a1e]/80">
-            <span className="text-[var(--text-muted)] text-sm">加载中...</span>
+            <span className="text-[var(--text-muted)] text-sm">{collectionMode() ? "正在核对本地 K 线并补齐缺口…" : "加载中..."}</span>
+          </div>
+        )}
+        {!isLoading && historyError && (
+          <div role="alert" className="absolute inset-0 z-20 flex flex-col gap-3 items-center justify-center bg-[#1a1a1e]/95 p-4 text-center text-sm">
+            <span className="text-[var(--text-muted)]">K 线核对未完成：{historyError}</span>
+            <button className="text-[var(--primary)]" onClick={retryHistory}>重新核对并加载</button>
           </div>
         )}
         {maLabels.length > 0 && period !== "tick" && (

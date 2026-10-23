@@ -1,4 +1,4 @@
-import { collectionMode } from "@/lib/collection-config"
+import { collectionMode, collectionGeneration, collectionScope, loadCollectionConfig, onCollectionChange } from "@/lib/collection-config"
 "use client"
 
 /**
@@ -14,6 +14,8 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useState,
+  useSyncExternalStore,
   type MutableRefObject,
   type RefObject,
 } from "react"
@@ -46,6 +48,35 @@ const EMPTY_RETRY_WINDOW_MS = 90_000
 const lastFetchAt = new Map<string, number>()
 /** 进行中的请求，避免重复打后端 */
 const inflight = new Map<string, Promise<void>>()
+const collectionFlights = new Map<string, Promise<void>>()
+const collectionLoading = new Map<string, object>()
+
+async function verifyCollectionHistory(symbol: string, period: KlinePeriod): Promise<void> {
+  await loadCollectionConfig()
+  const generation = collectionGeneration(), scope = collectionScope()
+  const key = cacheKey(symbol, period), flightKey = `${scope}:${generation}:${key}`
+  const pending = collectionFlights.get(flightKey)
+  if (pending) return pending
+  const token = {}
+  collectionLoading.set(key, token)
+  useMarketStore.getState().setKlineLoading(key, true)
+  const task = (async () => {
+    try {
+      const page = await getKlineApi(symbol, period, { limit: PAGE_LIMIT })
+      if (generation !== collectionGeneration() || scope !== collectionScope()) throw new Error('行情配置已变化，请重新核对 K 线')
+      useMarketStore.getState().setKlineBars(symbol, period, page.bars as KlineBar[])
+      useMarketStore.getState().setKlineHasMore(key, page.has_more)
+    } finally {
+      if (collectionLoading.get(key) === token) {
+        collectionLoading.delete(key)
+        useMarketStore.getState().setKlineLoading(key, false)
+      }
+      collectionFlights.delete(flightKey)
+    }
+  })()
+  collectionFlights.set(flightKey, task)
+  return task
+}
 
 function cacheKey(symbol: string, period: string): string {
   return `${symbol}:${period}`
@@ -221,6 +252,7 @@ async function fetchAndStore(
   opts?: { retryEmpty?: boolean }
 ): Promise<void> {
   if (period === "tick") return
+  if (collectionMode()) return verifyCollectionHistory(symbol, period)
   loadPersistedCache()
   const key = cacheKey(symbol, period)
   const state = useMarketStore.getState()
@@ -405,7 +437,12 @@ export function useKlineHistory(props: {
   isLoading: boolean
   hasMore: boolean
   currentBars: KlineBar[]
+  historyError: string
+  retryHistory: () => void
 } {
+  const [historyError, setHistoryError] = useState("")
+  const [attempt, setAttempt] = useState(0)
+  const generation = useSyncExternalStore(onCollectionChange, collectionGeneration, collectionGeneration)
   const {
     klineBars,
     klineLoading,
@@ -501,13 +538,16 @@ export function useKlineHistory(props: {
   // 切换合约/周期：有缓存先展示，后台按需刷新
   useEffect(() => {
     if (props.period === "tick") return
+    let alive = true
+    setHistoryError("")
     void loadHistory(props.activeContract, props.period).then(() => {
       // 首载成功后预热日线（分钟周期已由 bundle 一次拉全），切 1d 首开秒切
       prefetchSiblingPeriods(props.activeContract, props.period)
-    })
+    }).catch(error => { if (alive) setHistoryError(error instanceof Error ? error.message : "K 线核对失败，请重试") })
     // 切合约时重置懒加载游标
     props.lastLoadedEndTimeRef.current = null
-  }, [props.activeContract, props.period, loadHistory, props.lastLoadedEndTimeRef])
+    return () => { alive = false }
+  }, [props.activeContract, props.period, loadHistory, props.lastLoadedEndTimeRef, generation, attempt])
 
   return {
     loadHistory,
@@ -515,5 +555,7 @@ export function useKlineHistory(props: {
     isLoading,
     hasMore,
     currentBars,
+    historyError,
+    retryHistory: () => setAttempt(value => value + 1),
   }
 }
