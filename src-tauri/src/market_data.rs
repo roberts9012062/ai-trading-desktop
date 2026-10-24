@@ -7,13 +7,15 @@ use zeroize::Zeroizing;
 
 const BASE: &str = "https://lium.eu.org";
 pub struct MarketDataState {
-    client: Client,
+    pub(crate) client: Client,
+    pub(crate) direct: std::sync::atomic::AtomicBool,
     private_slot:tokio::sync::Mutex<Option<std::time::Instant>>,
     pub(crate) manual_slot:tokio::sync::Mutex<()>,
 }
 impl Default for MarketDataState {
     fn default() -> Self {
         Self {
+            direct:std::sync::atomic::AtomicBool::new(false),
             private_slot:tokio::sync::Mutex::new(None),
             manual_slot:tokio::sync::Mutex::new(()),
             client: Client::builder()
@@ -197,6 +199,14 @@ pub(crate) async fn private_request<F>(
     scope: &str,
     sign:F,
 ) -> Result<Value, String> where F:FnOnce()->Result<Value,String> {
+    if state.direct.load(std::sync::atomic::Ordering::SeqCst){
+        let mut slot=state.private_slot.lock().await;
+        if let Some(previous)=*slot{let wait=Duration::from_millis(250).saturating_sub(previous.elapsed());if !wait.is_zero(){tokio::time::sleep(wait).await;}}
+        *slot=Some(std::time::Instant::now());
+        let body=sign()?;
+        if body["method"]!="GET"{return Err("金融写入必须经过已授权的执行权通道".into())}
+        return crate::okx_direct::signed_request(&state.client,&body).await;
+    }
     private_command(app,state,scope,sign,||Ok(())).await
 }
 

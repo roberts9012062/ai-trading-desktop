@@ -1,7 +1,9 @@
 import { enableCollectionMode, loadCollectionConfig } from "./lib/collection-config"
 import { invoke } from '@tauri-apps/api/core'
 import { initializeDesktopLoginSession } from './lib/desktop-login-session'
+import { enableDirectOkxMode } from './lib/market-provider'
 enableCollectionMode()
+enableDirectOkxMode()
 /**
  * 桌面端(Tauri)启动前置 —— 必须是 main.tsx 的第一个 import。
  *
@@ -58,6 +60,7 @@ async function boot(): Promise<void> {
   try { run = await invoke<string>('desktop_login_session_id'); if (!run) throw new Error('missing launch id') }
   catch { run = crypto.randomUUID() }
   initializeDesktopLoginSession(`desktop:${run}`)
+  await invoke('okx_enable_direct')
 
   // 用 Rust 侧 fetch 替换 webview fetch:后端 CORS 只放行 Web 端源
   // (localhost:3000/33/58),桌面端源是 http://tauri.localhost 会被预检 400

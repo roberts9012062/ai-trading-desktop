@@ -6,6 +6,7 @@ mod window_controls;
 mod okx_analytics;
 mod realtime_http;
 mod market_data;
+mod okx_direct;
 mod export_file;
 mod local_store;
 mod local_exchange;
@@ -59,6 +60,9 @@ pub fn run() {
             realtime_http::realtime_http_request,
             market_data::collection_key,
             market_data::collection_http,
+            okx_direct::okx_enable_direct,
+            okx_direct::okx_public_http,
+            okx_direct::okx_signed_read,
             local_store::desktop_db,
             local_exchange::desktop_local_exchange,
             local_exchange::desktop_credential_import,

@@ -1,6 +1,8 @@
 import type { KlineBar, TradeRecord, CodeTreeMap } from '@/types'
 import type { QuoteData } from './websocket'
 import { COLLECTION_BASE, collectionRequest, collectionGeneration } from './collection-config'
+import {directOkxMode} from './market-provider'
+import {directData,directSymbols} from './okx-direct'
 
 export const COLLECTION_PERIODS:Record<string,string>={'1m':'1','5m':'5','15m':'15','30m':'30','60m':'60','240m':'240','1d':'1D'}
 export interface CollectionSymbol {symbol:string;name:string;tick_size?:string|null;lot_size?:string|null;min_size?:string|null;contract_value?:string|null;contract_value_currency?:string|null}
@@ -67,6 +69,7 @@ export async function collectionData(query:Record<string,unknown>,priority=0):Pr
   const generation=collectionGeneration()
   return collectionHttpSlot(async()=>{
     if(generation!==collectionGeneration())throw new Error('行情配置已变化')
+    if(directOkxMode())return directData(query)
     for(let attempt=0;;attempt++){
       try {const ticket=await collectionTicket(query),url=new URL(ticketAddress(ticket.url,false));return await collectionRequest<CollectionData>(url.pathname+url.search)}
       catch(error){
@@ -84,6 +87,11 @@ export async function collectionSymbols(text=''):Promise<CollectionSymbol[]>{
   if(!text&&catalogVersion===version&&catalog.length)return catalog
   if(!text&&flight)return flight
   const load=async()=>{
+    if(directOkxMode()){
+      const rows=await directSymbols()
+      if(version===collectionGeneration()){catalog=rows;catalogVersion=version}
+      return text?rows.filter(row=>row.symbol.toLowerCase().includes(text.toLowerCase())):rows
+    }
     let offset=0;const rows:CollectionSymbol[]=[]
     for(let page=0;page<10;page++){
       const query=new URLSearchParams({market_type:'crypto',exchange:'okx',text,limit:'1000',offset:String(offset)})
@@ -97,7 +105,7 @@ export async function collectionSymbols(text=''):Promise<CollectionSymbol[]>{
   if(text)return load()
   flight=load().finally(()=>{flight=null});return flight
 }
-export function collectionSpec(symbol:string){return catalog.find(row=>row.symbol===collectionSymbol(symbol))}
+export function collectionSpec(symbol:string){if(!/^[a-z0-9]{1,16}usdt$/.test(symbol.toLowerCase()))return undefined;const id=collectionSymbol(symbol);return catalog.find(row=>row.symbol===id)}
 // Keep a stable, bounded desktop universe; catalog metadata remains available to
 // existing tasks without subscribing every exchange listing to the sidebar feed.
 const DESKTOP_PRIORITY = 'BTC ETH SOL XRP DOGE BNB ADA LINK AVAX LTC TRX DOT BCH TON UNI AAVE SUI NEAR APT INJ SEI ICP ATOM ETC FIL ALGO VET IMX ARB OP LDO CRV COMP SNX GRT TIA SAND MANA AXS GALA CHZ PEPE WIF BONK FLOKI ORDI WLD ENA FET RENDER JUP PYTH STX HBAR XLM XMR ZEC DASH DYDX ENS'.split(' ')
@@ -124,7 +132,7 @@ export async function collectionKlines(symbol:string,period:string,options?:{lim
   const all=new Map<number,ReturnType<typeof mapCollectionBar>>()
   let hasMore=true
   while(all.size<requested){
-    const count=Math.min(500,requested-all.size)
+    const count=Math.min(directOkxMode()?300:500,requested-all.size)
     const data=await collectionData({market_type:'crypto',exchange:'okx',symbol:collectionSymbol(symbol),operation:'history',resolution:COLLECTION_PERIODS[period],count,...(end===undefined?{}:{end})},options?.priority??0)
     const page=data.records.map(row=>mapCollectionBar(row,period)).sort((a,b)=>a.open_time!-b.open_time!)
     if(!page.length){hasMore=false;break}

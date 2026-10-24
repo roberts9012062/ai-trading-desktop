@@ -88,7 +88,7 @@ fn signed(credential:&NativeCredentials,method:&str,path:&str,body:&str)->Result
 }
 pub async fn private_read(app:&tauri::AppHandle,market:&MarketDataState,scope:&str,credential:&NativeCredentials,path:&str)->Result<Vec<Value>>{
     let result=crate::market_data::private_request(app,market,scope,||signed(credential,"GET",path,"")).await?;
-    if result["code"]!="0"{return Err(format!("API VALUE COLLECTION 查询失败：{} (code={})",result["msg"].as_str().unwrap_or("交易所拒绝请求"),result["code"]))}
+    if result["code"]!="0"{return Err(format!("OKX 查询失败：{} (code={})",result["msg"].as_str().unwrap_or("交易所拒绝请求"),result["code"]))}
     result["data"].as_array().cloned().ok_or("交易所数据格式异常".into())
 }
 fn account_scope(scope:&str,credential:&NativeCredentials)->String{format!("{scope}:{}",account_identity(&credential.api_key,credential.demo))}

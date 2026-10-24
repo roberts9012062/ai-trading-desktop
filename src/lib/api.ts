@@ -1,5 +1,5 @@
 import { collectionMode } from "./collection-config"
-import { collectionKlines, collectionCodeTree, collectionDesktopSymbols, desktopSymbol } from "./collection-api"
+import { collectionKlines, collectionCodeTree, collectionDesktopSymbols, collectionSymbol, desktopSymbol, beijingTime } from "./collection-api"
 import { collectionChartKlines } from "./collection-chart-cache"
 import type { AuthResponse, LoginRequest, RegisterRequest, User, NewsItem, ArticleContent, AIProvider, AIModel, PresetProvider, ProviderTestResult, AIConversationItem, AIMessagePage, MarketplaceSkillItem, MarketplaceSkillDetail, InstalledSkillItem, SkillConfig, CodeTreeMap, Message, MessageCategory, PriceAlert, NotifySetting } from "@/types"
 import type { IndicatorConfig } from "@/types/indicator"
@@ -314,6 +314,10 @@ export interface SessionStatus {
 
 /** 查询合约是否处于可交易时段 */
 export async function getSessionStatusApi(symbol: string): Promise<SessionStatus> {
+  if (collectionMode()) {
+    const instrument = collectionSymbol(symbol)
+    return { symbol: desktopSymbol(instrument), product_code: instrument.split('-')[0], profile: 'crypto_24x7', profile_label: '加密货币 7×24', is_open: true, market_coarse_open: true, reason: 'crypto_continuous', now_bj: beijingTime(Date.now() / 1000), sessions: [{ start: '00:00', end: '00:00', cross_midnight: true }], message: '加密货币 7×24 交易时段；委托仍由交易所校验' }
+  }
   return request<SessionStatus>(
     `/api/market/session-status?symbol=${encodeURIComponent(symbol)}`
   )

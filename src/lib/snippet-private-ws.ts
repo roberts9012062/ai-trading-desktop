@@ -3,6 +3,7 @@ import { ensureDesktopRouting, isServerMode, onDesktopRoutingChange } from "./de
 import type { MessageHandler } from "./websocket"
 import { snippetOrigin, snippetFailed, snippetSucceeded } from "./snippet-pool"
 import { collectionMode, collectionGeneration, onCollectionChange } from './collection-config'
+import {directOkxMode,directPrivateSocketAddress} from './market-provider'
 import { collectionPrivateSocketAddress } from './collection-exchange'
 import { tryPreparedLocalLiveRequest } from './local-desktop'
 
@@ -61,11 +62,11 @@ class PrivateChannel {
       }
       let proof=await getProof()
       const signedAt=Date.now(),demo=!!proof.demo
-      const address=collectionMode()?await collectionPrivateSocketAddress(demo):null
+      const address=directOkxMode()?directPrivateSocketAddress(demo,this.business):collectionMode()?await collectionPrivateSocketAddress(demo):null
       if(address&&Date.now()-signedAt>4000)proof=await getProof()
       if(address&&!!proof.demo!==demo)throw new Error('exchange credential environment changed')
       if (controller.signal.aborted || !this.active || isServerMode() || (collectionMode()&&epoch!==collectionGeneration())) return
-      this.activeOrigin=address?'API VALUE COLLECTION':snippetOrigin("private_ws")
+      this.activeOrigin=address?(directOkxMode()?'OKX':'API VALUE COLLECTION'):snippetOrigin("private_ws")
       const target=new WebSocket(address??`${this.activeOrigin}${proof.demo ? '/demo' : ''}/ws/v5/${this.business ? 'business' : 'private'}`)
       this.socket=target;this.rx=Date.now()
       const born = Date.now()
@@ -120,12 +121,12 @@ export function subscribeSnippetPrivate(handler: MessageHandler): () => void {ha
 export async function startSnippetPrivate(): Promise<void> {
   running=true;await ensureDesktopRouting()
   if (!running || isServerMode()) return
-  privateChannel.start();if(!collectionMode())businessChannel.start()
+  privateChannel.start();if(!collectionMode()||directOkxMode())businessChannel.start()
 }
 export function stopSnippetPrivate(): void {running=false;privateChannel.stop();businessChannel.stop()}
 onDesktopRoutingChange(server => {
   privateChannel.stop();businessChannel.stop()
-  if (!server && running) {privateChannel.start();if(!collectionMode())businessChannel.start()}
+  if (!server && running) {privateChannel.start();if(!collectionMode()||directOkxMode())businessChannel.start()}
 })
 let collectionEpoch=collectionGeneration()
 onCollectionChange(()=>{

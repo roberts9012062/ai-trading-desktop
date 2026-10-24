@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { canConnectExchange, isRealTradingProtection, REAL_TRADING_PROTECTION_MESSAGE } from "@/lib/live-permission"
 import { Loader2, ShieldCheck, ShieldAlert } from "lucide-react"
 import {collectionMode,collectionGeneration,onCollectionChange,collectionScope,nativeCollection} from '@/lib/collection-config'
+import {directOkxMode} from '@/lib/market-provider'
 import { importLocalExchangeAccount, confirmLocalExchangeFlat, localExchangeGeneration } from '@/lib/local-desktop'
 import {checkPendingLocalOrder} from '@/lib/local-order-intent'
 import {checkPendingLocalControl} from '@/lib/local-control-intent'
@@ -331,7 +332,7 @@ export function ExchangeCredentialsPanel(): React.JSX.Element {
     try{
       const result=await importLocalExchangeAccount()
       if(scope!==collectionScope())return
-      setSyncMessage(result.imported?'本机账户已同步。业务服务器断开后，仍可通过接口中心查询账户数据。':result.reason||'服务器尚未配置 OKX 账户')
+      setSyncMessage(result.imported?(directOkxMode()?'本机账户已同步。业务服务器断开后，仍可直连 OKX 查询账户数据。':'本机账户已同步。业务服务器断开后，仍可通过接口中心查询账户数据。'):result.reason||'服务器尚未配置 OKX 账户')
       await load()
     }catch(error){if(scope===collectionScope())setSyncMessage(error instanceof Error?error.message:'账户同步失败，本机账户未更改')}
     finally{if(scope===collectionScope())setSyncing(false)}
@@ -372,7 +373,7 @@ export function ExchangeCredentialsPanel(): React.JSX.Element {
           当前开放 OKX 模拟盘 · 真实资金接入须经管理员授权 · 凭证加密存储
         </p>
       </div>
-      {collectionMode()&&<><CollectionServiceStatus account/><p className="text-xs text-[var(--text-muted)]">测试连通通过 API VALUE COLLECTION 查询 OKX 账户。此 Key 需开通私有账户接口；OKX Secret 用于签名，不发送至接口中心。</p></>}
+      {collectionMode()&&<><CollectionServiceStatus account/><p className="text-xs text-[var(--text-muted)]">{directOkxMode()?'测试连通由本机直连 OKX 查询账户，无需接口中心 Key。建议先同步账户到本机，以支持业务服务器离线时查询；已同步凭证由系统加密保存。':'测试连通通过 API VALUE COLLECTION 查询 OKX 账户。此 Key 需开通私有账户接口；OKX Secret 用于签名，不发送至接口中心。'}</p></>}
       {nativeCollection()&&collectionMode()&&<div className="rounded-lg border border-[var(--border)] p-3 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-medium">本机账户数据</span><Button size="sm" variant="outline" disabled={syncing||confirming||!owner} onClick={()=>void syncAccount()}>{syncing&&<Loader2 className="w-3 h-3 animate-spin mr-1"/>}{syncing?'同步中…':'同步交易所账户'}</Button></div>
         <p className="text-xs text-[var(--text-muted)]">连接业务服务器，将当前 OKX 账户同步到本机。同步后，账户查询、下单、撤单和平仓可通过 API VALUE COLLECTION 进行；操作前校验执行权，结果未知时先核对。创建或重新启动任务仍需登录业务服务器。</p>

@@ -2,6 +2,9 @@
 import type { KlineBar, TradeRecord } from "@/types"
 import type { ChartSubscriptionKey, ConnectionState, MessageHandler, QuoteData, StateHandler } from "./websocket"
 import { snippetOrigin, snippetFailed, snippetSucceeded } from "./snippet-pool"
+import {directOkxMode,OKX_WS_BASE} from './market-provider'
+import {collectionReceived,nativeCollection} from './collection-config'
+const publicOrigin=()=>directOkxMode()?OKX_WS_BASE:snippetOrigin('public_ws')
 
 /** Native candle pushes can pause while no trades occur; unlike periodic VPS snapshots. */
 export const OKX_SNIPPET_CANDLE_STALE_MS = 15000
@@ -9,6 +12,8 @@ const PERIODS: Record<string, string> = { "1m": "1m", "5m": "5m", "15m": "15m", 
 const symbolOf = (id: unknown): string | null => typeof id === "string" && /^[A-Z0-9]{1,16}-USDT-SWAP$/.test(id) ? id.replace("-USDT-SWAP", "usdt").toLowerCase() : null
 const instrumentOf = (symbol: string) => `${symbol.slice(0, -4).toUpperCase()}-USDT-SWAP`
 const validSymbol = (symbol: string) => /^[a-z0-9]{1,16}usdt$/.test(symbol)
+// Display quantities only: suppress binary tails introduced by contract conversion.
+const baseVolume = (count: number, value: number) => Number((count * value).toPrecision(15))
 type Arg = { channel: string; instId: string }
 const argKey = (arg: Arg) => `${arg.channel}:${arg.instId}`
 
@@ -88,13 +93,13 @@ class PublicChannel {
   private open(): void {
     if (!this.running || !this.desired.size) return
     let socket: WebSocket
-    try { this.activeOrigin = snippetOrigin("public_ws"); socket = new WebSocket(this.activeOrigin + this.path) } catch { this.retry(); return }
+    try { this.activeOrigin = publicOrigin(); socket = new WebSocket(this.activeOrigin + this.path) } catch { this.retry(); return }
     this.socket = socket
     this.lastReceive = this.lastMarket = this.lastPing = Date.now(); this.pingAt = 0
     this.heartbeat = setInterval(() => {
       const now = Date.now()
       if (socket !== this.socket) return
-      try { if (snippetOrigin("public_ws") !== this.activeOrigin) { this.stopSocket(); this.ensureConnection(500 + Math.random()*3000); return } }
+      try { if (publicOrigin() !== this.activeOrigin) { this.stopSocket(); this.ensureConnection(500 + Math.random()*3000); return } }
       catch { this.stopSocket(); this.ensureConnection(5000); return }
       if (socket.readyState === 0 && now - this.lastReceive > 12000) { this.retry(); return }
       if (socket.readyState !== 1) return
@@ -121,7 +126,7 @@ class PublicChannel {
           // Invalid/delisted subscriptions retain the server fallback for that symbol.
           return
         }
-        if (this.frame(frame)) { this.lastMarket = Date.now(); this.attempt = 0; snippetSucceeded("public_ws",this.activeOrigin) }
+        if (this.frame(frame)) { this.lastMarket = Date.now(); this.attempt = 0; if(directOkxMode())collectionReceived();else snippetSucceeded("public_ws",this.activeOrigin) }
       } catch { /* Invalid frames never count as fresh market data. */ }
     }
     socket.onclose = () => { if (socket === this.socket) this.retry() }
@@ -130,7 +135,7 @@ class PublicChannel {
   private retry(): void {
     this.stopSocket()
     const delay = Math.min(30000, 2000 * 2 ** Math.min(this.attempt++, 4)) + Math.floor(Math.random() * 1000)
-    if (this.attempt >= 2 && this.activeOrigin) void snippetFailed("public_ws",this.activeOrigin).finally(() => this.ensureConnection(delay))
+    if (!directOkxMode() && this.attempt >= 2 && this.activeOrigin) void snippetFailed("public_ws",this.activeOrigin).finally(() => this.ensureConnection(delay))
     else this.ensureConnection(delay)
   }
   private queueOperations(delay = 0): void {
@@ -200,6 +205,7 @@ export class OkxSnippetWebSocket {
   onQuoteStateChange(handler: StateHandler) { this.quoteStates.add(handler); return () => { this.quoteStates.delete(handler) } }
   onQuoteFreshnessChange(handler: (symbols: string[]) => void) { this.freshnessHandlers.add(handler); return () => { this.freshnessHandlers.delete(handler) } }
   connect(): void {
+    if(directOkxMode()&&nativeCollection())void import('./collection-chart-cache').then(c=>c.startCollectionChartCacheWarmup()).catch(()=>{})
     if (this.freshnessTimer === null) this.freshnessTimer = setInterval(() => this.emitFreshness(), 5000)
     this.publicChannel.setRunning(true); this.businessChannel.setRunning(true)
   }
@@ -281,7 +287,7 @@ export class OkxSnippetWebSocket {
     if (arg?.channel === 'books5') {
       const row = frame.data[0] as {asks?: unknown[][]; bids?: unknown[][]; ts?: string} | undefined
       if (!row || !Array.isArray(row.asks) || !Array.isArray(row.bids) || !Number.isFinite(Number(row.ts))) return false
-      const levels = (rows: unknown[][]) => rows.slice(0,5).map(r => ({price:Number(r[0]),volume:Number(r[1])*value}))
+      const levels = (rows: unknown[][]) => rows.slice(0,5).map(r => ({price:Number(r[0]),volume:baseVolume(Number(r[1]),value)}))
       const asks=levels(row.asks),bids=levels(row.bids)
       if (![...asks,...bids].every(l => Number.isFinite(l.price) && l.price>0 && Number.isFinite(l.volume) && l.volume>=0)) return false
       this.depthHeads.set(symbol,Date.now())
@@ -292,12 +298,12 @@ export class OkxSnippetWebSocket {
     const recent = this.recentTrades.get(symbol) ?? new Map<string,TradeRecord>()
     let valid=false
     for (const raw of frame.data) {
-      const r=raw as Record<string,unknown>,price=Number(r.px),volume=Number(r.sz)*value,ts=Number(r.ts)
+      const r=raw as Record<string,unknown>,price=Number(r.px),volume=baseVolume(Number(r.sz),value),ts=Number(r.ts)
       if (!Number.isFinite(price) || price<=0 || !Number.isFinite(volume) || volume<0 || !Number.isFinite(ts) || ts<=0 || ts>8640000000000000-28800000 || !['buy','sell'].includes(String(r.side)) || !r.tradeId) continue
-      recent.set(String(r.tradeId),{time:beijingTime(ts).slice(11),price,volume,direction:r.side as 'buy'|'sell',source:'realtime',ts:String(ts)})
+      recent.set(String(r.tradeId),{trade_id:String(r.tradeId),time:new Date(ts+28800000).toISOString().slice(11,23),price,volume,direction:r.side as 'buy'|'sell',source:'realtime',ts:String(ts),volume_unit:'base'})
       valid=true
     }
-    const sorted=[...recent.entries()].sort((a,b)=>Number(b[1].ts)-Number(a[1].ts)).slice(0,30)
+    const sorted=[...recent.entries()].sort((a,b)=>Number(b[1].ts)-Number(a[1].ts)).slice(0,100)
     this.recentTrades.set(symbol,new Map(sorted))
     if (valid) this.handlers.forEach(h => h({type:'trades',data:{[symbol]:sorted.map(([,trade])=>trade)}}))
     return valid
@@ -311,6 +317,8 @@ export class OkxSnippetWebSocket {
       this.version = Math.max(Date.now(), this.version + 1)
       const bar = decodeOkxCandle(raw, period, this.version)
       if (!bar) continue
+      bar.open_time=Number(raw[0])
+      if(directOkxMode())void import('./collection-chart-cache').then(c=>c.cacheCollectionCandle(symbol,period,bar)).catch(()=>{})
       const time = Number(raw[0]), head = this.candleHeads.get(key)
       if (head && (time < head.time || (time === head.time && head.closed && !bar.is_closed))) continue
       this.candleHeads.set(key, { time, closed: !!bar.is_closed, at: Date.now() }); frames.push({ symbol, period, bar })

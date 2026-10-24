@@ -1,5 +1,8 @@
 import { COLLECTION_BASE, collectionRequest, collectionStatus, collectionScope, collectionGeneration, loadCollectionConfig, refreshCollectionPermissions } from './collection-config'
 import { collectionTicket, collectionHttpSlot } from './collection-api'
+import {directOkxMode,directPrivateSocketAddress} from './market-provider'
+import {invoke} from '@tauri-apps/api/core'
+import {nativeCollection} from './collection-config'
 
 const reads=new Set(['account/balance','account/positions','account/positions-history','account/config','account/leverage-info','account/trade-fee','account/bills','account/bills-archive','trade/orders-pending','trade/orders-history','trade/orders-history-archive','trade/order','trade/fills','trade/fills-history','trade/orders-algo-pending','trade/orders-algo-history','trade/order-algo','public/instruments','public/time'])
 const writes=new Set(['trade/order','trade/batch-orders','trade/cancel-order','trade/cancel-batch-orders','trade/amend-order','trade/amend-batch-orders','trade/close-position','account/set-leverage','account/set-position-mode','trade/order-algo','trade/cancel-algos','trade/amend-algos'])
@@ -11,6 +14,7 @@ export function collectionPrivateAddress(raw:string,ws=false):string{
   return url.href
 }
 export async function requireCollectionPrivate(operation='okx_private'){
+  if(directOkxMode())return
   await loadCollectionConfig()
   if(!collectionStatus().configured)throw new Error('请先在个人中心 → 数据配置填写 API VALUE COLLECTION Key')
   const permissions=collectionStatus().permissions??await refreshCollectionPermissions()
@@ -53,6 +57,18 @@ function signedHttpSlot<T>(work:()=>Promise<T>):Promise<T>{
 export async function forwardCollectionExchange(frame:Record<string,unknown>,canSend=()=>true){
   const request=signedCollectionBody(frame),generation=collectionGeneration(),scope=collectionScope()
   const current=()=>canSend()&&generation===collectionGeneration()&&scope===collectionScope()
+  if(directOkxMode()&&request.method==='GET'){
+    if(!current())throw new Error('交易所查询已取消')
+    let data:unknown
+    if(nativeCollection())data=await invoke('okx_signed_read',{request})
+    else {
+      const response=await fetch('/__okx_direct__'+request.path+(request.query?'?'+request.query:''),{headers:{'OK-ACCESS-KEY':request.access_key,'OK-ACCESS-SIGN':request.signature,'OK-ACCESS-TIMESTAMP':request.timestamp,'OK-ACCESS-PASSPHRASE':request.passphrase,...(request.simulated?{'x-simulated-trading':'1'}:{})},signal:AbortSignal.timeout(12000)})
+      if(!response.ok)throw new Error(`OKX 直连 HTTP ${response.status}`)
+      data=await response.json()
+    }
+    if(!current())throw new Error('会话或数据配置已变化')
+    return {status:200,data}
+  }
   await requireCollectionPrivate()
   return signedHttpSlot(async()=>{
     if(!current())throw new Error('交易所查询已取消')
@@ -67,6 +83,7 @@ export async function forwardCollectionExchange(frame:Record<string,unknown>,can
   })
 }
 export async function collectionPrivateSocketAddress(simulated=false){
+  if(directOkxMode())return directPrivateSocketAddress(simulated)
   await requireCollectionPrivate('okx_private_ws')
   const ticket=await collectionTicket({market_type:'crypto',exchange:'okx',symbol:'BTC-USDT-SWAP',operation:'okx_private_ws',seconds:45,simulated})
   return collectionPrivateAddress(ticket.url,true)

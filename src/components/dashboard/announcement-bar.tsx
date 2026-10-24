@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react"
 import { Megaphone } from "lucide-react"
 import {collectionMode} from '@/lib/collection-config'
+import {directOkxMode} from '@/lib/market-provider'
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
 
 /** 公告条：优先日线信号摘要，无信号时显示系统提示 */
 export function AnnouncementBar(): React.JSX.Element {
-  return collectionMode()?<div className="flex items-center gap-2 p-2 text-xs text-[var(--text-muted)]"><Megaphone className="h-3 w-3"/>加密货币行情、账户与收益数据通过 API VALUE COLLECTION 接入；账户数据需配置 OKX 凭证并开通私有接口权限。</div>:<LegacyAnnouncementBar/>
+  return collectionMode()?<div className="flex items-center gap-2 p-2 text-xs text-[var(--text-muted)]"><Megaphone className="h-3 w-3"/>{directOkxMode()?'行情、账户与收益数据由本机直连 OKX；公共行情无需接口中心 Key，账户查询需配置 OKX 凭证。':'加密货币行情、账户与收益数据通过 API VALUE COLLECTION 接入；账户数据需配置 OKX 凭证并开通私有接口权限。'}</div>:<LegacyAnnouncementBar/>
 }
 function LegacyAnnouncementBar(): React.JSX.Element {
   const [messages, setMessages] = useState<string[]>([

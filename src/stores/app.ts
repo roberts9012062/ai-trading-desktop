@@ -2,6 +2,7 @@
 
 import { create } from "zustand"
 import type { CodeTreeMap } from "@/types"
+import {directOkxMode} from '@/lib/market-provider'
 
 /** 当前选中合约的本地持久化 key（全局，多页面共用） */
 export const ACTIVE_CONTRACT_KEY = "qihuo_active_contract"
@@ -29,6 +30,12 @@ export function readActiveContract(): string | null {
  */
 export function migrateStaleContract(code: string, tree: CodeTreeMap | null): string {
   const cur = (code || "").trim()
+  if(directOkxMode()||tree?.BTC?.exchange==='OKX'){
+    if(!/^[a-z0-9]{1,16}usdt$/i.test(cur))return 'btcusdt'
+    if(!tree)return cur.toLowerCase()
+    if(Object.values(tree).some(node=>node.contracts.some(item=>item.symbol===cur.toLowerCase())))return cur.toLowerCase()
+    return tree.BTC?.master||'btcusdt'
+  }
   if (!cur || !tree) return cur
   const product = cur.toUpperCase().replace(/\d+$/, "")
   const node = tree[product]
@@ -160,7 +167,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
 
-  activeContract: "rb2610",
+  activeContract: "btcusdt",
   setActiveContract: (code) => {
     const normalized = normalizeSymbol(code)
     persistActiveContract(normalized)

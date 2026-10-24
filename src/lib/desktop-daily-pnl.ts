@@ -5,8 +5,9 @@ import type { DailyPnlRow, DailyPnlSummary } from "./live-api"
 import { collectionMode, collectionScope, collectionGeneration, onCollectionChange } from './collection-config'
 import { collectionHttpSlot } from './collection-api'
 import { requireCollectionPrivate } from './collection-exchange'
+import {directOkxMode} from './market-provider'
 
-export type DailyPnlSource = "desktop-snippet" | "server-mode" | "server-fallback" | "api-collection"
+export type DailyPnlSource = "desktop-snippet" | "server-mode" | "server-fallback" | "api-collection" | "okx-direct"
 export interface DailyPnlResult { days: DailyPnlRow[]; summary: DailyPnlSummary | null; source?: DailyPnlSource }
 type Raw = Record<string, unknown>
 type Read = (path: string) => Promise<{ rows: Raw[]; demo: boolean; account_id?: string }>
@@ -159,7 +160,7 @@ export async function queryDailyPnl(read: Read, days: number, now = Date.now(), 
 export async function loadDesktopDailyPnl(days: number, fallback: () => Promise<DailyPnlResult>): Promise<DailyPnlResult> {
   if(collectionMode())await requireCollectionPrivate()
   await ensureDesktopRouting()
-  if (!isTauri() || isServerMode()) return { ...await fallback(), source: collectionMode()?'api-collection':"server-mode" }
+  if (!isTauri() || isServerMode()) return { ...await fallback(), source: directOkxMode()?'okx-direct':collectionMode()?'api-collection':"server-mode" }
   const token = localStorage.getItem("access_token") ?? ""
   const base = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
   const scope=collectionScope(),epoch=collectionGeneration()
@@ -184,7 +185,7 @@ export async function loadDesktopDailyPnl(days: number, fallback: () => Promise<
             return invoke('collection_analytics_read',{scope,base,token,path})
           })
           return invoke("okx_analytics_read", { base, token, path })
-        }, days, Date.now(), undefined, history, records => { if (active()) reportProgress(records) }), source: collectionMode()?'api-collection':"desktop-snippet" }
+        }, days, Date.now(), undefined, history, records => { if (active()) reportProgress(records) }), source: directOkxMode()?'okx-direct':collectionMode()?'api-collection':"desktop-snippet" }
       } catch (error) {
         if (collectionMode() || !active() || error instanceof IncompletePnlHistory) throw error
         if (error instanceof PnlAccountChanged && snapshot?.identity === identity) snapshot = null

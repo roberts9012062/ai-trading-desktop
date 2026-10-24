@@ -45,6 +45,13 @@ it('shares public depth/trade subscriptions and converts contracts only after a 
   expect(messages).toHaveBeenCalledWith({type:'trades',data:{adausdt:[expect.objectContaining({volume:400,source:'realtime'})]}})
   expect(Socket.all).toHaveLength(1)
 })
+it('does not overflow trade columns with binary conversion tails',async()=>{
+  const messages=vi.fn();ws.onMessage(messages);ws.setDepthSymbols(['adausdt']);ws.connect()
+  await vi.advanceTimersByTimeAsync(2000);const socket=Socket.all[0];socket.open()
+  socket.frame({arg:{channel:'tickers',instId:ticker.instId},data:[{...ticker,vol24h:'100',volCcy24h:'1'}]})
+  socket.frame({arg:{channel:'trades',instId:ticker.instId},data:[{tradeId:'decimal',px:'.24',sz:'.57',ts:ticker.ts,side:'buy'}]})
+  expect(messages).toHaveBeenCalledWith({type:'trades',data:{adausdt:[expect.objectContaining({volume:0.0057})]}})
+})
 it("shares two credential-free sockets, deduplicates subscriptions and batches quotes", async () => {
   const messages = vi.fn(); ws.onMessage(messages)
   ws.setQuoteSymbols(["adausdt", "ADAUSDT"])

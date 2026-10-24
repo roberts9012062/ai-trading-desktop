@@ -1,11 +1,11 @@
 import { collectionMode } from "@/lib/collection-config"
-import { collectionSpec } from "@/lib/collection-api"
+import { collectionSpec, collectionSymbols } from "@/lib/collection-api"
 "use client"
 
 /**
  * 合约规格 store —— 按品种提供 tick_size / decimal_places
  *
- * 数据来自后端 /api/paper/product-specs（复用 TICK_SIZES）。
+ * 接口中心模式直接读取合约目录；旧模式保留 /api/paper/product-specs。
  * 登录后由 K 线组件触发加载；未加载或未命中时回退默认值（tick=1, 小数=0）。
  *
  * 设计为独立 store，不污染 paper-trading 的交易逻辑。
@@ -18,6 +18,16 @@ import { useAuthStore } from "@/stores/auth"
 /** 默认值：未加载/未命中时按整数 tick 处理 */
 export const DEFAULT_TICK_SIZE = 1
 export const DEFAULT_DECIMAL_PLACES = 0
+
+type ChartPriceSpec = Pick<ProductSpecItem, 'tick_size' | 'decimal_places'>
+function collectionPriceSpec(symbol: string): ChartPriceSpec | null {
+  const raw = collectionSpec(symbol)?.tick_size
+  const tick = Number(raw)
+  if (!raw || !Number.isFinite(tick) || tick <= 0) return null
+  const [mantissa, exponent = '0'] = String(raw).trim().toLowerCase().split('e')
+  const fraction = (mantissa.split('.')[1] ?? '').replace(/0+$/, '')
+  return { tick_size: tick, decimal_places: Math.max(0, fraction.length - Number(exponent)) }
+}
 
 /** 从合约代码提取品种代码：加密 pepeusdt → PEPE；期货 rb2610 → RB */
 function extractProductCode(symbol: string): string {
@@ -42,7 +52,7 @@ interface ContractSpecState {
   /** 按合约代码查价格小数位（未命中回退 0） */
   getDecimalPlaces: (symbol: string) => number
   /** 按合约代码查规格（未命中返回 null，调用方可据此跳过应用，避免默认 0/1 打坏微价格轴） */
-  getSpec: (symbol: string) => ProductSpecItem | null
+  getSpec: (symbol: string) => ChartPriceSpec | null
 }
 
 export const useContractSpecStore = create<ContractSpecState>((set, get) => ({
@@ -56,6 +66,11 @@ export const useContractSpecStore = create<ContractSpecState>((set, get) => ({
     if (!useAuthStore.getState().accessToken) return
     set({ loading: true })
     try {
+      if (collectionMode()) {
+        await collectionSymbols()
+        set({ specs: [], loaded: true, loading: false })
+        return
+      }
       const res = await getProductSpecs()
       set({ specs: res.items, loaded: true, loading: false })
     } catch {
@@ -65,20 +80,21 @@ export const useContractSpecStore = create<ContractSpecState>((set, get) => ({
   },
 
   getTickSize: (symbol) => {
-    if (collectionMode()) {const tick=Number(collectionSpec(symbol)?.tick_size);if(Number.isFinite(tick)&&tick>0)return tick}
+    if (collectionMode()) return collectionPriceSpec(symbol)?.tick_size ?? DEFAULT_TICK_SIZE
     const code = extractProductCode(symbol)
     const spec = get().specs.find((s) => s.code.toUpperCase() === code)
     return spec?.tick_size ?? DEFAULT_TICK_SIZE
   },
 
   getDecimalPlaces: (symbol) => {
-    if (collectionMode()) {const tick=collectionSpec(symbol)?.tick_size;if(tick&&Number(tick)>0)return Math.max(0,(tick.split(".")[1]?.replace(/0+$/, "").length??0))}
+    if (collectionMode()) return collectionPriceSpec(symbol)?.decimal_places ?? DEFAULT_DECIMAL_PLACES
     const code = extractProductCode(symbol)
     const spec = get().specs.find((s) => s.code.toUpperCase() === code)
     return spec?.decimal_places ?? DEFAULT_DECIMAL_PLACES
   },
 
   getSpec: (symbol) => {
+    if (collectionMode()) return collectionPriceSpec(symbol)
     const code = extractProductCode(symbol)
     return get().specs.find((s) => s.code.toUpperCase() === code) ?? null
   },

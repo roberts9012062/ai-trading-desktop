@@ -4,6 +4,7 @@ import { ensureDesktopRouting, isServerMode, onDesktopRoutingChange } from "./de
 import { snippetOrigin, snippetFailed, snippetSucceeded } from "./snippet-pool"
 import { collectionMode, collectionGeneration, onCollectionChange } from './collection-config'
 import { forwardCollectionExchange, requireCollectionPrivate, collectionRpcSlot } from './collection-exchange'
+import {directOkxMode} from './market-provider'
 
 class UnavailableBeforeCall extends Error {}
 export class ExchangeOutcomeUnknown extends Error {}
@@ -43,16 +44,17 @@ async function forward(frame: Record<string, unknown>, target: WebSocket): Promi
   if (!['GET','POST'].includes(String(method)) || typeof path !== "string" || !/^\/api\/v5\/(account|trade|public)\/[a-z-]+(?:\?[^#]*)?$/.test(path)) return
   if(collectionMode()){
     let finished=false,timer:ReturnType<typeof setTimeout>|undefined
-    const deadline=Date.now()+11000
+    const timeoutMs=directOkxMode()?20000:11000
+    const deadline=Date.now()+timeoutMs
     let result:{status:number;data:unknown}
     try{
-      result=await Promise.race([forwardCollectionExchange(frame,()=>!finished&&target===socket&&Date.now()<deadline),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('接口中心响应超时')),11000)})])
+      result=await Promise.race([forwardCollectionExchange(frame,()=>!finished&&target===socket&&Date.now()<deadline),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error(directOkxMode()?'OKX 直连响应超时':'接口中心响应超时')),timeoutMs)})])
       const data=result.data as {code?:string;msg?:string}
-      if(data.code==='50011')result={status:200,data:{code:'COLLECTION_RATE_LIMITED',msg:'API VALUE COLLECTION 交易所账户请求限流，请稍后重试',data:[]}}
+      if(data.code==='50011')result={status:200,data:{code:'COLLECTION_RATE_LIMITED',msg:directOkxMode()?'OKX 账户请求限流，请稍后重试':'API VALUE COLLECTION 交易所账户请求限流，请稍后重试',data:[]}}
     }catch(error){
       // A definitive business error prevents the legacy server transport from
       // silently falling back to its old exchange network on HTTP/IO failures.
-      result={status:200,data:{code:'COLLECTION_UNAVAILABLE',msg:error instanceof Error?error.message:'API VALUE COLLECTION 暂不可用',data:[]}}
+      result={status:200,data:{code:'COLLECTION_UNAVAILABLE',msg:error instanceof Error?error.message:directOkxMode()?'OKX 直连暂不可用':'API VALUE COLLECTION 暂不可用',data:[]}}
     }finally{finished=true;if(timer)clearTimeout(timer)}
     if(target===socket&&target.readyState===1)target.send(JSON.stringify({type:'exchange_result',id:frame.id,...result}))
     return

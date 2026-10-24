@@ -570,7 +570,7 @@ export function DailyPnlPanel(): React.JSX.Element {
       <CardHeader className="pb-2">
         <CardTitle className="text-sm">收益分析 · OKX 实账户口径</CardTitle>
         {data?.source && <p className="text-[10px] text-[var(--text-muted)]">
-          {data.source === "api-collection" ? "API VALUE COLLECTION · 账户账单" : data.source === "desktop-snippet" ? "桌面直连 · 本地计算" : data.source === "server-fallback" ? "服务器兜底" : "服务器模式"}
+          {data.source === "okx-direct" ? "OKX 直连 · 本机账户账单" : data.source === "api-collection" ? "API VALUE COLLECTION · 账户账单" : data.source === "desktop-snippet" ? "桌面直连 · 本地计算" : data.source === "server-fallback" ? "服务器兜底" : "服务器模式"}
         </p>}
       </CardHeader>
       <CardContent className="space-y-4">
