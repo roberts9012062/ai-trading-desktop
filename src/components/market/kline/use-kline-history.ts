@@ -25,6 +25,7 @@ import { getKlineApi, getKlineBundleApi } from "@/lib/api"
 import "@/lib/okx-forming"
 import { useMarketStore } from "@/stores/market"
 import type { KlineBar, KlinePeriod } from "@/types"
+import { readCollectionChartCache, onCollectionChartCached } from "@/lib/collection-chart-cache"
 
 const PAGE_LIMIT = 240
 const EMPTY_BARS: KlineBar[] = []
@@ -59,9 +60,19 @@ async function verifyCollectionHistory(symbol: string, period: KlinePeriod): Pro
   if (pending) return pending
   const token = {}
   collectionLoading.set(key, token)
-  useMarketStore.getState().setKlineLoading(key, true)
   const task = (async () => {
     try {
+      const state = useMarketStore.getState()
+      const existing = state.klineBars[symbol]?.[period]
+      const cached = existing?.length ? null : await readCollectionChartCache(symbol, period)
+      if (generation !== collectionGeneration() || scope !== collectionScope()) throw new Error('行情配置已变化')
+      if (cached) {
+        state.setKlineBars(symbol, period, cached.bars as KlineBar[])
+        state.setKlineHasMore(key, cached.has_more)
+      }
+      // Warm switches draw immediately. Only a genuinely uncached first view
+      // waits for its initial history; tail refresh never hides cached bars.
+      state.setKlineLoading(key, !existing?.length && !cached)
       const page = await getKlineApi(symbol, period, { limit: PAGE_LIMIT })
       if (generation !== collectionGeneration() || scope !== collectionScope()) throw new Error('行情配置已变化，请重新核对 K 线')
       useMarketStore.getState().setKlineBars(symbol, period, page.bars as KlineBar[])
@@ -443,6 +454,11 @@ export function useKlineHistory(props: {
   const [historyError, setHistoryError] = useState("")
   const [attempt, setAttempt] = useState(0)
   const generation = useSyncExternalStore(onCollectionChange, collectionGeneration, collectionGeneration)
+  useEffect(() => onCollectionChartCached(page => {
+    if (page.symbol !== props.activeContract || page.period !== props.period) return
+    useMarketStore.getState().setKlineBars(page.symbol, props.period, page.bars as KlineBar[])
+    useMarketStore.getState().setKlineHasMore(`${page.symbol}:${page.period}`, page.has_more)
+  }), [props.activeContract, props.period])
   const {
     klineBars,
     klineLoading,

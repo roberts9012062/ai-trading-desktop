@@ -23,7 +23,8 @@ export function mapCollectionBar(row:CollectionBar,period:string):KlineBar & {ma
 }
 export function mapCollectionTrade(row:CollectionTick):TradeRecord {
   if(!row.trade_id||!['buy','sell'].includes(row.side||'')||row.timestamp===null||!Number.isFinite(row.timestamp)||!Number.isFinite(row.price)||row.price<=0||row.volume===null||!Number.isFinite(row.volume)||row.volume<0)throw new Error('成交字段不完整')
-  return {trade_id:row.trade_id,time:beijingTime(row.timestamp).slice(11),ts:String(row.timestamp*1000),price:row.price,volume:row.volume,direction:row.side as 'buy'|'sell',source:'realtime',volume_unit:row.volume_unit||'unknown'}
+  const milliseconds=Math.round(row.timestamp*1000)
+  return {trade_id:row.trade_id,time:new Date(milliseconds+28800000).toISOString().slice(11,23),ts:String(milliseconds),price:row.price,volume:row.volume,direction:row.side as 'buy'|'sell',source:'realtime',volume_unit:row.volume_unit||'unknown'}
 }
 export function mapCollectionQuote(symbol:string,row:CollectionQuote):QuoteData {
   const price=row.price??row.lp
@@ -62,7 +63,7 @@ export function collectionHttpSlot<T>(work:()=>Promise<T>,priority=0):Promise<T>
     else {httpBusy=true;httpUrgentRun=priority>0?1:0;run()}
   })
 }
-export async function collectionData(query:Record<string,unknown>):Promise<CollectionData>{
+export async function collectionData(query:Record<string,unknown>,priority=0):Promise<CollectionData>{
   const generation=collectionGeneration()
   return collectionHttpSlot(async()=>{
     if(generation!==collectionGeneration())throw new Error('行情配置已变化')
@@ -75,7 +76,7 @@ export async function collectionData(query:Record<string,unknown>):Promise<Colle
         if(generation!==collectionGeneration())throw new Error('行情配置已变化')
       }
     }
-  })
+  },priority)
 }
 let catalog:CollectionSymbol[]=[],catalogVersion=-1,flight:Promise<CollectionSymbol[]>|null=null
 export async function collectionSymbols(text=''):Promise<CollectionSymbol[]>{
@@ -114,7 +115,7 @@ export async function collectionCodeTree():Promise<CodeTreeMap>{
   for(const row of rows){const symbol=desktopSymbol(row.symbol),code=symbol.slice(0,-4).toUpperCase();tree[code]={code,name:code+' 永续',exchange:'OKX',master:symbol,secondary:null,contracts:[{symbol,month:0,year:0,volume:0,is_master:true,is_secondary:false}]}}
   return tree
 }
-export async function collectionKlines(symbol:string,period:string,options?:{limit?:number;endTime?:string}){
+export async function collectionKlines(symbol:string,period:string,options?:{limit?:number;endTime?:string;priority?:number}){
   if(!COLLECTION_PERIODS[period])throw new Error('不支持的K线周期')
   const requested=options?.limit??300
   if(!Number.isInteger(requested)||requested<1||requested>5000)throw new Error('在线图表单次支持 1–5000 根 K 线')
@@ -124,7 +125,7 @@ export async function collectionKlines(symbol:string,period:string,options?:{lim
   let hasMore=true
   while(all.size<requested){
     const count=Math.min(500,requested-all.size)
-    const data=await collectionData({market_type:'crypto',exchange:'okx',symbol:collectionSymbol(symbol),operation:'history',resolution:COLLECTION_PERIODS[period],count,...(end===undefined?{}:{end})})
+    const data=await collectionData({market_type:'crypto',exchange:'okx',symbol:collectionSymbol(symbol),operation:'history',resolution:COLLECTION_PERIODS[period],count,...(end===undefined?{}:{end})},options?.priority??0)
     const page=data.records.map(row=>mapCollectionBar(row,period)).sort((a,b)=>a.open_time!-b.open_time!)
     if(!page.length){hasMore=false;break}
     const oldest=Math.floor(page[0].open_time!/1000)

@@ -15,7 +15,7 @@ vi.mock('./collection-api', () => ({
   collectionKlines: fixture.fetch,
   collectionSymbol: (s: string) => s.toLowerCase().replace('usdt', '-USDT-SWAP').toUpperCase(),
 }))
-import { getKlineApi } from './api'
+import { verifyCollectionChartKlines as getKlineApi } from './collection-chart-cache'
 import { cacheCollectionCandle } from './collection-chart-cache'
 import { openDb, KLINE_HISTORY_STORE, idbGetAll, idbPut } from './idb'
 
@@ -52,7 +52,7 @@ it('persists three full days of minute candles before returning verified chart h
 it('reuses persisted history after module restart and refreshes only the latest two candles', async () => {
   await getKlineApi('btcusdt', '1m', { limit: 240 })
   fixture.fetch.mockClear(); vi.resetModules()
-  const { getKlineApi: restarted } = await import('./api')
+  const { verifyCollectionChartKlines: restarted } = await import('./collection-chart-cache')
   const result = await restarted('btcusdt', '1m', { limit: 240 })
   expect(result.bars).toHaveLength(4321)
   expect(fixture.fetch.mock.calls.map(([, , options]) => options.limit)).toEqual([2])

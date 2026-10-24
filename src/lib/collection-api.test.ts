@@ -29,6 +29,14 @@ describe('collection market boundary', () => {
     expect(a.direction).toBe('sell')
     expect(a.volume_unit).toBe('contracts')
   })
+  it('retains distinct millisecond execution times inside the same second', () => {
+    const raw={timestamp:1792800181.123,price:100,volume:2,side:'buy',trade_id:'a'}
+    const a=mapCollectionTrade(raw), b=mapCollectionTrade({...raw,timestamp:1792800181.456,trade_id:'b'})
+    expect(a.time).toBe('08:03:01.123')
+    expect(b.time).toBe('08:03:01.456')
+    expect(a.ts).toBe('1792800181123')
+    expect(b.ts).toBe('1792800181456')
+  })
   it('never forwards a ticket or key to another origin', () => {
     expect(ticketAddress('/edge/ws?ticket=123')).toBe('wss://lium.eu.org/edge/ws?ticket=123')
     expect(()=>ticketAddress('https://evil.example/edge/ws?ticket=123')).toThrow()

@@ -1,8 +1,8 @@
 import type {KlineBar,TradeRecord,OrderBook} from '@/types'
 import type {ChartSubscriptionKey,ConnectionState,MessageHandler,StateHandler} from './websocket'
-import {collectionStatus,collectionGeneration,collectionScope,loadCollectionConfig,onCollectionChange,refreshCollectionPermissions,collectionIssue,collectionReceived} from './collection-config'
+import {collectionStatus,collectionGeneration,collectionScope,loadCollectionConfig,onCollectionChange,refreshCollectionPermissions,collectionIssue,collectionReceived,nativeCollection} from './collection-config'
 import {COLLECTION_PERIODS,collectionTicket,ticketAddress,collectionSymbol,desktopSymbol,mapCollectionBar,mapCollectionQuote,mapCollectionTrade,collectionData,collectionSpec,type CollectionTick,type CollectionBar,type CollectionQuote} from './collection-api'
-import {cacheCollectionCandle} from './collection-chart-cache'
+import {cacheCollectionCandle,startCollectionChartCacheWarmup} from './collection-chart-cache'
 
 export function mergeCollectionTrades(previous:TradeRecord[],incoming:TradeRecord[]):TradeRecord[]{
   const rows=new Map([...previous,...incoming].map(row=>[row.trade_id,row]))
@@ -67,6 +67,10 @@ export class CollectionMarketStream {
   private quoteAt=new Map<string,number>()
   private depthAt=new Map<string,number>()
   private candleAt=new Map<string,number>()
+  private tradeAt=new Map<string,number>()
+  private tradeAttempts=new Map<string,number>()
+  private tradeFlight=false
+  private tradeTimer:ReturnType<typeof setInterval>|null=null
   private recent=new Map<string,TradeRecord[]>()
   private pending:ReturnType<typeof setTimeout>|null=null
   private recovery:ReturnType<typeof setTimeout>|null=null
@@ -92,9 +96,11 @@ export class CollectionMarketStream {
       if(!grants.length){collectionIssue('当前 Key 未开通加密货币行情');return}
       this.limit=Math.max(1,...grants.map(g=>g.connections));this.subscriptions=Math.max(0,...grants.map(g=>g.market_subscriptions?.crypto??100))
       this.schedule()
+      if(!this.tradeTimer)this.tradeTimer=setInterval(()=>this.recoverTrades(),3000)
+      if(nativeCollection()&&grants.some(grant=>grant.capabilities.includes('history')))void startCollectionChartCacheWarmup().catch(()=>{})
     }catch(error){const message=error instanceof Error?error.message:String(error);collectionIssue(message);if(this.running&&!fatal(message))this.recovery=setTimeout(()=>{this.recovery=null;void this.prepare()},5000)}
   }
-  disconnect(){if(this.recovery)clearTimeout(this.recovery);this.recovery=null;this.running=false;this.epoch++;if(this.pending)clearTimeout(this.pending);this.pending=null;for(const ch of this.channels.values())ch.stop();this.channels.clear();this.quoteAt.clear();this.depthAt.clear();this.candleAt.clear();this.recent.clear();this.state='disconnected'}
+  disconnect(){if(this.recovery)clearTimeout(this.recovery);this.recovery=null;if(this.tradeTimer)clearInterval(this.tradeTimer);this.tradeTimer=null;this.running=false;this.epoch++;if(this.pending)clearTimeout(this.pending);this.pending=null;for(const ch of this.channels.values())ch.stop();this.channels.clear();this.quoteAt.clear();this.depthAt.clear();this.candleAt.clear();this.tradeAt.clear();this.tradeAttempts.clear();this.recent.clear();this.state='disconnected'}
   setQuoteSymbols(symbols:string[]){this.quotes=[...new Set(symbols)].filter(s=>/^[a-z0-9]{1,16}usdt$/.test(s));this.schedule()}
   setDepthSymbols(symbols:string[]){this.depths=[...new Set(symbols)].filter(s=>/^[a-z0-9]{1,16}usdt$/.test(s));this.schedule()}
   setChartSubscription(keys:ChartSubscriptionKey[]){this.charts=keys;this.schedule()}
@@ -102,6 +108,17 @@ export class CollectionMarketStream {
   hasFreshQuote(symbol:string){return Date.now()-(this.quoteAt.get(symbol)||0)<15000}
   hasFreshDepth(symbol:string){return Date.now()-(this.depthAt.get(symbol)||0)<15000}
   hasFreshCandle(symbol:string,period:string){return Date.now()-(this.candleAt.get(symbol+':'+period)||0)<15000}
+  hasFreshTrades(symbol:string){return Date.now()-(this.tradeAt.get(symbol)||0)<15000}
+  private recoverTrades(){
+    const selected=this.charts[0]?.symbol||this.depths[0]
+    if(!this.running||!selected||this.scope!==collectionScope()||this.generation!==collectionGeneration()||this.tradeFlight||this.hasFreshTrades(selected)||Date.now()-(this.tradeAttempts.get(selected)||0)<10000)return
+    if(!collectionStatus().permissions?.active_packages.some(grant=>grant.markets.includes('crypto')&&grant.capabilities.includes('ticks')))return
+    this.tradeAttempts.set(selected,Date.now());this.tradeFlight=true
+    const epoch=this.epoch
+    void collectionData({market_type:'crypto',exchange:'okx',symbol:collectionSymbol(selected),operation:'ticks',count:100},1).then(data=>{
+      if(epoch===this.epoch)this.receive({kind:'recent_trades',symbol:collectionSymbol(selected),payload:{records:[],ticks:data.ticks,quote:null}})
+    }).catch(()=>{}).finally(()=>{this.tradeFlight=false})
+  }
   private schedule(){if(!this.running||this.pending||!collectionStatus().permissions)return;this.pending=setTimeout(()=>{this.pending=null;this.sync()},100)}
   private sync(){
     if(!this.running||this.scope!==collectionScope())return
@@ -129,11 +146,8 @@ export class CollectionMarketStream {
         if(key.startsWith('candles:')){this.state=state;this.states.forEach(fn=>fn(state))}
         else this.quoteStates.forEach(fn=>fn(state))
       });this.channels.set(key,channel)
-      if(key.startsWith('trades:')&&selected&&entitled('ticks')){
-        const epoch=this.epoch
-        void collectionData({market_type:'crypto',exchange:'okx',symbol:collectionSymbol(selected),operation:'ticks',count:100}).then(data=>{if(epoch===this.epoch)this.receive({kind:'recent_trades',symbol:collectionSymbol(selected),payload:{records:[],ticks:data.ticks,quote:null}})}).catch(()=>{})
-      }
     }
+    this.recoverTrades()
   }
   private receive(frame:Frame){
     collectionReceived()
@@ -141,7 +155,7 @@ export class CollectionMarketStream {
     if(!payload)return
     if(payload.quote){const quote=mapCollectionQuote(symbol,payload.quote);this.quoteAt.set(symbol,Date.now());this.emit('quote',[quote]);this.freshnessHandlers.forEach(fn=>fn([...this.quoteAt.keys()].filter(s=>this.hasFreshQuote(s))))}
     if(payload.order_book){const book=payload.order_book;this.depthAt.set(symbol,Date.now());this.emit('orderbook',[{symbol,asks:book.asks,bids:book.bids,asof:book.timestamp,volume_unit:book.volume_unit,source:'lium-okx',stale:false} satisfies OrderBook])}
-    if(payload.ticks?.length){const rows=payload.ticks.map(mapCollectionTrade);const merged=mergeCollectionTrades(this.recent.get(symbol)||[],rows);this.recent.set(symbol,merged);this.emit('trades',{[symbol]:merged})}
+    if(payload.ticks?.length){const rows=payload.ticks.map(mapCollectionTrade);const latest=Math.max(...rows.map(row=>Number(row.ts)));if(latest<=Date.now()+30000&&Date.now()-latest<15000)this.tradeAt.set(symbol,Date.now());const merged=mergeCollectionTrades(this.recent.get(symbol)||[],rows);this.recent.set(symbol,merged);this.emit('trades',{[symbol]:merged})}
     if(payload.records?.length&&frame.resolution){const period=Object.keys(COLLECTION_PERIODS).find(p=>COLLECTION_PERIODS[p]===frame.resolution);if(period){this.candleAt.set(symbol+':'+period,Date.now());this.emit('chart_kline',payload.records.map(row=>{const bar=mapCollectionBar(row,period);void cacheCollectionCandle(symbol,period,bar);return {symbol,period,bar}}))}}
   }
 }

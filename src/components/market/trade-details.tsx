@@ -6,6 +6,7 @@ import { useState } from "react"
 import { Filter, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { marketTickDirectionLabel } from "@/lib/trade-labels"
+import { collectionMode } from "@/lib/collection-config"
 import { useAppStore } from "@/stores/app"
 import { useAuthStore } from "@/stores/auth"
 import { useMarketStore } from "@/stores/market"
@@ -178,7 +179,7 @@ export function TradeDetails({ listClassName }: TradeDetailsProps): React.JSX.El
         </div>
       ) : (
         <div className={cn("overflow-auto", listClassName)}>
-          {[...list].reverse().map((trade, i) => {
+          {(collectionMode() ? list : [...list].reverse()).map((trade, i) => {
             const hit = isBigOrderHit(
               trade.direction as BigOrderDirection,
               trade.volume,
@@ -199,7 +200,7 @@ export function TradeDetails({ listClassName }: TradeDetailsProps): React.JSX.El
               >
                 <span
                   className={cn(
-                    "font-num",
+                    "font-num whitespace-nowrap text-[10px]",
                     hit ? "" : "text-[var(--text-secondary)]",
                   )}
                 >

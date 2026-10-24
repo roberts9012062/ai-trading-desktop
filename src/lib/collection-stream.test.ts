@@ -63,3 +63,25 @@ it('keeps the 60-contract list feed open when switching between listed contracts
     expect(ticket.mock.calls.filter(([q])=>q.operation==='stream_quotes')).toHaveLength(1)
   } finally {stream.disconnect();vi.restoreAllMocks();vi.unstubAllGlobals();vi.useRealTimers()}
 })
+
+it('refreshes visible recent trades independently when the package cannot fit a trade socket',async()=>{
+  vi.useFakeTimers()
+  const permissions={active_packages:[{markets:['crypto'],capabilities:['stream_bars','stream_quotes','stream_ticks','ticks'],connections:3,rpm:120,expires_at:'2099-01-01',market_subscriptions:{crypto:100}}]}
+  vi.spyOn(config,'collectionStatus').mockReturnValue({configured:true,permissions})
+  vi.spyOn(config,'loadCollectionConfig').mockResolvedValue({configured:true,permissions})
+  vi.spyOn(config,'refreshCollectionPermissions').mockResolvedValue(permissions)
+  vi.spyOn(api,'collectionTicket').mockResolvedValue({url:'/edge/ws?ticket=fixture',expires_in:45})
+  const data=vi.spyOn(api,'collectionData').mockImplementation(async()=>({symbol:'BTC-USDT-SWAP',records:[],quotes:[],meta:{returned_count:1,history_complete:false},ticks:[{timestamp:Date.now()/1000,price:100,volume:1,side:'buy',trade_id:String(Date.now())}]}))
+  vi.stubGlobal('WebSocket',class {close(){}})
+  const stream=new CollectionMarketStream(),seen:{type:string}[]=[]
+  stream.onMessage(message=>seen.push(message))
+  try {
+    stream.setQuoteSymbols(['btcusdt']);stream.setChartSubscription([{symbol:'btcusdt',period:'1m'}])
+    stream.connect();await vi.advanceTimersByTimeAsync(200)
+    expect(data.mock.calls.some(([query])=>query.operation==='ticks')).toBe(true)
+    expect(seen.some(message=>message.type==='trades')).toBe(true)
+    const before=data.mock.calls.length
+    await vi.advanceTimersByTimeAsync(20000)
+    expect(data.mock.calls.length).toBeGreaterThan(before)
+  }finally{stream.disconnect();vi.restoreAllMocks();vi.unstubAllGlobals();vi.useRealTimers()}
+})
