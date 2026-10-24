@@ -204,7 +204,7 @@ pub(crate) async fn private_request<F>(
         if let Some(previous)=*slot{let wait=Duration::from_millis(250).saturating_sub(previous.elapsed());if !wait.is_zero(){tokio::time::sleep(wait).await;}}
         *slot=Some(std::time::Instant::now());
         let body=sign()?;
-        if body["method"]!="GET"{return Err("金融写入必须经过已授权的执行权通道".into())}
+        crate::okx_direct::validate_direct_read(&body)?;
         return crate::okx_direct::signed_request(&state.client,&body).await;
     }
     private_command(app,state,scope,sign,||Ok(())).await

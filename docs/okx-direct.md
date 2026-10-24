@@ -1,4 +1,4 @@
-# OKX 默认直连（v0.2.210）
+# OKX 默认直连（v0.2.211）
 
 用户要求：发行版行情和账户查询直接访问 OKX。开发电脑受限，VPN 只用于测试进程，
 不把本机代理地址、VPN 配置或测试账户打包给用户。原有服务器登录、任务授权、
@@ -28,7 +28,10 @@
 禁止凭据、票据查询参数、跨主机 URL、路径跳转及重定向。不自动切回接口中心或旧
 Snippet 节点。旧 provider 保留作兼容代码，发行版默认不启用它。
 
-原生 `market_data::private_request` 在直连模式下只处理 GET，无须读取行情 Key。
+原生 `market_data::private_request` 在直连模式下只处理普通 GET，无须读取行情 Key。
+执行权快照和原单核对由 `local_commands::read` 显式走 `private_command`，保留
+中心对 bind、observe、settle_order_read 的处理。带 execution_owner / execution
+标记的请求会被直连入口拒绝，不能跳过这一步。
 签名、模拟标记及原查询保持一致；Secret 不随查询发送。`okx_signed_read` IPC 同样
 拒绝 POST。`private_command` 的金融写入继续经原执行权网关，不能用直连 IPC 绕过
 远端 fencing、原单登记和单次发送规则。正式生产交易与托管开关未改。
@@ -51,7 +54,7 @@ K 线单页最多 300 根，分页游标保持排除边界。原三天持久缓�
   orders、orders-algo、algo-advance 全部确认订阅，心跳正常。
 - 所有联调均为查询和订阅，没有下单、撤单、平仓、划转或真实权益变更。
 - 全量前端 1337 通过、6 跳过；随后数量显示与传输的定向 21 项通过。Rust 库
-  85 通过、5 显式忽略，真实 VPN 查询已单独显式运行。类型检查、生产前端构建、
+  86 通过、5 显式忽略，真实 VPN 查询已单独显式运行。类型检查、生产前端构建、
   启动登录完整页面的 11 个断言通过，登录页联调同样没有页面异常。
 - 原始证据保留于忽略目录 `.local-data/collection-connectivity/`。浏览器测试中的
   业务身份是隔离 fixture，不冒充真实服务器登录；原生网络与前端页面分别验收。

@@ -55,8 +55,14 @@ pub async fn okx_public_http(state:tauri::State<'_,MarketDataState>,path:String)
 pub async fn okx_signed_read(state:tauri::State<'_,MarketDataState>,request:Value)->Result<Value,String>{
     signed_read(&state.client,&request).await
 }
+pub(crate) fn validate_direct_read(request:&Value)->Result<(),String>{
+    if request["method"]!="GET"{return Err("金融写入必须经过已授权的原生执行权通道".into())}
+    if request.get("execution_owner").is_some()||request.get("execution").is_some(){return Err("执行权快照和原单核对必须经过协调通道".into())}
+    Ok(())
+}
 async fn signed_read(client:&Client,request:&Value)->Result<Value,String>{
-    if request["method"]!="GET"{return Err("金融写入必须经过已授权的原生执行权通道".into())}signed_request(client,request).await
+    validate_direct_read(request)?;
+    signed_request(client,request).await
 }
 #[cfg(test)]
 mod tests {
@@ -79,6 +85,13 @@ mod tests {
         let client=Client::builder().no_proxy().build().unwrap();
         let reply=signed_read(&client,&json!({"method":"POST","path":"/api/v5/trade/order","body":"{}"})).await;
         assert!(reply.unwrap_err().contains("金融写入必须经过"));
+    }
+    #[test]
+    fn execution_observations_cannot_be_substituted_with_an_uncoordinated_read(){
+        let mut request=json!({"method":"GET","path":"/api/v5/account/positions"});
+        assert!(validate_direct_read(&request).is_ok());
+        request["execution_owner"]=json!("manual_fixture_owner");assert!(validate_direct_read(&request).is_err());
+        request.as_object_mut().unwrap().remove("execution_owner");request["execution"]=json!({"owner":"manual_fixture_owner"});assert!(validate_direct_read(&request).is_err());
     }
     #[tokio::test]
     #[ignore="explicit read-only demo acceptance through a test-process VPN"]

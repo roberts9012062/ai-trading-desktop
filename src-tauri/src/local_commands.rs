@@ -32,7 +32,9 @@ fn stop_response(account:&str,value:&Value)->Result<Value>{
 }
 fn rows(value:Value)->Result<Vec<Value>>{value.as_array().cloned().ok_or("接口中心执行状态格式异常".into())}
 async fn read(app:&tauri::AppHandle,market:&MarketDataState,scope:&str,credential:&NativeCredentials,path:&str,owner:&str)->Result<Vec<Value>>{
-    let value=crate::market_data::private_request(app,market,scope,||{let mut request=signed(credential,"GET",path,"")?;request["execution_owner"]=json!(owner);Ok(request)}).await?;
+    // Owner snapshots are part of fencing/reconciliation, not UI account reads.
+    // The coordinator must observe them before acquisition or unknown-order recovery.
+    let value=private_command(app,market,scope,||{let mut request=signed(credential,"GET",path,"")?;request["execution_owner"]=json!(owner);Ok(request)},||Ok(())).await?;
     if value["code"]!="0"{return Err(format!("交易所核对失败：{}",value["msg"].as_str().unwrap_or("未取得完整账户状态")))}
     value["data"].as_array().cloned().ok_or("交易所核对数据格式异常".into())
 }
