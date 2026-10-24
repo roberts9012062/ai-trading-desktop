@@ -12,7 +12,7 @@ async function isolated<T>(path: string, init: RequestInit = {}): Promise<T> {
 export async function sessionForTokens(accessToken: string, refreshToken: string): Promise<AccountSession> {
   const raw = await isolated<Record<string,unknown>>("/api/auth/me",{ headers:{ Authorization:`Bearer ${accessToken}` } })
   const user = normalizeUser(raw)
-  if(!user.id || !user.username || user.status === "frozen") throw new Error("该账号不可用")
+  if(!user.id || !user.username || user.status === "frozen") throw Object.assign(new Error("该账号不可用"), { status:403 })
   return { user, accessToken, refreshToken }
 }
 export async function signInAccount(username: string, password: string): Promise<AccountSession> {

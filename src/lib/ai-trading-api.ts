@@ -4,6 +4,7 @@ import { desktopTokensToServerV3, isResearchOnlyFactor, RESEARCH_FACTOR_MESSAGE 
 import { tryDesktopLiveRequest } from "./desktop-exchange"
 import { tryRealtimeRequest } from "./realtime-factor/transport"
 import { createServerTask } from './server-task'
+import { assertServerLoginForTasks } from './desktop-login-session'
 
 type FactorTokens = number[] | number[][]
 
@@ -382,6 +383,7 @@ export class AITradingRequestError extends Error {
 }
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  if ((options.method ?? 'GET').toUpperCase() !== 'GET' && /\/tasks\/[^/]+\/(?:start|run-once|realtime\/start)(?:\?|$)/.test(path)) assertServerLoginForTasks()
   const token =
     typeof window !== "undefined" ? localStorage.getItem("access_token") : null
   const headers: Record<string, string> = {

@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useSyncExternalStore } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuthStore } from "@/stores/auth"
 import { getMeApi } from "@/lib/api"
 import { nativeCollection } from '@/lib/collection-config'
 import { keepLocalSession } from '@/lib/session-recovery'
+import { desktopLoginRequired, desktopSessionLocalOnly, onDesktopLoginChange } from '@/lib/desktop-login-session'
 
 /** 需要认证才能访问的路径前缀 */
 const PROTECTED_PREFIXES = [
@@ -33,6 +34,7 @@ const PUBLIC_PATHS = ["/login", "/register", "/"]
  * 有 token 但内存/缓存用户缺失时，自动拉 /api/auth/me，避免刷新后角色丢失
  */
 export function useAuthGuard(): void {
+  const loginRequired = useSyncExternalStore(onDesktopLoginChange, desktopLoginRequired, () => true)
   const router = useRouter()
   const pathname = usePathname()
   const accessToken = useAuthStore((s) => s.accessToken)
@@ -46,6 +48,7 @@ export function useAuthGuard(): void {
 
   // 会话恢复：token 在、需要确认用户时拉 /me
   useEffect(() => {
+    if (loginRequired) return
     let cancelled = false
     let ownsHydration = false
 
@@ -79,7 +82,7 @@ export function useAuthGuard(): void {
           typeof window !== "undefined"
             ? (localStorage.getItem("refresh_token") ?? "")
             : ""
-        login(me, localStorage.getItem('access_token') ?? token, refresh)
+        login(me, localStorage.getItem('access_token') ?? token, refresh, { localOnly: desktopSessionLocalOnly() })
       } catch (error) {
         if (cancelled) return
         if (!keepLocalSession(error,!!user,nativeCollection())) logout()
@@ -97,6 +100,7 @@ export function useAuthGuard(): void {
       if (ownsHydration) setHydrating(false)
     }
   }, [
+    loginRequired,
     hasAccessToken,
     user,
     loaded,
@@ -108,6 +112,7 @@ export function useAuthGuard(): void {
 
   // 路由守卫
   useEffect(() => {
+    if (loginRequired) { router.replace('/login'); return }
     if (!loaded) return
 
     const isProtected = PROTECTED_PREFIXES.some((prefix) =>
@@ -122,5 +127,5 @@ export function useAuthGuard(): void {
     if (isPublic && pathname === "/" && accessToken) {
       router.replace("/dashboard")
     }
-  }, [pathname, accessToken, loaded, router])
+  }, [pathname, accessToken, loaded, router, loginRequired])
 }

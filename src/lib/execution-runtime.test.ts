@@ -5,6 +5,7 @@ vi.mock('./collection-config',()=>({collectionMode:()=>true,collectionScope:()=>
 vi.mock('./local-desktop',()=>({localExchangeGeneration:()=>fixture.account,stopLocalAccountTasks:()=>fixture.stop()}))
 vi.mock('@/stores/auth',()=>({useAuthStore:{getState:()=>({user:fixture.user,loaded:fixture.loaded}),subscribe:()=>()=>{}}}))
 import {syncExecutionContext,executionAction,executionStatus,readExecutionSnapshot,readExecutionHistory} from './execution-runtime'
+import {initializeDesktopLoginSession,completeDesktopLogin} from './desktop-login-session'
 beforeEach(()=>{
   fixture.generation++;fixture.account++;fixture.scope='https://business:user-a';fixture.configured=true;fixture.user={id:'user-a',trading_mode:'live'};fixture.loaded=true
   vi.stubGlobal('localStorage',{getItem:(key:string)=>key==='access_token'?'server-jwt':null})
@@ -162,4 +163,14 @@ it('renderer boot hydration never sends a logout or stops an existing native wor
   await syncExecutionContext(true)
   expect(fixture.invoke.mock.calls.some(([command,args])=>command==='desktop_executor_context'&&args.scope===null)).toBe(false)
   expect(fixture.invoke).toHaveBeenCalledWith('desktop_executor_start',expect.objectContaining({restore:true}))
+})
+it('local continuation cannot prepare or manually restart but can restore previously authorized execution',async()=>{
+  initializeDesktopLoginSession('native-local-test');completeDesktopLogin('local')
+  try {
+    await expect(executionAction('prepare')).rejects.toThrow('服务器登录')
+    await expect(executionAction('start')).rejects.toThrow('服务器登录')
+    expect(fixture.invoke).not.toHaveBeenCalled()
+    await syncExecutionContext(true)
+    expect(fixture.invoke).toHaveBeenCalledWith('desktop_executor_start',expect.objectContaining({restore:true}))
+  }finally{completeDesktopLogin('server')}
 })

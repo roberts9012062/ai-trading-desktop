@@ -1,6 +1,7 @@
 /** Creation is an online, authenticated server operation; it is never queued. */
+import { assertServerLoginForTasks, desktopSessionLocalOnly } from './desktop-login-session'
 function identity(): string {
-  return JSON.stringify([localStorage.getItem('access_token'), localStorage.getItem('qihuo_auth_user'), localStorage.getItem('atd_desktop_server')])
+  return JSON.stringify([localStorage.getItem('access_token'), localStorage.getItem('qihuo_auth_user'), localStorage.getItem('atd_desktop_server'), desktopSessionLocalOnly()])
 }
 
 export class ServerTaskError extends Error {
@@ -8,6 +9,7 @@ export class ServerTaskError extends Error {
 }
 
 export async function createServerTask<T>(base: string, path: string, body: unknown): Promise<T> {
+  assertServerLoginForTasks()
   const token = typeof localStorage === 'undefined' ? null : localStorage.getItem('access_token')
   if (!token) throw new ServerTaskError('创建任务需要服务器登录，请先登录服务器', 401)
   if (!['/api/ai-trading/tasks', '/api/shortline/tasks'].includes(path)) throw new ServerTaskError('不支持的服务器任务创建接口')

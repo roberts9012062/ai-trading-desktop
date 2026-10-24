@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 vi.mock("./api",()=>({normalizeUser:(raw:unknown)=>raw}))
-import { signInAccount, validateAccount } from "./account-sessions"
+import { signInAccount, validateAccount, sessionForTokens } from "./account-sessions"
 const saved={user:{id:"b",username:"B",trading_mode:"live" as const,role:"user" as const,phone:null,email:null,avatar:null},accessToken:"expired-b",refreshToken:"refresh-b"}
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status})
 beforeEach(()=>vi.stubGlobal("fetch",vi.fn()))
@@ -25,4 +25,8 @@ it("wrong credentials or a frozen account never fall back to another token",asyn
   vi.mocked(fetch).mockResolvedValueOnce(json({detail:"冻结"},403))
   await expect(validateAccount(saved)).rejects.toThrow("冻结")
   expect(fetch).toHaveBeenCalledTimes(2)
+})
+it('marks even a successful HTTP response containing a frozen identity as an auth rejection',async()=>{
+  vi.mocked(fetch).mockResolvedValueOnce(json({...saved.user,status:'frozen'}))
+  await expect(sessionForTokens(saved.accessToken,saved.refreshToken)).rejects.toMatchObject({status:403})
 })

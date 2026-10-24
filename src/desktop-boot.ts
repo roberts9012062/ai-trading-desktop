@@ -1,4 +1,6 @@
 import { enableCollectionMode, loadCollectionConfig } from "./lib/collection-config"
+import { invoke } from '@tauri-apps/api/core'
+import { initializeDesktopLoginSession } from './lib/desktop-login-session'
 enableCollectionMode()
 /**
  * 桌面端(Tauri)启动前置 —— 必须是 main.tsx 的第一个 import。
@@ -39,6 +41,12 @@ async function boot(): Promise<void> {
     window.__QH_API_BASE__ = ""
     window.__QH_WS_BASE__ = ""
     window.__QH_STREAM_BASE__ = ""
+    let run = ''
+    try {
+      run = sessionStorage.getItem('atd_browser_run') || crypto.randomUUID()
+      sessionStorage.setItem('atd_browser_run', run)
+    } catch { run = crypto.randomUUID() }
+    initializeDesktopLoginSession(`browser:${run}`)
     return
   }
 
@@ -46,6 +54,10 @@ async function boot(): Promise<void> {
   window.__QH_API_BASE__ = base
   window.__QH_WS_BASE__ = base.replace(/^http/i, "ws")
   window.__QH_STREAM_BASE__ = base
+  let run: string
+  try { run = await invoke<string>('desktop_login_session_id'); if (!run) throw new Error('missing launch id') }
+  catch { run = crypto.randomUUID() }
+  initializeDesktopLoginSession(`desktop:${run}`)
 
   // 用 Rust 侧 fetch 替换 webview fetch:后端 CORS 只放行 Web 端源
   // (localhost:3000/33/58),桌面端源是 http://tauri.localhost 会被预检 400

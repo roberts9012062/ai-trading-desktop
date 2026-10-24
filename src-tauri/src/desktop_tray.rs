@@ -1,13 +1,14 @@
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager,
+    AppHandle, Manager, Emitter,
 };
 
 const TRAY_ID: &str = "cyclepilot-main";
 
 pub fn restore(app: &AppHandle) -> Result<(), String> {
     let window = app.get_webview_window("main").ok_or("主窗口不存在")?;
+    app.emit("desktop-login-required", ()).map_err(|e| e.to_string())?;
     window.show().map_err(|e| e.to_string())?;
     window.unminimize().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())
@@ -20,7 +21,7 @@ pub fn desktop_hide_to_tray(app: AppHandle) -> Result<(), String> {
         return Err("系统托盘初始化失败，请使用最小化按钮".into());
     }
     let window = app.get_webview_window("main").ok_or("主窗口不存在")?;
-    // Hide preserves the webview, login session, workers and native engine.
+    // Hide preserves workers and data; restoring the UI asks for login again.
     window.hide().map_err(|e| e.to_string())
 }
 

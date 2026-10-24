@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useAuthStore } from "@/stores/auth"
 import { loginApi } from "@/lib/api"
 import { sessionForTokens } from "@/lib/account-sessions"
+import { continueKnownDesktopSession } from '@/lib/desktop-session-continuation'
 import { resolveDesktopServerBase } from "@/desktop-boot"
 import { loadServers, saveServer, deleteServer, selectServer, normalizeServerBase, type ServerProfile } from "@/lib/server-profiles"
 import { BrandLogo } from "@/components/common/brand-logo"
@@ -131,7 +132,7 @@ function persistRemember(
 /** 登录页面 */
 export default function LoginPage(): React.JSX.Element {
   const router = useRouter()
-  const { login } = useAuthStore()
+  const { login, logout, user: cachedUser, accessToken: cachedToken } = useAuthStore()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [remember, setRemember] = useState(false)
@@ -214,6 +215,24 @@ export default function LoginPage(): React.JSX.Element {
         }
       }
     } catch (e) { setTestResult(e instanceof Error ? e.message : "删除失败") }
+  }
+
+  async function handleLocalSession(): Promise<void> {
+    if (!cachedUser || !cachedToken || !isTauri) return
+    const identity = () => JSON.stringify([useAuthStore.getState().user?.id, useAuthStore.getState().accessToken, localStorage.getItem(SERVER_OVERRIDE_KEY)])
+    const owner = identity()
+    setError(''); setLoading(true)
+    try {
+      const session = await continueKnownDesktopSession({ user: cachedUser, accessToken: cachedToken, refreshToken: localStorage.getItem('refresh_token') ?? '' }, isTauri)
+      if (owner !== identity()) throw new Error('账号或服务器已变化，请重新选择本机会话')
+      login(session.user, session.accessToken, session.refreshToken, { localOnly: true })
+      router.push('/dashboard')
+    } catch (error) {
+      if (owner !== identity()) return
+      const status = (error as {status?:number}).status
+      if (status === 401 || status === 403) logout()
+      setError(error instanceof Error ? error.message : '本机会话恢复失败，请重新登录')
+    } finally { setLoading(false) }
   }
 
   async function handleSubmit(e: React.FormEvent): Promise<void> {
@@ -331,7 +350,7 @@ export default function LoginPage(): React.JSX.Element {
               记住密码
             </label>
             <span className="text-xs text-[var(--text-muted)]">
-              登录有效期 7 天
+              每次启动先登录
             </span>
           </div>
 
@@ -343,6 +362,14 @@ export default function LoginPage(): React.JSX.Element {
             {loading ? "登录中..." : "登录"}
           </Button>
         </form>
+        {isTauri && cachedUser && cachedToken && cachedUser.status !== 'frozen' && (
+          <div className="mt-4 space-y-2">
+            <Button type="button" variant="outline" className="w-full" disabled={loading || !hydrated} onClick={() => void handleLocalSession()}>
+              进入本机离线会话（{cachedUser.username}）
+            </Button>
+            <p className="text-xs text-[var(--text-muted)] leading-relaxed">仅续用此前账号的数据与已授权任务；新建或重新启动任务需要服务器登录。</p>
+          </div>
+        )}
 
         {isTauri && (
           <div className="mt-5 rounded-md border border-[var(--border)] px-3 py-2.5 text-xs">

@@ -10,6 +10,7 @@ import { resetDesktopDailyPnl } from "@/lib/desktop-daily-pnl"
 import { useNotificationsStore } from "@/stores/notifications"
 import type { User } from "@/types"
 import { rememberAccount, forgetAccount } from "@/lib/account-profiles"
+import { completeDesktopLogin, requireDesktopLogin } from '@/lib/desktop-login-session'
 
 const ACCESS_KEY = "access_token"
 const REFRESH_KEY = "refresh_token"
@@ -64,7 +65,7 @@ interface AuthState {
   /** 是否正在拉取 /me */
   hydrating: boolean
   /** 登录 */
-  login: (user: User, accessToken: string, refreshToken: string) => void
+  login: (user: User, accessToken: string, refreshToken: string, options?: { localOnly?: boolean }) => void
   /** 登出 */
   logout: () => void
   /** 更新用户信息 */
@@ -85,7 +86,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loaded: false,
   hydrating: false,
 
-  login: (user, accessToken, refreshToken) => {
+  login: (user, accessToken, refreshToken, options) => {
     rememberAccount({ user, accessToken, refreshToken })
     if (get().user && get().user?.id !== user.id) {
       try {
@@ -104,10 +105,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // 账号会话边界：不得带入上一账号的持仓/委托/账户内存态
     resetTradingState()
     set({ user, accessToken, loaded: true, hydrating: false })
+    completeDesktopLogin(options?.localOnly ? 'local' : 'server')
     void ensureDesktopRouting()
   },
 
   logout: () => {
+    requireDesktopLogin()
     if (get().user) forgetAccount(get().user!.id)
     resetDesktopDailyPnl()
     localStorage.removeItem(ACCESS_KEY)

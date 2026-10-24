@@ -1,6 +1,7 @@
 /** Native worker supervision; signed preparations and keys never enter this module. */
 import {invoke,isTauri} from '@tauri-apps/api/core'
 import {useAuthStore} from '@/stores/auth'
+import {assertServerLoginForTasks} from './desktop-login-session'
 import {collectionMode,collectionScope,collectionGeneration,collectionStatus,onCollectionChange} from './collection-config'
 import {localExchangeGeneration,stopLocalAccountTasks} from './local-desktop'
 
@@ -75,6 +76,7 @@ async function refreshAndRestore(captured:Context,restore:boolean){
   }
 }
 export async function executionAction(action:'prepare'|'start'|'stop'|'stop-account'){
+  if(action==='prepare'||action==='start')assertServerLoginForTasks()
   const owner=identity()
   const token=localStorage.getItem('access_token')||''
   if(action==='prepare'&&!token)throw new Error('请先完成服务器登录，再同步任务准备数据')

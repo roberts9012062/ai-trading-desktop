@@ -52,6 +52,7 @@ pub fn run() {
             window_controls::desktop_minimize_window,
             window_controls::desktop_toggle_maximize,
             window_controls::desktop_close_window,
+            window_controls::desktop_login_session_id,
             okx_analytics::okx_analytics_read,
             okx_analytics::collection_analytics_read,
             okx_analytics::okx_analytics_clear,

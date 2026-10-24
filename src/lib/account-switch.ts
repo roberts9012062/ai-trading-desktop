@@ -2,6 +2,7 @@ import { useAuthStore } from "@/stores/auth"
 import { stopAllRealtime } from "./realtime-factor/runtime"
 import { validateAccount } from "./account-sessions"
 import { accountServer, rememberAccount, type AccountSession } from "./account-profiles"
+import { desktopSessionLocalOnly } from './desktop-login-session'
 
 let switching = false
 export async function switchAccount(saved: AccountSession): Promise<void> {
@@ -17,7 +18,8 @@ export async function switchAccount(saved: AccountSession): Promise<void> {
     if (origin !== useAuthStore.getState().user?.id || server !== accountServer()) throw new Error("当前会话已变化，请重新选择账号")
     const current = useAuthStore.getState()
     if (current.user && current.accessToken) rememberAccount({ user: current.user, accessToken: current.accessToken, refreshToken: localStorage.getItem("refresh_token") ?? "" })
-    current.login(target.user,target.accessToken,target.refreshToken)
+    if (desktopSessionLocalOnly()) current.login(target.user,target.accessToken,target.refreshToken,{localOnly:true})
+    else current.login(target.user,target.accessToken,target.refreshToken)
     // Full reload discards every store, queued callback, socket and mounted page.
     window.location.replace("/dashboard")
   } finally { switching = false }

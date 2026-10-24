@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createServerTask } from './server-task'
+import { initializeDesktopLoginSession, completeDesktopLogin } from './desktop-login-session'
 
 let token = 'server-session', user = 'user-a', server = 'https://server.example'
 beforeEach(() => {
+  initializeDesktopLoginSession('test-server'); completeDesktopLogin()
   token = 'server-session'; user = 'user-a'; server = 'https://server.example'
   vi.stubGlobal('localStorage', { getItem: (key: string) => key === 'access_token' ? token : key === 'qihuo_auth_user' ? JSON.stringify({ id: user }) : key === 'atd_desktop_server' ? server : null })
 })
@@ -10,7 +12,13 @@ afterEach(() => vi.unstubAllGlobals())
 
 it('requires a server login even if a cached user exists', async () => {
   token = ''
-  const fetch = vi.fn(); vi.stubGlobal('fetch', fetch)
+  const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({id:'must-not-create'}))); vi.stubGlobal('fetch', fetch)
+  await expect(createServerTask('', '/api/ai-trading/tasks', {})).rejects.toThrow('服务器登录')
+  expect(fetch).not.toHaveBeenCalled()
+})
+it('does not register new tasks from a manually continued local-only session', async () => {
+  completeDesktopLogin('local')
+  const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({id:'must-not-create'}))); vi.stubGlobal('fetch', fetch)
   await expect(createServerTask('', '/api/ai-trading/tasks', {})).rejects.toThrow('服务器登录')
   expect(fetch).not.toHaveBeenCalled()
 })

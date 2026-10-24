@@ -1,6 +1,7 @@
 "use client"
 
 import { DataConfigNotice } from "@/components/profile/data-config-panel"
+import { DesktopSessionNotice } from '@/components/common/desktop-session-gate'
 import { useEffect, useState } from "react"
 import { TopNavbar } from "@/components/layout/top-navbar"
 import { Sidebar } from "@/components/layout/sidebar"
@@ -145,6 +146,7 @@ export default function MainLayout({
     <div className="flex flex-col h-full overflow-hidden bg-[var(--bg-primary)]">
       <TopNavbar />
       <DataConfigNotice />
+      <DesktopSessionNotice />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main className="flex-1 overflow-auto">

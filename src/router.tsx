@@ -8,7 +8,10 @@
  * - app/page.tsx + components/landing/ + lib/showcase-api.ts → 已删除(Web 端宣传页,桌面端不需要)
  */
 import { Navigate, Outlet, Route, Routes } from "react-router-dom"
+import { useSyncExternalStore } from 'react'
 import { useAuthStore } from "@/stores/auth"
+import { desktopLoginRequired, onDesktopLoginChange } from '@/lib/desktop-login-session'
+import { DesktopSessionGate } from '@/components/common/desktop-session-gate'
 import LoginPage from "./app/(auth)/login/page"
 import RegisterPage from "./app/(auth)/register/page"
 
@@ -50,10 +53,11 @@ import AdminAnnouncementsPage from "./app/admin/announcements/page"
 import AdminDonationsPage from "./app/admin/donations/page"
 import AdminUserDetailPage from "./app/admin/users/[id]/page"
 
-/** 已登录访问 / 直接进工作台,未登录去登录页 */
+/** Saved credentials alone never skip this application's startup login. */
 function RootRedirect(): React.JSX.Element {
-  const authed = Boolean(useAuthStore.getState().accessToken)
-  return <Navigate to={authed ? "/dashboard" : "/login"} replace />
+  const token = useAuthStore(state => state.accessToken)
+  const required = useSyncExternalStore(onDesktopLoginChange, desktopLoginRequired, () => true)
+  return <Navigate to={!required && token ? "/dashboard" : "/login"} replace />
 }
 
 export function AppRoutes() {
@@ -63,7 +67,7 @@ export function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
 
-      <Route element={<MainLayout><Outlet /></MainLayout>}>
+      <Route element={<DesktopSessionGate><MainLayout><Outlet /></MainLayout></DesktopSessionGate>}>
         <Route path="/ai-market" element={<AiMarketPage />} />
         <Route path="/ai-market/volume-profile" element={<Navigate to="/ai-market" replace />} />
         <Route path="/ai-settings" element={<AiSettingsPage />} />
@@ -87,7 +91,7 @@ export function AppRoutes() {
         <Route path="/trading" element={<TradingPage />} />
       </Route>
 
-      <Route path="/admin" element={<AdminLayout><Outlet /></AdminLayout>}>
+      <Route path="/admin" element={<DesktopSessionGate><AdminLayout><Outlet /></AdminLayout></DesktopSessionGate>}>
         <Route index element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="ai" element={<AdminAiPage />} />
         <Route path="api-keys" element={<AdminApiKeysPage />} />
