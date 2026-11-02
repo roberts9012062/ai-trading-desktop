@@ -53,14 +53,14 @@ export function AssetSummaryBar(): React.JSX.Element {
     },
     {
       label: "今日盈亏",
-      value: `${account.today_pnl >= 0 ? "+" : ""}${formatMoney(account.today_pnl)}`,
-      color: account.today_pnl >= 0 ? "text-up" : "text-down",
+      value: account.metrics_available?.today_pnl === false ? '未提供' : `${account.today_pnl >= 0 ? "+" : ""}${formatMoney(account.today_pnl)}`,
+      color: account.metrics_available?.today_pnl === false ? 'text-[var(--text-muted)]' : account.today_pnl >= 0 ? "text-up" : "text-down",
     },
     {
       label: "风险率",
-      value: `${Number(account.risk_rate || 0).toFixed(1)}%`,
+      value: account.metrics_available?.risk_rate === false ? '未提供' : `${Number(account.risk_rate || 0).toFixed(1)}%`,
       color:
-        account.risk_rate > 80
+        account.metrics_available?.risk_rate === false ? 'text-[var(--text-muted)]' : account.risk_rate > 80
           ? "text-[var(--accent-danger)]"
           : "text-[var(--accent-info)]",
     },

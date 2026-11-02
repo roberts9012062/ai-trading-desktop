@@ -9,6 +9,7 @@ import * as collection from './collection-config'
 import * as privateFeed from './snippet-private-ws'
 
 beforeEach(()=>{
+ vi.clearAllMocks()
  vi.useFakeTimers();useAuthStore.setState({user:{id:'a',trading_mode:'live'} as User})
  usePaperTradingStore.setState({liveSyncConnected:false,liveSyncAt:0})
  vi.spyOn(usePaperTradingStore.getState(),'refresh').mockResolvedValue()

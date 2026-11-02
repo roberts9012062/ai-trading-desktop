@@ -8,50 +8,50 @@
  * - app/page.tsx + components/landing/ + lib/showcase-api.ts → 已删除(Web 端宣传页,桌面端不需要)
  */
 import { Navigate, Outlet, Route, Routes } from "react-router-dom"
-import { useSyncExternalStore } from 'react'
+import { lazy, Suspense, useSyncExternalStore } from 'react'
 import { useAuthStore } from "@/stores/auth"
 import { desktopLoginRequired, onDesktopLoginChange } from '@/lib/desktop-login-session'
 import { DesktopSessionGate } from '@/components/common/desktop-session-gate'
 import LoginPage from "./app/(auth)/login/page"
-import RegisterPage from "./app/(auth)/register/page"
+const RegisterPage = lazy(() => import("./app/(auth)/register/page"))
 
-import MainLayout from "./app/(main)/layout"
-import AiMarketPage from "./app/(main)/ai-market/page"
-import AiSettingsPage from "./app/(main)/ai-settings/page"
-import AiTradingPage from "./app/(main)/ai-trading/page"
-import AssetsPage from "./app/(main)/assets/page"
-import BacktestPage from "./app/(main)/backtest/page"
-import DashboardPage from "./app/(main)/dashboard/page"
-import FactorLabPage from "./app/(main)/factor-lab/page"
-import ShortlineLabPage from "./app/(main)/factor-lab/shortline/page"
-import FactorEvolutionPage from "./app/(main)/factor-lab/evolution/page"
-import HistoryPage from "./app/(main)/history/page"
-import MallPage from "./app/(main)/mall/page"
-import MarketPage from "./app/(main)/market/page"
-import MarketScreenerPage from "./app/(main)/market/screener/page"
-import MessagesPage from "./app/(main)/messages/page"
-import OrdersPage from "./app/(main)/orders/page"
-import PositionsPage from "./app/(main)/positions/page"
-import ProfilePage from "./app/(main)/profile/page"
-import ManualPage from "./app/(main)/manual/page"
-import StrategyFavoritesPage from "./app/(main)/strategy-favorites/page"
-import TradingPage from "./app/(main)/trading/page"
+const MainLayout = lazy(() => import("./app/(main)/layout"))
+const AiMarketPage = lazy(() => import("./app/(main)/ai-market/page"))
+const AiSettingsPage = lazy(() => import("./app/(main)/ai-settings/page"))
+const AiTradingPage = lazy(() => import("./app/(main)/ai-trading/page"))
+const AssetsPage = lazy(() => import("./app/(main)/assets/page"))
+const BacktestPage = lazy(() => import("./app/(main)/backtest/page"))
+const DashboardPage = lazy(() => import("./app/(main)/dashboard/page"))
+const FactorLabPage = lazy(() => import("./app/(main)/factor-lab/page"))
+const ShortlineLabPage = lazy(() => import("./app/(main)/factor-lab/shortline/page"))
+const FactorEvolutionPage = lazy(() => import("./app/(main)/factor-lab/evolution/page"))
+const HistoryPage = lazy(() => import("./app/(main)/history/page"))
+const MallPage = lazy(() => import("./app/(main)/mall/page"))
+const MarketPage = lazy(() => import("./app/(main)/market/page"))
+const MarketScreenerPage = lazy(() => import("./app/(main)/market/screener/page"))
+const MessagesPage = lazy(() => import("./app/(main)/messages/page"))
+const OrdersPage = lazy(() => import("./app/(main)/orders/page"))
+const PositionsPage = lazy(() => import("./app/(main)/positions/page"))
+const ProfilePage = lazy(() => import("./app/(main)/profile/page"))
+const ManualPage = lazy(() => import("./app/(main)/manual/page"))
+const StrategyFavoritesPage = lazy(() => import("./app/(main)/strategy-favorites/page"))
+const TradingPage = lazy(() => import("./app/(main)/trading/page"))
 
-import AdminLayout from "./app/admin/layout"
-import AdminAiPage from "./app/admin/ai/page"
-import AdminApiKeysPage from "./app/admin/api-keys/page"
-import AdminChannelsPage from "./app/admin/channels/page"
-import AdminDashboardPage from "./app/admin/dashboard/page"
-import AdminFinancePage from "./app/admin/finance/page"
-import AdminRefreshIntervalPage from "./app/admin/refresh-interval/page"
-import AdminRiskControlPage from "./app/admin/risk-control/page"
-import AdminSettingsPage from "./app/admin/settings/page"
-import AdminTradingConfigPage from "./app/admin/trading-config/page"
-import AdminUsersPage from "./app/admin/users/page"
-import AdminVipPage from "./app/admin/vip/page"
-import AdminAnnouncementsPage from "./app/admin/announcements/page"
-import AdminDonationsPage from "./app/admin/donations/page"
-import AdminUserDetailPage from "./app/admin/users/[id]/page"
+const AdminLayout = lazy(() => import("./app/admin/layout"))
+const AdminAiPage = lazy(() => import("./app/admin/ai/page"))
+const AdminApiKeysPage = lazy(() => import("./app/admin/api-keys/page"))
+const AdminChannelsPage = lazy(() => import("./app/admin/channels/page"))
+const AdminDashboardPage = lazy(() => import("./app/admin/dashboard/page"))
+const AdminFinancePage = lazy(() => import("./app/admin/finance/page"))
+const AdminRefreshIntervalPage = lazy(() => import("./app/admin/refresh-interval/page"))
+const AdminRiskControlPage = lazy(() => import("./app/admin/risk-control/page"))
+const AdminSettingsPage = lazy(() => import("./app/admin/settings/page"))
+const AdminTradingConfigPage = lazy(() => import("./app/admin/trading-config/page"))
+const AdminUsersPage = lazy(() => import("./app/admin/users/page"))
+const AdminVipPage = lazy(() => import("./app/admin/vip/page"))
+const AdminAnnouncementsPage = lazy(() => import("./app/admin/announcements/page"))
+const AdminDonationsPage = lazy(() => import("./app/admin/donations/page"))
+const AdminUserDetailPage = lazy(() => import("./app/admin/users/[id]/page"))
 
 /** Saved credentials alone never skip this application's startup login. */
 function RootRedirect(): React.JSX.Element {
@@ -62,7 +62,7 @@ function RootRedirect(): React.JSX.Element {
 
 export function AppRoutes() {
   return (
-    <Routes>
+    <Suspense fallback={<div role="status" className="p-6 text-sm text-[var(--text-muted)]">页面加载中…</div>}><Routes>
       <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
@@ -110,6 +110,6 @@ export function AppRoutes() {
       </Route>
 
       <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
+    </Routes></Suspense>
   )
 }

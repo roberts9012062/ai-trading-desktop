@@ -6,6 +6,7 @@ vi.mock('./collection-config',()=>({COLLECTION_BASE:'https://lium.eu.org',collec
 vi.mock('./collection-api',()=>({collectionKlines:state.read,collectionSymbol:(s:string)=>s.replace('usdt','-USDT-SWAP').toUpperCase(),collectionDesktopSymbols:async()=>[{symbol:'BTC-USDT-SWAP'}]}))
 import { getKlineApi } from './api'
 import { readCollectionChartCache,startCollectionChartCacheWarmup,collectionChartWarmupStatus } from './collection-chart-cache'
+import { retainVisibleChart } from './visible-charts'
 import { openDb,idbPut,KLINE_HISTORY_STORE } from './idb'
 
 const makeBar=(t:number):KlineBar=>({time:new Date(t+28800000).toISOString().replace('T',' ').slice(0,19),open_time:t,open:10,high:12,low:9,close:11,volume:1,market_source:'okx',is_closed:true})
@@ -20,9 +21,14 @@ beforeEach(async()=>{
 })
 afterEach(()=>vi.restoreAllMocks())
 it('switching a cached symbol fetches only the latest candles and leaves deep verification to startup',async()=>{
+  const db=(await openDb())!,key='collection-chart-v1:https://lium.eu.org:okx:BTC-USDT-SWAP:1m'
+  const {idbGet}=await import('./idb')
+  const saved=await idbGet<any>(db,KLINE_HISTORY_STORE,key)
+  const latest=Math.floor(state.now/60000)*60000
+  saved.bars.splice(100,0,makeBar(latest-(4320-100)*60000));await idbPut(db,KLINE_HISTORY_STORE,saved)
   const page=await getKlineApi('btcusdt','1m',{limit:240})
   expect(state.read.mock.calls.map(([, , options])=>options.limit)).toEqual([2])
-  expect(page.bars.length).toBe(4320)
+  expect(page.bars.length).toBe(4321)
 })
 
 it('verifies startup gaps once per session and does not repeat the pass on reconnection',async()=>{
@@ -49,4 +55,13 @@ it('continues other startup entries after a failed entry and reports failures',a
   state.read.mockImplementation((...args)=>{if(args[0]==='badusdt')return Promise.reject(new Error('network'));return real(...args)})
   await startCollectionChartCacheWarmup(['badusdt','btcusdt'],['1m'])
   expect(collectionChartWarmupStatus()).toMatchObject({running:false,done:2,total:2,failed:1})
+})
+
+it('prioritizes visible contracts without dropping other startup jobs',async()=>{
+  const release=retainVisibleChart('ethusdt','1m')
+  try {
+    await startCollectionChartCacheWarmup(['btcusdt','ethusdt'],['1m'])
+    expect(state.read.mock.calls[0][0]).toBe('ethusdt')
+    expect(collectionChartWarmupStatus()).toMatchObject({done:2,total:2,failed:0})
+  } finally {release()}
 })

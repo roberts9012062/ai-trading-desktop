@@ -24,6 +24,8 @@ export interface PaperAccountSummary {
   /** 实盘扩展：交易所与模拟盘标记（virtual 模式无） */
   venue_name?: string
   demo?: boolean
+  /** Missing live metrics use numeric placeholders internally, never as UI facts. */
+  metrics_available?: Partial<Record<'balance' | 'frozen_margin' | 'position_margin' | 'today_pnl' | 'risk_rate', boolean>>
 }
 
 /** 资金流水项 */

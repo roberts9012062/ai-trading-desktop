@@ -11,6 +11,7 @@ import {serverAccountMode} from './account-transport'
 import { loadDesktopDailyPnl, resetDesktopDailyPnl, type DailyPnlResult } from "./desktop-daily-pnl"
 import { collectionMode, collectionGeneration, collectionScope, nativeCollection, loadCollectionConfig } from './collection-config'
 import {withLocalOrderIntent} from './local-order-intent'
+import {withServerOrderIntent,checkPendingServerOrder} from './server-order-intent'
 import {withLocalControlIntent} from './local-control-intent'
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
@@ -177,22 +178,33 @@ export async function getLiveAccountApi(venue: string): Promise<PaperAccountSumm
     venue: string
     venue_name: string
     demo: boolean
+    balance?: number | null
+    frozen_margin?: number | null
+    position_margin?: number | null
+    today_pnl?: number | null
+    risk_rate?: number | null
   }>(`/api/live/account?venue=${venue}`)
+  const provided = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
+  const metric = (value: unknown) => provided(value) ? value : 0
   return {
     account_id: `live-${venue}`,
     currency: "USDT",
-    balance: raw.available,
+    balance: metric(raw.balance),
     available_margin: raw.available,
-    frozen_margin: 0,
-    position_margin: Math.max(0, raw.equity - raw.available),
+    frozen_margin: metric(raw.frozen_margin),
+    position_margin: metric(raw.position_margin),
     total_equity: raw.equity,
     realized_pnl: 0,
     unrealized_pnl: raw.unrealized_pnl,
-    today_pnl: raw.unrealized_pnl,
+    today_pnl: metric(raw.today_pnl),
     total_claimed: 0,
     total_deposit: 0,
     total_withdraw: 0,
-    risk_rate: 0,
+    risk_rate: metric(raw.risk_rate),
+    metrics_available: {
+      balance: provided(raw.balance), frozen_margin: provided(raw.frozen_margin),
+      position_margin: provided(raw.position_margin), today_pnl: provided(raw.today_pnl), risk_rate: provided(raw.risk_rate),
+    },
     last_claim_month: null,
     current_claim_month: "",
     can_claim: false,
@@ -354,17 +366,30 @@ export interface PlaceLiveOrderRequest {
 export async function placeLiveOrderApi(
   payload: PlaceLiveOrderRequest
 ): Promise<Record<string, unknown>> {
+  const current=serverOrderGuard()
   if(nativeCollection()&&collectionMode()){
     const binding=await localLiveBinding()
+    current()
     if(binding){
-      const result=await withLocalOrderIntent<Record<string,unknown>>(binding,payload,value=>liveRequest('/api/live/orders',{method:'POST',body:JSON.stringify(value)},false,binding))
+      const result=await withLocalOrderIntent<Record<string,unknown>>(binding,payload,value=>{current();return liveRequest('/api/live/orders',{method:'POST',body:JSON.stringify(value)},false,binding)})
+      current()
       return {...result,status:normalizeLiveStatus(String(result.status??''))}
     }
+    if(!serverAccountMode())throw new Error('单机账户仅可读取；下单需要服务器交易授权与账户绑定')
   }
-  return liveRequest("/api/live/orders", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  })
+  return withServerOrderIntent(payload,(path,binding)=>serverOrderRead(path,binding),
+    (value,binding)=>liveRequest('/api/live/orders',{method:'POST',headers:{'X-Desktop-Account':binding},body:JSON.stringify(value)},true),current)
+}
+
+function serverOrderGuard():()=>void {
+  const scope=collectionScope(),epoch=localExchangeGeneration(),mode=serverAccountMode(),token=localStorage.getItem('access_token')
+  return ()=>{if(scope!==collectionScope()||epoch!==localExchangeGeneration()||mode!==serverAccountMode()||token!==localStorage.getItem('access_token'))throw new Error('账号或连接模式已切换，请在原账号核对下单结果')}
+}
+function serverOrderRead(path:string,binding?:string):Promise<unknown> {
+  return liveRequest(path,{headers:binding?{'X-Desktop-Account':binding}:{}},true)
+}
+export function checkPendingServerLiveOrder():Promise<{message:string}> {
+  return checkPendingServerOrder(serverOrderRead,serverOrderGuard())
 }
 
 export async function cancelLiveOrderApi(

@@ -17,6 +17,7 @@ vi.mock('./collection-api', () => ({
 }))
 import { verifyCollectionChartKlines as getKlineApi } from './collection-chart-cache'
 import { cacheCollectionCandle } from './collection-chart-cache'
+import { collectionChartKlines } from './collection-chart-cache'
 import { openDb, KLINE_HISTORY_STORE, idbGetAll, idbPut } from './idb'
 
 function bar(time: number, period = '1m'): KlineBar {
@@ -41,6 +42,23 @@ beforeEach(async () => {
   await new Promise<void>(resolve => { const tx = db.transaction(KLINE_HISTORY_STORE, 'readwrite'); tx.objectStore(KLINE_HISTORY_STORE).clear(); tx.oncomplete = () => resolve() })
 })
 afterEach(() => vi.restoreAllMocks())
+
+it('fills a tail longer than one page after a 600-minute disconnect',async()=>{
+  const latest=Math.floor(fixture.now/60000)*60000
+  const bars=Array.from({length:4321},(_,i)=>bar(latest-(600+4320-i)*60000))
+  await idbPut((await openDb())!,KLINE_HISTORY_STORE,{key:'collection-chart-v1:https://lium.eu.org:okx:BTC-USDT-SWAP:1m',schema:1,symbol:'btcusdt',period:'1m',bars,savedAt:fixture.now-600*60000})
+  const result=await collectionChartKlines('btcusdt','1m',{limit:240})
+  expect(result.bars).toHaveLength(4321)
+  expect(result.bars.every((row,i)=>!i||(row.open_time! - result.bars[i-1].open_time!) === 60000)).toBe(true)
+})
+it('repairs an interior cache hole instead of returning a successful gapped chart',async()=>{
+  const latest=Math.floor(fixture.now/60000)*60000
+  const bars=Array.from({length:4321},(_,i)=>bar(latest-(4320-i)*60000));bars.splice(100,1)
+  await idbPut((await openDb())!,KLINE_HISTORY_STORE,{key:'collection-chart-v1:https://lium.eu.org:okx:BTC-USDT-SWAP:1m',schema:1,symbol:'btcusdt',period:'1m',bars,savedAt:fixture.now})
+  const result=await collectionChartKlines('btcusdt','1m',{limit:240})
+  expect(result.bars).toHaveLength(4321)
+  expect(result.bars.every((row,i)=>!i||(row.open_time! - result.bars[i-1].open_time!) === 60000)).toBe(true)
+})
 
 it('persists three full days of minute candles before returning verified chart history', async () => {
   const result = await getKlineApi('btcusdt', '1m', { limit: 240 })

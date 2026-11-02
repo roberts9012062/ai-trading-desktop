@@ -4,7 +4,7 @@ const fixture = vi.hoisted(() => ({ probe: vi.fn() }))
 vi.mock('./account-sessions', () => ({ sessionForTokens: fixture.probe }))
 import { continueKnownDesktopSession } from './desktop-session-continuation'
 const saved = { user: { id:'known', username:'known', role:'user', trading_mode:'live', status:'active' }, accessToken:'cached-test-access', refreshToken:'cached-test-refresh' } as AccountSession
-beforeEach(() => fixture.probe.mockReset())
+beforeEach(() => { fixture.probe.mockReset() })
 afterEach(() => vi.restoreAllMocks())
 
 it.each([undefined, 503, 429])('allows explicit native continuation during a transport outage (%s)', async status => {

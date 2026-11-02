@@ -1,6 +1,7 @@
 /** Durable UI request identity; no credentials or automatic financial retry. */
 import {collectionScope,collectionGeneration} from './collection-config'
 import {localLiveBinding,tryPreparedLocalLiveRequest} from './local-desktop'
+import {serverAccountMode} from './account-transport'
 
 type Pending={id:string;input:string}
 function key(binding:string){return `atd:manual-order:${collectionScope()}:${binding}`}
@@ -33,6 +34,7 @@ export async function withLocalOrderIntent<T>(binding:string,payload:object,subm
   }
 }
 export async function checkPendingLocalOrder():Promise<{message:string}>{
+  if(serverAccountMode())return (await import('./live-api')).checkPendingServerLiveOrder()
   const binding=await localLiveBinding()
   if(!binding)throw new Error('请先同步本机交易所账户')
   const name=key(binding),pending=read(name),scope=collectionScope(),generation=collectionGeneration()

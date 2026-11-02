@@ -15,13 +15,14 @@ mod commands;
 fn num(value:&Value)->f64{value.as_f64().or_else(||value.as_str().and_then(|s|s.parse::<f64>().ok())).filter(|n|n.is_finite()).unwrap_or(0.0)}
 fn strval(value:&Value)->String{value.as_str().map(str::to_owned).unwrap_or_else(||if value.is_number(){value.to_string()}else{String::new()})}
 fn first_number(row:&Value,keys:&[&str])->f64{keys.iter().find_map(|k|{let value=&row[*k];if value.is_null()||value.as_str()==Some(""){None}else{Some(num(value))}}).unwrap_or(0.0)}
+fn optional_number(value:&Value)->Option<f64>{value.as_f64().or_else(||value.as_str().and_then(|s|s.parse::<f64>().ok())).filter(|n|n.is_finite())}
 pub fn account_identity(key:&str,demo:bool)->String{digest::digest(&digest::SHA256,format!("okx:{demo}:{key}").as_bytes()).as_ref().iter().map(|b|format!("{b:02x}")).collect()}
 fn desktop_symbol(inst:&str)->String{inst.strip_suffix("-USDT-SWAP").map(|s|format!("{}usdt",s.to_lowercase())).unwrap_or_else(||inst.to_lowercase())}
 fn instrument(symbol:&str)->Result<String>{let symbol=symbol.to_ascii_uppercase();let base=symbol.strip_suffix("-USDT-SWAP").or_else(||symbol.strip_suffix("USDT")).ok_or("只支持 USDT 永续合约")?;if base.is_empty()||base.len()>20||!base.bytes().all(|b|b.is_ascii_alphanumeric()){return Err("无效的永续合约".into())}Ok(format!("{base}-USDT-SWAP"))}
 fn iso(ms:&Value)->Value{let ms=num(ms) as i128;if ms<=0{return Value::Null}time::OffsetDateTime::from_unix_timestamp_nanos(ms*1_000_000).ok().and_then(|t|t.format(&time::format_description::well_known::Rfc3339).ok()).map(Value::String).unwrap_or(Value::Null)}
 fn account(row:&Value,demo:bool)->Value{
     let usdt=row["details"].as_array().and_then(|rows|rows.iter().find(|r|r["ccy"]=="USDT")).cloned().unwrap_or(Value::Null);
-    json!({"equity":num(&row["totalEq"]),"available":first_number(&usdt,&["availEq","availBal"]),"unrealized_pnl":num(&usdt["upl"]),"currency":"USDT","venue":"okx","venue_name":"OKX","demo":demo})
+    json!({"equity":num(&row["totalEq"]),"available":first_number(&usdt,&["availEq","availBal"]),"unrealized_pnl":num(&usdt["upl"]),"balance":optional_number(&usdt["cashBal"]),"frozen_margin":optional_number(&usdt["ordFrozen"]),"currency":"USDT","venue":"okx","venue_name":"OKX","demo":demo})
 }
 fn position(row:&Value,spec:&Value)->Value{
     let contracts=num(&row["pos"]);let ct=num(&spec["ctVal"]);let size=contracts.abs()*ct;
@@ -306,6 +307,11 @@ mod tests {
         assert_eq!(position["source"],"exchange");
         let balance=account(&json!({"totalEq":"12","details":[{"ccy":"USDT","availEq":"0","availBal":"50","upl":"-2"}]}),true);
         assert_eq!(balance["available"],0.0);assert_eq!(balance["demo"],true);
+        assert!(balance["balance"].is_null());assert!(balance["position_margin"].is_null());
+        let supplied=account(&json!({"totalEq":"100","details":[{"ccy":"USDT","cashBal":"90","ordFrozen":"0","imr":"20","frozenBal":"25"}]}),false);
+        assert_eq!(supplied["balance"],90.0);assert_eq!(supplied["frozen_margin"],0.0);
+        assert!(supplied["position_margin"].is_null()); // IMR includes pending orders, not just positions.
+
     }
     #[test]
     fn normalizes_history_and_aggregates_partial_fills_with_fee_rebates(){

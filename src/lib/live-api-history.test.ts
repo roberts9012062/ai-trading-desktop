@@ -17,9 +17,13 @@ it('does not retry an authorization failure or an order submission', async () =>
   vi.stubGlobal('fetch',fetch)
   await expect(getLiveOrdersApi('okx',true)).rejects.toThrow('access denied')
   expect(fetch).toHaveBeenCalledTimes(1)
+  const storage=new Map<string,string>()
+  vi.stubGlobal('localStorage',{getItem:(key:string)=>storage.get(key)??null,setItem:(key:string,value:string)=>storage.set(key,value),removeItem:(key:string)=>storage.delete(key)})
   fetch.mockReset().mockRejectedValue('connection reset')
   await expect(placeLiveOrderApi({venue:'okx',symbol:'btcusdt',direction:'buy',offset:'open',order_type:'market',price:null,quantity:1})).rejects.toThrow('connection reset')
   expect(fetch).toHaveBeenCalledTimes(1)
+  expect(fetch.mock.calls[0][0]).toContain('/order-requests/capabilities')
+  expect(fetch.mock.calls.some(([,options])=>options?.method==='POST')).toBe(false)
 })
 it('retries body truncation but rejects repeated failures with their cause', async () => {
   vi.useFakeTimers()

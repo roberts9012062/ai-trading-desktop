@@ -53,3 +53,15 @@ it('uses only business HTTP in explicit server account mode',async()=>{
  expect(await getLiveAccountApi('okx')).toMatchObject({total_equity:88})
  expect(fetch).toHaveBeenCalledOnce();expect(f.invoke).not.toHaveBeenCalled();expect(f.rpc).not.toHaveBeenCalled()
 })
+it('marks unavailable asset metrics rather than substituting floating profit or estimated margins',async()=>{
+ f.memory.set('atd_account_transport','server')
+ vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({equity:1000,available:700,unrealized_pnl:50,demo:false})))
+ const account=await getLiveAccountApi('okx')
+ expect(account).toMatchObject({today_pnl:0,risk_rate:0,balance:0,position_margin:0,metrics_available:{today_pnl:false,risk_rate:false,balance:false,position_margin:false}})
+})
+it('retains explicit zero metrics and independent today profit supplied by the account source',async()=>{
+ f.memory.set('atd_account_transport','server')
+ vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({equity:1000,available:700,unrealized_pnl:50,demo:false,balance:900,frozen_margin:0,position_margin:200,today_pnl:-12,risk_rate:0})))
+ const account=await getLiveAccountApi('okx')
+ expect(account).toMatchObject({today_pnl:-12,balance:900,position_margin:200,metrics_available:{today_pnl:true,risk_rate:true,balance:true,position_margin:true,frozen_margin:true}})
+})

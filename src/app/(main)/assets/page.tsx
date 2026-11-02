@@ -191,7 +191,7 @@ function LiveAssetsView(): React.JSX.Element {
   const cards = [
     { label: `总权益（${venue.toUpperCase()}）`, value: formatMoney(account?.total_equity ?? 0) },
     { label: "可用余额", value: formatMoney(account?.available_margin ?? 0) },
-    { label: "持仓占用", value: formatMoney(account?.position_margin ?? 0) },
+    { label: "持仓占用", value: account?.metrics_available?.position_margin === false ? '未提供' : formatMoney(account?.position_margin ?? 0) },
     { label: "浮动盈亏", value: account?.unrealized_pnl ?? 0, isPnl: true },
   ]
   const upl = positions.reduce((s, p) => s + (p.unrealized_pnl ?? 0), 0)

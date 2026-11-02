@@ -1,6 +1,6 @@
 {
   "name": "ai-trading-desktop",
-  "version": "0.2.213",
+  "version": "0.2.214",
   "private": true,
   "type": "module",
   "scripts": {
@@ -46,26 +46,25 @@
     "react-dom": "19.2.6",
     "react-hook-form": "7.76.1",
     "react-markdown": "10.1.0",
-    "react-router-dom": "^7.9.0",
+    "react-router-dom": "^7.18.2",
     "rehype-highlight": "7.0.2",
     "remark-gfm": "4.0.1",
     "tailwind-merge": "3.6.0",
-    "zod": "4.4.3",
     "zustand": "5.0.14"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.1.0",
-    "@tauri-apps/cli": "^2.9.0",
-    "@types/node": "22.x",
-    "@types/react": "19.x",
-    "@types/react-dom": "19.x",
+    "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/node": "~22.20.1",
+    "@types/react": "~19.2.18",
+    "@types/react-dom": "~19.2.4",
     "@vitejs/plugin-react": "^4.7.0",
     "@webgpu/types": "^0.1.72",
     "fake-indexeddb": "^6.2.5",
-    "tailwindcss": "^4.1.0",
-    "typescript": "5.x",
-    "vite": "^6.3.0",
-    "vitest": "^3.2.0"
+    "tailwindcss": "^4.3.3",
+    "typescript": "~5.9.3",
+    "vite": "^6.4.5",
+    "vitest": "^4.1.12"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

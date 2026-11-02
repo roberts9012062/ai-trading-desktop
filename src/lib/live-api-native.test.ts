@@ -79,3 +79,11 @@ it('cancels a financial action when the login changes during native account prep
   expect(state.invoke.mock.calls.filter(([,args])=>args.method==='POST')).toHaveLength(0)
   expect(state.rpc).not.toHaveBeenCalled();expect(fetch).not.toHaveBeenCalled()
 })
+
+it('does not submit to a different account route if mode changes during order preparation',async()=>{
+  const action=placeLiveOrderApi({venue:'okx',symbol:'btcusdt',direction:'buy',offset:'open',order_type:'market',price:null,quantity:1})
+  localStorage.setItem('atd_account_transport','server')
+  await expect(action).rejects.toThrow('已切换')
+  expect(state.invoke.mock.calls.filter(([,args])=>args.method==='POST')).toHaveLength(0)
+  expect(fetch).not.toHaveBeenCalled()
+})

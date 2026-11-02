@@ -2,6 +2,7 @@ import type { KlineBar } from '@/types'
 import { collectionKlines, collectionSymbol, collectionDesktopSymbols, desktopSymbol } from './collection-api'
 import { COLLECTION_BASE, collectionGeneration, collectionScope, loadCollectionConfig, onCollectionChange } from './collection-config'
 import { openDb, idbGet, idbPut, KLINE_HISTORY_STORE } from './idb'
+import { visibleCharts } from './visible-charts'
 
 const THREE_DAYS = 3 * 86400000
 const intervals: Record<string, number> = { '1m': 60000, '5m': 300000, '15m': 900000, '30m': 1800000, '60m': 3600000, '240m': 14400000, '1d': 86400000 }
@@ -38,7 +39,10 @@ export async function collectionChartKlines(symbol: string, period: string, opti
   const task = (async (): Promise<Page> => {
     const now = Date.now(), offset = period === '1d' ? 28800000 : 0, current = Math.floor((now + offset) / step) * step - offset
     const last = cached.bars.at(-1)!.open_time!
-    const count = Math.max(2, Math.min(500, Math.ceil((current - last) / step) + 2))
+    // collectionKlines paginates requests over 500 candles. Bound the tail by
+    // the retained window, rather than silently leaving long outages unfilled.
+    const capacity = Math.max(240, limit, Math.ceil(THREE_DAYS / step) + 1)
+    const count = Math.max(2, Math.min(capacity, Math.ceil((current - last) / step) + 2))
     const tail = await collectionKlines(symbol, period, { limit: count, priority: 1 })
     if (generation !== collectionGeneration() || scope !== collectionScope()) throw new Error('行情配置已变化，已取消旧请求')
     const checkedCurrent = Math.floor((Date.now() + offset) / step) * step - offset
@@ -48,8 +52,13 @@ export async function collectionChartKlines(symbol: string, period: string, opti
     const base = await readCollectionChartCache(symbol, period) ?? cached
     const bars = new Map(base.bars.map(b => [b.open_time!, b]))
     for (const bar of tail.bars) bars.set(bar.open_time!, bar)
-    const latest = Math.max(...bars.keys()), capacity = Math.max(240, limit, Math.ceil(THREE_DAYS / step) + 1)
+    const latest = Math.max(...bars.keys())
     const merged = [...bars.values()].filter(b => b.open_time! >= latest - (capacity - 1) * step).sort((a, b) => a.open_time! - b.open_time!)
+    if (merged.some((bar, i) => i > 0 && bar.open_time! - merged[i - 1].open_time! > step)) {
+      // A damaged cache is exceptional: repair only the missing ranges. A
+      // healthy symbol switch still reads locally and refreshes just the tail.
+      return verifyCollectionChartKlines(symbol, period, { limit, priority: 1 })
+    }
     const db = await openDb(), page: Page = { symbol, period, bars: merged as Page['bars'], has_more: base.has_more }
     if (db) await idbPut(db, KLINE_HISTORY_STORE, { key: entryKey(symbol, period), schema: 1, symbol, period, bars: merged, savedAt: Date.now() } satisfies Entry).catch(() => {})
     if (generation !== collectionGeneration() || scope !== collectionScope()) throw new Error('行情配置已变化，已取消旧请求')
@@ -82,7 +91,13 @@ export async function startCollectionChartCacheWarmup(symbols?: string[], period
     let done = 0, failed = 0, lastError: string | undefined
     warmupSession = session
     updateWarmup({ running: true, done, failed, total: names.length * selectedPeriods.length })
-    for (const symbol of names) for (const period of selectedPeriods) {
+    const jobs = names.flatMap(symbol => selectedPeriods.map(period => ({ symbol, period })))
+    while (jobs.length) {
+      // Prioritize a newly mounted chart without raising the package's request
+      // concurrency or restarting the once-per-session verification pass.
+      const visible = visibleCharts()
+      const preferred = jobs.findIndex(job => visible.some(chart => chart.symbol === job.symbol && chart.period === job.period))
+      const { symbol, period } = jobs.splice(Math.max(0, preferred), 1)[0]
       if (generation !== collectionGeneration() || scope !== collectionScope()) return
       for (let attempt = 0; attempt < 2; attempt++) {
         try { await verifyCollectionChartKlines(symbol, period, { limit: 240, priority: 0 }); break }
