@@ -12,8 +12,8 @@ import { lazy, Suspense, useSyncExternalStore } from 'react'
 import { useAuthStore } from "@/stores/auth"
 import { desktopLoginRequired, onDesktopLoginChange } from '@/lib/desktop-login-session'
 import { DesktopSessionGate } from '@/components/common/desktop-session-gate'
-import LoginPage from "./app/(auth)/login/page"
-const RegisterPage = lazy(() => import("./app/(auth)/register/page"))
+import LoginPage from "./components/task-hosting/connection-page"
+const HostingPage = lazy(() => import("./components/task-hosting/hosting-page"))
 
 const MainLayout = lazy(() => import("./app/(main)/layout"))
 const AiMarketPage = lazy(() => import("./app/(main)/ai-market/page"))
@@ -65,7 +65,8 @@ export function AppRoutes() {
     <Suspense fallback={<div role="status" className="p-6 text-sm text-[var(--text-muted)]">页面加载中…</div>}><Routes>
       <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/register" element={<Navigate to="/login" replace />} />
+      <Route path="/task-hosting" element={<HostingPage />} />
 
       <Route element={<DesktopSessionGate><MainLayout><Outlet /></MainLayout></DesktopSessionGate>}>
         <Route path="/ai-market" element={<AiMarketPage />} />
