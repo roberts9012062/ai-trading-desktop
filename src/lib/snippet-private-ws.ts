@@ -2,7 +2,7 @@
 import { ensureDesktopRouting, isServerMode, onDesktopRoutingChange } from "./desktop-routing"
 import type { MessageHandler } from "./websocket"
 import { snippetOrigin, snippetFailed, snippetSucceeded } from "./snippet-pool"
-import { collectionMode, collectionGeneration, onCollectionChange } from './collection-config'
+import { collectionMode, collectionGeneration, onCollectionChange, loadCollectionConfig } from './collection-config'
 import {directOkxMode,directPrivateSocketAddress} from './market-provider'
 import { collectionPrivateSocketAddress } from './collection-exchange'
 import { tryPreparedLocalLiveRequest } from './local-desktop'
@@ -15,6 +15,7 @@ class PrivateChannel {
   private heartbeat: ReturnType<typeof setInterval> | null = null
   private controller: AbortController | null = null
   private active = false
+  private revision = 0
   private attempt = 0
   private rx = 0
   private token = ""
@@ -23,6 +24,7 @@ class PrivateChannel {
   constructor(private business: boolean, private event: (channels: string[]) => void) {}
   start(): void { if (this.active) return;this.active=true;this.schedule(this.business ? 1500 : 0) }
   stop(): void {
+    this.revision++
     this.active=false;this.attempt=0;this.release();this.connected=false
     if (this.timer !== null) clearTimeout(this.timer)
     this.timer=null
@@ -47,6 +49,9 @@ class PrivateChannel {
   }
   private async open(): Promise<void> {
     if (!this.active || isServerMode()) return
+    const revision=this.revision
+    if(collectionMode())await loadCollectionConfig()
+    if(!this.active || isServerMode() || revision!==this.revision)return
     this.token=localStorage.getItem("access_token") || ""
     const epoch=collectionGeneration()
     if (!this.token) return
@@ -132,13 +137,13 @@ let collectionEpoch=collectionGeneration()
 onCollectionChange(()=>{
   if(collectionEpoch===collectionGeneration())return
   collectionEpoch=collectionGeneration();privateChannel.stop();businessChannel.stop()
-  if(running&&collectionMode())privateChannel.start()
+  if(running&&collectionMode()){privateChannel.start();if(directOkxMode())businessChannel.start()}
 })
 if (typeof window!=='undefined') {
   window.addEventListener('pagehide',stopSnippetPrivate)
   window.addEventListener('local-exchange-changed',()=>{
     privateChannel.stop();businessChannel.stop()
     emit(['account','positions','orders'])
-    if(running&&!isServerMode())privateChannel.start()
+    if(running&&!isServerMode()){privateChannel.start();if(!collectionMode()||directOkxMode())businessChannel.start()}
   })
 }

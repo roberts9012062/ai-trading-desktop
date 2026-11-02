@@ -1,0 +1,21 @@
+import {afterEach,expect,it,vi} from 'vitest'
+const f=vi.hoisted(()=>({invoke:vi.fn(),directSymbols:vi.fn()}))
+vi.mock('@tauri-apps/api/core',()=>({invoke:f.invoke}))
+vi.mock('./okx-direct',()=>({directSymbols:f.directSymbols,directData:vi.fn()}))
+afterEach(()=>{vi.unstubAllGlobals();vi.resetModules();vi.clearAllMocks()})
+it('starts a new relay catalog request after saving a key while an old direct catalog request is outstanding',async()=>{
+  vi.stubGlobal('window',{__TAURI_INTERNALS__:{}});vi.stubGlobal('localStorage',{getItem:()=>null})
+  f.invoke.mockImplementation(async(command,args)=>command==='collection_key'?{configured:args.action==='save'}:{code:200,data:[{symbol:'BTC-USDT-SWAP',name:'relay catalog'}]})
+  let finish!:(rows:unknown[])=>void
+  f.directSymbols.mockImplementation(()=>new Promise(resolve=>{finish=resolve}))
+  const provider=await import('./market-provider');provider.enableDirectOkxMode()
+  const config=await import('./collection-config');await config.loadCollectionConfig()
+  const api=await import('./collection-api')
+  const old=api.collectionSymbols();void old.catch(()=>{})
+  await vi.waitFor(()=>expect(f.directSymbols).toHaveBeenCalledOnce())
+  await config.collectionKeyAction('save','synthetic-fixture')
+  const current=api.collectionSymbols()
+  finish([{symbol:'ETH-USDT-SWAP',name:'retired direct catalog'}])
+  await expect(old).rejects.toThrow('行情配置已变化')
+  await expect(current).resolves.toEqual([{symbol:'BTC-USDT-SWAP',name:'relay catalog'}])
+})

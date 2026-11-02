@@ -14,8 +14,8 @@ export function collectionPrivateAddress(raw:string,ws=false):string{
   return url.href
 }
 export async function requireCollectionPrivate(operation='okx_private'){
-  if(directOkxMode())return
   await loadCollectionConfig()
+  if(directOkxMode())return
   if(!collectionStatus().configured)throw new Error('请先在个人中心 → 数据配置填写 API VALUE COLLECTION Key')
   const permissions=collectionStatus().permissions??await refreshCollectionPermissions()
   if(!permissions.active_packages.some(g=>g.markets.includes('crypto')&&g.capabilities.includes(operation)))throw new Error(`API VALUE COLLECTION Key 未开通${operation==='okx_private_ws'?'私有账户推送':'交易所账户接口'}权限`)
@@ -55,6 +55,7 @@ function signedHttpSlot<T>(work:()=>Promise<T>):Promise<T>{
   return next
 }
 export async function forwardCollectionExchange(frame:Record<string,unknown>,canSend=()=>true){
+  await loadCollectionConfig()
   const request=signedCollectionBody(frame),generation=collectionGeneration(),scope=collectionScope()
   const current=()=>canSend()&&generation===collectionGeneration()&&scope===collectionScope()
   if(directOkxMode()&&request.method==='GET'){
@@ -83,6 +84,7 @@ export async function forwardCollectionExchange(frame:Record<string,unknown>,can
   })
 }
 export async function collectionPrivateSocketAddress(simulated=false){
+  await loadCollectionConfig()
   if(directOkxMode())return directPrivateSocketAddress(simulated)
   await requireCollectionPrivate('okx_private_ws')
   const ticket=await collectionTicket({market_type:'crypto',exchange:'okx',symbol:'BTC-USDT-SWAP',operation:'okx_private_ws',seconds:45,simulated})

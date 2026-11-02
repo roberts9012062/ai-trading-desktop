@@ -31,7 +31,8 @@ export function DataConfigPanel(){
   return <div className="max-w-2xl space-y-5">
     <div><h2 className="text-lg font-semibold">数据配置</h2><p className="mt-1 text-sm text-[var(--text-muted)]">{directOkxMode()?'行情与账户默认由本机直接连接 OKX。':'统一接入加密货币行情、工作台账户数据与交易所私有接口。'}</p></div>
     {directOkxMode()&&<Card><CardContent className="p-5 space-y-3"><p className="font-medium">OKX 直连 · 60 个 USDT 永续合约</p><p className="text-sm text-[var(--text-muted)]">公共行情无需接口中心 Key。K 线、报价、盘口和逐笔成交直接来自 OKX；账户、持仓、委托和成交使用本机签名的 OKX 凭证。</p><p className="text-sm text-[var(--text-muted)]">自动任务仍须服务器登录和授权，已有执行权与防重复规则继续生效。</p><Button disabled={busy} onClick={()=>void directCheck()}>检测 OKX 直连</Button>{message&&<p role="status" className="text-sm break-words">{message}</p>}</CardContent></Card>}
-    <details open={!directOkxMode()}><summary className="text-sm cursor-pointer mb-3">{directOkxMode()?'自动任务与备用执行器服务配置':'接口中心配置'}</summary>
+    <p className="text-sm text-[var(--text-muted)]">单机模式优先使用已保存的 API VALUE COLLECTION 配置，行情、账户查询和私有推送均走接口中心。未配置或手动清除 Key 后使用 OKX 直连；接口中心故障时不会自动绕过。</p>
+    <details open><summary className="text-sm cursor-pointer mb-3">接口中心配置（保存后优先使用）</summary>
     <Card><CardContent className="p-5 space-y-5">
       <div className="flex items-center justify-between"><div className="flex gap-3 items-center"><KeyRound className="w-5 h-5 text-[var(--primary)]"/><div><p className="font-medium">API Value Collection</p><p className="text-xs text-[var(--text-muted)]">OKX USDT 永续 · {COLLECTION_BASE}</p></div></div><span className="text-xs text-[var(--text-muted)]">{saved.configured?'已配置':'待配置'}</span></div>
       <div className="flex gap-4 text-sm"><a className="text-[var(--primary)] inline-flex gap-1 items-center" href={COLLECTION_BASE} target="_blank" rel="noreferrer">获取 API Key<ExternalLink className="w-3 h-3"/></a><a className="text-[var(--primary)]" href={COLLECTION_BASE+'/#docs'} target="_blank" rel="noreferrer">接口帮助文档</a></div>

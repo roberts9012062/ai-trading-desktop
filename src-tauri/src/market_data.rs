@@ -199,7 +199,7 @@ pub(crate) async fn private_request<F>(
     scope: &str,
     sign:F,
 ) -> Result<Value, String> where F:FnOnce()->Result<Value,String> {
-    if state.direct.load(std::sync::atomic::Ordering::SeqCst){
+    if prefer_direct(state.direct.load(std::sync::atomic::Ordering::SeqCst), &key_path(app,scope)?)?{
         let mut slot=state.private_slot.lock().await;
         if let Some(previous)=*slot{let wait=Duration::from_millis(250).saturating_sub(previous.elapsed());if !wait.is_zero(){tokio::time::sleep(wait).await;}}
         *slot=Some(std::time::Instant::now());
@@ -208,6 +208,13 @@ pub(crate) async fn private_request<F>(
         return crate::okx_direct::signed_request(&state.client,&body).await;
     }
     private_command(app,state,scope,sign,||Ok(())).await
+}
+
+// The choice belongs to this account scope, not the last account used by the
+// webview. A present but damaged/revoked key must fail through Collection.
+fn prefer_direct(enabled:bool,path:&std::path::Path)->Result<bool,String>{
+    if !enabled{return Ok(false)}
+    Ok(!path.try_exists().map_err(|_|"无法读取接口中心配置，请检查本机存储权限")?)
 }
 
 pub(crate) async fn execution_request(app:&tauri::AppHandle,state:&MarketDataState,scope:&str,path:&str,body:Option<Value>)->Result<Value,String>{
@@ -310,7 +317,7 @@ pub async fn collection_key(
             Ok(json!({"configured":false}))
         }
         "status" => {
-            if !path.exists() {
+            if !path.try_exists().map_err(|_|"无法读取接口中心配置，请检查本机存储权限")? {
                 return Ok(json!({"configured":false}));
             }
             let k = read_key(&app, &scope)?;
@@ -364,6 +371,43 @@ pub async fn collection_http(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn scoped_collection_key_takes_priority_even_if_its_contents_are_damaged(){
+        let root=std::env::temp_dir().join(format!("atd-route-{}-{}",std::process::id(),time::OffsetDateTime::now_utc().unix_timestamp_nanos()));
+        std::fs::create_dir(&root).unwrap();
+        let configured=root.join("configured.bin");let absent=root.join("another-account.bin");
+        std::fs::write(&configured,b"invalid synthetic encrypted bytes").unwrap();
+        assert!(!prefer_direct(true,&configured).unwrap());
+        assert!(prefer_direct(true,&absent).unwrap());
+        assert!(!prefer_direct(false,&absent).unwrap());
+        // Remove only the synthetic test file; never use a real account key.
+        std::fs::remove_file(&configured).unwrap();
+        assert!(prefer_direct(true,&configured).unwrap());
+        std::fs::remove_dir(&root).unwrap();
+    }
+    #[tokio::test]
+    #[ignore="explicit read-only demo acceptance through configured Collection"]
+    async fn native_collection_readonly_acceptance(){
+        use base64::Engine;
+        let credentials:Value=serde_json::from_str(&std::env::var("ATD_OKX_ACCEPTANCE_CREDENTIALS").expect("test credentials supplied in process memory")).unwrap();
+        assert_eq!(credentials["demo"],true);
+        let key=std::env::var("ATD_COLLECTION_ACCEPTANCE_KEY").expect("scoped test key supplied in process memory");
+        let state=MarketDataState::default();
+        let permissions=request(&state,&key,"/v1/my/permissions",None).await.unwrap();assert_eq!(permissions["code"],200);
+        for path in ["/api/v5/account/balance","/api/v5/account/positions","/api/v5/trade/orders-pending"]{
+            let ticket=request(&state,&key,"/api/tickets",Some(json!({"market_type":"crypto","exchange":"okx","symbol":"BTC-USDT-SWAP","operation":"okx_private"}))).await.unwrap();
+            assert_eq!(ticket["code"],200);
+            let url=private_target(ticket["data"]["url"].as_str().unwrap()).unwrap();
+            let timestamp=time::OffsetDateTime::now_utc().format(&time::format_description::parse_borrowed::<2>("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]Z").unwrap()).unwrap();
+            let signature=base64::engine::general_purpose::STANDARD.encode(ring::hmac::sign(&ring::hmac::Key::new(ring::hmac::HMAC_SHA256,credentials["secret"].as_str().unwrap().as_bytes()),format!("{timestamp}GET{path}").as_bytes()).as_ref());
+            let signed=json!({"method":"GET","path":path,"query":"","body":"","access_key":credentials["api_key"],"signature":signature,"timestamp":timestamp,"passphrase":credentials["passphrase"],"simulated":true});
+            let response=request(&state,&key,&format!("{}?{}",url.path(),url.query().unwrap()),Some(signed)).await.unwrap();
+            assert_eq!(response["code"],200);
+            let raw:Value=serde_json::from_str(response["data"]["raw"].as_str().unwrap()).unwrap();assert_eq!(raw["code"],"0");
+            println!("{}",json!({"native":true,"provider":"api-collection","readonly":true,"path":path,"code":"0"}));
+            tokio::time::sleep(Duration::from_millis(800)).await;
+        }
+    }
     #[test]
     fn restricts_market_targets() {
         assert!(target("/api/tickets").is_ok());

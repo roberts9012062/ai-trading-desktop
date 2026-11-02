@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 const policy=vi.hoisted(()=>({server:false,collection:false,ticket:vi.fn(),change:null as null|((server:boolean)=>void)}))
-vi.mock('./collection-config',()=>({collectionMode:()=>policy.collection,collectionGeneration:()=>0,onCollectionChange:vi.fn()}))
+vi.mock('./collection-config',()=>({collectionMode:()=>policy.collection,collectionGeneration:()=>0,onCollectionChange:vi.fn(),loadCollectionConfig:async()=>{}}))
 vi.mock('./collection-exchange',()=>({collectionPrivateSocketAddress:policy.ticket}))
 vi.mock('./desktop-routing',()=>({ensureDesktopRouting:async()=>{},isServerMode:()=>policy.server,onDesktopRoutingChange:(callback:(server:boolean)=>void)=>{policy.change=callback}}))
 import { startSnippetPrivate, stopSnippetPrivate } from './snippet-private-ws'

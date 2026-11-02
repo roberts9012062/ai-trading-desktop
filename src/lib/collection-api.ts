@@ -1,6 +1,6 @@
 import type { KlineBar, TradeRecord, CodeTreeMap } from '@/types'
 import type { QuoteData } from './websocket'
-import { COLLECTION_BASE, collectionRequest, collectionGeneration } from './collection-config'
+import { COLLECTION_BASE, collectionRequest, collectionGeneration, loadCollectionConfig } from './collection-config'
 import {directOkxMode} from './market-provider'
 import {directData,directSymbols} from './okx-direct'
 
@@ -66,10 +66,15 @@ export function collectionHttpSlot<T>(work:()=>Promise<T>,priority=0):Promise<T>
   })
 }
 export async function collectionData(query:Record<string,unknown>,priority=0):Promise<CollectionData>{
+  await loadCollectionConfig()
   const generation=collectionGeneration()
   return collectionHttpSlot(async()=>{
     if(generation!==collectionGeneration())throw new Error('行情配置已变化')
-    if(directOkxMode())return directData(query)
+    if(directOkxMode()){
+      const data=await directData(query)
+      if(generation!==collectionGeneration())throw new Error('行情配置已变化')
+      return data
+    }
     for(let attempt=0;;attempt++){
       try {const ticket=await collectionTicket(query),url=new URL(ticketAddress(ticket.url,false));return await collectionRequest<CollectionData>(url.pathname+url.search)}
       catch(error){
@@ -81,14 +86,16 @@ export async function collectionData(query:Record<string,unknown>,priority=0):Pr
     }
   },priority)
 }
-let catalog:CollectionSymbol[]=[],catalogVersion=-1,flight:Promise<CollectionSymbol[]>|null=null
+let catalog:CollectionSymbol[]=[],catalogVersion=-1,flightVersion=-1,flight:Promise<CollectionSymbol[]>|null=null
 export async function collectionSymbols(text=''):Promise<CollectionSymbol[]>{
+  await loadCollectionConfig()
   const version=collectionGeneration()
   if(!text&&catalogVersion===version&&catalog.length)return catalog
-  if(!text&&flight)return flight
+  if(!text&&flight&&flightVersion===version)return flight
   const load=async()=>{
     if(directOkxMode()){
       const rows=await directSymbols()
+      if(version!==collectionGeneration())throw new Error('行情配置已变化')
       if(version===collectionGeneration()){catalog=rows;catalogVersion=version}
       return text?rows.filter(row=>row.symbol.toLowerCase().includes(text.toLowerCase())):rows
     }
@@ -96,6 +103,7 @@ export async function collectionSymbols(text=''):Promise<CollectionSymbol[]>{
     for(let page=0;page<10;page++){
       const query=new URLSearchParams({market_type:'crypto',exchange:'okx',text,limit:'1000',offset:String(offset)})
       const result=await collectionRequest<CollectionSymbol[]>('/v1/symbols?'+query)
+      if(version!==collectionGeneration())throw new Error('行情配置已变化')
       rows.push(...result);if(result.length<1000)break;offset+=1000
     }
     const unique=[...new Map(rows.map(row=>[row.symbol,row])).values()]
@@ -103,7 +111,8 @@ export async function collectionSymbols(text=''):Promise<CollectionSymbol[]>{
     return unique
   }
   if(text)return load()
-  flight=load().finally(()=>{flight=null});return flight
+  const task=load().finally(()=>{if(flight===task)flight=null})
+  flightVersion=version;flight=task;return task
 }
 export function collectionSpec(symbol:string){if(!/^[a-z0-9]{1,16}usdt$/.test(symbol.toLowerCase()))return undefined;const id=collectionSymbol(symbol);return catalog.find(row=>row.symbol===id)}
 // Keep a stable, bounded desktop universe; catalog metadata remains available to

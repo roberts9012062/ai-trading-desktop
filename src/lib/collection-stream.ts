@@ -79,7 +79,7 @@ export class CollectionMarketStream {
   private generation=-1
   private limit=5
   private subscriptions=100
-  constructor(){onCollectionChange(()=>{if(this.generation!==collectionGeneration()){this.disconnect();this.connect()}})}
+  constructor(){onCollectionChange(()=>{if(this.running&&this.generation!==collectionGeneration()){this.disconnect();this.connect()}})}
   onMessage(handler:MessageHandler){this.handlers.add(handler);return()=>{this.handlers.delete(handler)}}
   onStateChange(handler:StateHandler){this.states.add(handler);return()=>{this.states.delete(handler)}}
   onQuoteStateChange(handler:StateHandler){this.quoteStates.add(handler);return()=>{this.quoteStates.delete(handler)}}

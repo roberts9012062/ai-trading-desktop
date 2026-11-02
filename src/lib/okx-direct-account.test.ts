@@ -1,9 +1,9 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest'
-const fixture=vi.hoisted(()=>({invoke:vi.fn(),ticket:vi.fn(),request:vi.fn(),load:vi.fn()}))
+const fixture=vi.hoisted(()=>({invoke:vi.fn(),ticket:vi.fn(),request:vi.fn(),load:vi.fn(),configured:false}))
 vi.mock('@tauri-apps/api/core',()=>({invoke:fixture.invoke}))
-vi.mock('./collection-config',()=>({COLLECTION_BASE:'https://lium.eu.org',collectionScope:()=> 'fixture',collectionGeneration:()=>0,nativeCollection:()=>true,loadCollectionConfig:fixture.load,collectionStatus:()=>({configured:false}),collectionRequest:fixture.request}))
+vi.mock('./collection-config',()=>({COLLECTION_BASE:'https://lium.eu.org',collectionScope:()=> 'fixture',collectionGeneration:()=>0,nativeCollection:()=>true,loadCollectionConfig:fixture.load,collectionStatus:()=>({configured:fixture.configured,permissions:{active_packages:[{markets:['crypto'],capabilities:['okx_private','okx_private_ws']}]}}),collectionRequest:fixture.request}))
 vi.mock('./collection-api',()=>({collectionHttpSlot:(work:()=>Promise<unknown>)=>work(),collectionTicket:fixture.ticket}))
-beforeEach(async()=>{vi.resetModules();vi.clearAllMocks();const {enableDirectOkxMode}=await import('./market-provider');enableDirectOkxMode()})
+beforeEach(async()=>{vi.resetModules();vi.clearAllMocks();fixture.configured=false;const {enableDirectOkxMode}=await import('./market-provider');enableDirectOkxMode()})
 afterEach(()=>vi.resetModules())
 const frame={method:'GET',path:'/api/v5/account/positions?instType=SWAP',body:'',headers:{'OK-ACCESS-KEY':'fixture-key','OK-ACCESS-SIGN':'signed','OK-ACCESS-TIMESTAMP':'2026-10-24T00:00:00Z','OK-ACCESS-PASSPHRASE':'fixture','x-simulated-trading':'1'}}
 it('reads signed account data through native OKX without a collection key or ticket',async()=>{
@@ -11,17 +11,35 @@ it('reads signed account data through native OKX without a collection key or tic
   const api=await import('./collection-exchange')
   await expect(api.forwardCollectionExchange(frame)).resolves.toEqual({status:200,data:{code:'0',data:[]}})
   expect(fixture.invoke).toHaveBeenCalledExactlyOnceWith('okx_signed_read',{request:expect.objectContaining({method:'GET',path:'/api/v5/account/positions',query:'instType=SWAP',simulated:true,signature:'signed'})})
-  expect(fixture.ticket).not.toHaveBeenCalled();expect(fixture.request).not.toHaveBeenCalled();expect(fixture.load).not.toHaveBeenCalled()
+  expect(fixture.ticket).not.toHaveBeenCalled();expect(fixture.request).not.toHaveBeenCalled();expect(fixture.load).toHaveBeenCalledOnce()
 })
 it('opens official demo private WS without an entitlement lookup',async()=>{
   const api=await import('./collection-exchange')
   await expect(api.requireCollectionPrivate()).resolves.toBeUndefined()
   await expect(api.collectionPrivateSocketAddress(true)).resolves.toBe('wss://wspap.okx.com/ws/v5/private')
-  expect(fixture.ticket).not.toHaveBeenCalled();expect(fixture.load).not.toHaveBeenCalled()
+  expect(fixture.ticket).not.toHaveBeenCalled();expect(fixture.load).toHaveBeenCalledTimes(2)
 })
 it('does not route a financial write through the new direct-read IPC',async()=>{
   fixture.ticket.mockRejectedValue(new Error('coordinator required'))
   const api=await import('./collection-exchange')
   await expect(api.forwardCollectionExchange({...frame,method:'POST',path:'/api/v5/trade/order',body:'{}'})).rejects.toThrow('coordinator required')
+  expect(fixture.invoke).not.toHaveBeenCalled()
+})
+it('routes configured account reads and demo private WS through Collection instead of native direct IPC',async()=>{
+  fixture.configured=true
+  fixture.ticket.mockResolvedValue({url:'/edge/okx?ticket=fixture'})
+  fixture.request.mockResolvedValue({raw:JSON.stringify({code:'0',data:[]})})
+  const api=await import('./collection-exchange')
+  await expect(api.forwardCollectionExchange(frame)).resolves.toEqual({status:200,data:{code:'0',data:[]}})
+  expect(fixture.invoke).not.toHaveBeenCalled()
+  expect(fixture.request).toHaveBeenCalledWith('/edge/okx?ticket=fixture',expect.objectContaining({method:'GET',simulated:true}))
+  fixture.ticket.mockResolvedValue({url:'/edge/okx-ws?ticket=private-fixture'})
+  await expect(api.collectionPrivateSocketAddress(true)).resolves.toBe('wss://lium.eu.org/edge/okx-ws?ticket=private-fixture')
+  expect(fixture.ticket).toHaveBeenLastCalledWith(expect.objectContaining({operation:'okx_private_ws',simulated:true}))
+})
+it('does not retry configured Collection failures through direct OKX',async()=>{
+  fixture.configured=true;fixture.ticket.mockRejectedValue(new Error('center unavailable'))
+  const api=await import('./collection-exchange')
+  await expect(api.forwardCollectionExchange(frame)).rejects.toThrow('center unavailable')
   expect(fixture.invoke).not.toHaveBeenCalled()
 })

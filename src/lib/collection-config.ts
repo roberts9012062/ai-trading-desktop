@@ -5,7 +5,7 @@ export interface CollectionGrant { markets:string[]; capabilities:string[]; expi
 export function collectionStandbyEntitled(grants:CollectionGrant[],now=Date.now()):boolean {
   return grants.some(grant=>grant.standby_executor===true&&grant.markets.includes('crypto')&&grant.capabilities.includes('okx_private')&&Date.parse(grant.expires_at)>now)
 }
-export interface CollectionStatus { configured:boolean; lastMarketAt?:number; masked?:string; permissions?:{active_packages:CollectionGrant[]}; error?:string }
+export interface CollectionStatus { configured:boolean; loading?:boolean; configUnavailable?:boolean; lastMarketAt?:number; masked?:string; permissions?:{active_packages:CollectionGrant[]}; error?:string }
 let status:CollectionStatus={configured:false}
 let loadedScope='', generation=0, browserKey=''
 let configLoad:{scope:string;promise:Promise<CollectionStatus>}|null=null
@@ -30,12 +30,12 @@ export async function loadCollectionConfig():Promise<CollectionStatus>{
   // Register before publishing: stream/chart startup listeners can reenter this
   // function while native DPAPI storage is still being read.
   const promise=Promise.resolve().then(async()=>{
-    browserKey='';publish({configured:false})
+    browserKey='';publish({configured:false,loading:true})
     const version=generation
     if(nativeCollection()){
       try {const next=await invoke<CollectionStatus>('collection_key',{scope,action:'status',key:null});if(scope===collectionScope()&&version===generation)publish(next)}
-      catch{if(scope===collectionScope()&&version===generation)publish({configured:false,error:'行情 Key 读取失败，请重新配置'})}
-    }
+      catch{if(scope===collectionScope()&&version===generation)publish({configured:false,configUnavailable:true,error:'行情 Key 读取失败，请重新配置'})}
+    }else if(scope===collectionScope()&&version===generation)publish({configured:false})
     return status
   })
   configLoad={scope,promise}
