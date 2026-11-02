@@ -62,6 +62,9 @@ it("only installs a session after a verified handshake and never stores the logi
   expect(vi.mocked(fetch).mock.calls[1][1]).toMatchObject({
     redirect: "error",
   });
+  for (const [, options] of vi.mocked(fetch).mock.calls) {
+    expect(options).toMatchObject({ maxRedirections: 0 });
+  }
 });
 it("refuses new task creation in standalone mode before any business-server fetch", async () => {
   enterStandalone({
@@ -110,6 +113,9 @@ it("never creates an offline task when the server cannot be reached", async () =
     }),
   ).rejects.toThrow("结果未确认");
   expect(fetch).toHaveBeenCalledTimes(3);
+  expect(vi.mocked(fetch).mock.calls[2][1]).toMatchObject({
+    maxRedirections: 0,
+  });
 });
 it("discards a response from a previous identity", async () => {
   vi.mocked(fetch)

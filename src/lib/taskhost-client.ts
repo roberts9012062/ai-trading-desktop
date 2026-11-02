@@ -1,4 +1,5 @@
 /** Go hosting sessions are separate from legacy JWT/account/executor state. */
+import type { ClientOptions } from "@tauri-apps/plugin-http";
 export type HostSession =
   | {
       mode: "server";
@@ -139,13 +140,23 @@ async function parsed(response: Response): Promise<Record<string, unknown>> {
   if (!body || typeof body !== "object") throw new Error("服务器响应无效");
   return body;
 }
+
+function hostFetch(url: string, options: RequestInit): Promise<Response> {
+  // Tauri forwards ClientOptions, but does not forward Request.redirect to Rust.
+  const guarded: RequestInit & ClientOptions = {
+    ...options,
+    redirect: "error",
+    maxRedirections: 0,
+  };
+  return fetch(url, guarded);
+}
 export async function loginHost(rawOrigin: string, key: string) {
   const origin = normalizeHost(rawOrigin),
     started = epoch;
   if (!/^thk_[A-Za-z0-9_-]{43}$/.test(key))
     throw new Error("请填写管理后台签发的完整登录密钥");
   const health = await parsed(
-    await fetch(origin + "/api/health", {
+    await hostFetch(origin + "/api/health", {
       cache: "no-store",
       redirect: "error",
       signal: AbortSignal.timeout(8000),
@@ -155,7 +166,7 @@ export async function loginHost(rawOrigin: string, key: string) {
     throw new Error("这不是已初始化的 Go 任务托管服务器");
   if (started !== epoch) throw new Error("会话已变化，请重新连接");
   const body = await parsed(
-    await fetch(origin + "/api/v1/handshake", {
+    await hostFetch(origin + "/api/v1/handshake", {
       method: "POST",
       cache: "no-store",
       redirect: "error",
@@ -203,7 +214,7 @@ export async function hostRequest<T>(
     )
   )
     throw new Error("不支持的任务服务器接口");
-  const response = await fetch(session.origin + path, {
+  const response = await hostFetch(session.origin + path, {
     ...options,
     cache: "no-store",
     redirect: "error",
