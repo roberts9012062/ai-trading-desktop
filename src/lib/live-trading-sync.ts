@@ -1,6 +1,8 @@
 import type { MarketWebSocket } from '@/lib/websocket'
 import { subscribeSnippetPrivate } from './snippet-private-ws'
-import { isServerMode } from './desktop-routing'
+import { isServerMode as legacyServerMode } from './desktop-routing'
+import {serverAccountMode} from './account-transport'
+const isServerMode=()=>serverAccountMode()||legacyServerMode()
 import { useAuthStore } from '@/stores/auth'
 import { usePaperTradingStore } from '@/stores/paper-trading'
 import { useAITradingStore } from '@/stores/ai-trading'

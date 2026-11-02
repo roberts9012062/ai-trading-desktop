@@ -6,6 +6,7 @@ import { collectionMode, collectionScope, collectionGeneration, onCollectionChan
 import { collectionHttpSlot } from './collection-api'
 import { requireCollectionPrivate } from './collection-exchange'
 import {directOkxMode} from './market-provider'
+import {serverAccountMode} from './account-transport'
 
 export type DailyPnlSource = "desktop-snippet" | "server-mode" | "server-fallback" | "api-collection" | "okx-direct"
 export interface DailyPnlResult { days: DailyPnlRow[]; summary: DailyPnlSummary | null; source?: DailyPnlSource }
@@ -158,6 +159,7 @@ export async function queryDailyPnl(read: Read, days: number, now = Date.now(), 
 }
 
 export async function loadDesktopDailyPnl(days: number, fallback: () => Promise<DailyPnlResult>): Promise<DailyPnlResult> {
+  if(serverAccountMode())return {...await fallback(),source:'server-mode'}
   if(collectionMode())await requireCollectionPrivate()
   await ensureDesktopRouting()
   if (!isTauri() || isServerMode()) return { ...await fallback(), source: directOkxMode()?'okx-direct':collectionMode()?'api-collection':"server-mode" }

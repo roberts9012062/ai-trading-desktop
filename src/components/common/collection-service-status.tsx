@@ -2,6 +2,7 @@ import {useEffect,useState,useSyncExternalStore} from 'react'
 import {collectionStatus,onCollectionChange,loadCollectionConfig,refreshCollectionPermissions} from '@/lib/collection-config'
 import {collectionChartWarmupStatus,onCollectionChartWarmup} from '@/lib/collection-chart-cache'
 import {directOkxMode} from '@/lib/market-provider'
+import {serverAccountMode} from '@/lib/account-transport'
 
 export function CollectionServiceStatus({account=false}:{account?:boolean}){
   const status=useSyncExternalStore(onCollectionChange,collectionStatus,collectionStatus)
@@ -21,7 +22,7 @@ export function CollectionServiceStatus({account=false}:{account?:boolean}){
     <span className="text-[var(--text-muted)]">{directOkxMode()?(fresh?'实时行情已接收':'正在连接 OKX'):!status.configured?'待配置 Key':fresh?'实时行情已接收':'已配置 · 等待行情'}</span>
     {cache.running&&<span className="text-[var(--text-muted)]">启动缓存 {cache.done}/{cache.total} · 后台补充历史</span>}
     {!cache.running&&cache.failed>0&&<span className="text-amber-400">部分历史缓存待补充（{cache.failed}）</span>}
-    {account&&<span className="text-[var(--text-muted)]">{directOkxMode()?'账户与私有推送：本机签名直连 OKX':`账户接口：${allowed('okx_private')?'已授权':'未授权'} · 私有推送：${allowed('okx_private_ws')?'已授权':'未授权'}`}</span>}
+    {account&&<span className="text-[var(--text-muted)]">{serverAccountMode()?'个人账户来源：业务服务器':directOkxMode()?'账户与私有推送：本机签名直连 OKX':`账户接口：${allowed('okx_private')?'已授权':'未授权'} · 私有推送：${allowed('okx_private_ws')?'已授权':'未授权'}`}</span>}
     <a href="/profile?tab=data" className="ml-auto text-[var(--primary)]">数据配置</a>
   </div>
 }

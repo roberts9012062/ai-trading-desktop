@@ -8,6 +8,7 @@ import {ServerSyncPanel} from './server-sync-panel'
 import {ExecutionPanel} from './execution-panel'
 import {directOkxMode} from '@/lib/market-provider'
 import {directPublicGet} from '@/lib/okx-direct'
+import {AccountSourceSelector} from '@/components/trading/account-source-selector'
 import {collectionStatus,onCollectionChange,loadCollectionConfig,collectionKeyAction,refreshCollectionPermissions,collectionStandbyEntitled,nativeCollection,COLLECTION_BASE,type CollectionStatus} from '@/lib/collection-config'
 
 const labels:Record<string,string>={history:'历史K线',quotes:'报价快照',ticks:'最近成交',stream_bars:'实时K线',stream_quotes:'实时报价与盘口',stream_ticks:'逐笔成交',okx_private:'账户、持仓、成交与收益',okx_private_ws:'私有账户实时推送'}
@@ -30,6 +31,7 @@ export function DataConfigPanel(){
   const directCheck=async()=>{setBusy(true);setMessage('');try{await directPublicGet('/api/v5/public/time');await directPublicGet('/api/v5/market/ticker?instId=BTC-USDT-SWAP');setMessage('OKX 直连正常：服务器时间、BTC 永续报价已返回')}catch(error){setMessage(error instanceof Error?error.message:String(error))}finally{setBusy(false)}}
   return <div className="max-w-2xl space-y-5">
     <div><h2 className="text-lg font-semibold">数据配置</h2><p className="mt-1 text-sm text-[var(--text-muted)]">{directOkxMode()?'行情与账户默认由本机直接连接 OKX。':'统一接入加密货币行情、工作台账户数据与交易所私有接口。'}</p></div>
+    <AccountSourceSelector/>
     {directOkxMode()&&<Card><CardContent className="p-5 space-y-3"><p className="font-medium">OKX 直连 · 60 个 USDT 永续合约</p><p className="text-sm text-[var(--text-muted)]">公共行情无需接口中心 Key。K 线、报价、盘口和逐笔成交直接来自 OKX；账户、持仓、委托和成交使用本机签名的 OKX 凭证。</p><p className="text-sm text-[var(--text-muted)]">自动任务仍须服务器登录和授权，已有执行权与防重复规则继续生效。</p><Button disabled={busy} onClick={()=>void directCheck()}>检测 OKX 直连</Button>{message&&<p role="status" className="text-sm break-words">{message}</p>}</CardContent></Card>}
     <p className="text-sm text-[var(--text-muted)]">单机模式优先使用已保存的 API VALUE COLLECTION 配置，行情、账户查询和私有推送均走接口中心。未配置或手动清除 Key 后使用 OKX 直连；接口中心故障时不会自动绕过。</p>
     <details open><summary className="text-sm cursor-pointer mb-3">接口中心配置（保存后优先使用）</summary>

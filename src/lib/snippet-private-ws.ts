@@ -1,5 +1,7 @@
 /** Ephemeral WS login proofs; push data only invalidates normalized UI reads. */
-import { ensureDesktopRouting, isServerMode, onDesktopRoutingChange } from "./desktop-routing"
+import { ensureDesktopRouting, isServerMode as legacyServerMode, onDesktopRoutingChange } from "./desktop-routing"
+import {serverAccountMode} from './account-transport'
+const isServerMode=()=>serverAccountMode()||legacyServerMode()
 import type { MessageHandler } from "./websocket"
 import { snippetOrigin, snippetFailed, snippetSucceeded } from "./snippet-pool"
 import { collectionMode, collectionGeneration, onCollectionChange, loadCollectionConfig } from './collection-config'

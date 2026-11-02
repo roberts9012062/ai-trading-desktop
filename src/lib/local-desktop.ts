@@ -3,6 +3,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core'
 import { collectionMode, collectionScope, collectionGeneration, loadCollectionConfig } from './collection-config'
 import { requireCollectionPrivate } from './collection-exchange'
 import { collectionHttpSlot } from './collection-api'
+import {serverAccountMode} from './account-transport'
 
 const reads = new Map<string, Promise<Response>>()
 let localEpoch = 0
@@ -11,7 +12,7 @@ const routes = /^\/api\/live\/(?:permission|credentials(?:\/okx)?|desktop-ws-log
 const manualWrite=(route:string,method:string)=>method==='POST'&&['/api/live/orders','/api/live/positions/close','/api/live/local-execution/confirm-flat','/api/live/local-execution/stop-account'].includes(route)||method==='DELETE'&&/^\/api\/live\/orders\/[^/]+$/.test(route)
 
 export async function tryLocalLiveRequest(path: string, options: RequestInit = {}, expectedBinding?: string, originCurrent?:()=>void): Promise<Response | null> {
-  if (!isTauri() || !collectionMode() || !routes.test(path.split('?')[0])) return null
+  if (!isTauri() || !collectionMode() || serverAccountMode() || !routes.test(path.split('?')[0])) return null
   await loadCollectionConfig()
   const scope = collectionScope(), epoch = collectionGeneration(), accountEpoch = localEpoch
   const method = (options.method || 'GET').toUpperCase()
@@ -46,7 +47,7 @@ export async function tryLocalLiveRequest(path: string, options: RequestInit = {
 }
 
 export async function localLiveBinding(): Promise<string | null> {
-  if (!isTauri() || !collectionMode()) return null
+  if (!isTauri() || !collectionMode() || serverAccountMode()) return null
   await loadCollectionConfig()
   const scope = collectionScope(), epoch = localEpoch, generation = collectionGeneration()
   const result = await invoke<{credentials?: Array<{account_binding?: string | null}>}>('desktop_local_exchange', {
@@ -60,10 +61,16 @@ export async function localLiveBinding(): Promise<string | null> {
 /** Native writes require a server-bound account and exclusive center authority. */
 export async function tryPreparedLocalLiveRequest(path:string,options:RequestInit={},expectedBinding?:string,originCurrent?:()=>void):Promise<Response|null>{
   const route=path.split('?')[0],method=(options.method||'GET').toUpperCase()
+  if(isTauri()&&collectionMode()&&!serverAccountMode()){
+    const config=route==='/api/live/permission'&&method==='GET'||route==='/api/live/credentials'&&['GET','PUT'].includes(method)||route==='/api/live/credentials/okx'&&method==='DELETE'
+    const read=method==='GET'&&/^\/api\/live\/(?:account|positions|orders|bills|account-mode|fee-rates)$/.test(route)||route==='/api/live/desktop-ws-login'&&method==='POST'
+    if(config||read)return tryLocalLiveRequest(path,options,expectedBinding,originCurrent)
+  }
   if (!routes.test(route) || !(method==='GET'||route==='/api/live/desktop-ws-login'&&method==='POST'||manualWrite(route,method))) return null
   const binding=await localLiveBinding()
   originCurrent?.()
   if(expectedBinding&&binding!==expectedBinding)throw new Error('本机交易账户已变化，请重新读取账户后操作')
+  if(isTauri()&&collectionMode()&&!serverAccountMode()&&!binding)throw new Error('本机账户尚无服务器交易授权与账户绑定，仅可读取账户信息')
   return binding ? tryLocalLiveRequest(path,options,binding,originCurrent) : null
 }
 
@@ -84,12 +91,13 @@ export async function stopLocalAccountTasks():Promise<{message:string;unresolved
 }
 
 function changed(){localEpoch++;reads.clear();if(typeof window!=='undefined')window.dispatchEvent(new Event('local-exchange-changed'))}
+export const notifyLocalExchangeChanged=changed
 
 export async function clearLocalExchangeAccount(expectedScope:string):Promise<void>{
   if(!isTauri()||!collectionMode())return
   if(expectedScope!==collectionScope())throw new Error('账号已切换，请在原账号核对保存结果')
   localEpoch++;reads.clear()
-  await invoke('desktop_local_exchange',{scope:expectedScope,path:'/api/live/credentials/okx',method:'DELETE',body:null,expectedBinding:null})
+  await invoke('desktop_local_exchange',{scope:expectedScope,path:'/api/live/credentials/okx',method:'DELETE',body:serverAccountMode()?{server_bound_only:true}:null,expectedBinding:null})
   if(expectedScope===collectionScope())changed()
 }
 

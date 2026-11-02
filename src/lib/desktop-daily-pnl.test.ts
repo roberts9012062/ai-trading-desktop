@@ -18,6 +18,13 @@ beforeEach(() => {
   resetDesktopDailyPnl()
 })
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
+it('uses server account analytics without requiring Collection access in explicit server mode',async()=>{
+  mocks.collection=true
+  vi.stubGlobal('localStorage',{getItem:(key:string)=>key==='atd_account_transport'?'server':'alice'})
+  const fallback=vi.fn().mockResolvedValue({days:[],summary:{net:9}})
+  expect(await loadDesktopDailyPnl(30,fallback)).toMatchObject({source:'server-mode',summary:{net:9}})
+  expect(fallback).toHaveBeenCalledOnce();expect(mocks.invoke.mock.calls.every(([command])=>command==='okx_analytics_clear')).toBe(true)
+})
 
 it("aggregates Beijing dates, blank days, rebates and signed funding without double fees", () => {
   const row = (ts: string, pnl: number, fee: number, funding = 0, trade = true) => ({ ts: Date.parse(ts), pnl, fee, funding, trade })

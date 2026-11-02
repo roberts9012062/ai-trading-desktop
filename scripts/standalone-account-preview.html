@@ -1,0 +1,7 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>Account source acceptance</title></head><body><div id="root"></div><script type="module">
+import React from 'react';import {createRoot} from 'react-dom/client';import '/src/app/globals.css';
+import {enableCollectionMode,loadCollectionConfig} from '/src/lib/collection-config.ts';import {enableDirectOkxMode} from '/src/lib/market-provider.ts';
+enableCollectionMode();enableDirectOkxMode();await loadCollectionConfig();
+const [{ExchangeCredentialsPanel},api]=await Promise.all([import('/src/components/trading/exchange-credentials-panel.tsx'),import('/src/lib/live-api.ts')]);
+window.accountQA=api;createRoot(document.getElementById('root')).render(React.createElement(ExchangeCredentialsPanel));
+</script></body></html>

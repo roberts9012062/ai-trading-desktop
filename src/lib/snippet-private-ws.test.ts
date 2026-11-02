@@ -20,6 +20,11 @@ beforeEach(()=>{
   vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({demo:true,expires_in:15,args:[{sign:'short-proof'}]}))))
 })
 afterEach(()=>{stopSnippetPrivate();vi.useRealTimers();vi.unstubAllGlobals()})
+it('does not start native private sockets or obtain login proofs in explicit server account mode',async()=>{
+  vi.stubGlobal('localStorage',{getItem:(key:string)=>key==='atd_account_transport'?'server':'test-token'})
+  await startSnippetPrivate();await vi.advanceTimersByTimeAsync(12000)
+  expect(Socket.all).toHaveLength(0);expect(fetch).not.toHaveBeenCalled();expect(policy.ticket).not.toHaveBeenCalled()
+})
 it('opens one socket per private endpoint; repeated start and shutdown leave no reconnects',async()=>{
   await startSnippetPrivate();await startSnippetPrivate();await vi.advanceTimersByTimeAsync(2000)
   expect(Socket.all).toHaveLength(2)

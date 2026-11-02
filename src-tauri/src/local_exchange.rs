@@ -129,7 +129,7 @@ fn ws_proof(credential:&NativeCredentials)->Value{
 fn permission(app:&tauri::AppHandle,store:&LocalStoreState,scope:&str)->Result<Value>{
     let sealed=store.with(app,|db|db.secret(scope,"server-permission"))?;
     if let Some(sealed)=sealed{let raw=Zeroizing::new(crate::market_data::protect(&sealed,format!("local-permission:{scope}").as_bytes(),false)?);return serde_json::from_slice(&raw).map_err(|_|"本地授权状态损坏".into())}
-    Ok(json!({"enabled":false,"message":"尚未同步实盘授权，请连接服务器后同步；模拟账户可在本机配置"}))
+    Ok(json!({"enabled":false,"message":"可配置本机 OKX 账户并读取信息；交易操作仍需服务器授权与账户绑定"}))
 }
 
 fn validate_import_subject(scope:&str,subject:Option<&str>)->Result<()>{
@@ -186,13 +186,17 @@ pub async fn desktop_local_exchange(app:tauri::AppHandle,store:tauri::State<'_,L
             let field=|name:&str,previous:Option<&String>|{let value=body[name].as_str().unwrap_or("").trim();if value.is_empty(){previous.cloned().unwrap_or_default()}else{value.into()}};
             let mut local=NativeCredentials{api_key:key.into(),secret:field("secret",old.map(|c|&c.secret)),passphrase:field("passphrase",old.map(|c|&c.passphrase)),demo:body["demo"].as_bool().unwrap_or(false),label:body["label"].as_str().unwrap_or("").into(),updated_at:timestamp(),server_bound:false};
             local.server_bound=old.is_some_and(|previous|preserves_server_binding(previous,&local));
-            if !local.demo&&permission(&app,&store,&scope)?["enabled"]!=true{return Err("实盘账户需先同步服务器授权".into())}
+            // Saving a local read credential never grants trading authority.
+            // Financial commands still require server_bound and a verified grant.
             crate::execution_runtime::invalidate_account(&app,&scope);
             save_credentials(&app,&store,&scope,&local)?;crate::execution_runtime::invalidate_account(&app,&scope);return Ok(json!({"ok":true,"storage":"local"}))
         }
     }
-    if route=="/api/live/credentials/okx"&&method=="DELETE"{crate::execution_runtime::invalidate_account(&app,&scope);store.with(&app,|db|db.remove_secret(&scope,"okx-credentials"))?;crate::execution_runtime::invalidate_account(&app,&scope);return Ok(json!({"ok":true}))}
-    let credential=credentials(&app,&store,&scope)?.ok_or("请先在本机保存 OKX 凭证，或点击同步服务器导入")?;
+    if route=="/api/live/credentials/okx"&&method=="DELETE"{
+        if body["server_bound_only"]==true&&credentials(&app,&store,&scope)?.is_some_and(|c|!c.server_bound){return Ok(json!({"ok":true,"preserved_local_account":true}))}
+        crate::execution_runtime::invalidate_account(&app,&scope);store.with(&app,|db|db.remove_secret(&scope,"okx-credentials"))?;crate::execution_runtime::invalidate_account(&app,&scope);return Ok(json!({"ok":true}))
+    }
+    let credential=credentials(&app,&store,&scope)?.ok_or("请在交易所接入页面配置本机 OKX 账户（API Key、Secret 和 Passphrase）")?;
     if let Some(expected)=expected_binding.as_ref(){if !credential.server_bound||*expected!=account_identity(&credential.api_key,credential.demo){return Err("本机交易账户已变化，请重新读取账户后操作".into())}}
     let namespace=account_scope(&scope,&credential);
     if route=="/api/live/desktop-ws-login"&&method=="POST"{return Ok(ws_proof(&credential))}
@@ -424,5 +428,13 @@ mod tests {
         let credential=NativeCredentials{api_key:"key-123456789".into(),secret:"sample".into(),passphrase:"sample".into(),demo:true,label:"test".into(),updated_at:"2026-10-19T00:00:00Z".into(),server_bound:false};
         assert_eq!(metadata(&credential)["updated_at"],"2026-10-19T00:00:00Z");
         assert_eq!(metadata(&credential),metadata(&credential));
+    }
+    #[test]
+    fn local_real_credentials_are_readable_without_inventing_server_trading_authority(){
+        let credential=NativeCredentials{api_key:"synthetic-real-key".into(),secret:"synthetic-secret".into(),passphrase:"synthetic-passphrase".into(),demo:false,label:"readonly".into(),updated_at:String::new(),server_bound:false};
+        assert!(validate_credentials(&credential).is_ok());
+        assert!(metadata(&credential)["account_binding"].is_null());
+        assert_eq!(metadata(&credential)["demo"],false);
+        assert!(!preserves_server_binding(&credential,&credential));
     }
 }

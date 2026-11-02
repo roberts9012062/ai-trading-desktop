@@ -18,6 +18,8 @@ import { canConnectExchange, isRealTradingProtection, REAL_TRADING_PROTECTION_ME
 import { Loader2, ShieldCheck, ShieldAlert } from "lucide-react"
 import {collectionMode,collectionGeneration,onCollectionChange,collectionScope,nativeCollection} from '@/lib/collection-config'
 import {directOkxMode} from '@/lib/market-provider'
+import {serverAccountMode} from '@/lib/account-transport'
+import {AccountSourceSelector} from './account-source-selector'
 import { importLocalExchangeAccount, confirmLocalExchangeFlat, localExchangeGeneration } from '@/lib/local-desktop'
 import {checkPendingLocalOrder} from '@/lib/local-order-intent'
 import {checkPendingLocalControl} from '@/lib/local-control-intent'
@@ -67,6 +69,7 @@ function VenueCard({
   const [error, setError] = useState("")
   const [protectionOpen, setProtectionOpen] = useState(false)
   const [collectionCheck,setCollectionCheck]=useState<boolean|null>(null)
+  const localReadOnly=venue==='okx'&&nativeCollection()&&collectionMode()&&!serverAccountMode()
   useEffect(()=>{
     setCollectionCheck(null)
     let generation=collectionGeneration()
@@ -82,7 +85,7 @@ function VenueCard({
   const save = async () => {
     setError("")
     setMessage("")
-    if (!canConnectExchange(form.demo, realTradingEnabled)) {
+    if (!localReadOnly&&!canConnectExchange(form.demo, realTradingEnabled)) {
       setProtectionOpen(true); return
     }
     if (!form.apiKey.trim()) {
@@ -119,7 +122,7 @@ function VenueCard({
   }
 
   const test = async () => {
-    if (credential && !canConnectExchange(credential.demo, realTradingEnabled)) {
+    if (!localReadOnly&&credential && !canConnectExchange(credential.demo, realTradingEnabled)) {
       setProtectionOpen(true); return
     }
     setError("")
@@ -231,7 +234,7 @@ function VenueCard({
               type="checkbox"
               checked={form.demo}
               onChange={(e) => {
-                if (!canConnectExchange(e.target.checked, realTradingEnabled)) { setProtectionOpen(true); return }
+                if (!localReadOnly&&!canConnectExchange(e.target.checked, realTradingEnabled)) { setProtectionOpen(true); return }
                 setForm((f) => ({ ...f, demo: e.target.checked }))
               }}
             />
@@ -370,13 +373,14 @@ export function ExchangeCredentialsPanel(): React.JSX.Element {
       <div>
         <h3 className="text-sm font-semibold">交易所接入</h3>
         <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
-          当前开放 OKX 模拟盘 · 真实资金接入须经管理员授权 · 凭证加密存储
+          OKX 模拟与实盘账户可在本机配置并读取 · 交易操作需独立授权 · 凭证加密存储
         </p>
       </div>
-      {collectionMode()&&<><CollectionServiceStatus account/><p className="text-xs text-[var(--text-muted)]">{directOkxMode()?'测试连通由本机直连 OKX 查询账户，无需接口中心 Key。建议先同步账户到本机，以支持业务服务器离线时查询；已同步凭证由系统加密保存。':'测试连通通过 API VALUE COLLECTION 查询 OKX 账户。此 Key 需开通私有账户接口；OKX Secret 用于签名，不发送至接口中心。'}</p></>}
+      <AccountSourceSelector/>
+      {collectionMode()&&!serverAccountMode()&&<><CollectionServiceStatus account/><p className="text-xs text-[var(--text-muted)]">{directOkxMode()?'在下方配置本机 OKX 账户，直接查询账户信息，无需连接业务服务器。':'在下方配置本机 OKX 账户，通过 API VALUE COLLECTION 查询；数据 Key 需开通私有账户接口。OKX Secret 加密保存在本机，用于签名，不发送至接口中心。'}</p></>}
       {nativeCollection()&&collectionMode()&&<div className="rounded-lg border border-[var(--border)] p-3 space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-medium">本机账户数据</span><Button size="sm" variant="outline" disabled={syncing||confirming||!owner} onClick={()=>void syncAccount()}>{syncing&&<Loader2 className="w-3 h-3 animate-spin mr-1"/>}{syncing?'同步中…':'同步交易所账户'}</Button></div>
-        <p className="text-xs text-[var(--text-muted)]">连接业务服务器，将当前 OKX 账户同步到本机。同步后，账户查询、下单、撤单和平仓可通过 API VALUE COLLECTION 进行；操作前校验执行权，结果未知时先核对。创建或重新启动任务仍需登录业务服务器。</p>
+        <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-medium">可选：导入服务器账户与交易授权</span><Button size="sm" variant="outline" disabled={syncing||confirming||!owner} onClick={()=>void syncAccount()}>{syncing&&<Loader2 className="w-3 h-3 animate-spin mr-1"/>}{syncing?'同步中…':'从业务服务器导入'}</Button></div>
+        <p className="text-xs text-[var(--text-muted)]">单机读取只需在下方配置 OKX 凭证，无需服务器同步。此处供业务服务器恢复后导入已授权账户；金融操作继续校验服务器授权与执行权，创建或重新启动任务仍需服务器登录。</p>
         <div className="flex flex-wrap items-center gap-2"><Button size="sm" variant="outline" disabled={confirming||syncing||!owner} onClick={()=>void checkOrder()}>核对上次下单</Button><span className="text-xs text-[var(--text-muted)]">确认上一笔请求的结果，不会发送新订单。</span></div>
         <div className="flex flex-wrap items-center gap-2"><Button size="sm" variant="outline" disabled={confirming||syncing||!owner} onClick={()=>void checkControl()}>核对人工操作</Button><span className="text-xs text-[var(--text-muted)]">查看撤单或平仓的排队与核对结果，不会再次提交。</span></div>
         <div className="flex flex-wrap items-center gap-2"><Button size="sm" variant="outline" disabled={confirming||syncing||!owner} onClick={()=>void confirmFlat()}>{confirming&&<Loader2 className="w-3 h-3 animate-spin mr-1"/>}{confirming?'核对中…':'核对平仓状态'}</Button><span className="text-xs text-[var(--text-muted)]">需先手动平仓并撤销全部委托；核对通过不会自动重启任务。</span></div>

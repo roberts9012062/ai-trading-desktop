@@ -6,7 +6,8 @@
 
 import type { PaperAccountSummary, PaperOrderItem, PaperPositionItem } from "@/lib/paper-api"
 import { tryDesktopLiveRequest } from "./desktop-exchange"
-import { tryPreparedLocalLiveRequest, localLiveBinding, clearLocalExchangeAccount, localExchangeGeneration } from './local-desktop'
+import { tryPreparedLocalLiveRequest, localLiveBinding, clearLocalExchangeAccount, localExchangeGeneration, notifyLocalExchangeChanged } from './local-desktop'
+import {serverAccountMode} from './account-transport'
 import { loadDesktopDailyPnl, resetDesktopDailyPnl, type DailyPnlResult } from "./desktop-daily-pnl"
 import { collectionMode, collectionGeneration, collectionScope, nativeCollection, loadCollectionConfig } from './collection-config'
 import {withLocalOrderIntent} from './local-order-intent'
@@ -27,6 +28,7 @@ class LiveRequestError extends Error {
 
 /** 带鉴权的 JSON 请求（与 paper-api 同款） */
 async function liveRequest<T>(path: string, options: RequestInit = {}, serverOnly = false, expectedBinding?:string): Promise<T> {
+  if(nativeCollection()&&collectionMode()&&serverAccountMode())serverOnly=true
   const token =
     typeof window !== "undefined" ? localStorage.getItem("access_token") : null
   const ownerScope=collectionScope()
@@ -45,6 +47,7 @@ async function liveRequest<T>(path: string, options: RequestInit = {}, serverOnl
     let response = !serverOnly ? await tryPreparedLocalLiveRequest(path, options, expectedBinding, current) : null
     if (!response) {
       const method=(options.method||'GET').toUpperCase()
+      if(nativeCollection()&&collectionMode()&&!serverAccountMode()&&method!=='GET'&&!path.startsWith('/api/live/credentials'))throw new LiveRequestError('此操作需要服务器交易授权与账户绑定；单机账户读取不会开通金融操作')
       if(!serverOnly&&method!=='GET'&&path.startsWith('/api/live/')&&!path.startsWith('/api/live/credentials')){
         const binding=await localLiveBinding()
         if(binding)headers['X-Desktop-Account']=binding
@@ -108,7 +111,7 @@ export function storeVenue(venue: TradingVenue): void {
 // ===== 凭证 =====
 
 export function getLivePermissionApi(): Promise<{ enabled: boolean; message: string }> {
-  return liveRequest("/api/live/permission", {}, true)
+  return liveRequest("/api/live/permission", {}, !nativeCollection())
 }
 
 export interface VenueCredential {
@@ -137,18 +140,19 @@ export async function saveCredentialApi(payload: {
   label?: string
 }): Promise<{ ok: boolean; error?: string }> {
   const scope=collectionScope()
-  const result = await liveRequest<{ ok: boolean; error?: string }>("/api/live/credentials", {
+  const result = await liveRequest<{ ok: boolean; error?: string;storage?:string }>("/api/live/credentials", {
     method: "PUT",
     body: JSON.stringify(payload),
   })
-  if (result.ok !== false) { if(payload.venue==='okx')await clearLocalExchangeAccount(scope);resetDesktopDailyPnl() }
+  if (result.ok !== false) { if(result.storage==='local')notifyLocalExchangeChanged();else if(payload.venue==='okx')await clearLocalExchangeAccount(scope);resetDesktopDailyPnl() }
   return result
 }
 
 export async function deleteCredentialApi(venue: string): Promise<void> {
   const scope=collectionScope()
   await liveRequest(`/api/live/credentials/${venue}`, { method: "DELETE" })
-  if(venue==='okx')await clearLocalExchangeAccount(scope)
+  if(nativeCollection()&&collectionMode()&&!serverAccountMode())notifyLocalExchangeChanged()
+  else if(venue==='okx')await clearLocalExchangeAccount(scope)
   resetDesktopDailyPnl()
 }
 

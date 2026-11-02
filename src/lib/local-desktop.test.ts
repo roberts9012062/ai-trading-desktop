@@ -38,7 +38,7 @@ it('uses native reads after a server-bound preparation and leaves unsupported fi
   const binding='a'.repeat(64)
   state.invoke.mockImplementation(async(_command,args)=>args.path==='/api/live/credentials'?{credentials:[{account_binding:binding}]}:{positions:[]})
   expect(await (await tryPreparedLocalLiveRequest('/api/live/positions?venue=okx'))!.json()).toEqual({positions:[]})
-  expect(state.invoke).toHaveBeenLastCalledWith('desktop_local_exchange',expect.objectContaining({expectedBinding:binding,path:'/api/live/positions?venue=okx'}))
+  expect(state.invoke).toHaveBeenLastCalledWith('desktop_local_exchange',expect.objectContaining({expectedBinding:null,path:'/api/live/positions?venue=okx'}))
   state.invoke.mockClear()
   expect(await tryPreparedLocalLiveRequest('/api/live/leverage',{method:'POST',body:'{}'})).toBeNull()
   expect(state.invoke).not.toHaveBeenCalled();expect(fetch).not.toHaveBeenCalled()
@@ -61,10 +61,11 @@ it('stops registered account tasks explicitly through native center control with
   expect(fetch).not.toHaveBeenCalled()
 })
 
-it('keeps legacy/unprepared credentials on the existing server path',async()=>{
-  state.invoke.mockResolvedValue({credentials:[{account_binding:null}]})
+it('uses unbound credentials for reads while financial requests remain blocked locally',async()=>{
+  state.invoke.mockImplementation(async(_command,a)=>a.path==='/api/live/credentials'?{credentials:[{account_binding:null}]}:{equity:1})
   expect(await localLiveBinding()).toBeNull()
-  expect(await tryPreparedLocalLiveRequest('/api/live/account?venue=okx')).toBeNull()
+  expect(await (await tryPreparedLocalLiveRequest('/api/live/account?venue=okx'))!.json()).toEqual({equity:1})
+  await expect(tryPreparedLocalLiveRequest('/api/live/positions/close',{method:'POST'})).rejects.toThrow('仅可读取')
 })
 
 it('does not accept an old-user import response after the account changes',async()=>{

@@ -13,7 +13,7 @@ beforeEach(()=>{
   state.invoke.mockReset().mockImplementation(async(command,args)=>{
     expect(command).toBe('desktop_local_exchange')
     if(args.path==='/api/live/credentials')return {credentials:[{venue:'okx',account_binding:state.binding}]}
-    expect(args.expectedBinding).toBe(state.binding)
+    expect(args.expectedBinding).toBeNull() // Ordinary reads require no trading lease.
     if(args.path.startsWith('/api/live/account?'))return {equity:123,available:100,unrealized_pnl:2,demo:true,venue_name:'OKX'}
     if(args.path.startsWith('/api/live/positions?'))return {positions:[{symbol:'btcusdt',direction:'long',quantity:2,available_quantity:0.5,source:'exchange'}]}
     if(args.path.startsWith('/api/live/orders?'))return {orders:[{id:'100',symbol:'btcusdt',status:'filled',quantity:1,source:'exchange'}],has_more:false}
