@@ -1,6 +1,6 @@
 {
   "name": "ai-trading-desktop",
-  "version": "0.2.215-go.2",
+  "version": "0.2.215-go.3",
   "private": true,
   "type": "module",
   "scripts": {

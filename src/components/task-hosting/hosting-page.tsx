@@ -15,6 +15,8 @@ import {
   standaloneAccounts,
   stopStandaloneAccount,
 } from "@/lib/taskhost-standalone";
+import {readCenterSnapshot,syncCenterSnapshot,type CenterSnapshotInfo} from '@/lib/taskhost-snapshot';
+import {SnapshotPanel} from './snapshot-panel';
 
 const field =
   "w-full mt-2 p-2.5 rounded border border-[var(--border)] bg-[var(--bg-primary)]";
@@ -35,6 +37,8 @@ export default function HostingPage() {
     [message, setMessage] = useState(""),
     [centerKey, setCenterKey] = useState("");
   const [requestID, setRequestID] = useState(() => crypto.randomUUID());
+  const [checkpointAvailable,setCheckpointAvailable]=useState(false);
+  const [snapshots,setSnapshots]=useState<Record<string,CenterSnapshotInfo>>({});
   useEffect(() => {
     restoreHostSession();
     setReady(true);
@@ -52,13 +56,15 @@ export default function HostingPage() {
       setTasks([]);
       setCredentials([]);
     } else {
-      const [t, c] = await Promise.all([
+      const [t, c, capabilities] = await Promise.all([
         hostRequest<{ tasks: HostedTask[] }>("/api/v1/tasks"),
         hostRequest<{ credentials: HostCredential[] }>("/api/v1/credentials"),
+        hostRequest<{center_checkpoint_mirror?:boolean}>("/api/v1/capabilities"),
       ]);
       if (hostSession() !== owner) return;
       setTasks(t.tasks);
       setCredentials(c.credentials);
+      setCheckpointAvailable(capabilities.center_checkpoint_mirror===true);
     }
   }
   async function run(action: () => Promise<void>) {
@@ -76,6 +82,8 @@ export default function HostingPage() {
     setTasks([]);
     setCredentials([]);
     setAccounts([]);
+    setSnapshots({});
+    setCheckpointAvailable(false);
     if (session) void run(refresh);
   }, [session]); // Each identity owns its own response and view.
   if (!session) return <div className="p-6">正在读取连接…</div>;
@@ -158,7 +166,7 @@ export default function HostingPage() {
       <div className="mb-7 rounded border border-[var(--border)] p-4 text-sm text-[var(--text-muted)]">
         {standalone
           ? "单机模式仅访问服务器曾签发的托管任务，不提供新建任务。当前中心协议支持账户停止；逐任务控制及删除接口正在迁移。"
-          : "v0.1.0 开发基础版：已实现安全连接、凭证保存和任务暂存。AI / 短线执行引擎及中心注册尚未迁移完成，暂存任务不会自动执行。"}
+          : "开发预览：已实现服务器连接、凭证保存和任务暂存。支持的服务器可同步中心检查点；AI / 短线实盘执行与中心签名注册仍在迁移，暂存任务不会自动执行。"}
       </div>
       {!standalone && (
         <section className="mb-8">
@@ -251,6 +259,9 @@ export default function HostingPage() {
                   账户需要恢复核对，禁止直接启动新执行器。
                 </p>
               )}
+              {!standalone && <SnapshotPanel available={checkpointAvailable} busy={busy} info={snapshots[account.account_id]}
+                onSync={()=>void run(async()=>{const owner=hostSession();const info=await syncCenterSnapshot(account.account_id);if(hostSession()!==owner)return;setSnapshots(previous=>({...previous,[account.account_id]:info}));setMessage('中心检查点已完整读取并加密保存。尚未取得执行权，不会自动启动任务。');})}
+                onRead={()=>void run(async()=>{const owner=hostSession();const info=await readCenterSnapshot(account.account_id);if(hostSession()!==owner)return;setSnapshots(previous=>({...previous,[account.account_id]:info}));})} />}
               <div className="overflow-x-auto">
                 <table className="w-full text-sm mt-4">
                   <thead>
@@ -447,7 +458,7 @@ export default function HostingPage() {
         </>
       )}
       <p className="mt-8 text-xs text-[var(--text-muted)]">
-        中心运行状态是接管依据。
+        接管仍需中心执行权校验和持仓、订单核对。
         <Link to="/login" className="underline">
           切换服务器或登录方式
         </Link>

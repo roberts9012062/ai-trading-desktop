@@ -209,7 +209,7 @@ export async function hostRequest<T>(
     throw new Error("服务器会话已到期，请重新握手");
   }
   if (
-    !/^\/api\/v1\/(?:tasks(?:\/[A-Za-z0-9_-]+\/(?:start|pause))?|credentials(?:\/[A-Za-z0-9_-]+)?|collection(?:\/accounts)?|capabilities|session|logout)$/.test(
+    !/^\/api\/v1\/(?:tasks(?:\/[A-Za-z0-9_-]+\/(?:start|pause))?|credentials(?:\/[A-Za-z0-9_-]+)?|collection(?:\/accounts|\/snapshots(?:\/[a-f0-9]{64})?)?|capabilities|session|logout)$/.test(
       path,
     )
   )
