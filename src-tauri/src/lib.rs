@@ -14,6 +14,7 @@ mod execution_worker;
 mod execution_preparation;
 mod execution_runtime;
 mod execution_snapshot;
+mod taskhost_go;
 #[cfg(test)]
 mod updater_acceptance;
 
@@ -45,6 +46,7 @@ pub fn run() {
         .manage(market_data::MarketDataState::default())
         .manage(local_store::LocalStoreState::default())
         .manage(execution_runtime::ExecutionRuntime::default())
+        .manage(taskhost_go::GoWorkerState::default())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
@@ -73,6 +75,9 @@ pub fn run() {
             execution_runtime::desktop_executor_snapshot,
             execution_runtime::desktop_executor_history,
             execution_runtime::desktop_executor_stop,
+			execution_runtime::taskhost_legacy_shutdown,
+            taskhost_go::taskhost_go_worker,
+            taskhost_go::taskhost_go_shutdown,
             native_engine::native_engine_spawn,
             native_engine::native_engine_status,
             native_engine::native_engine_kill,
@@ -110,6 +115,9 @@ pub fn run() {
                     if state.exit_draining.swap(true,std::sync::atomic::Ordering::SeqCst){return;}
                     let app=app.clone();
                     tauri::async_runtime::spawn(async move {
+                        if taskhost_go::shutdown(&app).await.is_err(){
+                            tauri_plugin_log::log::warn!("Go 托管执行器退出未确认，已保留中心核对状态");
+                        }
                         if execution_runtime::shutdown(&app).await.is_err(){
                             tauri_plugin_log::log::warn!("独立执行器退出未确认，已保留待对账状态");
                         }

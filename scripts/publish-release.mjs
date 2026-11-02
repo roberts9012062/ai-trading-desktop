@@ -15,6 +15,13 @@ export function releaseArguments(policy, notesFile, assets) {
     ...(policy.prerelease ? ['--prerelease', '--latest=false'] : []), ...assets]
 }
 
+export function selectVersionedInstaller(files, version) {
+  releasePolicy(`v${version}`, version)
+  const expected = `ai-trading-desktop_${version}_x64-setup.exe`
+  if (files.filter(name => name === expected).length !== 1) throw new Error('Exact versioned installer is missing')
+  return expected
+}
+
 function main() {
   const root = resolve(import.meta.dirname, '..')
   const config = JSON.parse(readFileSync(join(root, 'src-tauri/tauri.conf.json'), 'utf8'))

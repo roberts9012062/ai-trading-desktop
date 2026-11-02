@@ -7,6 +7,8 @@ export type HostSession =
       token: string;
       ownerID: string;
       expiresAt: string;
+	  centerScope?:string;
+	  centerUserID?:string;
     }
   | { mode: "standalone"; scope: string; centerUserID: string };
 export interface HostedTask {
@@ -41,6 +43,7 @@ export interface CenterTask {
   revision: number;
   config?: {
     task?: { name?: string; symbol?: string; strategy_type?: string };
+    go_task?: { version?: string; controls?: string; spec?: { name?: string; kind?: string; symbol?: string;model_id?:string } };
   };
 }
 export interface CenterAccount {
@@ -78,6 +81,12 @@ function save(session: HostSession | null) {
 export function logoutHost() {
   save(null);
   publish(null);
+}
+
+/** Retains only a verified local storage scope; the center key never enters session storage. */
+export function attachOnlineCenter(expected:HostSession,scope:string,user:string){
+  if(current!==expected||expected.mode!=='server'||!/^[A-Za-z0-9_-]{1,100}$/.test(user)||scope!==`taskhost:standalone:${user}`)throw new Error('中心账户或会话已变化');
+  const next={...expected,centerScope:scope,centerUserID:user};save(next);publish(next);
 }
 export function enterStandalone(session: {
   scope: string;
@@ -209,7 +218,7 @@ export async function hostRequest<T>(
     throw new Error("服务器会话已到期，请重新握手");
   }
   if (
-    !/^\/api\/v1\/(?:tasks(?:\/[A-Za-z0-9_-]+\/(?:start|pause))?|credentials(?:\/[A-Za-z0-9_-]+(?:\/(?:verify-account|verified-account))?)?|collection(?:\/accounts|\/snapshots(?:\/[a-f0-9]{64})?)?|capabilities|session|logout)$/.test(
+    !/^\/api\/v1\/(?:migrations\/(?:inspect|witness|pause|commit)|migration-requests\/[A-Za-z0-9_-]+|managed-task-requests\/[A-Za-z0-9_-]+|managed-capabilities|models|managed-tasks(?:\/[A-Za-z0-9_-]+(?:\/(?:configuration|events|register|reconcile|center-state|control|prepare-delete|prepare-resume))?)?|tasks(?:\/[A-Za-z0-9_-]+\/(?:start|pause))?|credentials(?:\/[A-Za-z0-9_-]+(?:\/(?:verify-account|verified-account|confirm-flat|recovery-state))?)?|collection(?:\/accounts|\/snapshots(?:\/[a-f0-9]{64})?)?|capabilities|session|logout)$/.test(
       path,
     )
   )

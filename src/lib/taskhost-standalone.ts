@@ -2,8 +2,21 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import {
   enterStandalone,
   hostSession,
+	attachOnlineCenter,
+	type HostSession,
   type CenterAccount,
 } from "./taskhost-client";
+
+/** Save the same verified center identity for an explicit online standby process. */
+export async function saveOnlineStandbyKey(key:string,user:string,expected:HostSession){
+  if(!isTauri()||expected.mode!=='server'||hostSession()!==expected)throw new Error('请在桌面服务器连接中配置备用执行器');
+  const checked=await invoke<{permissions?:{user_id?:string}}>('collection_key',{scope:'taskhost:login-probe',action:'test',key});
+  if(hostSession()!==expected||checked.permissions?.user_id!==user)throw new Error('本机与服务器的中心账户不一致');
+  const scope=`taskhost:standalone:${user}`;
+  await invoke('collection_key',{scope,action:'save',key});
+  if(hostSession()!==expected)throw new Error('会话已变化');
+  attachOnlineCenter(expected,scope,user);
+}
 
 /** This flow contacts the center directly; no business-server credentials are used. */
 export async function loginStandalone(key: string) {

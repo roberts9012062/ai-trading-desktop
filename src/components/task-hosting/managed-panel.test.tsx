@@ -1,0 +1,10 @@
+import {afterEach,beforeEach,expect,it,vi} from 'vitest';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {ManagedPanel} from './managed-panel';
+import {GoWorkerPanel} from './worker-panel';
+import {enterStandalone,logoutHost,loginHost} from '@/lib/taskhost-client';
+beforeEach(()=>{vi.stubGlobal('sessionStorage',{getItem:()=>null,setItem:vi.fn(),removeItem:vi.fn()});logoutHost();});
+afterEach(()=>{logoutHost();vi.unstubAllGlobals();});
+it('standalone exposes existing-task controls without any creation form',()=>{enterStandalone({scope:'taskhost:standalone:fixture',centerUserID:'fixture'});const html=renderToStaticMarkup(<ManagedPanel credentials={[]} accounts={[]}/>);expect(html).toContain('不能新建任务');expect(html).not.toContain('由服务器创建并同步到中心');expect(html).not.toContain('name="strategy"');});
+it('online creation stays disabled until explicit live runtime capability arrives',async()=>{vi.stubGlobal('fetch',vi.fn().mockResolvedValueOnce(new Response('{"service":"taskhost-go","initialized":true}')).mockResolvedValueOnce(new Response(JSON.stringify({service:'taskhost-go',access_token:'fixture',owner_id:'fixture',expires_at:new Date(Date.now()+60000).toISOString()}))));await loginHost('https://fixture.invalid','thk_'+'a'.repeat(43));const html=renderToStaticMarkup(<ManagedPanel credentials={[]} accounts={[]}/>);expect(html).toContain('服务器尚未开放 Go 运行时');expect(html).toMatch(/<button[^>]*disabled=""[^>]*>由服务器创建并同步到中心/);});
+it('local worker defaults to observation and does not equate process readiness to takeover',()=>{enterStandalone({scope:'taskhost:standalone:fixture',centerUserID:'fixture'});const html=renderToStaticMarkup(<GoWorkerPanel accountID={'a'.repeat(64)}/>);expect(html).toContain('启动只读观察');expect(html).toContain('执行权由中心核对和租约独立决定');expect(html).toMatch(/<input type="checkbox"\/>明确允许/);expect(html).not.toContain('owner_id');});

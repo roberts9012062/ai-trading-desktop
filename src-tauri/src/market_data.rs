@@ -44,6 +44,7 @@ fn target(path: &str) -> Result<Url, String> {
         "/v1/execution/acquire", "/v1/execution/renew", "/v1/execution/release", "/v1/execution/intents",
         "/v1/execution/unresolved", "/v1/execution/confirm-flat", "/v1/execution/stop-account", "/v1/execution/account-for-key",
         "/v1/execution/authority-keys", "/v1/execution/accounts",
+        "/v1/execution/task-capabilities", "/v1/execution/task-state", "/v1/execution/task-control",
         "/v1/execution/manual/submit", "/v1/execution/manual/state", "/v1/execution/manual/cancel",
     ]
     .contains(&url.path())
@@ -309,6 +310,7 @@ pub async fn collection_key(
     let path = key_path(&app, &scope)?;
     match action.as_str() {
         "clear" => {
+            crate::taskhost_go::stop_scope(&app,&scope).await?;
             crate::execution_runtime::invalidate_account(&app,&scope);
             if path.exists() {
                 std::fs::remove_file(path).map_err(|_| "清除行情 Key 失败")?;
@@ -330,7 +332,7 @@ pub async fn collection_key(
             if !key.starts_with("ac_")
                 || key.len() < 20
                 || key.len() > 160
-                || !key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+                || !key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
             {
                 return Err("请填写有效的 API Key".into());
             }
@@ -339,6 +341,7 @@ pub async fn collection_key(
                 return Err("Key 无效、已过期或未开通套餐".into());
             }
             if action == "save" {
+                crate::taskhost_go::stop_scope(&app,&scope).await?;
                 std::fs::create_dir_all(path.parent().ok_or("配置路径无效")?)
                     .map_err(|_| "无法保存行情 Key")?;
                 let encrypted = protect(key.as_bytes(), scope.as_bytes(), true)?;

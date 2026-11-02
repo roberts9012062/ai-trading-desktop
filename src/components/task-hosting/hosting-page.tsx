@@ -1,4 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
+import {invoke,isTauri} from '@tauri-apps/api/core';
 import { Link, useNavigate } from "react-router-dom";
 import {
   hostSession,
@@ -6,7 +7,6 @@ import {
   restoreHostSession,
   logoutHost,
   hostRequest,
-  createHostedTask,
   type HostedTask,
   type HostCredential,
   type CenterAccount,
@@ -14,10 +14,12 @@ import {
 import {
   standaloneAccounts,
   stopStandaloneAccount,
+	 saveOnlineStandbyKey,
 } from "@/lib/taskhost-standalone";
 import {readCenterSnapshot,syncCenterSnapshot,type CenterSnapshotInfo} from '@/lib/taskhost-snapshot';
 import {SnapshotPanel} from './snapshot-panel';
 import {readVerifiedAccount,verifyHostedAccount,type VerifiedAccountInfo} from '@/lib/taskhost-account';
+import {ManagedPanel} from './managed-panel';
 import {AccountPanel} from './account-panel';
 
 const field =
@@ -38,7 +40,7 @@ export default function HostingPage() {
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
     [centerKey, setCenterKey] = useState("");
-  const [requestID, setRequestID] = useState(() => crypto.randomUUID());
+
   const [checkpointAvailable,setCheckpointAvailable]=useState(false);
   const [snapshots,setSnapshots]=useState<Record<string,CenterSnapshotInfo>>({});
   const [accountVerificationAvailable,setAccountVerificationAvailable]=useState(false);
@@ -111,28 +113,6 @@ export default function HostingPage() {
       setMessage("交易所凭证已加密保存。尚未授予策略执行权限。");
     });
   }
-  async function stage(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget,
-      data = Object.fromEntries(new FormData(form));
-    await run(async () => {
-      const config = JSON.parse(String(data.config)) as Record<string, unknown>;
-      if (!config || typeof config !== "object" || Array.isArray(config))
-        throw new Error("策略快照必须是 JSON 对象");
-      await createHostedTask({
-        request_id: requestID,
-        name: String(data.name),
-        kind: data.kind === "shortline" ? "shortline" : "ai",
-        symbol: String(data.symbol).toLowerCase(),
-        credential_id: String(data.credential_id),
-        config,
-      });
-      setRequestID(crypto.randomUUID());
-      form.reset();
-      await refresh();
-      setMessage("任务已在服务器暂存，尚未注册到接口中心，也未执行交易。");
-    });
-  }
   return (
     <main className="mx-auto max-w-6xl p-6 md:p-10 text-[var(--text-primary)]">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border)] pb-6 mb-6">
@@ -155,10 +135,12 @@ export default function HostingPage() {
           </button>
           <button
             className={button}
-            onClick={() => {
+            disabled={busy}
+            onClick={() => void run(async()=>{
+              if(isTauri())await invoke('taskhost_go_shutdown');
               logoutHost();
               navigate("/login", { replace: true });
-            }}
+            })}
           >
             断开连接
           </button>
@@ -172,10 +154,11 @@ export default function HostingPage() {
           {message}
         </p>
       )}
+      <ManagedPanel key={session.mode==='server'?`server:${session.origin}:${session.ownerID}`:`standalone:${session.scope}`} credentials={credentials} accounts={accounts}/>
       <div className="mb-7 rounded border border-[var(--border)] p-4 text-sm text-[var(--text-muted)]">
         {standalone
-          ? "单机模式仅访问服务器曾签发的托管任务，不提供新建任务。当前中心协议支持账户停止；逐任务控制及删除接口正在迁移。"
-          : "开发预览：已实现服务器连接、凭证保存和任务暂存。支持的服务器可同步中心检查点；AI / 短线实盘执行与中心签名注册仍在迁移，暂存任务不会自动执行。"}
+          ? "单机模式仅访问服务器曾签发的托管任务，不提供新建任务。操作结果以中心最新状态为准。"
+          : "新建能力由在线服务器明确提供。旧暂存记录仅供核对；新任务请使用 Go 原生任务入口。"}
       </div>
       {!standalone && (
         <section className="mb-8">
@@ -186,9 +169,10 @@ export default function HostingPage() {
               e.preventDefault();
               void run(async () => {
                 const owner=hostSession();
-                await hostRequest("/api/v1/collection", {
+                const key=centerKey.trim();
+                const binding=await hostRequest<{center_user_id:string}>("/api/v1/collection", {
                   method: "POST",
-                  body: JSON.stringify({ collection_key: centerKey.trim() }),
+                  body: JSON.stringify({ collection_key: key }),
                 });
                 if(hostSession()!==owner)return;
                 setCenterKey("");
@@ -198,7 +182,10 @@ export default function HostingPage() {
                 );
                 if(hostSession()!==owner)return;
                 setAccounts(out.accounts);
-                setMessage("中心 Key 已加密保存，已读取已有托管任务。");
+                if(isTauri()&&owner){
+                  await saveOnlineStandbyKey(key,binding.center_user_id,owner);
+                  setMessage("中心已绑定，本机已加密保存同一中心身份。请配置并启动备用进程，再由中心核对故障接管资格。");
+                }else setMessage("中心 Key 已加密保存，已读取已有托管任务。");
               });
             }}
           >
@@ -407,66 +394,7 @@ export default function HostingPage() {
                 </button>
               </form>
             </section>
-            <section className="rounded border border-[var(--border)] p-5">
-              <h2 className="text-lg font-semibold">暂存策略快照</h2>
-              <p className="text-xs text-[var(--text-muted)] mt-2 mb-4">
-                开发接口，仅保存任务配置。不会接管本机执行权或发送交易指令。
-              </p>
-              <form onSubmit={stage} className="space-y-3">
-                <label className="block text-sm">
-                  任务名
-                  <input
-                    className={field}
-                    name="name"
-                    maxLength={120}
-                    required
-                  />
-                </label>
-                <label className="block text-sm">
-                  类型
-                  <select name="kind" className={field}>
-                    <option value="ai">AI 实盘任务</option>
-                    <option value="shortline">短线任务</option>
-                  </select>
-                </label>
-                <label className="block text-sm">
-                  品种
-                  <input
-                    className={field}
-                    name="symbol"
-                    defaultValue="btcusdt"
-                    required
-                  />
-                </label>
-                <label className="block text-sm">
-                  凭证
-                  <select className={field} name="credential_id" required>
-                    <option value="">选择服务器凭证</option>
-                    {credentials.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.venue} · {c.api_key_masked}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block text-sm">
-                  策略配置 JSON
-                  <textarea
-                    className={field + " font-mono text-xs"}
-                    name="config"
-                    rows={5}
-                    defaultValue={'{"strategy_type":"decision"}'}
-                    required
-                  />
-                </label>
-                <button
-                  className={button}
-                  disabled={busy || !credentials.length}
-                >
-                  在线暂存任务
-                </button>
-              </form>
-            </section>
+
           </div>
         </>
       )}

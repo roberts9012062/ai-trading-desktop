@@ -1,0 +1,15 @@
+{
+  "protocol": "taskhost-go-worker-v1",
+  "platforms": {
+    "windows-x86_64": {
+      "url": "https://github.com/roberts9012062/ai-trading-desktop/releases/download/taskhost-go-runtime-0.2.0/taskhost-worker-0.2.0-windows-amd64.exe",
+      "sha256": "009ee1a62d43d66b0f5deecaca2bbe315b1426b5fb458bd7e6fbdcc26c84d60f",
+      "size": 9979904
+    },
+    "linux-x86_64": {
+      "url": "https://github.com/roberts9012062/ai-trading-desktop/releases/download/taskhost-go-runtime-0.2.0/taskhost-worker-0.2.0-linux-amd64",
+      "sha256": "f154a8dd172a7229d38e795947b953d357e0c2822d60b9611f39fecebc6555a3",
+      "size": 9687200
+    }
+  }
+}

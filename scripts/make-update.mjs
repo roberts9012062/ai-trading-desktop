@@ -14,6 +14,8 @@ import { copyFileSync, mkdirSync, readFileSync, writeFileSync, readdirSync, exis
 import { join, resolve } from "node:path"
 import { assertDesktopStopped } from "./desktop-build-guard.mjs"
 import { verifyReleaseExecutionArtifact } from "./fetch-execution-worker.mjs"
+import { verifyReleaseGoArtifact } from "./fetch-taskhost-go-worker.mjs"
+import { selectVersionedInstaller } from "./publish-release.mjs"
 
 const root = resolve(import.meta.dirname, "..")
 const confPath = join(root, "src-tauri/tauri.conf.json")
@@ -31,6 +33,8 @@ const notes = process.argv[2] ?? `ai-trading-desktop ${version}`
 // exact pinned native resource before accessing the updater signing key.
 const executor = await verifyReleaseExecutionArtifact(root)
 console.log(`独立执行器 ${executor.build_id} 的锁定清单与安装资源校验通过。`)
+const goWorker = await verifyReleaseGoArtifact(root)
+console.log(`Go 执行器 ${goWorker.protocol} 的固定摘要与安装资源校验通过。`)
 
 // 私钥来源:CI 用环境变量 TAURI_SIGNING_PRIVATE_KEY;本地默认密钥文件
 const hasKeyEnv = Boolean(process.env.TAURI_SIGNING_PRIVATE_KEY)
@@ -45,6 +49,7 @@ console.log(`版本 ${version}，客户端退出检查通过。`)
 // Exercise the real native process with an OS-only environment and reject an
 // invalid bootstrap. This ignored test is required for every signed installer.
 execSync("cargo test --manifest-path src-tauri/Cargo.toml --lib compiled_distribution_self_test_and_rejected_bootstrap_use_native_process_contract -- --ignored --nocapture", { cwd: root, stdio: "inherit" })
+execSync("cargo test --manifest-path src-tauri/Cargo.toml --lib compiled_go_distribution_rejects_bootstrap_without_network_and_matches_pin -- --ignored --nocapture", { cwd: root, stdio: "inherit" })
 
 console.log("开始签名构建(本地约 2-4 分钟,CI 约 8-15 分钟)...")
 const buildEnv = { ...process.env, TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "" }
@@ -56,7 +61,7 @@ execSync("pnpm tauri build", { cwd: root, stdio: "inherit", env: buildEnv })
 
 const nsisDir = join(root, "src-tauri/target/release/bundle/nsis")
 if (!existsSync(nsisDir)) throw new Error("找不到 NSIS 产物目录")
-const setupExe = readdirSync(nsisDir).find((f) => f.endsWith("-setup.exe"))
+const setupExe = selectVersionedInstaller(readdirSync(nsisDir), version)
 const sigFile = `${setupExe}.sig`
 if (!setupExe || !existsSync(join(nsisDir, sigFile))) {
   throw new Error(`缺少安装包或签名文件(bundle.createUpdaterArtifacts=true):${nsisDir}`)

@@ -254,6 +254,34 @@ pub async fn desktop_executor_stop(app:tauri::AppHandle,scope:String,generation:
     if state.drain(&app,&mut managed).await?{Ok(())}else{Err("进程已退出，交接未确认，请核对账户交易结果".into())}
 }
 
+/// A migration can retire only this application's actual legacy child under
+/// the same center key and account. No renderer-provided stop boolean is used.
+#[tauri::command]
+pub async fn taskhost_legacy_shutdown(app:tauri::AppHandle,center_scope:String,account_id:String)->Result<serde_json::Value>{
+    if account_id.len()!=64 || !account_id.bytes().all(|b|b.is_ascii_hexdigit()&&!b.is_ascii_uppercase()){return Err("账户标识无效".into());}
+    let center_key=market_data::read_key(&app,&center_scope)?;
+    let state=app.state::<ExecutionRuntime>();
+    let captured={
+        let current=state.context.lock().map_err(|_|"执行器状态不可用")?;
+        let Some(current)=current.as_ref() else{return Ok(serde_json::json!({"active":false,"shutdown_acknowledged":false}));};
+        if current.key_hash!=hash(center_key.as_bytes()){return Err("旧执行器使用其他中心身份，请在原账户停止并核对".into());}
+        (current.clone(),state.generation.load(Ordering::SeqCst))
+    };
+    let mut managed=state.operation.lock().await;
+    state.check(&captured.0.scope,captured.1)?;
+    let Some(worker)=managed.worker.as_ref() else{return Ok(serde_json::json!({"active":false,"shutdown_acknowledged":false}));};
+    if worker.status()?.account_id!=account_id{return Err("本机旧执行器属于其他交易账户".into());}
+    {
+        let current=state.context.lock().map_err(|_|"执行器状态不可用")?;
+        state.check_locked(&current,&captured.0.scope,captured.1)?;
+        state.generation.fetch_add(1,Ordering::SeqCst);
+        state.interrupt();
+    }
+    app.state::<LocalStoreState>().with(&app,|db|db.cache(&captured.0.scope,"execution-preference","local",&serde_json::json!({"enabled":false})).map(|_|()))?;
+    if !state.drain(&app,&mut managed).await?{return Err("旧执行器已退出但交接未确认，请核对中心检查点和订单".into());}
+    Ok(serde_json::json!({"active":false,"shutdown_acknowledged":true,"account_id":account_id}))
+}
+
 /// Tray hiding never calls this. It runs after window-close guards accepted,
 /// and before the updater starts an installer which may terminate this process.
 pub async fn shutdown(app:&tauri::AppHandle)->Result<()> {

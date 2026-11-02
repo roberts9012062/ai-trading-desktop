@@ -47,7 +47,12 @@ jobs:
         run: pnpm exec vitest run src/lib/taskhost-native-http.test.ts src/lib/taskhost-client.test.ts src/lib/local-records.test.ts src/lib/local-desktop.test.ts src/lib/local-order-intent.test.ts src/lib/local-control-intent.test.ts src/lib/execution-runtime.test.ts src/lib/live-api-native.test.ts src/lib/standalone-account.test.ts src/lib/server-task.test.ts src/lib/session-recovery.test.ts src/lib/auth-refresh-race.test.ts src/lib/desktop-login-session.test.ts src/lib/desktop-session-continuation.test.ts src/lib/desktop-local-task-session.test.ts src/lib/account-sessions.test.ts src/lib/account-switch.test.ts src/lib/collection-standby.test.ts src/stores/paper-trading-sync.test.ts src/lib/hunter/admin-access.test.ts src/components/hunter/hosting-access.test.ts src/lib/manual-content.test.ts
 
       - name: Verify Go center snapshot metadata and capability gating
-        run: pnpm exec vitest run src/lib/taskhost-snapshot.test.ts src/components/task-hosting/snapshot-panel.test.tsx src/lib/taskhost-account.test.ts src/components/task-hosting/account-panel.test.tsx
+        run: pnpm exec vitest run src/lib/taskhost-managed.test.ts src/lib/taskhost-migration.test.ts src/lib/taskhost-worker.test.ts src/lib/taskhost-online-standby.test.ts src/components/task-hosting/task-form.test.ts src/components/task-hosting/worker-panel.test.ts src/components/task-hosting/managed-panel.test.tsx src/lib/taskhost-snapshot.test.ts src/components/task-hosting/snapshot-panel.test.tsx src/lib/taskhost-account.test.ts src/components/task-hosting/account-panel.test.tsx
+
+      - name: Verify and fetch pinned public Go worker binary
+        run: |
+          node --test scripts/fetch-taskhost-go-worker.test.mjs
+          node scripts/fetch-taskhost-go-worker.mjs
 
       - name: Verify compiled execution artifact boundary
         run: node --test scripts/publish-release.test.mjs scripts/execution-worker.test.mjs scripts/fetch-execution-worker.test.mjs scripts/execution-release.test.mjs scripts/desktop-build-guard.test.mjs
@@ -121,6 +126,7 @@ jobs:
           cargo test --manifest-path src-tauri/Cargo.toml --lib local_store
           cargo test --manifest-path src-tauri/Cargo.toml --lib local_exchange
           cargo test --manifest-path src-tauri/Cargo.toml --lib execution_
+          cargo test --manifest-path src-tauri/Cargo.toml --lib taskhost_go
           cargo test --manifest-path src-tauri/Cargo.toml --lib window_controls
           cargo test --manifest-path src-tauri/Cargo.toml --lib okx_direct
           cargo test --manifest-path src-tauri/Cargo.toml --lib native_engine::win_job

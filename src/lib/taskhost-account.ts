@@ -1,4 +1,4 @@
-import {hostRequest,type HostCredential} from './taskhost-client'
+import {hostRequest,hostSession,type HostCredential} from './taskhost-client'
 
 export interface VerifiedAccountInfo {
   credential_id:string
@@ -34,4 +34,15 @@ export async function verifyHostedAccount(credential:SelectedCredential):Promise
 export async function readVerifiedAccount(credential:SelectedCredential):Promise<VerifiedAccountInfo>{
   input(credential)
   return parse(await hostRequest<Record<string,unknown>>(`/api/v1/credentials/${credential.id}/verified-account`),credential)
+}
+
+export interface HostedRecovery {account_id:string;epoch:string;recovery_required:boolean;unresolved_commands:boolean;owner_active:boolean;execution_authority:false}
+export async function readHostedRecovery(credential:SelectedCredential):Promise<HostedRecovery>{
+ input(credential);const out=await hostRequest<HostedRecovery>(`/api/v1/credentials/${credential.id}/recovery-state`);
+ if(out.execution_authority!==false||!digest.test(out.account_id)||!/^\d{1,19}$/.test(out.epoch)||BigInt(out.epoch)>9223372036854775807n||typeof out.recovery_required!=='boolean'||typeof out.unresolved_commands!=='boolean'||typeof out.owner_active!=='boolean')throw new Error('中心恢复状态无效');return out;
+}
+export async function confirmHostedFlat(credential:SelectedCredential,state:HostedRecovery){
+ input(credential);const session=hostSession();if(session?.mode!=='server'||!state.recovery_required||state.unresolved_commands||state.owner_active)throw new Error('请先刷新并核对恢复状态');
+ const out=await hostRequest<{confirmed:true;account_id:string;execution_authority:false;tasks_resumed:false}>(`/api/v1/credentials/${credential.id}/confirm-flat`,{method:'POST',body:JSON.stringify({expected_epoch:state.epoch}),signal:AbortSignal.timeout(110000)});
+ if(hostSession()!==session||out.confirmed!==true||out.account_id!==state.account_id||out.execution_authority!==false||out.tasks_resumed!==false)throw new Error('空仓恢复结果未确认');return out;
 }
