@@ -44,10 +44,10 @@ jobs:
         run: pnpm exec vitest run src/lib/collection-exchange.test.ts src/lib/collection-account-scheduling.test.ts src/lib/desktop-exchange.test.ts src/lib/desktop-daily-pnl.test.ts src/lib/snippet-private-ws.test.ts src/lib/live-trading-sync.test.ts src/lib/daily-net-pnl.test.ts src/lib/live-api-history.test.ts src/lib/server-order-intent.test.ts
 
       - name: Verify local SQL continuity and server-only task authorization
-        run: pnpm exec vitest run src/lib/local-records.test.ts src/lib/local-desktop.test.ts src/lib/local-order-intent.test.ts src/lib/local-control-intent.test.ts src/lib/execution-runtime.test.ts src/lib/live-api-native.test.ts src/lib/standalone-account.test.ts src/lib/server-task.test.ts src/lib/session-recovery.test.ts src/lib/auth-refresh-race.test.ts src/lib/desktop-login-session.test.ts src/lib/desktop-session-continuation.test.ts src/lib/desktop-local-task-session.test.ts src/lib/account-sessions.test.ts src/lib/account-switch.test.ts src/lib/collection-standby.test.ts src/stores/paper-trading-sync.test.ts src/lib/hunter/admin-access.test.ts src/components/hunter/hosting-access.test.ts src/lib/manual-content.test.ts
+        run: pnpm exec vitest run src/lib/taskhost-client.test.ts src/lib/local-records.test.ts src/lib/local-desktop.test.ts src/lib/local-order-intent.test.ts src/lib/local-control-intent.test.ts src/lib/execution-runtime.test.ts src/lib/live-api-native.test.ts src/lib/standalone-account.test.ts src/lib/server-task.test.ts src/lib/session-recovery.test.ts src/lib/auth-refresh-race.test.ts src/lib/desktop-login-session.test.ts src/lib/desktop-session-continuation.test.ts src/lib/desktop-local-task-session.test.ts src/lib/account-sessions.test.ts src/lib/account-switch.test.ts src/lib/collection-standby.test.ts src/stores/paper-trading-sync.test.ts src/lib/hunter/admin-access.test.ts src/components/hunter/hosting-access.test.ts src/lib/manual-content.test.ts
 
       - name: Verify compiled execution artifact boundary
-        run: node --test scripts/execution-worker.test.mjs scripts/fetch-execution-worker.test.mjs scripts/execution-release.test.mjs scripts/desktop-build-guard.test.mjs
+        run: node --test scripts/publish-release.test.mjs scripts/execution-worker.test.mjs scripts/fetch-execution-worker.test.mjs scripts/execution-release.test.mjs scripts/desktop-build-guard.test.mjs
 
       - name: Fetch pinned compiled account executor from desktop release assets
         env:
@@ -155,12 +155,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          gh release create "$TAG" --title "$TAG" --notes "$(cat update-dist/release-notes.txt)" \
-            update-dist/ai-trading-desktop_*_x64-setup.exe \
-            update-dist/ai-trading-desktop_*_x64-setup.exe.sig
+          node scripts/publish-release.mjs "${GITHUB_REF_NAME}"
 
       - name: Finalize latest.json and gist manifest
+        if: ${{ !contains(github.ref_name, '-') }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
