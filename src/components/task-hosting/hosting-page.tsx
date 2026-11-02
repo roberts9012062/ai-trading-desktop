@@ -17,6 +17,8 @@ import {
 } from "@/lib/taskhost-standalone";
 import {readCenterSnapshot,syncCenterSnapshot,type CenterSnapshotInfo} from '@/lib/taskhost-snapshot';
 import {SnapshotPanel} from './snapshot-panel';
+import {readVerifiedAccount,verifyHostedAccount,type VerifiedAccountInfo} from '@/lib/taskhost-account';
+import {AccountPanel} from './account-panel';
 
 const field =
   "w-full mt-2 p-2.5 rounded border border-[var(--border)] bg-[var(--bg-primary)]";
@@ -39,6 +41,8 @@ export default function HostingPage() {
   const [requestID, setRequestID] = useState(() => crypto.randomUUID());
   const [checkpointAvailable,setCheckpointAvailable]=useState(false);
   const [snapshots,setSnapshots]=useState<Record<string,CenterSnapshotInfo>>({});
+  const [accountVerificationAvailable,setAccountVerificationAvailable]=useState(false);
+  const [verifiedAccounts,setVerifiedAccounts]=useState<Record<string,VerifiedAccountInfo>>({});
   useEffect(() => {
     restoreHostSession();
     setReady(true);
@@ -59,23 +63,26 @@ export default function HostingPage() {
       const [t, c, capabilities] = await Promise.all([
         hostRequest<{ tasks: HostedTask[] }>("/api/v1/tasks"),
         hostRequest<{ credentials: HostCredential[] }>("/api/v1/credentials"),
-        hostRequest<{center_checkpoint_mirror?:boolean}>("/api/v1/capabilities"),
+        hostRequest<{center_checkpoint_mirror?:boolean;center_account_verification?:boolean}>("/api/v1/capabilities"),
       ]);
       if (hostSession() !== owner) return;
       setTasks(t.tasks);
       setCredentials(c.credentials);
       setCheckpointAvailable(capabilities.center_checkpoint_mirror===true);
+      setAccountVerificationAvailable(capabilities.center_account_verification===true);
+      setVerifiedAccounts(previous=>Object.fromEntries(Object.entries(previous).filter(([id])=>c.credentials.some(credential=>credential.id===id))));
     }
   }
   async function run(action: () => Promise<void>) {
+    const owner=hostSession();
     setBusy(true);
     setMessage("");
     try {
       await action();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e));
+      if(hostSession()===owner)setMessage(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(false);
+      if(hostSession()===owner)setBusy(false);
     }
   }
   useEffect(() => {
@@ -84,6 +91,8 @@ export default function HostingPage() {
     setAccounts([]);
     setSnapshots({});
     setCheckpointAvailable(false);
+    setVerifiedAccounts({});
+    setAccountVerificationAvailable(false);
     if (session) void run(refresh);
   }, [session]); // Each identity owns its own response and view.
   if (!session) return <div className="p-6">正在读取连接…</div>;
@@ -176,14 +185,18 @@ export default function HostingPage() {
             onSubmit={(e) => {
               e.preventDefault();
               void run(async () => {
+                const owner=hostSession();
                 await hostRequest("/api/v1/collection", {
                   method: "POST",
                   body: JSON.stringify({ collection_key: centerKey.trim() }),
                 });
+                if(hostSession()!==owner)return;
                 setCenterKey("");
+                setVerifiedAccounts({});
                 const out = await hostRequest<{ accounts: CenterAccount[] }>(
                   "/api/v1/collection/accounts",
                 );
+                if(hostSession()!==owner)return;
                 setAccounts(out.accounts);
                 setMessage("中心 Key 已加密保存，已读取已有托管任务。");
               });
@@ -338,12 +351,12 @@ export default function HostingPage() {
             <section className="rounded border border-[var(--border)] p-5">
               <h2 className="text-lg font-semibold">交易所凭证</h2>
               <p className="text-xs text-[var(--text-muted)] mt-2 mb-4">
-                凭证加密保存，只返回掩码。请使用禁止提币并绑定服务器 IP 的 Key。
+                凭证加密保存，只返回掩码。请使用禁止提币的 Key；若启用 IP 白名单，请按中心私有网关的实际出口配置。
               </p>
               {credentials.map((c) => (
-                <p key={c.id} className="text-sm my-2">
-                  {c.venue} · {c.api_key_masked} · {c.demo ? "模拟" : "实盘"}
-                </p>
+                <AccountPanel key={c.id} credential={c} available={accountVerificationAvailable} busy={busy} info={verifiedAccounts[c.id]}
+                  onVerify={()=>void run(async()=>{const owner=hostSession();const info=await verifyHostedAccount(c);if(hostSession()!==owner)return;setVerifiedAccounts(previous=>({...previous,[c.id]:info}));setMessage('账户身份已验证并加密保存。尚未注册任务或取得执行权，不会自动交易。');})}
+                  onRead={()=>void run(async()=>{const owner=hostSession();const info=await readVerifiedAccount(c);if(hostSession()!==owner)return;setVerifiedAccounts(previous=>({...previous,[c.id]:info}));})}/>
               ))}
               <form onSubmit={credential} className="space-y-3">
                 <label className="block text-sm">
