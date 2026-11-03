@@ -48,7 +48,7 @@ import type { Cadence } from '@/lib/realtime-factor/model'
 /** 实盘模式创建任务：官方接口真实下单提示横幅 */
 function LiveExecBanner(): React.JSX.Element | null {
   const mode = useAuthStore((s) => s.user?.trading_mode)
-  if (mode !== "live") return null
+  if (desktopSessionUsesTaskHost() || mode !== "live") return null
   return (
     <div className="rounded-md border border-[var(--accent-danger)]/50 bg-[var(--accent-danger)]/10 px-2.5 py-1.5 text-[11px] text-[var(--accent-danger)]">
       实盘执行模式：任务开平仓将通过官方交易所接口（OKX/币安/芝麻开门）真实下单，
@@ -149,7 +149,7 @@ export function CreateQuantDialog({
   // 量化分析间隔（分钟）：1 ~ K 线周期；默认=周期（每根收盘分析一次）
   const [evalIntervalSec, setEvalIntervalSec] = useState(900)
   const tfMinutes = TF_MINUTES[timeframe] ?? 15
-  const funding = useFundingSource(open)
+  const funding = useFundingSource(open && !desktopSessionUsesTaskHost())
   const lastPrice = useMarketStore(
     (s) => Number(s.quotes[symbol]?.last_price) || 0,
   )
@@ -399,7 +399,7 @@ export function CreateQuantDialog({
         </p>
         <LiveExecBanner />
         <HostingAccount open={open} value={hostCredential} onChange={setHostCredential}/>
-        <FundingSourceBadge info={funding.info} onReload={funding.reload} />
+        {desktopSessionUsesTaskHost()?<p className="rounded border border-[var(--border)] p-2 text-xs text-[var(--text-muted)]">任务资金源：所选服务器交易账户。可用保证金由服务器读取和核验。</p>:<FundingSourceBadge info={funding.info} onReload={funding.reload} />}
 
         <div className="space-y-3 text-sm">
           {/* 决策模型开关：开启后量化策略参数被替换为决策模型 + 响应频率

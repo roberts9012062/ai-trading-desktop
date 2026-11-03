@@ -53,7 +53,7 @@ import {desktopSessionUsesTaskHost} from '@/lib/desktop-login-session'
 /** 实盘模式创建任务：官方接口真实下单提示横幅 */
 function LiveExecBanner(): React.JSX.Element | null {
   const mode = useAuthStore((s) => s.user?.trading_mode)
-  if (mode !== "live") return null
+  if (desktopSessionUsesTaskHost() || mode !== "live") return null
   return (
     <div className="rounded-md border border-[var(--accent-danger)]/50 bg-[var(--accent-danger)]/10 px-2.5 py-1.5 text-[11px] text-[var(--accent-danger)] text-left">
       实盘执行模式：任务开平仓将通过官方交易所接口（OKX/币安/芝麻开门）真实下单，
@@ -102,7 +102,7 @@ export function CreateTaskDialog({
   const [positionMode, setPositionMode] = useState("fixed_margin")
   // r20：每笔保证金 USDT + 杠杆（数量自动换算，不再按手数）
   const [marginModel, setMarginModel] = useState<{ marginPerTrade: number; leverage: number; marginMode: "cross" | "isolated" }>({ marginPerTrade: 100, leverage: 10, marginMode: "cross" })
-  const funding = useFundingSource(open)
+  const funding = useFundingSource(open && !desktopSessionUsesTaskHost())
   const lastPrice = useMarketStore(
     (s) => Number(s.quotes[symbol]?.last_price) || 0,
   )
@@ -635,7 +635,7 @@ export function CreateTaskDialog({
 
           {/* 右栏：资金源 / 风格 / 用户提示词 */}
           <div className="min-h-0 overflow-y-auto pr-1 space-y-2">
-            <FundingSourceBadge info={funding.info} onReload={funding.reload} />
+            {desktopSessionUsesTaskHost()?<p className="rounded border border-[var(--border)] p-2 text-xs text-[var(--text-muted)]">任务资金源：所选服务器交易账户。可用保证金由服务器读取和核验。</p>:<FundingSourceBadge info={funding.info} onReload={funding.reload} />}
             <AiFundStyleFields
               value={fundStyle}
               onChange={setFundStyle}

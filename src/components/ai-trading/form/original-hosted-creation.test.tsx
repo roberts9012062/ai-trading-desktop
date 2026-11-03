@@ -50,4 +50,5 @@ it('submits the existing AI dialog with its original fields to hosting, rather t
  expect(created[0]).toMatchObject({kind:'ai',credential_id:credential,model_id:model,symbol:'btcusdt',timeframe:'5m',settings:{margin_per_trade:'100',leverage:10,max_profit_pct:'20',max_loss_pct:'10',loss_cooldown_enabled:true}})
  expect(created[0].name).toBe('原模型选择框·比特币·5m')
  expect(localStorage.getItem('access_token')).toBeNull()
+ expect(vi.mocked(fetch).mock.calls.some(([url])=>String(url).includes('/api/ai-trading/funding-source'))).toBe(false)
 })
