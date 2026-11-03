@@ -1,3 +1,4 @@
+import {desktopSessionUsesTaskHost} from './desktop-login-session'
 /** 超级因子挖掘 API 客户端 —— 长程任务 CRUD + 进度轮询 */
 
 import type { Champion } from "@/lib/factor-lab-api"
@@ -96,7 +97,7 @@ async function request<T>(
       headers,
       signal: ctrl.signal,
     })
-    if (res.status === 401 && typeof window !== "undefined") {
+    if (res.status === 401 && typeof window !== "undefined" && !desktopSessionUsesTaskHost()) {
       window.location.href = "/login"
       throw new Error("认证过期")
     }

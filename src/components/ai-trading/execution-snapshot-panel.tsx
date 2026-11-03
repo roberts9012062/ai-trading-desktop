@@ -5,12 +5,18 @@ import {collectionScope,collectionGeneration,collectionStatus,onCollectionChange
 import {localExchangeGeneration} from '@/lib/local-desktop'
 import {executionStatus,onExecutionChange,executionStateLabel,readExecutionSnapshot,type ExecutionSnapshot} from '@/lib/execution-runtime'
 import {ExecutionHistoryPanel} from './execution-history-panel'
+import {hostSession,onHostSessionChange} from '@/lib/taskhost-client'
+import {Link} from 'react-router-dom'
 
 const subscribeAccount=(callback:()=>void)=>{window.addEventListener('local-exchange-changed',callback);return()=>window.removeEventListener('local-exchange-changed',callback)}
 const recordedLabels:Record<string,string>={running:'记录为运行',paused:'记录为暂停',stopped:'记录为停止'}
 
 /** A projection cannot start/edit tasks, or turn a stale SQL row into ownership. */
 export function ExecutionSnapshotPanel(){
+  const host=useSyncExternalStore(onHostSessionChange,hostSession,hostSession)
+  return host?<section className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4 text-sm"><h2 className="font-medium">任务托管</h2><p className="mt-2 text-xs text-[var(--text-muted)]">{host.mode==='server'?'托管任务在任务服务器创建与运行，可查看中心核验和实际执行状态。':'单机模式可以操作中心已有托管任务，新建任务需要连接服务器。'}</p><Link to="/task-hosting" className="mt-3 inline-block text-[var(--primary)] underline">打开任务托管</Link></section>:<LegacyExecutionSnapshotPanel/>
+}
+function LegacyExecutionSnapshotPanel(){
   const user=useAuthStore(state=>state.user)
   const authReady=useAuthStore(state=>state.loaded)
   const config=useSyncExternalStore(onCollectionChange,collectionStatus,collectionStatus)

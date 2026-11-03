@@ -1,7 +1,7 @@
 /** Native worker supervision; signed preparations and keys never enter this module. */
 import {invoke,isTauri} from '@tauri-apps/api/core'
 import {useAuthStore} from '@/stores/auth'
-import {assertServerLoginForTasks} from './desktop-login-session'
+import {assertServerLoginForTasks,desktopSessionUsesTaskHost} from './desktop-login-session'
 import {collectionMode,collectionScope,collectionGeneration,collectionStatus,onCollectionChange} from './collection-config'
 import {localExchangeGeneration,stopLocalAccountTasks} from './local-desktop'
 
@@ -16,7 +16,7 @@ const listeners=new Set<()=>void>()
 export const executionStatus=()=>status
 export function onExecutionChange(callback:()=>void){listeners.add(callback);return()=>{listeners.delete(callback)}}
 function publish(next:ExecutionStatus){status=next;listeners.forEach(callback=>callback())}
-function identity(){const auth=useAuthStore.getState();return `${collectionScope()}:${collectionGeneration()}:${localExchangeGeneration()}:${auth.loaded}:${auth.user?.id||''}:${auth.user?.trading_mode||''}:${collectionStatus().configured}`}
+function identity(){const auth=useAuthStore.getState();return `${collectionScope()}:${collectionGeneration()}:${localExchangeGeneration()}:${auth.loaded}:${auth.user?.id||''}:${auth.user?.trading_mode||''}:${collectionStatus().configured}:${desktopSessionUsesTaskHost()}`}
 function activeScope(){const auth=useAuthStore.getState();return isTauri()&&collectionMode()&&collectionStatus().configured&&auth.loaded&&auth.user?.trading_mode==='live'?collectionScope():null}
 interface Context {scope:string;generation:number;owner:string}
 let context:Context|null=null
@@ -33,6 +33,8 @@ function nativeContext(owner:string,scope:string|null){
 
 export async function syncExecutionContext(restore=false):Promise<Context|null>{
   if(!isTauri())return null
+  // The Go workspace has its own executor. Do not restore, replace or claim an old child.
+  if(desktopSessionUsesTaskHost())return null
   // A webview reload begins with cached auth still hydrating. It is not a
   // logout and must not retire an independently running native worker.
   // Explicit logout/mode changes complete auth first and still retire it below.

@@ -1,6 +1,7 @@
 /** Go hosting sessions are separate from legacy JWT/account/executor state. */
 import type { ClientOptions } from "@tauri-apps/plugin-http";
 import {selectedLocalHostProfile} from './taskhost-local-profile';
+import {completeDesktopLogin,requireDesktopLogin,desktopLoginRequired,desktopSessionUsesTaskHost} from './desktop-login-session';
 export type HostSession =
   | {
       mode: "server";
@@ -84,6 +85,13 @@ function save(session: HostSession | null) {
 export function logoutHost() {
   save(null);
   publish(null);
+  requireDesktopLogin();
+}
+
+/** Pin only the current explicitly selected local profile; never enumerate saved accounts. */
+export function attachHostLocalProfile(expected:HostSession,scope:string,name:string) {
+  if (current!==expected || expected.mode!=='server' || selectedLocalHostProfile()?.scope!==scope) throw new Error('本地配置或服务器连接已变化，请重新连接');
+  const next={...expected,localProfileScope:scope,localProfileName:name};save(next);publish(next);return next;
 }
 
 /** Retains only a verified local storage scope; the center key never enters session storage. */
@@ -97,10 +105,12 @@ export function enterStandalone(session: {
 }) {
   const next = { mode: "standalone" as const, ...session };
   save(next);
+  completeDesktopLogin('local','taskhost');
   publish(next);
 }
 export function restoreHostSession() {
   if (current) return;
+  if (desktopLoginRequired() || !desktopSessionUsesTaskHost()) return;
   try {
     const s = JSON.parse(
       sessionStorage.getItem(SESSION) || "null",
@@ -207,6 +217,7 @@ export async function loginHost(rawOrigin: string, key: string) {
     ...(selectedProfile&&selectedLocalHostProfile()?.scope===selectedProfile.scope?{localProfileScope:selectedProfile.scope,localProfileName:selectedProfile.label}:{}),
   };
   save(next);
+  completeDesktopLogin('server','taskhost');
   publish(next);
   return next;
 }

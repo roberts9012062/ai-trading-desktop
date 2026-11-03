@@ -1,3 +1,4 @@
+import {desktopSessionUsesTaskHost} from './desktop-login-session'
 /** 因子实验室 API 客户端 */
 
 import {desktopTokensToServerV3} from "./factor-access"
@@ -316,7 +317,7 @@ export async function factorLabRequest<T>(
       headers,
       signal: ctrl.signal,
     })
-    if (response.status === 401 && typeof window !== "undefined") {
+    if (response.status === 401 && typeof window !== "undefined" && !desktopSessionUsesTaskHost()) {
       window.location.href = "/login"
       throw new Error("认证过期")
     }

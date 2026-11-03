@@ -7,6 +7,7 @@ import { getMeApi } from "@/lib/api"
 import { nativeCollection } from '@/lib/collection-config'
 import { keepLocalSession } from '@/lib/session-recovery'
 import { desktopLoginRequired, desktopSessionLocalOnly, onDesktopLoginChange } from '@/lib/desktop-login-session'
+import {hostSession,onHostSessionChange} from '@/lib/taskhost-client'
 
 /** 需要认证才能访问的路径前缀 */
 const PROTECTED_PREFIXES = [
@@ -35,6 +36,7 @@ const PUBLIC_PATHS = ["/login", "/register", "/"]
  */
 export function useAuthGuard(): void {
   const loginRequired = useSyncExternalStore(onDesktopLoginChange, desktopLoginRequired, () => true)
+  const host = useSyncExternalStore(onHostSessionChange,hostSession,hostSession)
   const router = useRouter()
   const pathname = usePathname()
   const accessToken = useAuthStore((s) => s.accessToken)
@@ -48,7 +50,7 @@ export function useAuthGuard(): void {
 
   // 会话恢复：token 在、需要确认用户时拉 /me
   useEffect(() => {
-    if (loginRequired) return
+    if (loginRequired || host) return
     let cancelled = false
     let ownsHydration = false
 
@@ -101,6 +103,7 @@ export function useAuthGuard(): void {
     }
   }, [
     loginRequired,
+    host,
     hasAccessToken,
     user,
     loaded,
@@ -113,6 +116,7 @@ export function useAuthGuard(): void {
   // 路由守卫
   useEffect(() => {
     if (loginRequired) { router.replace('/login'); return }
+    if (host) return
     if (!loaded) return
 
     const isProtected = PROTECTED_PREFIXES.some((prefix) =>
@@ -127,5 +131,5 @@ export function useAuthGuard(): void {
     if (isPublic && pathname === "/" && accessToken) {
       router.replace("/dashboard")
     }
-  }, [pathname, accessToken, loaded, router, loginRequired])
+  }, [pathname, accessToken, loaded, router, loginRequired,host])
 }

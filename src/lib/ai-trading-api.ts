@@ -4,7 +4,7 @@ import { desktopTokensToServerV3, isResearchOnlyFactor, RESEARCH_FACTOR_MESSAGE 
 import { tryDesktopLiveRequest } from "./desktop-exchange"
 import { tryRealtimeRequest } from "./realtime-factor/transport"
 import { createServerTask } from './server-task'
-import { assertServerLoginForTasks } from './desktop-login-session'
+import { assertServerLoginForTasks,assertLegacyTradingWrite,desktopSessionUsesTaskHost } from './desktop-login-session'
 
 type FactorTokens = number[] | number[][]
 
@@ -383,6 +383,7 @@ export class AITradingRequestError extends Error {
 }
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  assertLegacyTradingWrite(path,options)
   if ((options.method ?? 'GET').toUpperCase() !== 'GET' && /\/tasks\/[^/]+\/(?:start|run-once|realtime\/start)(?:\?|$)/.test(path)) assertServerLoginForTasks()
   const token =
     typeof window !== "undefined" ? localStorage.getItem("access_token") : null
@@ -394,7 +395,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 
   // Read-only exchange IO can run on the desktop; task writes stay on the server.
   const response = await tryRealtimeRequest(API_BASE,path,{...options,headers}) ?? await tryDesktopLiveRequest(path, options) ?? await fetch(`${API_BASE}${path}`, { ...options, headers })
-  if (response.status === 401 && typeof window !== "undefined") {
+  if (response.status === 401 && typeof window !== "undefined" && !desktopSessionUsesTaskHost()) {
     window.location.href = "/login"
     throw new Error("认证过期")
   }

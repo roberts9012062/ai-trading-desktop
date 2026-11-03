@@ -27,6 +27,7 @@ interface MenuItem {
 /** 侧边栏菜单项配置（demo=true 表示仍为前端 mock） */
 const MENU_ITEMS: MenuItem[] = [
   { icon: LayoutDashboard, label: "工作台", path: "/dashboard", demo: false },
+  { icon: Cpu, label: "任务托管", path: "/task-hosting", demo: false },
   {
     icon: BarChart3,
     label: "行情",

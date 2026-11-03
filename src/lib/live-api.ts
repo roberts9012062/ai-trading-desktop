@@ -4,6 +4,7 @@
  * 虚拟盘走 paper-api；实盘按当前所选交易所路由到 /api/live/*。
  */
 
+import {assertLegacyTradingWrite,desktopSessionUsesTaskHost} from './desktop-login-session'
 import type { PaperAccountSummary, PaperOrderItem, PaperPositionItem } from "@/lib/paper-api"
 import { tryDesktopLiveRequest } from "./desktop-exchange"
 import { tryPreparedLocalLiveRequest, localLiveBinding, clearLocalExchangeAccount, localExchangeGeneration, notifyLocalExchangeChanged } from './local-desktop'
@@ -29,6 +30,7 @@ class LiveRequestError extends Error {
 
 /** 带鉴权的 JSON 请求（与 paper-api 同款） */
 async function liveRequest<T>(path: string, options: RequestInit = {}, serverOnly = false, expectedBinding?:string): Promise<T> {
+  assertLegacyTradingWrite(path,options)
   if(nativeCollection()&&collectionMode()&&serverAccountMode())serverOnly=true
   const token =
     typeof window !== "undefined" ? localStorage.getItem("access_token") : null
@@ -58,7 +60,7 @@ async function liveRequest<T>(path: string, options: RequestInit = {}, serverOnl
       response = (!serverOnly ? await tryDesktopLiveRequest(path, requestOptions) : null) ?? await fetch(`${API_BASE}${path}`, requestOptions)
     }
     current()
-    if (response.status === 401 && typeof window !== "undefined") {
+    if (response.status === 401 && typeof window !== "undefined" && !desktopSessionUsesTaskHost()) {
       window.location.href = "/login"
       throw new LiveRequestError("认证过期")
     }

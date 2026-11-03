@@ -1,3 +1,4 @@
+import {desktopSessionUsesTaskHost} from './desktop-login-session'
 /** 商城 / VIP API 客户端 */
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
@@ -11,7 +12,7 @@ async function mallRequest<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (token) headers["Authorization"] = `Bearer ${token}`
   const resp = await fetch(`${API_BASE}${path}`, { ...init, headers })
-  if (resp.status === 401 && typeof window !== "undefined") {
+  if (resp.status === 401 && typeof window !== "undefined" && !desktopSessionUsesTaskHost()) {
     window.location.href = "/login"
     throw new Error("认证过期")
   }

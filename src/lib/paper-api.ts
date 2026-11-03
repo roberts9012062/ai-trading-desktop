@@ -1,3 +1,4 @@
+import {desktopSessionUsesTaskHost} from './desktop-login-session'
 /** 模拟交易 / 虚拟资金 API 客户端 */
 
 /** 模拟账户概览 */
@@ -142,7 +143,7 @@ async function paperRequest<T>(path: string, options: RequestInit = {}): Promise
     headers,
   })
 
-  if (response.status === 401 && typeof window !== "undefined") {
+  if (response.status === 401 && typeof window !== "undefined" && !desktopSessionUsesTaskHost()) {
     window.location.href = "/login"
     throw new Error("认证过期")
   }

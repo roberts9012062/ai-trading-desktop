@@ -1,5 +1,7 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
+import {hostSession,onHostSessionChange} from '@/lib/taskhost-client'
+import {HostUserMenu} from './host-user-menu'
 import { useRouter } from "next/navigation"
 import * as Menu from "@radix-ui/react-dropdown-menu"
 import { Check, ChevronDown, LogOut, Shield, UserPlus, X } from "lucide-react"
@@ -14,6 +16,10 @@ import { Button } from "@/components/ui/button"
 
 const itemClass="flex items-center gap-2 px-3 py-2 text-sm rounded-md cursor-pointer outline-none data-[highlighted]:bg-[var(--bg-tertiary)] data-[disabled]:opacity-40"
 export function UserMenu(): React.JSX.Element {
+  const host=useSyncExternalStore(onHostSessionChange,hostSession,hostSession)
+  return host?<HostUserMenu/>:<LegacyUserMenu/>
+}
+function LegacyUserMenu(): React.JSX.Element {
   const router=useRouter()
   const { user,accessToken,logout }=useAuthStore()
   const [accounts,setAccounts]=useState<AccountSession[]>([])

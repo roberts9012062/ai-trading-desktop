@@ -12,6 +12,7 @@ import { lazy, Suspense, useSyncExternalStore } from 'react'
 import { useAuthStore } from "@/stores/auth"
 import { desktopLoginRequired, onDesktopLoginChange } from '@/lib/desktop-login-session'
 import { DesktopSessionGate } from '@/components/common/desktop-session-gate'
+import {hostSession,onHostSessionChange} from '@/lib/taskhost-client'
 import LoginPage from "./components/task-hosting/connection-page"
 const HostingPage = lazy(() => import("./components/task-hosting/hosting-page"))
 
@@ -57,7 +58,8 @@ const AdminUserDetailPage = lazy(() => import("./app/admin/users/[id]/page"))
 function RootRedirect(): React.JSX.Element {
   const token = useAuthStore(state => state.accessToken)
   const required = useSyncExternalStore(onDesktopLoginChange, desktopLoginRequired, () => true)
-  return <Navigate to={!required && token ? "/dashboard" : "/login"} replace />
+  const host = useSyncExternalStore(onHostSessionChange,hostSession,hostSession)
+  return <Navigate to={!required && (host || token) ? "/dashboard" : "/login"} replace />
 }
 
 export function AppRoutes() {
@@ -66,9 +68,9 @@ export function AppRoutes() {
       <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<Navigate to="/login" replace />} />
-      <Route path="/task-hosting" element={<HostingPage />} />
 
       <Route element={<DesktopSessionGate><MainLayout><Outlet /></MainLayout></DesktopSessionGate>}>
+        <Route path="/task-hosting" element={<HostingPage />} />
         <Route path="/ai-market" element={<AiMarketPage />} />
         <Route path="/ai-market/volume-profile" element={<Navigate to="/ai-market" replace />} />
         <Route path="/ai-settings" element={<AiSettingsPage />} />
@@ -92,7 +94,7 @@ export function AppRoutes() {
         <Route path="/trading" element={<TradingPage />} />
       </Route>
 
-      <Route path="/admin" element={<DesktopSessionGate><AdminLayout><Outlet /></AdminLayout></DesktopSessionGate>}>
+      <Route path="/admin" element={<DesktopSessionGate allowTaskHost={false}><AdminLayout><Outlet /></AdminLayout></DesktopSessionGate>}>
         <Route index element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="ai" element={<AdminAiPage />} />
         <Route path="api-keys" element={<AdminApiKeysPage />} />

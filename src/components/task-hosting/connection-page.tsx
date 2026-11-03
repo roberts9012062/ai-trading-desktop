@@ -4,6 +4,8 @@ import { loginHost } from "@/lib/taskhost-client";
 import { loginStandalone } from "@/lib/taskhost-standalone";
 import { BrandLogo } from "@/components/common/brand-logo";
 import {selectedLocalHostProfile} from '@/lib/taskhost-local-profile';
+import {hostSession} from '@/lib/taskhost-client';
+import {activateHostWorkspace} from '@/lib/taskhost-workspace-profile';
 
 export default function HostConnectionPage() {
   const localProfile=selectedLocalHostProfile();
@@ -35,8 +37,11 @@ export default function HostConnectionPage() {
           /* Address persistence is optional. */
         }
       } else await loginStandalone(key.trim());
+      const connected=hostSession();
+      if(!connected)throw new Error('连接已失效，请重新登录');
+      await activateHostWorkspace(connected);
       setKey("");
-      navigate("/task-hosting", { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -50,9 +55,9 @@ export default function HostConnectionPage() {
         <p className="text-xs tracking-widest text-emerald-500 mt-6">
           CYCLEPILOT / TASK HOST
         </p>
-        <h1 className="text-2xl font-semibold mt-3">连接任务托管</h1>
+        <h1 className="text-2xl font-semibold mt-3">连接客户端</h1>
         <p className="text-sm text-[var(--text-muted)] mt-3 mb-7">
-          服务器在线时创建与同步任务。服务器不可用时，单机入口直接读取 API VALUE
+          登录后进入完整工作区。服务器在线时创建与同步任务；服务器不可用时，单机入口直接读取 API VALUE
           COLLECTION 的已有托管任务。
         </p>
         <div className="flex gap-2 mb-6" role="group" aria-label="登录方式">

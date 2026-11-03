@@ -1,6 +1,7 @@
 /** Embedded records are independent of server availability; sync never carries trades. */
 import {invoke} from '@tauri-apps/api/core'
 import {collectionScope,nativeCollection} from './collection-config'
+import {desktopSessionUsesTaskHost} from './desktop-login-session'
 
 export interface LocalRecord {collection:string;id:string;value:Record<string,unknown>;revision:number;base_version:string;dirty:boolean;deleted:boolean;updated_at:number}
 export interface RemoteRecord {collection:string;id:string;value:Record<string,unknown>;version:string;deleted:boolean}
@@ -26,7 +27,7 @@ function context(){
   try{
   const user=JSON.parse(localStorage.getItem('qihuo_auth_user')||'null')
   const token=localStorage.getItem('access_token')
-  if(!user?.id||!token||!['live','virtual'].includes(user.trading_mode))return null
+  if(!user?.id||(!token&&!desktopSessionUsesTaskHost())||!['live','virtual'].includes(user.trading_mode))return null
   const scope=`${collectionScope()}:records:${user.trading_mode}`
   return {scope,token,subject:String(user.id),mode:String(user.trading_mode)}
   }catch{return null}
@@ -107,6 +108,7 @@ export async function resolveSyncConflict(conflict:RecordConflict,choice:'local'
   await db(session.scope,'resolve',conflict.collection,conflict.id,choice)
 }
 export async function syncDesktopRecords():Promise<{uploaded:number;conflicts:number}>{
+  if(desktopSessionUsesTaskHost())throw new Error('当前使用 Go 托管连接，本地自选和通知设置已保存在本机；此入口不会上传到旧服务')
   const session=context();if(!nativeCollection()||!session)throw new Error('请先在桌面端登录服务器账号')
   const {scope,token,subject,mode}=session
   let flight=flights.get(scope)

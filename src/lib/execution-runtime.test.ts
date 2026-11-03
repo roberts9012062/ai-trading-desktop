@@ -7,11 +7,20 @@ vi.mock('@/stores/auth',()=>({useAuthStore:{getState:()=>({user:fixture.user,loa
 import {syncExecutionContext,executionAction,executionStatus,readExecutionSnapshot,readExecutionHistory} from './execution-runtime'
 import {initializeDesktopLoginSession,completeDesktopLogin} from './desktop-login-session'
 beforeEach(()=>{
+  initializeDesktopLoginSession('legacy-runtime-test');completeDesktopLogin('server')
   fixture.generation++;fixture.account++;fixture.scope='https://business:user-a';fixture.configured=true;fixture.user={id:'user-a',trading_mode:'live'};fixture.loaded=true
   vi.stubGlobal('localStorage',{getItem:(key:string)=>key==='access_token'?'server-jwt':null})
   vi.stubGlobal('window',{__QH_API_BASE__:'https://business'})
   fixture.invoke.mockReset().mockImplementation(async(command:string)=>command==='desktop_executor_context'?fixture.generation:command==='desktop_executor_status'?{prepared:true,runtime_installed:true,enabled:true,worker:{state:'waiting_executor'}}:{prepared:true})
   fixture.stop.mockReset().mockResolvedValue({message:'已停止账户任务',unresolved_commands:false})
+})
+
+it('never restores the old independent executor for a Go workspace connection',async()=>{
+  completeDesktopLogin('server','taskhost')
+  await expect(syncExecutionContext(true)).resolves.toBeNull()
+  expect(fixture.invoke).not.toHaveBeenCalled()
+  await expect(executionAction('start')).rejects.toThrow('任务托管')
+  expect(fixture.invoke).not.toHaveBeenCalled()
 })
 
 it('explicitly stops account tasks through center control even without a business session token',async()=>{

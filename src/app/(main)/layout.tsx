@@ -2,7 +2,8 @@
 
 import { DataConfigNotice } from "@/components/profile/data-config-panel"
 import { DesktopSessionNotice } from '@/components/common/desktop-session-gate'
-import { useEffect, useState } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
+import {hostSession,onHostSessionChange} from '@/lib/taskhost-client'
 import { TopNavbar } from "@/components/layout/top-navbar"
 import { Sidebar } from "@/components/layout/sidebar"
 import { ContractSearchDialog } from "@/components/market/contract-search-dialog"
@@ -36,6 +37,7 @@ export default function MainLayout({
   children: React.ReactNode
 }): React.JSX.Element {
   const [mounted, setMounted] = useState(false)
+  const host = useSyncExternalStore(onHostSessionChange,hostSession,hostSession)
   const userId = useAuthStore((s) => s.user?.id)
   const tradingMode = useAuthStore((s) => s.user?.trading_mode)
 
@@ -110,8 +112,8 @@ export default function MainLayout({
   const accessToken = useAuthStore((s) => s.accessToken)
   const initWebSocket = useMarketStore((s) => s.initWebSocket)
   useEffect(() => {
-    if (accessToken) initWebSocket()
-  }, [accessToken, initWebSocket])
+    if (accessToken || host) initWebSocket()
+  }, [accessToken, host, initWebSocket])
 
   // 全局合约记忆恢复 + 过期迁移：持久化此前只写不读，刷新即落回出厂默认
   // rb2610（主力换月后即「过期合约」）。恢复记忆后与合约树比对：出厂

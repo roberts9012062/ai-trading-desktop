@@ -28,7 +28,7 @@ stdout 只接收不超过 4096 字节的 JSONL，字段 protocol/event/state/acc
 
 `taskhost-go-worker.lock.json` 固定公开发行资产的 URL、大小与 SHA-256。`scripts/fetch-taskhost-go-worker.mjs` 只接受公开桌面仓库的 `taskhost-go-runtime-X.Y.Z` release、固定 worker 资产名称，不使用 GitHub Token，也不下载私有源码。下载与运行前分别校验摘要。资源最终为 `resources/taskhost-go-worker/taskhost-go-worker.exe`；Linux 可使用对应无后缀文件。
 
-当前固定 Go worker v0.2.0，来源提交 0e74e16a2116b731e8cc59cad99db490f8bf551f；Windows/Linux 资源摘要与该标签 CI 构建逐字节一致。启动和发行均复核固定大小和 SHA-256。不能将旧 Python/独立执行器填入此资源。发行还运行真实 Go 二进制的非法 bootstrap 拒绝测试，证明原生加载与协议相符且不联系交易接口。
+当前固定 Go worker v0.2.4，来源提交 7ee4981d34ae5766cac63f1504a76122d51bacd0；Windows/Linux 资源摘要与该标签 CI 构建逐字节一致。启动和发行均复核固定大小和 SHA-256。不能将旧 Python/独立执行器填入此资源。发行还运行真实 Go 二进制的非法 bootstrap 拒绝测试，证明原生加载与协议相符且不联系交易接口。
 
 ## 迁移与维护操作
 
@@ -48,3 +48,8 @@ Key 和 OKX API Key／Secret／Passphrase 在原生 Rust 中从现有 DPAPI 存�
 同步只保存配置，不创建、恢复或启动任务，不取得交易执行权。未知同步结果显示固定提示，由用户手动核对和重试。账户切换、服务器身份变化和注销会使旧的原生同步代际失效；旧响应不能进入新账号的界面。
 
 托管页“本地配置与服务器数据”可手动重新同步配置、读取服务器数据状态。读取失败或时间过旧的余额／持仓明确标注为旧记录。直连 OKX 或接口中心失败时显示持续的连接提示和 Key 配置入口；配置了接口中心后不会因故障静默绕过它。
+## 完整客户端工作区
+
+Go 服务器或中心单机登录使用独立任务会话，连接成功进入 `/dashboard`。`/task-hosting` 位于原有 MainLayout 内，侧栏保留所有原页面。Go 连接不生成旧服务 JWT、不授权旧管理员路由、不自动恢复旧执行器。原接口的 401 只影响对应页面，不能清理 Go 连接或原本地配置。
+
+当前选中的原本地账号 ID、DPAPI scope、历史 token 与设置保持原值。没有旧配置时生成的 `taskhost:` 身份只用于本地显示和存储范围，不作为服务器用户或执行权限。新应用进程仍须手动完成密钥登录；同一进程刷新可恢复已确认会话。旧引擎金融写操作在网络或原生调用前阻止，创建与控制使用托管协议。

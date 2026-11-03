@@ -5,6 +5,7 @@ import type { KlineBar } from '@/types'
 import { useRealtimeFactorStore } from '@/stores/realtime-factor'
 import { useAITradingStore } from '@/stores/ai-trading'
 import { useAuthStore } from '@/stores/auth'
+import {assertServerLoginForTasks} from '../desktop-login-session'
 import { FactorWorker } from './worker'
 import { readMarketSnapshot } from './market'
 import { clockOffset } from './clock'
@@ -218,6 +219,7 @@ async function refresh(s:Session) {
 }
 
 export async function startRealtime(task:AITradingTask,interval:Cadence) {
+  assertServerLoginForTasks()
   if (task.strategy_type!=='factor' || task.status!=='running') throw new Error('请先启动纯因子任务')
   if (sessions.has(task.id)) throw new Error('该任务正在启动或已开启秒级模式')
   if (!Number.isInteger(interval) || interval<1 || interval>5) throw new Error('计算间隔须为1至5秒')

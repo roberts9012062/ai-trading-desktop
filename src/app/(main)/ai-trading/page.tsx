@@ -1,6 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import {useNavigate} from 'react-router-dom'
+import {hostSession,onHostSessionChange} from '@/lib/taskhost-client'
 import { BrandLogo } from "@/components/common/brand-logo"
 import { TradingActionButton } from "@/components/ai-trading/trading-action-button"
 import { CreateTaskDialog } from "@/components/ai-trading/form/create-task-dialog"
@@ -28,6 +30,8 @@ import { StrategyImportDialog } from "@/components/strategy-favorites/transfer-c
 
 /** AI 交易主页面 */
 export default function AITradingPage(): React.JSX.Element {
+  const host=useSyncExternalStore(onHostSessionChange,hostSession,hostSession),navigate=useNavigate()
+  const createTask=()=>host?navigate('/task-hosting'):setCreateOpen(true)
   const accountKey = useAuthStore(s => s.user ? JSON.stringify([s.user.id, s.user.trading_mode]) : null)
   const allTasks = useAITradingStore((s) => s.tasks)
   const tasks = useMemo(() => allTasks.filter(t => t.strategy_type !== "multi_cycle_hunter"), [allTasks])
@@ -147,13 +151,13 @@ export default function AITradingPage(): React.JSX.Element {
           <TradingActionButton action="import" onClick={() => setImportOpen(true)} />
           <TradingActionButton
             action="favorite"
-            onClick={() => setFromFavOpen(true)}
+            onClick={() => host?navigate('/task-hosting'):setFromFavOpen(true)}
           />
           <TradingActionButton
             action="quant"
-            onClick={() => setQuantOpen(true)}
+            onClick={() => host?navigate('/task-hosting'):setQuantOpen(true)}
           />
-          <TradingActionButton action="ai" onClick={() => setCreateOpen(true)} />
+          <TradingActionButton action="ai" onClick={createTask} />
         </div>
       </div>
 

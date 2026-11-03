@@ -1,3 +1,4 @@
+import {desktopSessionUsesTaskHost} from './desktop-login-session'
 /** 历史数据渠道 API 客户端 —— 回测 / 因子实验室 / 超级因子挖掘共用 */
 
 import { LOCAL_HISTORY_CHANNELS, probeLocalChannelRange, isKlineChannel, isLocalResearchChannel } from "@/lib/kline-channels"
@@ -28,7 +29,7 @@ async function historyRequest<T>(path: string): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" }
   if (token) headers["Authorization"] = `Bearer ${token}`
   const response = await fetch(`${API_BASE}${path}`, { headers })
-  if (response.status === 401 && typeof window !== "undefined") {
+  if (response.status === 401 && typeof window !== "undefined" && !desktopSessionUsesTaskHost()) {
     window.location.href = "/login"
     throw new Error("认证过期")
   }

@@ -2,6 +2,7 @@ import { enableCollectionMode, loadCollectionConfig } from "./lib/collection-con
 import { invoke } from '@tauri-apps/api/core'
 import { initializeDesktopLoginSession } from './lib/desktop-login-session'
 import { enableDirectOkxMode } from './lib/market-provider'
+import {restoreHostSession} from './lib/taskhost-client'
 enableCollectionMode()
 enableDirectOkxMode()
 /**
@@ -49,6 +50,7 @@ async function boot(): Promise<void> {
       sessionStorage.setItem('atd_browser_run', run)
     } catch { run = crypto.randomUUID() }
     initializeDesktopLoginSession(`browser:${run}`)
+    restoreHostSession()
     return
   }
 
@@ -60,6 +62,7 @@ async function boot(): Promise<void> {
   try { run = await invoke<string>('desktop_login_session_id'); if (!run) throw new Error('missing launch id') }
   catch { run = crypto.randomUUID() }
   initializeDesktopLoginSession(`desktop:${run}`)
+  restoreHostSession()
   await invoke('okx_enable_direct')
 
   // 用 Rust 侧 fetch 替换 webview fetch:后端 CORS 只放行 Web 端源

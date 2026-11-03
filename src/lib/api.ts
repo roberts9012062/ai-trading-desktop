@@ -7,6 +7,7 @@ import type { ProfitLockTemplate } from "@/lib/profit-lock-templates"
 import type { ProfitLockConfig } from "@/lib/ai-trading-api"
 import { snippetQuotes, snippetKlines, withSnippetRead } from "./snippet-rest"
 import {tryLocalRecordRequest} from './local-records'
+import {desktopSessionUsesTaskHost} from './desktop-login-session'
 
 export function listProfitLockTemplates(): Promise<ProfitLockTemplate[]> {
   return request("/api/profit-lock-templates")
@@ -57,7 +58,9 @@ async function request<T>(
     headers["Authorization"] = `Bearer ${token}`
   }
 
-  const response = await tryLocalRecordRequest(path,options) ?? await fetch(`${API_BASE}${path}`, {
+  const localResponse=await tryLocalRecordRequest(path,options)
+  if(!localResponse&&desktopSessionUsesTaskHost()&&!['GET','HEAD'].includes((options.method||'GET').toUpperCase()))throw Object.assign(new Error('当前连接使用 Go 任务服务器。此原服务写入接口不可用；托管模型与任务请在任务托管页配置，本地设置会留在本机'),{status:409,code:'LEGACY_WRITE_UNAVAILABLE'})
+  const response = localResponse ?? await fetch(`${API_BASE}${path}`, {
     ...options,
     headers,
   })
@@ -66,6 +69,7 @@ async function request<T>(
   if (identity !== activeIdentity()) throw new Error("会话已切换，请重试")
 
   if (response.status === 401) {
+    if(desktopSessionUsesTaskHost())throw Object.assign(new Error('此功能的原服务授权已失效，当前任务服务器连接仍保留'),{status:401,code:'LEGACY_AUTH_REQUIRED'})
     // 登录 / 注册等「获取凭证」端点：401 是凭据错误，交给调用方在表单内提示，
     // 不自动刷新 token、不硬跳 /login（否则用户输错密码会被整页踢回登录页）
     if (options.skipAuthRedirect === true) {
