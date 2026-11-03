@@ -6,7 +6,12 @@ export interface ServerDataAccount {credential_id:string;label:string;demo:boole
 export interface ServerDataStatus {mode:'direct'|'collection';collection_configured:boolean;accounts:ServerDataAccount[];execution_authority:false;refreshed_at:string}
 export interface ClientSyncReceipt {sync_id:string;credentials:{client_id:string;credential_id:string;venue:'okx';label:string;demo:boolean;api_key_masked:string}[];collection_configured:boolean;collection_status:string;data_status:'pending'|'ok'|'unavailable';execution_authority:false;tasks_created:false}
 type NativeSync = {sent:false;reason:'local_configuration_missing'}|{sent:true;receipt:ClientSyncReceipt}
-export interface ClientSyncStatus {state:'idle'|'syncing'|'synced'|'unavailable'|'missing_profile'|'profile_changed'|'missing_configuration'|'native_required';profileName?:string;credentialCount?:number;collectionConfigured?:boolean;syncedAt?:string;data?:ServerDataStatus}
+export type ClientSyncErrorCode='configuration_conflict'|'session_expired'|'server_upgrade_required'|'receipt_invalid'|'sync_unconfirmed'
+export interface ClientSyncStatus {state:'idle'|'syncing'|'synced'|'unavailable'|'missing_profile'|'profile_changed'|'missing_configuration'|'native_required';profileName?:string;credentialCount?:number;collectionConfigured?:boolean;syncedAt?:string;data?:ServerDataStatus;errorCode?:ClientSyncErrorCode}
+function syncErrorCode(error:unknown):ClientSyncErrorCode {
+  const code=error&&typeof error==='object'?(error as {code?:unknown}).code:null
+  return typeof code==='string'&&['configuration_conflict','session_expired','server_upgrade_required','receipt_invalid'].includes(code)?code as ClientSyncErrorCode:'sync_unconfirmed'
+}
 export function validServerObservation(value:string|undefined,now=Date.now()){const observed=Date.parse(value||'');return Number.isFinite(observed)&&observed>=946684800000&&observed<=now+10000}
 export function serverAccountDataFresh(account:ServerDataAccount,now=Date.now()){const observed=Date.parse(account.observed_at||'');return account.status==='ok'&&!account.stale&&validServerObservation(account.observed_at,now)&&now-observed<=60000}
 export function serverAccountDataIssue(account:ServerDataAccount){const fixed:Record<string,string>={okx_credentials_rejected:'OKX 凭证未通过校验，请核对 API Key、Secret、Passphrase 和读取权限。',okx_account_identity_changed:'OKX 账户身份已变化，请重新核对绑定。',okx_data_incomplete:'账户数据返回不完整，不能确认当前完整持仓。',client_key_revoked:'客户端登录密钥已失效，请重新核对连接。',okx_unavailable_collection_key_required:'OKX 直连不可用，可配置或同步 API Collection Key。',okx_direct_unavailable:'OKX 直连暂不可用，当前通过 API Collection 读取数据。'};return fixed[account.code]||''}
@@ -46,8 +51,8 @@ export async function syncCurrentClientConfiguration(force=false):Promise<void>{
       if(result.sent!==true||!validReceipt(result.receipt,requestID))throw new Error('配置同步回执无效')
       publish({state:'synced',profileName:profile.label,credentialCount:result.receipt.credentials.length,collectionConfigured:result.receipt.collection_configured,syncedAt:new Date().toISOString()})
       await refreshClientServerData()
-    }catch{
-      if(identity(hostSession())===identity(session)&&selectedLocalHostProfile()?.scope===scope&&operation===started)publish({state:'unavailable',profileName:profile.label})
+    }catch(error){
+      if(identity(hostSession())===identity(session)&&selectedLocalHostProfile()?.scope===scope&&operation===started)publish({state:'unavailable',profileName:profile.label,errorCode:syncErrorCode(error)})
     }
   })().finally(()=>{if(flight?.promise===promise)flight=null})
   flight={key,promise};return promise

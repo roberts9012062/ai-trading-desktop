@@ -21,6 +21,15 @@ it('cancels a queued native read when the active profile changes and discards ol
 it('publishes fixed failure diagnostics without secret exception text and retries only when explicitly requested',async()=>{
  await connect();f.invoke.mockImplementation(async(command)=>{if(command==='taskhost_client_sync')throw new Error('synthetic-private-value');return 1});await syncCurrentClientConfiguration();await syncCurrentClientConfiguration();expect(clientSyncStatus().state).toBe('unavailable');expect(JSON.stringify(clientSyncStatus())).not.toContain('synthetic-private');expect(f.invoke.mock.calls.filter(([name])=>name==='taskhost_client_sync')).toHaveLength(1);await syncCurrentClientConfiguration(true);expect(f.invoke.mock.calls.filter(([name])=>name==='taskhost_client_sync')).toHaveLength(2)
 })
+it('shows safe conflict diagnostics and drops arbitrary native details without automatically retrying',async()=>{
+ await connect();f.invoke.mockImplementation(async(command)=>{if(command==='taskhost_client_sync')throw {code:'configuration_conflict',detail:'synthetic-private-value'};return 1})
+ await syncCurrentClientConfiguration();await syncCurrentClientConfiguration()
+ expect(clientSyncStatus()).toMatchObject({state:'unavailable',errorCode:'configuration_conflict'})
+ expect(JSON.stringify(clientSyncStatus())).not.toContain('synthetic-private')
+ expect(f.invoke.mock.calls.filter(([name])=>name==='taskhost_client_sync')).toHaveLength(1)
+ f.invoke.mockImplementation(async(command)=>{if(command==='taskhost_client_sync')throw {code:'untrusted-private-code',detail:'private'};return 1})
+ await syncCurrentClientConfiguration(true);expect(clientSyncStatus().errorCode).toBe('sync_unconfirmed')
+})
 it('distinguishes credential rejection, fresh relay fallback and missing observation times',()=>{
  const account:ServerDataAccount={credential_id:'id',label:'account',demo:false,source:'collection',status:'ok',code:'okx_direct_unavailable',observed_at:new Date().toISOString(),stale:false,balances:[],positions:[]}
  expect(serverAccountDataFresh(account)).toBe(true);expect(serverAccountDataIssue(account)).toContain('API Collection')

@@ -208,6 +208,35 @@ fn client_id(scope: &str, key: &str, demo: bool) -> String {
     digest(format!("taskhost-client-okx-v1\0{scope}\0{key}\0{demo}").as_bytes())
 }
 
+// Only fixed diagnostic codes cross IPC; never forward private exception text.
+#[derive(Serialize)]
+pub struct ClientSyncError {
+    code: &'static str,
+}
+impl From<&str> for ClientSyncError {
+    fn from(message: &str) -> Self {
+        let code = match message {
+            "服务器连接已过期，请重新握手后同步配置" => "session_expired",
+            "服务器尚未支持自动配置同步，请升级服务器" => {
+                "server_upgrade_required"
+            }
+            "服务器配置身份冲突，请在原账户核对；没有覆盖原配置" => {
+                "configuration_conflict"
+            }
+            "服务器配置同步回执不匹配" | "服务器配置同步回执无效" | "服务器返回重复的配置身份" => {
+                "receipt_invalid"
+            }
+            _ => "sync_unconfirmed",
+        };
+        Self { code }
+    }
+}
+impl From<String> for ClientSyncError {
+    fn from(message: String) -> Self {
+        Self::from(message.as_str())
+    }
+}
+
 #[tauri::command]
 pub async fn taskhost_client_sync(
     app: tauri::AppHandle,
@@ -218,7 +247,7 @@ pub async fn taskhost_client_sync(
     owner_id: String,
     token: String,
     request_id: String,
-) -> Result<Value, String> {
+) -> Result<Value, ClientSyncError> {
     let token = Zeroizing::new(token);
     let expected = binding(&scope, &origin, &owner_id, &token)?;
     if !valid_request_id(&request_id) {
@@ -361,5 +390,20 @@ mod tests {
             .contains("synthetic-secret"));
         receipt["execution_authority"] = json!(true);
         assert!(validate_receipt(&serde_json::to_vec(&receipt).unwrap(), id, &[]).is_err());
+    }
+    #[test]
+    fn sync_errors_expose_only_allowlisted_codes_without_private_text() {
+        let conflict = ClientSyncError::from("服务器配置身份冲突，请在原账户核对；没有覆盖原配置");
+        assert_eq!(
+            serde_json::to_value(conflict).unwrap(),
+            json!({"code":"configuration_conflict"})
+        );
+        let private = ClientSyncError::from(
+            "synthetic-private-value https://secret.invalid?token=private".to_string(),
+        );
+        assert_eq!(
+            serde_json::to_value(private).unwrap(),
+            json!({"code":"sync_unconfirmed"})
+        );
     }
 }

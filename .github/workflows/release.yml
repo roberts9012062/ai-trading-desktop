@@ -50,7 +50,7 @@ jobs:
         run: pnpm exec vitest run src/router-workspace.test.tsx src/lib/taskhost-workspace.test.ts src/lib/taskhost-workspace-profile.test.ts src/lib/taskhost-original-create.test.ts src/lib/taskhost-optional-standalone.test.ts src/components/ai-trading/form/original-hosted-creation.test.tsx src/stores/ai-trading-transport.test.ts src/lib/local-strategy-favorites.test.ts
 
       - name: Verify saved server login keys and visibility controls
-        run: pnpm exec vitest run src/lib/host-login-key.test.ts src/components/task-hosting/connection-key.test.tsx
+        run: pnpm exec vitest run src/lib/host-login-key.test.ts src/components/task-hosting/connection-key.test.tsx src/lib/taskhost-client-sync.test.ts src/components/task-hosting/client-sync-panel.test.tsx
 
       - name: Verify Go center snapshot metadata and capability gating
         run: pnpm exec vitest run src/lib/taskhost-managed.test.ts src/lib/taskhost-migration.test.ts src/lib/taskhost-worker.test.ts src/lib/taskhost-online-standby.test.ts src/lib/taskhost-client-sync.test.ts src/lib/taskhost-local-profile.test.ts src/lib/okx-connectivity.test.ts src/components/task-hosting/worker-panel.test.ts src/components/task-hosting/managed-panel.test.tsx src/lib/taskhost-snapshot.test.ts src/components/task-hosting/snapshot-panel.test.tsx src/lib/taskhost-account.test.ts src/components/task-hosting/account-panel.test.tsx
