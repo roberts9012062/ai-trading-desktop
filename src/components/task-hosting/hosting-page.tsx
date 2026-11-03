@@ -163,7 +163,7 @@ export default function HostingPage() {
       <div className="mb-7 rounded border border-[var(--border)] p-4 text-sm text-[var(--text-muted)]">
         {standalone
           ? "单机模式仅访问服务器曾签发的托管任务，不提供新建任务。操作结果以中心最新状态为准。"
-          : "新建能力由在线服务器明确提供。旧暂存记录仅供核对；新任务请使用 Go 原生任务入口。"}
+          : "新建任务需要在线连接服务器。旧暂存记录仅供核对；请在 AI 交易页使用原创建弹窗，新任务会同步到此处托管。"}
       </div>
       {!standalone && (
         <section className="mb-8">

@@ -34,7 +34,7 @@ export function ManagedPanel({credentials,accounts,showSettings=true}:{credentia
   useEffect(()=>{const changed=(event:Event)=>{if(hostSession()!==session)return;void refresh().catch(()=>{});const pending=pendingManagedRequest();setUnknown(!!pending);setRequestID(pending||crypto.randomUUID());const message=(event as CustomEvent<{message?:string}>).detail?.message;if(message)setMessage(message)};window.addEventListener('taskhost-tasks-changed',changed);return()=>window.removeEventListener('taskhost-tasks-changed',changed)},[session]);
   return <section className="mb-8 rounded border border-[var(--border)] p-5">
     <div className="flex flex-wrap justify-between gap-3"><h2 className="text-lg font-semibold">服务器托管任务</h2><button className={button} disabled={busy} onClick={()=>void run(refresh)}>刷新任务与能力</button></div>
-    <p className="my-3 text-sm text-[var(--text-muted)]">{session?.mode==='standalone'?'单机模式读取中心已有任务，可操作和删除，不能新建任务。恢复仅适用于原服务器签发恢复策略的 Go 任务。':available?'服务器已开放 Go 任务创建；注册、恢复和交易仍需通过中心的租约及风险核对。':'服务器尚未开放 Go 运行时，暂不能新建任务。'}</p>
+    <p className="my-3 text-sm text-[var(--text-muted)]">{session?.mode==='standalone'?'单机模式读取中心已有任务，可操作和删除，不能新建任务。恢复需通过原服务器签发策略与中心核对。':available?'在 AI 交易页使用原创建弹窗配置任务，提交后同步到服务器托管；运行仍需通过中心租约及风险核对。':'服务器暂未开放任务托管，当前不能新建任务。'}</p>
     {message&&<p role="status" className="my-3 rounded border border-amber-500/30 p-3 text-sm break-all">{message}</p>}
     {session?.mode==='server'&&available&&!tradingEnabled&&<p className="my-3 rounded border border-amber-500/30 p-3 text-sm">服务器当前为观察模式。可以创建和同步任务；交易执行需要管理员在服务器明确启用。</p>}
     {session?.mode==='standalone'? accounts.map(account=><div key={account.account_id} className="my-4 border-t border-[var(--border)] pt-3">
