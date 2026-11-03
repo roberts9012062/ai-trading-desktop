@@ -14,7 +14,7 @@ export type HostSession =
 	  centerScope?:string;
 	  centerUserID?:string;
     }
-  | { mode: "standalone"; scope: string; centerUserID: string };
+  | { mode: "standalone"; scope: string; centerUserID: string; centerVerified?:boolean };
 export interface HostedTask {
   id: string;
   name: string;
@@ -61,6 +61,9 @@ export interface CenterAccount {
 const SESSION = "cyclepilot_go_host_session";
 let current: HostSession | null = null,
   epoch = 0;
+let authenticationAttempt=0;
+export const hostLoginAttempt=()=>authenticationAttempt;
+export function beginHostLoginAttempt(){return ++authenticationAttempt;}
 const listeners = new Set<() => void>();
 export const hostSession = () => current;
 export function onHostSessionChange(fn: () => void) {
@@ -83,6 +86,7 @@ function save(session: HostSession | null) {
   }
 }
 export function logoutHost() {
+  beginHostLoginAttempt();
   save(null);
   publish(null);
   requireDesktopLogin();
@@ -102,6 +106,7 @@ export function attachOnlineCenter(expected:HostSession,scope:string,user:string
 export function enterStandalone(session: {
   scope: string;
   centerUserID: string;
+  centerVerified?:boolean;
 }) {
   const next = { mode: "standalone" as const, ...session };
   save(next);
@@ -123,7 +128,7 @@ export function restoreHostSession() {
       Date.parse(s.expiresAt) > Date.now()
     )
       publish(s);
-    else if (s?.mode === "standalone" && s.scope && s.centerUserID) publish(s);
+    else if (s?.mode === "standalone" && s.scope && (s.centerUserID || s.centerVerified===false)) publish(s);
   } catch {
     /* A fresh explicit login is required for invalid persisted state. */
   }
@@ -173,6 +178,7 @@ function hostFetch(url: string, options: RequestInit): Promise<Response> {
   return fetch(url, guarded);
 }
 export async function loginHost(rawOrigin: string, key: string) {
+  const attempt=beginHostLoginAttempt();
   const origin = normalizeHost(rawOrigin),
     started = epoch,
     selectedProfile = selectedLocalHostProfile();
@@ -187,7 +193,7 @@ export async function loginHost(rawOrigin: string, key: string) {
   );
   if (health.service !== "taskhost-go" || health.initialized !== true)
     throw new Error("这不是已初始化的 Go 任务托管服务器");
-  if (started !== epoch) throw new Error("会话已变化，请重新连接");
+  if (started !== epoch || hostLoginAttempt()!==attempt) throw new Error("会话已变化，请重新连接");
   const body = await parsed(
     await hostFetch(origin + "/api/v1/handshake", {
       method: "POST",
@@ -198,7 +204,7 @@ export async function loginHost(rawOrigin: string, key: string) {
       body: JSON.stringify({ login_key: key }),
     }),
   );
-  if (started !== epoch) throw new Error("会话已变化，请重新连接");
+  if (started !== epoch || hostLoginAttempt()!==attempt) throw new Error("会话已变化，请重新连接");
   if (
     body.service !== "taskhost-go" ||
     typeof body.access_token !== "string" ||

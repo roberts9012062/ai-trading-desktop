@@ -47,6 +47,8 @@ import { useMarketStore } from "@/stores/market"
 import { useAuthStore } from "@/stores/auth"
 import { DEFAULT_FORECAST, forecastConfig, isForecast, type ForecastConfig } from "@/lib/ai-forecast"
 import { ForecastOptions } from "./forecast-options"
+import {HostingAccount} from './hosting-account'
+import {desktopSessionUsesTaskHost} from '@/lib/desktop-login-session'
 
 /** 实盘模式创建任务：官方接口真实下单提示横幅 */
 function LiveExecBanner(): React.JSX.Element | null {
@@ -82,6 +84,7 @@ export function CreateTaskDialog({
   prefillFrom = null,
 }: CreateTaskDialogProps): React.JSX.Element {
   const createTask = useAITradingStore((s) => s.createTask)
+  const [hostCredential,setHostCredential]=useState('')
   const [tradeMode, setTradeMode] = useState<'realtime'|'forecast'>('realtime')
   const [forecast, setForecast] = useState<ForecastConfig>(DEFAULT_FORECAST)
   const [models, setModels] = useState<AIModel[]>([])
@@ -262,6 +265,7 @@ export function CreateTaskDialog({
       return
     }
     const payload: CreateTaskPayload = {
+      ...(desktopSessionUsesTaskHost()?{host_credential_id:hostCredential}:{}),
       name: name.trim(),
       model_row_id: modelRowId,
       strategy_type: "ai",
@@ -293,7 +297,7 @@ export function CreateTaskDialog({
       leverage: tradeMode==='forecast'?Math.min(50,marginModel.leverage):marginModel.leverage,
       margin_mode: marginModel.marginMode,
       funding_source:
-        funding.info && funding.info.source === "live" && funding.info.balance_usdt != null
+        desktopSessionUsesTaskHost() || funding.info && funding.info.source === "live" && funding.info.balance_usdt != null
           ? "live"
           : "site",
       allocated_capital: 0,
@@ -374,6 +378,7 @@ export function CreateTaskDialog({
             {tradeMode==='forecast'?'AI 预测方向与进场价，OKX 条件单触发，止盈止损平仓后结束。':'模型按 K 线周期自主交易；使用账户可用保证金，并遵守仓位及风控设置。'}
           </p>
           <LiveExecBanner />
+          <HostingAccount open={open} value={hostCredential} onChange={setHostCredential}/>
         </DialogHeader>
 
         <div className="min-h-0 flex-1 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm overflow-hidden">

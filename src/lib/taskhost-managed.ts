@@ -8,6 +8,7 @@ export interface ManagedTask {
   timeframe: string; credential_id: string; model_id?: string; account_id: string;
   status: string; revision: string; control_version: string; registration: string;
   desired_state: string; center_desired_state?: string;
+  created_at?:string;updated_at?:string;
 }
 export interface ManagedCapabilities {
   protocol: 'taskhost-managed-v1'; create_requires_server: true;
@@ -34,8 +35,8 @@ const counter = (v:unknown) => typeof v==='string' && /^(0|[1-9][0-9]{0,18})$/.t
 const sameSession = (s:ReturnType<typeof hostSession>) => { if (!s || hostSession()!==s) throw new Error('会话已变化，请重新读取当前账户'); };
 function pendingKey(){const s=hostSession();return s?.mode==='server'?`taskhost_pending_create:${s.origin}:${s.ownerID}`:null;}
 export function pendingManagedRequest():string|null{try{const key=pendingKey(),value=key?sessionStorage.getItem(key):null;return value&&/^[A-Za-z0-9_-]{16,100}$/.test(value)?value:null;}catch{return null;}}
-export function clearPendingManagedRequest(){try{const key=pendingKey();if(key)sessionStorage.removeItem(key);}catch{/* The current view still keeps its request identity. */}}
-function rememberRequest(id:string){try{const key=pendingKey();if(key)sessionStorage.setItem(key,id);}catch{/* Memory-only UI lock remains active on unknown result. */}}
+export function clearPendingManagedRequest(){try{const key=pendingKey();if(key)sessionStorage.removeItem(key);}catch{/* Keep any surviving lock for explicit outcome lookup. */}if(typeof window!=='undefined')window.dispatchEvent(new Event('taskhost-create-pending'));}
+function rememberRequest(id:string){try{const key=pendingKey();if(!key)throw new Error();sessionStorage.setItem(key,id);if(sessionStorage.getItem(key)!==id)throw new Error();}catch{throw new Error('无法保存本次创建请求的核对编号，尚未提交任务。请恢复本机会话存储后再创建。');}if(typeof window!=='undefined')window.dispatchEvent(new Event('taskhost-create-pending'));}
 export class ManagedCreateUncertain extends Error{}
 export function checkedState(raw:unknown, account:string, task?:string):TaskState {
   const v=raw as TaskState;
@@ -74,7 +75,7 @@ export async function createManagedTask(input:NativeTaskInput):Promise<ManagedTa
   return out.task;
 }
 async function center<T>(path:string,body?:unknown):Promise<T> {
-  const s=hostSession();if(s?.mode!=='standalone')throw new Error('请先完成单机登录');
+  const s=hostSession();if(s?.mode!=='standalone'||s.centerVerified===false)throw new Error('请先配置并验证 API Collection Key');
   const reply=await invoke<{code:number;data:T}>('collection_http',{scope:s.scope,path,body:body??null});sameSession(s);
   if(reply?.code!==200)throw new Error('中心未确认请求，请刷新核对');
   return reply.data;

@@ -1,5 +1,9 @@
 # Go 原生托管桌面协议
 
+任务统一从 AI 交易页原有的 AI、量化和收藏创建弹窗提交，不另设 Go 创建表单。原表单选择服务器交易账户和已保存模型；先验证账户，再通过本文的 managed 协议创建、同步。服务端暂未实现的配置明确拒绝，不能丢弃原参数。原表单的自动开始在创建与注册已确认后只发一次 fresh-CAS 控制；开始结果未知保留创建事实，不重复创建。
+
+单机入口 Key 选填。未提供 Key 时仅读取当前本地配置的状态；已有 Key 通过原生 `collection_key/standalone` 验证中心身份并加密绑定 `taskhost:standalone:<verified-user>`，秘密不跨 IPC。相同 Key 保留既有备用绑定；替换 Key 必须先取得对应 Go 进程的真实退出确认。没有 Key 或验证暂不可用仍能进入本地工作区，但不授予中心身份、任务创建或执行权限。配置 Key 后重新进入单机模式即可读取中心已有任务。
+
 桌面使用在线 `GET /api/v1/managed-capabilities`，只在 `protocol=taskhost-managed-v1`、`runtime_available=true`、`managed_tasks=true` 时允许新建。任务身份只从 `POST /managed-tasks` 的服务器响应读取。页面不生成任务 ID；随机 request_id 仅用于请求身份。
 
 新建结果未知时，保留当前服务器/用户下的原 request_id，禁止再次 POST，刷新列表或调用 `GET /managed-task-requests/{request_id}` 核对。注册未知只调用既有任务的 `/reconcile`。控制采用 fresh center-state → 一个 control 请求 → fresh center-state，所有 CAS 版本保持十进制字符串。单机模式通过 DPAPI 保存的中心 Key 读取中心已有任务，不能创建或修改原策略；旧任务恢复仍要求原服务器签名。

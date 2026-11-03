@@ -56,7 +56,7 @@ beforeEach(async()=>{
   container=document.createElement('div');document.body.append(container);root=createRoot(container)
 })
 afterEach(async()=>{await act(async()=>root.unmount());container.remove();logoutHost();vi.unstubAllGlobals()})
-async function render(path:string){await act(async()=>{root.render(<MemoryRouter initialEntries={[path]}><AppRoutes/></MemoryRouter>)});for(let i=0;i<40&&!container.querySelector('nav');i++)await act(async()=>{await new Promise(resolve=>setTimeout(resolve,10))})}
+async function render(path:string){await act(async()=>{root.render(<MemoryRouter initialEntries={[path]}><AppRoutes/></MemoryRouter>)});await vi.waitFor(async()=>{await act(async()=>{await new Promise(resolve=>setTimeout(resolve,0))});expect(container.querySelector('nav')||container.querySelector('form')).not.toBeNull()},{timeout:10000,interval:25})}
 it('mounts the actual original shell and complete navigation around Go task hosting with no JWT',async()=>{
   await render('/task-hosting')
   expect(container.textContent).toContain('周期领航')

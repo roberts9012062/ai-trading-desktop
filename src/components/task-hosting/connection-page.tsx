@@ -57,8 +57,7 @@ export default function HostConnectionPage() {
         </p>
         <h1 className="text-2xl font-semibold mt-3">连接客户端</h1>
         <p className="text-sm text-[var(--text-muted)] mt-3 mb-7">
-          登录后进入完整工作区。服务器在线时创建与同步任务；服务器不可用时，单机入口直接读取 API VALUE
-          COLLECTION 的已有托管任务。
+          登录后进入完整工作区。连接服务器后可创建与同步任务；单机可直接进入，已保存的 API Collection Key 会自动沿用。
         </p>
         <div className="flex gap-2 mb-6" role="group" aria-label="登录方式">
           {(["server", "standalone"] as const).map((value) => (
@@ -95,7 +94,7 @@ export default function HostConnectionPage() {
           <label className="block text-sm">
             {mode === "server"
               ? "后台签发的登录密钥"
-              : "API VALUE COLLECTION Key"}
+              : "API VALUE COLLECTION Key（选填）"}
             <input
               className="mt-2 w-full rounded border border-[var(--border)] bg-[var(--bg-primary)] p-3"
               value={key}
@@ -103,7 +102,7 @@ export default function HostConnectionPage() {
               type="password"
               autoComplete="off"
               placeholder={mode === "server" ? "thk_…" : "ac_…"}
-              required
+              required={mode==='server'}
               disabled={busy}
             />
           </label>
@@ -120,13 +119,13 @@ export default function HostConnectionPage() {
               ? "正在验证连接…"
               : mode === "server"
                 ? "握手并连接服务器"
-                : "验证中心 Key 并进入单机模式"}
+                : "进入单机模式"}
           </button>
         </form>
         <p className="mt-5 text-xs text-[var(--text-muted)]">
           {mode === "server"
             ? "首次启动后端，需要先在后端管理页面注册管理员并生成登录密钥。远程连接必须使用受信任的 HTTPS 证书。"
-            : "单机模式不提供新建任务。Key 保存在本机原生安全存储中，已有任务的操作以接口中心能力和执行权校验结果为准。"}
+            : "Key 可留空，已有配置会自动沿用，没有 Key 也可直接进入，之后在个人设置中填写。读取和操作中心托管任务需要有效 Key；单机不能新建任务。"}
         </p>
       </main>
     </div>

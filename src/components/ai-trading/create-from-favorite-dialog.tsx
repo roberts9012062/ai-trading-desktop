@@ -1,4 +1,6 @@
 "use client"
+import {HostingAccount} from './form/hosting-account'
+import {desktopSessionUsesTaskHost} from '@/lib/desktop-login-session'
 
 /**
  * 创建优秀任务 —— 从任务收藏夹一键创建
@@ -104,6 +106,7 @@ export function CreateFromFavoriteDialog({
   onClose: () => void
 }): React.JSX.Element {
   const createTask = useAITradingStore((s) => s.createTask)
+  const [hostCredential,setHostCredential]=useState('')
   const tasks = useAITradingStore((s) => s.tasks)
   const [favs, setFavs] = useState<TaskFavoriteItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -144,6 +147,7 @@ export function CreateFromFavoriteDialog({
     setError(null)
     try {
       const payload = payloadFromSnapshot(fav, existNames)
+      if(desktopSessionUsesTaskHost()){payload.host_credential_id=hostCredential;payload.funding_source='live'}
       const profitLock = buildProfitLockConfig(profitLocks[fav.id] ?? profitLockFromConfig(payload.close_rules?.profit_lock))
       payload.close_rules = { ...payload.close_rules!, profit_lock: profitLock ?? null }
       await createTask(payload)
@@ -163,8 +167,9 @@ export function CreateFromFavoriteDialog({
           <DialogTitle>创建优秀任务（来自任务收藏夹）</DialogTitle>
         </DialogHeader>
         <p className="text-[11px] text-[var(--text-muted)] -mt-1">
-          相同配置的任务已在运行时不可创建（置灰）。创建后自动开始运行。
+          相同配置的任务已在运行时不可创建（置灰）。开始请求以服务器与中心核验结果为准。
         </p>
+        <HostingAccount open={open} value={hostCredential} onChange={setHostCredential}/>
         <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pt-1">
           {loading && (
             <p className="text-xs text-[var(--text-muted)] text-center py-8">

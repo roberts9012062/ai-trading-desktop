@@ -1,6 +1,7 @@
 "use client"
 
 import { create } from "zustand"
+import {desktopSessionUsesTaskHost} from '@/lib/desktop-login-session'
 import { useAuthStore } from "@/stores/auth"
 import { RefreshCoordinator } from '@/lib/refresh-coordinator'
 const pollingReads = new RefreshCoordinator()
@@ -210,6 +211,7 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
 
   createTask: async (payload) => {
     const task = await createAITradingTask(payload)
+    if(desktopSessionUsesTaskHost())return task
     await get().loadTasks()
     await get().loadEquity()
     await get().loadProfitBars()

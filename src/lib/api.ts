@@ -545,6 +545,7 @@ export async function testAIProvider(id: string): Promise<ProviderTestResult> {
 
 /** 获取用户模型库 */
 export async function getAIModels(): Promise<AIModel[]> {
+  if(desktopSessionUsesTaskHost())return (await import('./taskhost-original-create')).originalHostModels()
   return request<AIModel[]>("/api/ai/models")
 }
 

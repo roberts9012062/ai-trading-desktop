@@ -288,6 +288,8 @@ export interface ProfitCloseBar {
   provider_name?: string | null
 }
 export interface CreateTaskPayload {
+  /** Explicit current hosting account; never a local task or exchange identity. */
+  host_credential_id?:string
   name: string
   model_row_id?: string | null
   strategy_type?: StrategyType | string
@@ -435,6 +437,7 @@ export async function fetchFundingSource(): Promise<FundingSourceInfo> {
 export async function createAITradingTask(
   payload: CreateTaskPayload,
 ): Promise<AITradingTask> {
+  if(desktopSessionUsesTaskHost())return (await import('./taskhost-original-create')).createOriginalHostedTask(payload)
   guardServerFactorTokens(serverFactorTokensOf(payload))
   // 桌面谱系 token → 服务器 v3 编码（守卫兼容两种编码，转换幂等）
   const params = payload.strategy_params as { factor_tokens?: FactorTokens } | null | undefined

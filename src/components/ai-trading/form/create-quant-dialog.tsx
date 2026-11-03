@@ -1,4 +1,6 @@
 "use client"
+import {HostingAccount} from './hosting-account'
+import {desktopSessionUsesTaskHost} from '@/lib/desktop-login-session'
 
 import { desktopTokensToServerV3 } from "@/lib/factor-access"
 import { cn } from "@/lib/utils"
@@ -123,6 +125,7 @@ export function CreateQuantDialog({
   onCreated,
 }: CreateQuantDialogProps): React.JSX.Element {
   const createTask = useAITradingStore((s) => s.createTask)
+  const [hostCredential,setHostCredential]=useState('')
   const [quant, setQuant] = useState<QuantParamsState>(DEFAULT_QUANT_PARAMS)
   const [startupBars, setStartupBars] = useState("2")
   const [factorEntryMode,setFactorEntryMode]=useState<FactorEntryMode>("steady")
@@ -311,6 +314,7 @@ export function CreateQuantDialog({
       return
     }
     const payload: CreateTaskPayload = {
+      ...(desktopSessionUsesTaskHost()?{host_credential_id:hostCredential}:{}),
       name: name.trim(),
       model_row_id: decisionEnabled ? decisionModelRowId : null,
       strategy_type: decisionEnabled ? "decision" : quant.quantKind,
@@ -347,7 +351,7 @@ export function CreateQuantDialog({
       leverage: marginModel.leverage,
       margin_mode: marginModel.marginMode,
       funding_source:
-        funding.info && funding.info.source === "live" && funding.info.balance_usdt != null
+        desktopSessionUsesTaskHost() || funding.info && funding.info.source === "live" && funding.info.balance_usdt != null
           ? "live"
           : "site",
       max_hold_days: maxHoldDays
@@ -394,6 +398,7 @@ export function CreateQuantDialog({
           纯规则策略，不调用大模型。按每笔保证金×杠杆自动换算数量（USDT 口径，小数）。
         </p>
         <LiveExecBanner />
+        <HostingAccount open={open} value={hostCredential} onChange={setHostCredential}/>
         <FundingSourceBadge info={funding.info} onReload={funding.reload} />
 
         <div className="space-y-3 text-sm">

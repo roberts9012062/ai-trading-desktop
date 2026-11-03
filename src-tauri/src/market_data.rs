@@ -11,6 +11,7 @@ pub struct MarketDataState {
     pub(crate) direct: std::sync::atomic::AtomicBool,
     private_slot:tokio::sync::Mutex<Option<std::time::Instant>>,
     pub(crate) manual_slot:tokio::sync::Mutex<()>,
+    key_slot:tokio::sync::Mutex<()>,
 }
 impl Default for MarketDataState {
     fn default() -> Self {
@@ -18,6 +19,7 @@ impl Default for MarketDataState {
             direct:std::sync::atomic::AtomicBool::new(false),
             private_slot:tokio::sync::Mutex::new(None),
             manual_slot:tokio::sync::Mutex::new(()),
+            key_slot:tokio::sync::Mutex::new(()),
             client: Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
                 .connect_timeout(Duration::from_secs(8))
@@ -312,8 +314,27 @@ pub async fn collection_key(
     action: String,
     key: Option<String>,
 ) -> Result<Value, String> {
+    let _key_operation=state.key_slot.lock().await;
     let path = key_path(&app, &scope)?;
     match action.as_str() {
+        "standalone" => {
+            // Read only the selected profile. The plaintext never crosses IPC.
+            let saved=read_key(&app,&scope)?;
+            let permissions=request(&state,&saved,"/v1/my/permissions",None).await?;
+            let (user,target_scope)=standalone_identity(&permissions)?;
+            let target=key_path(&app,&target_scope)?;
+            let same=read_key(&app,&target_scope).map(|current|current.as_str()==saved.as_str()).unwrap_or(false);
+            if !same {
+                // Replacing an existing standby key requires an actual shutdown ACK.
+                crate::taskhost_go::stop_scope(&app,&target_scope).await?;
+                std::fs::create_dir_all(target.parent().ok_or("配置路径无效")?).map_err(|_|"无法保存单机中心配置")?;
+                let encrypted=protect(saved.as_bytes(),target_scope.as_bytes(),true)?;
+                let temp=target.with_extension("tmp");
+                std::fs::write(&temp,encrypted).map_err(|_|"无法保存单机中心配置")?;
+                std::fs::rename(temp,target).map_err(|_|"无法保存单机中心配置")?;
+            }
+            Ok(json!({"configured":true,"scope":target_scope,"user_id":user}))
+        }
         "clear" => {
             crate::taskhost_go::stop_scope(&app,&scope).await?;
             crate::execution_runtime::invalidate_account(&app,&scope);
@@ -364,6 +385,13 @@ pub async fn collection_key(
     }
 }
 
+fn standalone_identity(reply:&Value)->Result<(String,String),String>{
+    let user=reply["data"]["user_id"].as_str().filter(|user|!user.is_empty()&&user.len()<=100&&user.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'_'||b==b'-'));
+    if reply["code"]!=200||user.is_none(){return Err("接口中心未确认单机账户身份".into())}
+    let user=user.unwrap().to_owned();
+    Ok((user.clone(),format!("taskhost:standalone:{user}")))
+}
+
 #[tauri::command]
 pub async fn collection_http(
     app: tauri::AppHandle,
@@ -379,6 +407,11 @@ pub async fn collection_http(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn standalone_binding_uses_only_verified_center_identity_without_exporting_key(){
+        assert_eq!(standalone_identity(&json!({"code":200,"data":{"user_id":"fixture-user_01"}})).unwrap(),("fixture-user_01".to_string(),"taskhost:standalone:fixture-user_01".to_string()));
+        for reply in [json!({"code":403,"data":{"user_id":"fixture"}}),json!({"code":200,"data":{"user_id":"../other"}}),json!({"code":200,"data":{"user_id":""}}),json!({"code":200,"data":{"user_id":7}}),json!({"code":200,"data":{"user_id":"a".repeat(101)}})]{assert!(standalone_identity(&reply).is_err());}
+    }
     #[test]
     fn scoped_collection_key_takes_priority_even_if_its_contents_are_damaged(){
         let root=std::env::temp_dir().join(format!("atd-route-{}-{}",std::process::id(),time::OffsetDateTime::now_utc().unix_timestamp_nanos()));

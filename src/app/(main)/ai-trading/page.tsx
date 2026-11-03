@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
-import {useNavigate} from 'react-router-dom'
 import {hostSession,onHostSessionChange} from '@/lib/taskhost-client'
 import { BrandLogo } from "@/components/common/brand-logo"
 import { TradingActionButton } from "@/components/ai-trading/trading-action-button"
@@ -27,11 +26,12 @@ import { useAITradingStore } from "@/stores/ai-trading"
 import { useMarketStore } from "@/stores/market"
 import { useAuthStore } from "@/stores/auth"
 import { StrategyImportDialog } from "@/components/strategy-favorites/transfer-controls"
+import {HostedTaskList} from '@/components/ai-trading/hosted-task-list'
 
 /** AI 交易主页面 */
 export default function AITradingPage(): React.JSX.Element {
-  const host=useSyncExternalStore(onHostSessionChange,hostSession,hostSession),navigate=useNavigate()
-  const createTask=()=>host?navigate('/task-hosting'):setCreateOpen(true)
+  const host=useSyncExternalStore(onHostSessionChange,hostSession,hostSession)
+  const createTask=()=>setCreateOpen(true)
   const accountKey = useAuthStore(s => s.user ? JSON.stringify([s.user.id, s.user.trading_mode]) : null)
   const allTasks = useAITradingStore((s) => s.tasks)
   const tasks = useMemo(() => allTasks.filter(t => t.strategy_type !== "multi_cycle_hunter"), [allTasks])
@@ -85,12 +85,12 @@ export default function AITradingPage(): React.JSX.Element {
   }, [loadTaskFavs])
 
   useEffect(() => {
-    if (!accountKey) return
+    if (!accountKey || host) return
     void loadTasks().then(() => {
       void loadEquity()
       void loadProfitBars()
     })
-  }, [accountKey, loadTasks, loadEquity, loadProfitBars])
+  }, [accountKey, host, loadTasks, loadEquity, loadProfitBars])
 
   const shouldPoll = tasks.some(t => t.status === "running" || (t.position_qty ?? 0) > 0 || t.has_open_position)
   // Refreshes must not restart the slower timer every time tasks changes.
@@ -140,6 +140,7 @@ export default function AITradingPage(): React.JSX.Element {
             action="refresh"
             busy={loading}
             onClick={() => {
+              if(host){window.dispatchEvent(new CustomEvent('taskhost-tasks-changed'));return}
               void loadTasks().then(() => {
                 void loadEquity()
                 void loadProfitBars()
@@ -151,13 +152,15 @@ export default function AITradingPage(): React.JSX.Element {
           <TradingActionButton action="import" onClick={() => setImportOpen(true)} />
           <TradingActionButton
             action="favorite"
-            onClick={() => host?navigate('/task-hosting'):setFromFavOpen(true)}
+            disabled={host?.mode==='standalone'}
+            onClick={() => setFromFavOpen(true)}
           />
           <TradingActionButton
             action="quant"
-            onClick={() => host?navigate('/task-hosting'):setQuantOpen(true)}
+            disabled={host?.mode==='standalone'}
+            onClick={() => setQuantOpen(true)}
           />
-          <TradingActionButton action="ai" onClick={createTask} />
+          <TradingActionButton action="ai" onClick={createTask} disabled={host?.mode==='standalone'}/>
         </div>
       </div>
 
@@ -185,7 +188,7 @@ export default function AITradingPage(): React.JSX.Element {
         <h2 className="text-sm font-medium text-[var(--text-secondary)] mb-2">
           任务列表
         </h2>
-        <TaskList
+        {host?<HostedTaskList/>:<TaskList
           tasks={tasks.filter(t => t.strategy_type !== "multi_cycle_hunter")}
           selectedId={selectedTaskId}
           onSelect={(id) => {
@@ -197,7 +200,7 @@ export default function AITradingPage(): React.JSX.Element {
             new Set(taskFavs.map((f) => f.task_id).filter(Boolean) as string[])
           }
           onFavorite={(t) => setFavTask(t)}
-        />
+        />}
       </div>
 
       <CreateTaskDialog
