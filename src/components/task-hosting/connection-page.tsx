@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { loginHost } from "@/lib/taskhost-client";
 import { loginStandalone } from "@/lib/taskhost-standalone";
@@ -6,6 +6,9 @@ import { BrandLogo } from "@/components/common/brand-logo";
 import {selectedLocalHostProfile} from '@/lib/taskhost-local-profile';
 import {hostSession} from '@/lib/taskhost-client';
 import {activateHostWorkspace} from '@/lib/taskhost-workspace-profile';
+import {normalizeHost} from '@/lib/taskhost-client';
+import {hostKeyStorageSupported, readSavedHostKey, saveHostKey, clearSavedHostKey} from '@/lib/host-login-key';
+import {showAlert} from '@/stores/dialog';
 
 export default function HostConnectionPage() {
   const localProfile=selectedLocalHostProfile();
@@ -24,13 +27,41 @@ export default function HostConnectionPage() {
   const [key, setKey] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const [visible, setVisible] = useState(false), [remember, setRemember] = useState(true), [hasSaved, setHasSaved] = useState(false);
+  const lookup = useRef(0), edited = useRef(false);
+  const secureStorage = hostKeyStorageSupported();
+  useEffect(() => {
+    const generation = ++lookup.current;
+    edited.current = false; setKey(''); setVisible(false); setHasSaved(false);
+    if (mode !== 'server' || !secureStorage) return;
+    let address: string;
+    try { address = normalizeHost(origin); } catch { return; }
+    const timer = setTimeout(() => {
+      void readSavedHostKey(address).then(value => {
+        if (lookup.current !== generation || edited.current) return;
+        setKey(value || ''); setHasSaved(Boolean(value));
+      }).catch(() => {
+        if (lookup.current === generation && !edited.current) setError('已保存的登录密钥读取失败，请重新填写；旧配置未清除。');
+      });
+    }, 250);
+    return () => { clearTimeout(timer); lookup.current++; };
+  }, [origin, mode, secureStorage]);
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError("");
+    edited.current = true; lookup.current++;
+    let saveWarning = '';
     try {
       if (mode === "server") {
         const session = await loginHost(origin, key.trim());
+        if (hostSession() !== session) throw new Error('连接已变化，请重新登录');
+        if (secureStorage) {
+          try {
+            if (remember) await saveHostKey(session.origin, key.trim());
+            else await clearSavedHostKey(session.origin);
+          } catch { saveWarning = '连接成功，但未能确认登录密钥已安全保存。下次登录请检查或重新填写密钥。'; }
+        }
         try {
           localStorage.setItem("cyclepilot_host_address", session.origin);
         } catch {
@@ -42,8 +73,11 @@ export default function HostConnectionPage() {
       await activateHostWorkspace(connected);
       setKey("");
       navigate("/dashboard", { replace: true });
+      if (saveWarning) void showAlert({title:'登录密钥保存未确认',description:saveWarning});
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(mode==='server' && (e as {status?:number})?.status===401
+        ? '登录密钥无效或已失效，请输入新密钥。握手成功后会覆盖此服务器保存的旧密钥。'
+        : e instanceof Error ? e.message : '连接未完成，请检查服务器地址和登录密钥');
     } finally {
       setBusy(false);
     }
@@ -98,14 +132,27 @@ export default function HostConnectionPage() {
             <input
               className="mt-2 w-full rounded border border-[var(--border)] bg-[var(--bg-primary)] p-3"
               value={key}
-              onChange={(e) => setKey(e.target.value)}
-              type="password"
+              onChange={(e) => { edited.current = true; setKey(e.target.value); setError(''); }}
+              type={visible ? 'text' : 'password'}
+              aria-label={mode === 'server' ? '后台签发的登录密钥' : 'API VALUE COLLECTION Key（选填）'}
               autoComplete="off"
               placeholder={mode === "server" ? "thk_…" : "ac_…"}
               required={mode==='server'}
               disabled={busy}
             />
           </label>
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <button type="button" className="text-emerald-500" disabled={busy} aria-pressed={visible} onClick={()=>setVisible(value=>!value)}>{visible ? '隐藏密钥' : '显示密钥'}</button>
+            {mode==='server'&&hasSaved&&<button type="button" disabled={busy} className="text-[var(--text-muted)]" onClick={async()=>{
+              edited.current=true;lookup.current++;setBusy(true);setError('');
+              try { await clearSavedHostKey(origin);setKey('');setHasSaved(false);setVisible(false); }
+              catch { setError('无法确认已保存的密钥是否清除，请重试。'); }
+              finally {setBusy(false);}
+            }}>忘记已保存密钥</button>}
+          </div>
+          {mode==='server'&&<div className="space-y-2 text-xs text-[var(--text-muted)]">
+            {secureStorage ? <><label className="flex gap-2 items-center"><input type="checkbox" checked={remember} disabled={busy} onChange={e=>setRemember(e.target.checked)}/>在本机安全保存登录密钥</label><p>{hasSaved ? '已读取当前服务器保存的密钥。' : ''}输入新密钥后，握手成功才会覆盖旧密钥；连接失败保留旧配置。</p></> : <p>当前环境不支持本机安全保存，请在桌面客户端使用此功能。</p>}
+          </div>}
           {error && (
             <p role="alert" className="text-sm text-red-400 break-words">
               {error}

@@ -16,6 +16,7 @@ mod execution_runtime;
 mod execution_snapshot;
 mod taskhost_go;
 mod taskhost_client_sync;
+mod host_login_key;
 #[cfg(test)]
 mod updater_acceptance;
 
@@ -63,6 +64,7 @@ pub fn run() {
             okx_analytics::okx_analytics_clear,
             realtime_http::realtime_http_request,
             market_data::collection_key,
+            host_login_key::desktop_saved_host_key,
             market_data::collection_http,
             okx_direct::okx_enable_direct,
             okx_direct::okx_public_http,
