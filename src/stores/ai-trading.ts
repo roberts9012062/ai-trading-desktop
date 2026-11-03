@@ -1,7 +1,7 @@
 "use client"
 
 import { create } from "zustand"
-import {desktopSessionUsesTaskHost} from '@/lib/desktop-login-session'
+import {desktopSessionUsesTaskHost, onDesktopLoginChange} from '@/lib/desktop-login-session'
 import { useAuthStore } from "@/stores/auth"
 import { RefreshCoordinator } from '@/lib/refresh-coordinator'
 const pollingReads = new RefreshCoordinator()
@@ -138,6 +138,7 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
 
   loadTasks: async (opts) => {
     const read = async () => {
+    if (desktopSessionUsesTaskHost()) return
     const owner = currentWaveOwner()
     const generation = sessionGeneration
     const request = ++taskRequest
@@ -166,6 +167,7 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
   },
 
   loadEquity: async () => {
+    if (desktopSessionUsesTaskHost()) return
     const owner = currentWaveOwner()
     const generation = sessionGeneration
     const request = ++equityRequest
@@ -186,6 +188,7 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
 
   loadProfitBars: async (opts) => {
     const read = async () => {
+    if (desktopSessionUsesTaskHost()) return
     const owner = currentWaveOwner()
     const generation = sessionGeneration
     const silent = Boolean(opts?.silent)
@@ -286,8 +289,10 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
   },
 
   refreshDetail: async (opts) => {
+    if (desktopSessionUsesTaskHost()) return
     const id = get().selectedTaskId
     if (!id) return
+    const generation = sessionGeneration, owner = currentWaveOwner()
     // silent：抽屉打开期间的轮询刷新——不闪 loading/错误（新分析由列表动画呈现）
     const silent = Boolean(opts?.silent)
     if (!silent) set({ detailLoading: true })
@@ -296,12 +301,14 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
         listAITradingDecisions(id, 50, 0),
         listAITradingTrades(id, 50, 0),
       ])
+      if (generation !== sessionGeneration || owner !== currentWaveOwner() || id !== get().selectedTaskId) return
       set({
         decisions: dec.items,
         trades: trades.items,
         detailLoading: false,
       })
     } catch (err) {
+      if (generation !== sessionGeneration || owner !== currentWaveOwner() || id !== get().selectedTaskId) return
       if (!silent) {
         set({
           detailLoading: false,
@@ -313,9 +320,15 @@ export const useAITradingStore = create<AITradingState>((set, get) => ({
 }))
 
 // Account/mode boundaries also invalidate in-flight responses and cached position traces.
+function resetLegacyView() {
+  sessionGeneration++
+  useAITradingStore.setState({ tasks: [], taskSlots: null, equityTraces: {}, equitySeries: {}, waveOwner: null, profitBars: [], profitTotalRealized: 0, profitTotalUnrealized: 0, profitTotalPnl: 0, profitOpenCount: 0, profitLoading: false, loading: false, error: null, selectedTaskId: null, decisions: [], trades: [], detailLoading: false })
+}
+// Changing transport invalidates pending legacy reads even on the same local profile.
+// This clears transient display state; persisted position history remains intact.
+onDesktopLoginChange(resetLegacyView)
 useAuthStore.subscribe((state, previous) => {
   if (state.user?.id === previous.user?.id && state.user?.trading_mode === previous.user?.trading_mode) return
-  sessionGeneration++
   clearWaveCache()
-  useAITradingStore.setState({ tasks: [], taskSlots: null, equityTraces: {}, equitySeries: {}, waveOwner: null, profitBars: [], profitTotalRealized: 0, profitTotalUnrealized: 0, profitTotalPnl: 0, profitOpenCount: 0, profitLoading: false, loading: false })
+  resetLegacyView()
 })

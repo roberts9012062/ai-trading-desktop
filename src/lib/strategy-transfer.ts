@@ -1,4 +1,5 @@
-import { downloadAuthenticatedFile } from "./download"
+import { downloadAuthenticatedFile, saveExportBlob } from "./download"
+import { localFavoritesEnabled, previewLocalFavorites, importLocalFavorites, exportLocalFavorites } from './local-strategy-favorites'
 
 export type TransferKind = "task" | "factor" | "shortline"
 export interface StrategyFile {
@@ -43,8 +44,19 @@ export function missingTransferModels(file: StrategyFile, preview: TransferPrevi
 }
 
 export const strategyTransfer = {
-  preview: (file: StrategyFile) => request<TransferPreview>("/preview", file),
-  import: (file: StrategyFile, destination: "tasks" | "favorites", auto_start: boolean, models: Record<string, string>) => request<{ imported: number; duplicates: number; items: { kind: TransferKind; id: string; status?: string; created?: boolean }[] }>("/import", { file, destination, auto_start: destination === "tasks" && auto_start, models }),
-  exportTask: (id: string) => downloadAuthenticatedFile(base() + `/tasks/${encodeURIComponent(id)}/export`, "cyclepilot-task.json"),
-  exportFavorites: (kind: TransferKind | "all", id?: string) => downloadAuthenticatedFile(base() + `/favorites/export?kind=${kind}${id ? `&favorite_id=${encodeURIComponent(id)}` : ""}`, `cyclepilot-${kind}-favorites.json`),
+  preview: (file: StrategyFile) => localFavoritesEnabled() ? previewLocalFavorites(file) : request<TransferPreview>("/preview", file),
+  import: async (file: StrategyFile, destination: "tasks" | "favorites", auto_start: boolean, models: Record<string, string>) => {
+    if (localFavoritesEnabled()) {
+      if (destination === 'tasks') throw new Error('请先导入收藏，再使用原有创建任务表单连接服务器确认账户和参数')
+      return importLocalFavorites(file)
+    }
+    return request<{ imported: number; duplicates: number; items: { kind: TransferKind; id: string; status?: string; created?: boolean }[] }>("/import", { file, destination, auto_start: destination === "tasks" && auto_start, models })
+  },
+  exportTask: async (id: string) => {
+    if (localFavoritesEnabled()) throw new Error('请从本地任务收藏卡片导出配置，不能使用旧任务编号读取服务器任务')
+    return downloadAuthenticatedFile(base() + `/tasks/${encodeURIComponent(id)}/export`, "cyclepilot-task.json")
+  },
+  exportFavorites: async (kind: TransferKind | "all", id?: string) => localFavoritesEnabled()
+    ? saveExportBlob(new Blob([JSON.stringify(await exportLocalFavorites(kind, id), null, 2)], { type: 'application/json' }), `cyclepilot-${kind}-favorites.json`)
+    : downloadAuthenticatedFile(base() + `/favorites/export?kind=${kind}${id ? `&favorite_id=${encodeURIComponent(id)}` : ""}`, `cyclepilot-${kind}-favorites.json`),
 }

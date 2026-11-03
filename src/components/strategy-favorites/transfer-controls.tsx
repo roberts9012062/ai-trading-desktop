@@ -3,6 +3,7 @@ import { Download, Upload, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useAuthStore } from "@/stores/auth"
+import { localFavoritesEnabled } from '@/lib/local-strategy-favorites'
 import { showAlert } from "@/stores/dialog"
 import { strategyTransfer, parseStrategyFile, missingTransferModels, TransferError, type TransferKind, type StrategyFile, type TransferPreview } from "@/lib/strategy-transfer"
 
@@ -35,7 +36,8 @@ export function StrategyImportDialog({ open, mode, onClose, onImported }: { open
   useEffect(() => { generation.current++; setFile(null); setPreview(null); setModels({}); setRun(false); setError(null); setDone(null); setFilename(""); setServerConflicts([]); setBusy(false) }, [open, account])
   const collisions = [...new Set([...(preview?.items.filter(i => i.conflict).map(i => i.symbol ?? "") ?? []), ...serverConflicts])]
   const tasks = preview?.items.filter(i => i.kind === "task") ?? []
-  const importTasks = mode === "tasks" && tasks.length > 0
+  const localFavorites = localFavoritesEnabled()
+  const importTasks = mode === "tasks" && tasks.length > 0 && !localFavorites
   async function read(selected?: File) {
     if (!selected) return
     const current = ++generation.current
@@ -71,6 +73,7 @@ export function StrategyImportDialog({ open, mode, onClose, onImported }: { open
   return <Dialog open={open} onOpenChange={value => { if (!value && !busy) onClose() }}>
     <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
       <DialogHeader><DialogTitle>{mode === "tasks" ? "任务导入" : "导入到策略收藏夹"}</DialogTitle><DialogDescription>选择导出的 JSON 文件，预览后确认。AI 任务、因子和短线因子会自动归类；配置不包含账户密钥、持仓或成交记录。</DialogDescription></DialogHeader>
+      {localFavorites && <p className="text-xs text-[var(--text-muted)]">配置保存在当前本地账户的收藏夹。创建交易任务请从收藏打开原有创建任务表单，在线确认服务器账户和参数。</p>}
       <label className="space-y-2 block text-sm">配置文件<input aria-label="选择配置文件" type="file" accept=".json,application/json" disabled={busy} className="block w-full rounded-md border border-[var(--border)] p-2 text-xs" onChange={e => { const selected = e.target.files?.[0]; e.target.value=""; void read(selected) }}/></label>
       {busy && !preview && <p role="status" className="text-xs">正在校验文件…</p>}
       {preview && file && <>

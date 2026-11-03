@@ -95,7 +95,7 @@ export default function AITradingPage(): React.JSX.Element {
   const shouldPoll = tasks.some(t => t.status === "running" || (t.position_qty ?? 0) > 0 || t.has_open_position)
   // Refreshes must not restart the slower timer every time tasks changes.
   useEffect(() => {
-    if (!shouldPoll) return
+    if (host || !shouldPoll) return
     const taskTimer = setInterval(() => {
       void loadTasks({ silent: true })
     }, 5000)
@@ -110,7 +110,7 @@ export default function AITradingPage(): React.JSX.Element {
       clearInterval(profitTimer)
       clearInterval(equityTimer)
     }
-  }, [shouldPoll, loadTasks, loadEquity, loadProfitBars])
+  }, [host, shouldPoll, loadTasks, loadEquity, loadProfitBars])
 
   const selectedTask = useMemo(
     () => tasks.find((t) => t.id === selectedTaskId) ?? null,
@@ -166,7 +166,7 @@ export default function AITradingPage(): React.JSX.Element {
 
       <TaskSlotSummary slots={taskSlots} />
       <ExecutionSnapshotPanel />
-      {error && (
+      {!host && error && (
         <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">
           {error}
         </div>
@@ -207,7 +207,7 @@ export default function AITradingPage(): React.JSX.Element {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
       />
-      <StrategyImportDialog open={importOpen} mode="tasks" onClose={() => setImportOpen(false)} onImported={() => { void loadTasks(); void loadTaskFavs() }} />
+      <StrategyImportDialog open={importOpen} mode="tasks" onClose={() => setImportOpen(false)} onImported={() => { if (!host) void loadTasks(); void loadTaskFavs() }} />
 
       <CreateQuantDialog
         open={quantOpen}
@@ -239,7 +239,7 @@ export default function AITradingPage(): React.JSX.Element {
         open={fromFavOpen}
         onClose={() => {
           setFromFavOpen(false)
-          void loadTasks()
+          if (!host) void loadTasks()
         }}
       />
 

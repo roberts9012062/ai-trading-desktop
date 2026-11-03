@@ -46,6 +46,12 @@ export async function downloadAuthenticatedFile(
   const blob = await res.blob()
   if (!blob.size) throw new Error("导出文件为空，请重试")
   if (blob.size > MAX_EXPORT_BYTES) throw new Error("导出文件超过 32 MB，请分批导出")
+  return saveExportBlob(blob, name)
+}
+
+/** Uses the same Save As flow for an already validated local configuration. */
+export async function saveExportBlob(blob: Blob, name: string): Promise<DownloadResult> {
+  if (!blob.size || blob.size > MAX_EXPORT_BYTES) throw new Error('导出文件大小无效，请分批导出')
   if (window.__TAURI_INTERNALS__) {
     const { invoke } = await import("@tauri-apps/api/core")
     try {

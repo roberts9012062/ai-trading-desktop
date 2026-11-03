@@ -10,6 +10,7 @@ import type { ShortlineTaskPayload } from "./mount"
 import { desktopTokensToServerV3 } from "../factor-access"
 import type { ExecutionSettings, ExecutionReview, ExecutionObservation } from "./execution-review"
 import { createServerTask } from '../server-task'
+import { tryLocalFavoriteRequest } from '../local-strategy-favorites'
 
 /** The desktop and server diverged after feature 35. Convert only at submission. */
 export function serverShortlinePayload(payload: ShortlineTaskPayload): ShortlineTaskPayload {
@@ -36,6 +37,8 @@ export interface ShortlineServerTask {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const local = await tryLocalFavoriteRequest('/api/shortline' + path, init)
+  if (local) return local.json() as Promise<T>
   const token =
     typeof window !== "undefined" ? localStorage.getItem("access_token") : null
   const resp = await fetch(`${API_BASE}/api/shortline${path}`, {

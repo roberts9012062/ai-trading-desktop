@@ -297,11 +297,15 @@ export interface LlmGenerateResult extends SearchResult {
   }
 }
 
+import { tryLocalFavoriteRequest } from './local-strategy-favorites'
+
 export async function factorLabRequest<T>(
   path: string,
   options: RequestInit = {},
   timeoutMs: number = SEARCH_TIMEOUT_MS,
 ): Promise<T> {
+  const local = await tryLocalFavoriteRequest(path, options)
+  if (local) return local.json() as Promise<T>
   const token =
     typeof window !== "undefined" ? localStorage.getItem("access_token") : null
   const headers: Record<string, string> = {
@@ -489,7 +493,7 @@ export async function addFactorFavorite(payload: {
   symbol?: string
   timeframe?: string
   composite?: number
-  metrics?: Partial<FactorMetrics> & { portfolio_snapshot?: PortfolioResult }
+  metrics?: FactorFavoriteItem['metrics']
   note?: string
   folder_id?: string | null
 }): Promise<FactorFavoriteItem> {

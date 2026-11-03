@@ -3,6 +3,7 @@
  * 策略收藏夹 API 客户端 —— 文件夹（因子/任务共用）+ AI 任务收藏
  */
 
+import { tryLocalFavoriteRequest } from './local-strategy-favorites'
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
 
 async function request<T>(
@@ -10,6 +11,8 @@ async function request<T>(
   options: RequestInit = {},
   timeoutMs = 30_000,
 ): Promise<T> {
+  const local = await tryLocalFavoriteRequest(path, options)
+  if (local) return local.json() as Promise<T>
   const token =
     typeof window !== "undefined" ? localStorage.getItem("access_token") : null
   const headers: Record<string, string> = {
