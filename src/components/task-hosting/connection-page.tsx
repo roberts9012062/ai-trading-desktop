@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { loginHost } from "@/lib/taskhost-client";
 import { loginStandalone } from "@/lib/taskhost-standalone";
 import { BrandLogo } from "@/components/common/brand-logo";
+import {selectedLocalHostProfile} from '@/lib/taskhost-local-profile';
 
 export default function HostConnectionPage() {
+  const localProfile=selectedLocalHostProfile();
   const navigate = useNavigate(),
     [mode, setMode] = useState<"server" | "standalone">("server");
   const [origin, setOrigin] = useState(() => {
@@ -70,6 +72,7 @@ export default function HostConnectionPage() {
           ))}
         </div>
         <form onSubmit={submit} className="space-y-5">
+          {mode==='server'&&<p className="rounded border border-[var(--border)] p-3 text-xs text-[var(--text-muted)]">{localProfile?`连接成功后会自动同步当前本地实盘配置“${localProfile.label}”的 API Collection Key 和 OKX 凭证，由服务器重新读取账户及持仓。不会创建、启动或恢复任务。`:'当前没有选中的本地实盘配置。连接后可在托管页配置数据；不会扫描其他账号或匿名存储。'}</p>}
           {mode === "server" && (
             <label className="block text-sm">
               服务器 IP 或 HTTPS 地址

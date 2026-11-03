@@ -1,10 +1,13 @@
 /** Official OKX public GETs only. No product JWT, account key or relay fallback. */
 import { invoke, isTauri } from '@tauri-apps/api/core'
+import {captureOkxConnectivity,okxReadReceived,okxReadUnavailable} from './okx-connectivity'
 import type { CollectionData, CollectionSymbol, CollectionBar, CollectionTick, CollectionQuote } from './collection-api'
 const periods: Record<string,string> = { '1':'1m', '5':'5m', '15':'15m', '30':'30m', '60':'1H', '240':'4H', '1D':'1D' }
 type Row = Record<string,unknown>
 export async function directPublicGet(path:string):Promise<unknown[]> {
   if(!/^\/api\/v5\/(?:public\/(?:instruments|time)|market\/(?:candles|history-candles|ticker|tickers|trades|books))(?:\?[^#]*)?$/.test(path)||path.includes('\\'))throw new Error('不支持的 OKX 行情请求')
+  const context=captureOkxConnectivity()
+  try{
   let data:{code:string;msg?:string;data:unknown[]}
   if(isTauri()) data=await invoke('okx_public_http',{path})
   else {
@@ -13,7 +16,8 @@ export async function directPublicGet(path:string):Promise<unknown[]> {
     data=await response.json()
   }
   if(data.code!=='0'||!Array.isArray(data.data))throw new Error(`OKX 直连读取失败 (code=${data.code??'invalid'})：${data.msg||'返回数据异常'}`)
-  return data.data
+  okxReadReceived(context,'market');return data.data
+  }catch(error){okxReadUnavailable(context,'market','direct');throw error}
 }
 export async function directSymbols():Promise<CollectionSymbol[]> {
   const rows=await directPublicGet('/api/v5/public/instruments?instType=SWAP') as Row[]

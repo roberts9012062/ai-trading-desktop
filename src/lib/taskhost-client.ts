@@ -1,5 +1,6 @@
 /** Go hosting sessions are separate from legacy JWT/account/executor state. */
 import type { ClientOptions } from "@tauri-apps/plugin-http";
+import {selectedLocalHostProfile} from './taskhost-local-profile';
 export type HostSession =
   | {
       mode: "server";
@@ -7,6 +8,8 @@ export type HostSession =
       token: string;
       ownerID: string;
       expiresAt: string;
+	  localProfileScope?:string;
+	  localProfileName?:string;
 	  centerScope?:string;
 	  centerUserID?:string;
     }
@@ -161,7 +164,8 @@ function hostFetch(url: string, options: RequestInit): Promise<Response> {
 }
 export async function loginHost(rawOrigin: string, key: string) {
   const origin = normalizeHost(rawOrigin),
-    started = epoch;
+    started = epoch,
+    selectedProfile = selectedLocalHostProfile();
   if (!/^thk_[A-Za-z0-9_-]{43}$/.test(key))
     throw new Error("请填写管理后台签发的完整登录密钥");
   const health = await parsed(
@@ -200,6 +204,7 @@ export async function loginHost(rawOrigin: string, key: string) {
     token: body.access_token,
     ownerID: body.owner_id,
     expiresAt: body.expires_at,
+    ...(selectedProfile&&selectedLocalHostProfile()?.scope===selectedProfile.scope?{localProfileScope:selectedProfile.scope,localProfileName:selectedProfile.label}:{}),
   };
   save(next);
   publish(next);
@@ -218,7 +223,7 @@ export async function hostRequest<T>(
     throw new Error("服务器会话已到期，请重新握手");
   }
   if (
-    !/^\/api\/v1\/(?:migrations\/(?:inspect|witness|pause|commit)|migration-requests\/[A-Za-z0-9_-]+|managed-task-requests\/[A-Za-z0-9_-]+|managed-capabilities|models|managed-tasks(?:\/[A-Za-z0-9_-]+(?:\/(?:configuration|events|register|reconcile|center-state|control|prepare-delete|prepare-resume))?)?|tasks(?:\/[A-Za-z0-9_-]+\/(?:start|pause))?|credentials(?:\/[A-Za-z0-9_-]+(?:\/(?:verify-account|verified-account|confirm-flat|recovery-state))?)?|collection(?:\/accounts|\/snapshots(?:\/[a-f0-9]{64})?)?|capabilities|session|logout)$/.test(
+    !/^\/api\/v1\/(?:client-sync|data\/status|migrations\/(?:inspect|witness|pause|commit)|migration-requests\/[A-Za-z0-9_-]+|managed-task-requests\/[A-Za-z0-9_-]+|managed-capabilities|models|managed-tasks(?:\/[A-Za-z0-9_-]+(?:\/(?:configuration|events|register|reconcile|center-state|control|prepare-delete|prepare-resume))?)?|tasks(?:\/[A-Za-z0-9_-]+\/(?:start|pause))?|credentials(?:\/[A-Za-z0-9_-]+(?:\/(?:verify-account|verified-account|confirm-flat|recovery-state))?)?|collection(?:\/accounts|\/snapshots(?:\/[a-f0-9]{64})?)?|capabilities|session|logout)$/.test(
       path,
     )
   )

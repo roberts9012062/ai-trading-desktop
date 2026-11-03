@@ -21,12 +21,15 @@ import {SnapshotPanel} from './snapshot-panel';
 import {readVerifiedAccount,verifyHostedAccount,type VerifiedAccountInfo} from '@/lib/taskhost-account';
 import {ManagedPanel} from './managed-panel';
 import {AccountPanel} from './account-panel';
+import {ClientSyncPanel} from './client-sync-panel';
+import {clientSyncStatus,onClientSyncChange} from '@/lib/taskhost-client-sync';
 
 const field =
   "w-full mt-2 p-2.5 rounded border border-[var(--border)] bg-[var(--bg-primary)]";
 const button =
   "rounded border border-[var(--border)] px-4 py-2 disabled:opacity-40";
 export default function HostingPage() {
+  const clientSync=useSyncExternalStore(onClientSyncChange,clientSyncStatus,clientSyncStatus);
   const session = useSyncExternalStore(
       onHostSessionChange,
       hostSession,
@@ -97,6 +100,7 @@ export default function HostingPage() {
     setAccountVerificationAvailable(false);
     if (session) void run(refresh);
   }, [session]); // Each identity owns its own response and view.
+  useEffect(()=>{if(session?.mode==='server'&&clientSync.syncedAt)void run(refresh)},[session,clientSync.syncedAt]);
   if (!session) return <div className="p-6">正在读取连接…</div>;
   const standalone = session.mode === "standalone";
   async function credential(event: React.FormEvent<HTMLFormElement>) {
@@ -154,6 +158,7 @@ export default function HostingPage() {
           {message}
         </p>
       )}
+      {!standalone&&<ClientSyncPanel/>}
       <ManagedPanel key={session.mode==='server'?`server:${session.origin}:${session.ownerID}`:`standalone:${session.scope}`} credentials={credentials} accounts={accounts}/>
       <div className="mb-7 rounded border border-[var(--border)] p-4 text-sm text-[var(--text-muted)]">
         {standalone

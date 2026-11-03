@@ -1,0 +1,5 @@
+import {afterEach,expect,it,vi} from 'vitest'
+import {selectedLocalHostProfile} from './taskhost-local-profile'
+afterEach(()=>vi.unstubAllGlobals())
+it('selects only the active real profile, never saved profiles or anonymous credentials',()=>{const reads:string[]=[];vi.stubGlobal('localStorage',{getItem:(key:string)=>{reads.push(key);return key==='qihuo_auth_user'?JSON.stringify({id:'user-a',username:'Active user',trading_mode:'live'}):key==='atd_desktop_server'?'https://old.example':null}});expect(selectedLocalHostProfile()).toEqual({scope:'https://old.example:user-a',label:'Active user'});expect(reads).not.toContain('atd_account_profiles')})
+it('refuses a missing, virtual, anonymous or invalid cached profile',()=>{for(const user of [null,{id:'anonymous',trading_mode:'live'},{id:'u',trading_mode:'virtual'},{id:'bad\nuser',trading_mode:'live'}]){vi.stubGlobal('localStorage',{getItem:(key:string)=>key==='qihuo_auth_user'?JSON.stringify(user):'https://old.example'});expect(selectedLocalHostProfile()).toBeNull()}})

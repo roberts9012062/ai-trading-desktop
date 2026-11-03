@@ -4,6 +4,8 @@ import { collectionMode, collectionScope, collectionGeneration, loadCollectionCo
 import { requireCollectionPrivate } from './collection-exchange'
 import { collectionHttpSlot } from './collection-api'
 import {serverAccountMode} from './account-transport'
+import {directOkxMode} from './market-provider'
+import {captureOkxConnectivity,okxReadReceived,okxReadUnavailable} from './okx-connectivity'
 
 const reads = new Map<string, Promise<Response>>()
 let localEpoch = 0
@@ -29,7 +31,10 @@ export async function tryLocalLiveRequest(path: string, options: RequestInit = {
     const execute = async () => {
       current()
       if (options.body != null && typeof options.body !== 'string') throw new Error('本机交易请求需要 JSON 内容')
-      const data = await invoke('desktop_local_exchange', { scope, path, method, body: options.body ? JSON.parse(options.body as string) : null, expectedBinding: expectedBinding ?? null })
+      const dataRead=method==='GET'&&['/api/live/account','/api/live/positions','/api/live/orders','/api/live/bills','/api/live/account-mode','/api/live/fee-rates'].includes(route),connectivity=captureOkxConnectivity(),source=directOkxMode()?'direct':'collection'
+      let data:unknown
+      try{data=await invoke('desktop_local_exchange', { scope, path, method, body: options.body ? JSON.parse(options.body as string) : null, expectedBinding: expectedBinding ?? null });current();if(dataRead)okxReadReceived(connectivity,'account')}
+      catch(error){if(dataRead){try{current();okxReadUnavailable(connectivity,'account',source)}catch{/* A retired account cannot warn in the new profile. */}}throw error}
       current()
       return new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } })
     }

@@ -3,6 +3,7 @@ import {directOkxMode} from './market-provider'
 import {getCollectionStream} from './collection-stream'
 import {getOkxSnippetWebSocket} from './okx-snippet-ws'
 import type {ChartSubscriptionKey,ConnectionState,MessageHandler,StateHandler} from './websocket'
+import {captureOkxConnectivity,okxReadReceived,okxReadUnavailable} from './okx-connectivity'
 
 /** Stable subscriptions survive scoped key changes. Only the selected transport
  * may publish, including callbacks already queued by a retired socket. */
@@ -35,10 +36,11 @@ class PublicMarketSocket {
     if(this.active===next&&this.epoch===epoch)return
     this.release();this.active=next;this.epoch=epoch
     const binding=this.binding
+    const connectivity=captureOkxConnectivity(),source=directOkxMode()?'direct':'collection'
     const current=()=>this.active===next&&this.binding===binding
     this.cleanup=[
-      next.onMessage(message=>{if(current())this.messages.forEach(fn=>fn(message))}),
-      next.onStateChange(state=>{if(current())this.states.forEach(fn=>fn(state))}),
+      next.onMessage(message=>{if(current()){okxReadReceived(connectivity,'stream');this.messages.forEach(fn=>fn(message))}}),
+      next.onStateChange(state=>{if(current()){if(state==='reconnecting')okxReadUnavailable(connectivity,'stream',source);this.states.forEach(fn=>fn(state))}}),
       next.onQuoteStateChange(state=>{if(current())this.quoteStates.forEach(fn=>fn(state))}),
       next.onQuoteFreshnessChange(symbols=>{if(current())this.freshness.forEach(fn=>fn(symbols))}),
     ]

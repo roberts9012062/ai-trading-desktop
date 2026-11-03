@@ -88,6 +88,11 @@ struct Status {
     account_id: String,
     checkpoint_seq: String,
     error_code: String,
+    data_source: String,
+    data_code: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data_observed_at: Option<String>,
+    data_stale: bool,
 }
 impl Status {
     fn initial(account: &str) -> Self {
@@ -98,6 +103,10 @@ impl Status {
             account_id: account.into(),
             checkpoint_seq: "0".into(),
             error_code: String::new(),
+            data_source: "none".into(),
+            data_code: String::new(),
+            data_observed_at: None,
+            data_stale: true,
         }
     }
 }
@@ -110,6 +119,10 @@ struct Event {
     account_id: Option<String>,
     checkpoint_seq: Option<String>,
     error_code: Option<String>,
+    data_source: Option<String>,
+    data_code: Option<String>,
+    data_observed_at: Option<String>,
+    data_stale: Option<bool>,
 }
 #[derive(Clone,Deserialize,Serialize)]
 #[serde(deny_unknown_fields)]
@@ -288,6 +301,7 @@ fn apply_event(status: &mut Status, line: &str) -> Result<(), String> {
         return Err("worker_protocol_invalid".into());
     }
     let v: Event = serde_json::from_str(line).map_err(|_| "worker_protocol_invalid")?;
+    let has_data = v.data_source.is_some() || v.data_code.is_some() || v.data_observed_at.is_some() || v.data_stale.is_some();
     if v.protocol != PROTOCOL
         || !["ready", "status", "stopped", "failed"].contains(&v.event.as_str())
         || (v.event == "stopped" && v.state != "stopped")
@@ -308,6 +322,14 @@ fn apply_event(status: &mut Status, line: &str) -> Result<(), String> {
             .as_ref()
             .is_some_and(|id| id != &status.account_id)
         || v.checkpoint_seq.as_ref().is_some_and(|n| !counter(n))
+        || (has_data && v.event != "status")
+        || v.data_source.as_ref().is_some_and(|value| !["direct", "collection", "none"].contains(&value.as_str()))
+        || v.data_code.as_ref().is_some_and(|value| !value.is_empty() && ![
+            "okx_direct_unavailable", "reader_closed", "read_not_allowed", "data_unavailable",
+            "authentication_failed", "identity_changed", "invalid_response", "request_rejected",
+            "data_settings_unavailable", "data_configuration_invalid",
+        ].contains(&value.as_str()))
+        || v.data_observed_at.as_ref().is_some_and(|value| value.len() > 40 || time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339).is_err())
         || v.error_code.as_ref().is_some_and(|c| {
             !c.is_empty()
                 && ![
@@ -331,6 +353,18 @@ fn apply_event(status: &mut Status, line: &str) -> Result<(), String> {
         .checkpoint_seq
         .unwrap_or_else(|| status.checkpoint_seq.clone());
     status.error_code = v.error_code.unwrap_or_default();
+    status.data_source = v.data_source.unwrap_or_else(|| "none".into());
+    status.data_code = v.data_code.unwrap_or_default();
+    status.data_observed_at = v.data_observed_at;
+    let recent_data = status.data_observed_at.as_ref().and_then(|value| time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339).ok()).is_some_and(|observed| {
+        let age = time::OffsetDateTime::now_utc() - observed;
+        observed.year() >= 2000 && age >= time::Duration::seconds(-10) && age <= time::Duration::seconds(60)
+    });
+    status.data_stale = v.data_stale.unwrap_or(true)
+        || status.event != "status"
+        || !recent_data
+        || (!status.data_code.is_empty() && status.data_code != "okx_direct_unavailable")
+        || !["direct", "collection"].contains(&status.data_source.as_str());
     Ok(())
 }
 async fn stop(r: &mut Running) -> Result<Value, String> {
@@ -673,6 +707,25 @@ mod tests {
             assert!(!serde_json::to_string(&status).unwrap().contains("secret"));
         }
         assert!(apply_event(&mut status,r#"{"protocol":"taskhost-go-worker-v1","event":"ready","state":"observing","checkpoint_seq":"0"}"#).is_ok());
+    }
+    #[test]
+    fn data_telemetry_is_whitelisted_status_only_and_never_a_stop_receipt() {
+        let account = "a".repeat(64);
+        let mut status = Status::initial(&account);
+        let observed = time::OffsetDateTime::now_utc().format(&time::format_description::well_known::Rfc3339).unwrap();
+        let event = json!({"protocol":PROTOCOL,"event":"status","state":"running","data_source":"collection","data_code":"okx_direct_unavailable","data_observed_at":observed,"data_stale":false});
+        assert!(apply_event(&mut status,&event.to_string()).is_ok());
+        assert_eq!(status.data_source,"collection");assert!(!status.data_stale);assert_eq!(status.event,"status");
+        let mut authentication=event.clone();authentication["data_code"]=json!("authentication_failed");
+        apply_event(&mut status,&authentication.to_string()).unwrap();assert!(status.data_stale);
+        for (field,value) in [("data_code",json!("synthetic-private-response")),("data_source",json!("https://private.invalid")),("event",json!("stopped")),("data_stale",json!("false"))] {
+            let mut malformed=event.clone();malformed[field]=value;
+            if field=="event"{malformed["state"]=json!("stopped");}
+            assert!(apply_event(&mut status,&malformed.to_string()).is_err());
+            assert!(!serde_json::to_string(&status).unwrap().contains("synthetic-private"));
+        }
+        let legacy=json!({"protocol":PROTOCOL,"event":"status","state":"observing"});
+        apply_event(&mut status,&legacy.to_string()).unwrap();assert!(status.data_stale);assert_eq!(status.data_source,"none");assert!(status.data_observed_at.is_none());
     }
     #[test]
     fn exact_counters_and_input_boundaries() {

@@ -15,6 +15,7 @@ mod execution_preparation;
 mod execution_runtime;
 mod execution_snapshot;
 mod taskhost_go;
+mod taskhost_client_sync;
 #[cfg(test)]
 mod updater_acceptance;
 
@@ -47,6 +48,7 @@ pub fn run() {
         .manage(local_store::LocalStoreState::default())
         .manage(execution_runtime::ExecutionRuntime::default())
         .manage(taskhost_go::GoWorkerState::default())
+        .manage(taskhost_client_sync::ClientSyncState::default())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
@@ -78,6 +80,8 @@ pub fn run() {
 			execution_runtime::taskhost_legacy_shutdown,
             taskhost_go::taskhost_go_worker,
             taskhost_go::taskhost_go_shutdown,
+            taskhost_client_sync::taskhost_client_sync_context,
+            taskhost_client_sync::taskhost_client_sync,
             native_engine::native_engine_spawn,
             native_engine::native_engine_status,
             native_engine::native_engine_kill,

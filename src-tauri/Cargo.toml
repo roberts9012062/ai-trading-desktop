@@ -1,6 +1,6 @@
 [package]
 name = "ai-trading-desktop"
-version = "0.2.215-go.5"
+version = "0.2.215-go.6"
 description = "AI Trading Desktop桌面客户端"
 authors = ["roberts9012062"]
 edition = "2021"
@@ -24,7 +24,7 @@ base64 = "0.22"
 ring = "0.17"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tokio = { version = "1", features = ["sync", "rt-multi-thread", "time", "process", "io-util", "macros"] }
-time = { version = "0.3", features = ["formatting"] }
+time = { version = "0.3", features = ["formatting", "parsing"] }
 zeroize = "1"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 rust_decimal = "1"

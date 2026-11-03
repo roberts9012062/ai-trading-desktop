@@ -1,6 +1,6 @@
 import {afterEach,expect,it,vi} from 'vitest'
 const f=vi.hoisted(()=>({direct:true,epoch:0,loading:false,change:null as null|(()=>void)}))
-vi.mock('./collection-config',()=>({collectionMode:()=>true,collectionGeneration:()=>f.epoch,collectionStatus:()=>({loading:f.loading}),loadCollectionConfig:async()=>{},onCollectionChange:(fn:()=>void)=>{f.change=fn}}))
+vi.mock('./collection-config',()=>({collectionMode:()=>true,collectionScope:()=>`fixture-profile:${f.epoch}`,collectionGeneration:()=>f.epoch,collectionStatus:()=>({loading:f.loading}),loadCollectionConfig:async()=>{},onCollectionChange:(fn:()=>void)=>{f.change=fn}}))
 vi.mock('./market-provider',()=>({directOkxMode:()=>f.direct}))
 function transport(){return {state:'connected',connect:vi.fn(),disconnect:vi.fn(),setQuoteSymbols:vi.fn(),setDepthSymbols:vi.fn(),setChartSubscription:vi.fn(),observeVersion:vi.fn(),hasFreshQuote:()=>true,hasFreshDepth:()=>true,hasFreshCandle:()=>true,hasFreshTrades:()=>true,onMessage:vi.fn(()=>vi.fn()),onStateChange:vi.fn(()=>vi.fn()),onQuoteStateChange:vi.fn(()=>vi.fn()),onQuoteFreshnessChange:vi.fn(()=>vi.fn())}}
 const sockets=vi.hoisted(()=>({direct:null as any,collection:null as any}))

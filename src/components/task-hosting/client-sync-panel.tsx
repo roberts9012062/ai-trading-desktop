@@ -1,0 +1,14 @@
+import {useSyncExternalStore} from 'react'
+import {clientSyncStatus,onClientSyncChange,syncCurrentClientConfiguration,refreshClientServerData,serverAccountDataFresh,serverAccountDataIssue,validServerObservation} from '@/lib/taskhost-client-sync'
+const labels={idle:'等待服务器连接',syncing:'正在同步当前本地配置…',synced:'当前本地配置已同步',unavailable:'本次配置同步未确认。可手动核对并重试；不会自动重发。',missing_profile:'没有绑定当前本地实盘配置。请选中原配置后重新连接服务器。',profile_changed:'本地账号已切换。请重新连接服务器以绑定当前配置，不会把新账号同步给旧连接。',missing_configuration:'当前本地配置中没有已保存的 API Collection Key 或 OKX 凭证。',native_required:'自动读取加密配置需要桌面应用；浏览器不会导出本地凭证。'}
+export function ClientSyncPanel(){
+ const state=useSyncExternalStore(onClientSyncChange,clientSyncStatus,clientSyncStatus),busy=state.state==='syncing',blocked=['missing_profile','profile_changed','native_required','idle'].includes(state.state)
+ return <section id="client-data-sync" className="mb-7 rounded border border-[var(--border)] p-4 text-sm space-y-3" aria-labelledby="client-sync-title">
+  <h2 id="client-sync-title" className="font-semibold">本地配置与服务器数据</h2>
+  <p role="status" className="text-[var(--text-secondary)]">{labels[state.state]}{state.profileName?` · ${state.profileName}`:''}</p>
+  {state.state==='synced'&&<p className="text-xs text-[var(--text-muted)]">已同步 {state.credentialCount??0} 个 OKX 配置 · API Collection {state.collectionConfigured?'已配置':'未配置'}。凭证在本机和服务器加密保存；这不授予交易执行权。</p>}
+  <div className="flex flex-wrap gap-3"><button className="rounded border border-[var(--border)] px-3 py-2 disabled:opacity-40" disabled={busy||blocked} onClick={()=>void syncCurrentClientConfiguration(true)}>重新同步当前配置</button><button className="rounded border border-[var(--border)] px-3 py-2 disabled:opacity-40" disabled={busy||blocked} onClick={()=>void refreshClientServerData()}>核对服务器数据</button><a href="https://lium.eu.org/" target="_blank" rel="noreferrer" className="self-center text-emerald-500 underline">配置或获取 API Collection Key</a></div>
+  {state.data?.accounts.map(account=><div key={account.credential_id} className="rounded bg-[var(--bg-primary)] p-3 text-xs space-y-1"><p>{account.label||'OKX 账户'} · {account.demo?'模拟环境':'实盘环境'} · {account.source==='collection'?'API Collection':account.source==='direct'?'服务端直连 OKX':'数据源待核对'}</p><p className={serverAccountDataFresh(account)?'text-emerald-500':'text-amber-500'}>{serverAccountDataFresh(account)?`服务器新鲜读取：${account.positions.length} 条持仓、${account.balances.length} 条余额记录`:'账户数据尚未取得新鲜确认；保留记录不能视为当前持仓。'}{validServerObservation(account.observed_at)?` · 最近成功读取 ${new Date(account.observed_at!).toLocaleString()}`:''}</p>{serverAccountDataIssue(account)&&<p role="status" className="text-amber-500">{serverAccountDataIssue(account)}</p>}</div>)}
+  <p className="text-xs text-[var(--text-muted)]">已有本机持仓不会被当作服务器执行依据。服务器会独立核对真实账户；任务创建、恢复和交易操作仍需单独完成。</p>
+ </section>
+}

@@ -160,6 +160,11 @@ pub(crate) fn read_key(app: &tauri::AppHandle, scope: &str) -> Result<Zeroizing<
     ))
 }
 
+pub(crate) fn saved_key(app:&tauri::AppHandle,scope:&str)->Result<Option<Zeroizing<String>>,String>{
+    if !key_path(app,scope)?.try_exists().map_err(|_|"无法读取当前账号的数据 Key 配置")?{return Ok(None)}
+    read_key(app,scope).map(Some)
+}
+
 async fn request(
     state: &MarketDataState,
     key: &str,
